@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { getPriority } from 'node:os';
 import { test } from 'node:test';
-import { TEST_NICE, lowerTestPriority } from '../../../src/io/run/priority.js';
+import { TEST_NICE } from '../../../src/io/run/priority.js';
+import { lowerTestPriority } from '../../../src/io/run/priority.js';
 
 /** Starts a long idle child at the CLI's priority, hands it to the check, and always stops it. */
 async function withIdleChild(check) {
