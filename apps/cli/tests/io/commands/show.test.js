@@ -151,20 +151,22 @@ function firstSeededId(box) {
   try { return Number(db.prepare("SELECT item_id AS id FROM item WHERE item_title LIKE 'Seeded item %' ORDER BY item_id LIMIT 1").get().id); } finally { db.close(); }
 }
 
-/** Runs one `show` as its own process with a git shim on the PATH, and returns the exit code with the git argument lines the process spawned. */
-function showCountingGit(box, id) {
+/** Runs one `show` in this process with a git shim on the PATH, and returns the exit code with the git argument lines the process spawned. */
+async function showCountingGit(box, id) {
   const files = privateFixtureFiles('show-git-');
   files.write('git.log', '');
   const log = `${files.root}/git.log`;
   const real = box.env.PATH.split(':').map((dir) => `${dir}/git`).find((path) => { try { return readFileSync(path).length > 0; } catch { return false; } });
   files.write('bin/git', `#!/bin/sh\necho "$@" >> '${log}'\nexec '${real}' "$@"\n`);
   chmodSync(`${files.root}/bin/git`, 0o755);
-  const before = box.env.PATH;
-  box.env.PATH = `${files.root}/bin:${before}`;
+  const before = process.env.PATH;
+  const boxBefore = box.env.PATH;
+  process.env.PATH = `${files.root}/bin:${before}`;
+  box.env.PATH = process.env.PATH;
   try {
-    const shown = box.run(box.web, 'show', String(id));
+    const shown = await box.inProcess(box.web, 'show', String(id));
     return { code: shown.code, err: shown.err, calls: readFileSync(log, 'utf8').split('\n').filter(Boolean) };
-  } finally { box.env.PATH = before; }
+  } finally { process.env.PATH = before; box.env.PATH = boxBefore; }
 }
 
 /** The git calls that are startup policy, pinned-tool-build or rowOrigins reads: a `git show` of a committed file or a `git blame`. */
@@ -175,9 +177,9 @@ function startupReads(calls) {
 test('cli.io-commands-show.startup-reads-cached: clause 1: [C7,#3281] a repeat show at an unchanged main tip and HEAD runs none of the policyGit, pinned-tool-build or rowOrigins git reads', async (t) => {
   const box = largeBoard(t);
   const id = firstSeededId(box);
-  const first = showCountingGit(box, id);
+  const first = await showCountingGit(box, id);
   assert.equal(first.code, 0, first.err);
-  const second = showCountingGit(box, id);
+  const second = await showCountingGit(box, id);
   assert.equal(second.code, 0, second.err);
   console.log(`# git calls: first show ${first.calls.length}, second show ${second.calls.length}`);
   assert.deepEqual(startupReads(second.calls), [], 'the second show asks git for no committed file and runs no blame');
