@@ -185,3 +185,13 @@ test('fs.io-fs.chown: clause 2: chown calls chownSync with the path, uid and gid
   assert.equal(fs.chown('/file', 501, 20), 'done');
   assert.deepEqual(calls, [['/file', 501, 20]]);
 });
+
+test('fs.adapter.realpath-native-delegates: clause 1: realpathNative calls the injected source realpathSync.native, not realpathSync [C7]', () => {
+  const calls = [];
+  const realpathSync = () => 'plain';
+  realpathSync.native = (...args) => { calls.push(args); return 'native'; };
+  const fs = fileSystemAdapter({ realpathSync });
+  assert.equal(fs.realpathNative('/a'), 'native');
+  assert.equal(fs.realpath('/a'), 'plain');
+  assert.deepEqual(calls, [['/a']]);
+});
