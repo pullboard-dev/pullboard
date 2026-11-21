@@ -1,0 +1,4 @@
+{
+  "view.logic-pipeline-watch.clock-model": {"proves":{"specs":["C7","N26"],"claim":"pipelineWatchModel carries project.clock and returns null when the project has no clock."},"why":"Without this case the watch could show a fabricated clock or lose the clock delivered by board state.","kind":"cell unit","inputs":["apps/view/tests/logic/pipeline/watch.test.js","apps/view/src/logic/pipeline/watch.js"]},
+  "view.logic-pipeline-watch.clock-html": {"proves":{"specs":["C7","N26"],"claim":"pipelineWatchHtml renders the without-owner alarm pill, overdue count and age, and each named stuck group clock deadline and default move."},"why":"Without this case clock alarms and the board's next moves could disappear from the Pipeline watch.","kind":"cell unit","inputs":["apps/view/tests/logic/pipeline/watch.test.js","apps/view/src/logic/pipeline/watch.js"]}
+}
