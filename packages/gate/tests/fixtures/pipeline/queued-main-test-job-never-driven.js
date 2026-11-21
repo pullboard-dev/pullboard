@@ -41,7 +41,7 @@ function queue(db, id, tree, now) {
 test('a queued main-test job is offered at its main commit, or ended unoffered with why: none is left queued [C7,P7]', async t => {
   await hopCheck('main-test-offered', async () => {
     const main = trunk(t);
-    const board = cellBoard(t, ':memory:', undefined, { gitRoot: main.root });
+    const board = cellBoard(t, ':memory:', undefined, { gitRoot: main.root, real: true });
     const gone = 'f'.repeat(40);
     queue(board.db, 'main-test:on-trunk', main.tree, 1000);
     queue(board.db, 'main-test:off-trunk', gone, 1000);

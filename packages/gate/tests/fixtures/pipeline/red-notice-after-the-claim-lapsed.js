@@ -27,7 +27,7 @@ const LEASE_MS = 60_000;
 function redClaim(t) {
   const repo = cellRepo(t);
   const clock = { at: START, now() { return new Date(this.at); } };
-  const board = cellBoard(t, repo.boardFile, clock, { gitRoot: repo.root });
+  const board = cellBoard(t, repo.boardFile, clock, { gitRoot: repo.root, real: true });
   const seat = cellSeat(board, { lane: 'web', path: repo.root });
   const item = cellItem(board, { lane: 'web', title: 'Red page', criterion: 'The page renders.', specIds: ['G1'], check: 'true' });
   cellClaim(board, item.item_id, seat, { root: repo.root, leaseMs: LEASE_MS });
