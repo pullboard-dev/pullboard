@@ -13,7 +13,7 @@ const STORES = JSON.stringify({ stores: { 'table:item': { kind: 'table', owner: 
 
 /** Run the registered check on candidate files with a baseline, and main's baseline as `accepted`. */
 function judge(files, { baseline = {}, accepted = null } = {}) {
-  const tree = { [REGISTRY]: STORES, [BOARD_WRITER_BASELINE]: JSON.stringify(baseline), ...files };
+  const tree = { ...files, [REGISTRY]: STORES, [BOARD_WRITER_BASELINE]: JSON.stringify(baseline) };
   const check = STATIC_CHECKS.find(row => row.name === 'board-write-outside-sequencer');
   return check.run({
     files: Object.keys(files),
