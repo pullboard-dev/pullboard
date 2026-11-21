@@ -25,6 +25,13 @@ const CALL_MS = 120_000;
 const RUNNER_WORKERS = 1;
 /** Runner job actions safe to name in health; request fields other than this canonical name stay out of pool state. */
 const RUNNER_ACTIONS = Object.freeze(['claim', 'renew', 'progress', 'receipt']);
+/**
+ * How many worker losses in a row, with no call answered between them, make the pool unhealthy. Why: on 20 Nov every
+ * worker died at start (ENOENT uv_cwd, ~130 a second) and every runner claim got API_WORKER_FAILED for 2.5 h while health said ok.
+ */
+const FAILING_AFTER = 10;
+/** How long a loss counts toward unhealthy; a streak older than this is history, not a live fault. */
+const FAILING_MS = 60_000;
 
 /** The pool size this machine's cores give: one core stays with the request thread, and at least two workers run. */
 export function handlerPoolSize(cores = availableParallelism()) {
@@ -50,6 +57,9 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
   const reserved = Math.max(0, Math.min(runnerWorkers, size - 1));
   let nextId = 0;
   let closed = false;
+  // Consecutive worker losses since a worker last answered a call, and when the latest one happened.
+  let lostInARow = 0;
+  let lostAt = 0;
 
   /** A refusal naming a full pool, so a client backs off instead of waiting on a hung call. */
   const busy = (route, runner) => new Refused('API_BUSY', `every one of the API's ${runner ? size : size - reserved} handler workers ${runner ? '' : 'open to agent calls '}is busy, so ${route} was not started; retry in a few seconds`);
@@ -68,6 +78,7 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
     worker.on('message', (message) => {
       const call = slot.call;
       if (!call || call.id !== message.id) return;
+      lostInARow = 0;
       finish(slot);
       if (message.error) call.fail(workerError(message.error, Refused));
       else call.ok(message.value);
@@ -76,6 +87,8 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
       if (slot.worker !== worker || closed) return;
       const call = slot.call;
       clearTimeout(slot.deadline);
+      lostInARow++;
+      lostAt = Date.now();
       onFailure?.(error);
       call?.fail(new Refused('API_WORKER_FAILED', `the handler worker running ${call.route} stopped (${error?.message ?? error}); retry`));
       if (closed) return;
@@ -144,7 +157,8 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
         const active = slots.filter((slot) => slot.call?.runner && slot.call.action === action);
         return [action, { busy: active.length, oldestMs: active.length ? now - Math.min(...active.map((slot) => slot.started)) : 0 }];
       }));
-      return { workers: size, runnerWorkers: reserved, busy: held.length, queued: queue.length + runnerQueue.length, oldestMs: held.length ? now - Math.min(...held.map((slot) => slot.started)) : 0, runnerActions };
+      const failing = lostInARow >= FAILING_AFTER && now - lostAt <= FAILING_MS;
+      return { ok: !failing, ...(failing ? { error: { code: 'API_WORKER_FAILED', message: `${lostInARow} handler workers in a row stopped before answering a call; restart the serve` } } : {}), lostInARow, workers: size, runnerWorkers: reserved, busy: held.length, queued: queue.length + runnerQueue.length, oldestMs: held.length ? now - Math.min(...held.map((slot) => slot.started)) : 0, runnerActions };
     },
     /** End every worker and refuse every queued call. */
     close() {
