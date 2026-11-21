@@ -28,7 +28,7 @@ function crowded(box) {
 }
 
 test('cli.io-next-cap-builders.cli-next-cap-builders-with-next-capbuilders: cli.next.cap-builders.with-next-capbuilders-on-and-builders: clause 1: with next.capBuilders on and builders past the cap, next offers a review instead of a build [C7,#8545]', async t => {
-  const box = await fixture(t);
+  const box = await fixture(t, { seats: ['actor', 'builder'] });
   const { review, open } = crowded(box);
   nextSettings({ capBuilders: 1 });
   const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
@@ -39,7 +39,7 @@ test('cli.io-next-cap-builders.cli-next-cap-builders-with-next-capbuilders: cli.
 });
 
 test('cli.io-next-cap-builders.cli-next-cap-builders-next-capbuilders-is: cli.next.cap-builders.next-capbuilders-is-off-by-default: clause 2: next.capBuilders is off by default and next answers as before [C7,#8545]', async t => {
-  const box = await fixture(t);
+  const box = await fixture(t, { seats: ['actor', 'builder'] });
   crowded(box);
   assert.equal(nextCapBuilders(), 0, 'the default is off');
   const unset = await cli(box, box.seats.actor.path, ['next', '--take']);

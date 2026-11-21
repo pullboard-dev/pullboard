@@ -1,0 +1,4 @@
+{
+  "cli.io-test-pull.stuck-waiter-stops": {"proves":{"specs":["C7"],"claim":"a detached test-run waiter whose runner job lapsed past the wait deadline stops heartbeating and renewing, records the run not finished and exits"},"why":"A dead runner's job left its waiter heartbeating the seat for hours, so lapsed claims were never released.","kind":"journey","inputs":["apps/cli/src/io/test/pull.js","packages/drive/src/io/queue.js"]},
+  "cli.io-test-pull.progressing-waiter-lives": {"proves":{"specs":["C7"],"claim":"a detached test-run waiter whose runner job keeps its lease keeps waiting past the wait deadline until the receipt arrives"},"why":"Stopping only stalled waiters must not cut a long run whose runner is alive.","kind":"journey","inputs":["apps/cli/src/io/test/pull.js"]}
+}

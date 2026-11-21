@@ -27,6 +27,7 @@ import { waitLines } from '../../index.js';
 import { waitsSnapshot } from '../../index.js';
 import { startServeSentinel } from '../../index.js';
 import { localCensus } from '../../src/io/surfaces.js';
+import { readHeartbeatClaims } from '../../src/io/surfaces.js';
 import { readRunnerJobs } from '../../src/io/surfaces.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { waitForCondition } from '../../../gate/tests/fixtures/runner/holders.js';
@@ -323,6 +324,50 @@ test('sentinels.waits.orphan-heartbeat-claim-returned: a claim kept alive only b
   await waitForCondition(() => gone(loop), 'the heartbeat loop stops');
   assert.equal(m.board.db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(id).item_status, 'open', 'next can hand the item to a live seat');
   assert.ok(recorded.reclaimed.some(line => line.includes(`#${id}: released`)));
+});
+
+/**
+ * The held wait as its audit row recorded it: two agent tool shells, each a zsh whose command loops on `pullboard
+ * heartbeat`, both in an agent's scratch workspace that no claimed seat lives in, with a live parent, 7 minutes old.
+ * The claimed seat gets the same pair, so a real duplicate is still caught.
+ */
+function heldScratchLoops(t) {
+  const m = machine(t);
+  const scratch = join(m.root, 'scratch-workspaces', 'scratch-2026-11-18-d9f11e');
+  const worktree = join(m.root, 'seat');
+  mkdirSync(scratch, { recursive: true });
+  mkdirSync(worktree);
+  const seat = register(m.board, { lane: 'core', path: worktree });
+  const id = addItem(m.board, { by: 'coordinator', lane: 'core', title: 'Held work', criterion: 'It works.' });
+  claim(m.board, id, { agentId: seat, lane: 'core', leaseMs: 4 * 3_600_000, head: 'a'.repeat(40),
+    freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' }) });
+  const command = '/bin/zsh -c source /home/agent/.claude/shell-snapshots/snapshot-zsh-1.sh 2>/dev/null || true && '
+    + '{ while true; do pullboard heartbeat; sleep 60; done }';
+  const parent = { pid: 900_000, ppid: 1, ageMs: 60 * MINUTE, started: 'Fri Nov 20 19:00:00 2026', command: '/usr/local/bin/claude' };
+  const shell = (pid, ageMs) => ({ pid, ppid: parent.pid, ageMs, started: 'Fri Nov 20 19:50:04 2026', command });
+  const census = new Map([parent, shell(900_001, 7 * MINUTE), shell(900_002, 7 * MINUTE), shell(900_003, 7 * MINUTE),
+    shell(900_004, 7 * MINUTE)].map(row => [row.pid, row]));
+  const cwd = new Map([[900_001, scratch], [900_002, scratch], [900_003, worktree], [900_004, worktree]]);
+  const rows = readHeartbeatClaims(m.paths.boardFile, Date.now(), census, { cwds: pids => new Map(pids.filter(pid => cwd.has(pid))
+    .map(pid => [pid, cwd.get(pid)])), commitMs: () => Date.now() });
+  return { rows, seat, scratch };
+}
+
+test('sentinels.waits.scratch-loops-hold-nothing: clause 1: duplicate heartbeat loops in a folder no claimed seat lives in are no heartbeat-loop wait, while duplicates in a claimed seat still are [C7]', t => {
+  const { rows, seat } = heldScratchLoops(t);
+  const loops = rows.filter(row => row.surface === 'heartbeat-loop');
+  assert.deepEqual(loops.map(row => row.key), [`heartbeat-loop:${seat}`], 'only the claimed seat\'s duplicate is a wait');
+  assert.equal(loops[0].pid, 900_004);
+  assert.equal(loops[0].detail, 'duplicate: 2 loops in this worktree');
+});
+
+test('sentinels.waits.scratch-loops-within-budget: clause 2: the held scratch-workspace heartbeat loops from the audit evidence end within their orphanMs budget [C7]', t => {
+  const { rows, scratch } = heldScratchLoops(t);
+  const judged = judgeWaits(rows, waitBudgets());
+  const held = judged.filter(row => row.surface === 'heartbeat-loop' && row.key.includes(scratch));
+  assert.deepEqual(held, [], 'the scratch-workspace loops hold no wait, so none can stay over orphanMs');
+  const seatDuplicate = judged.find(row => row.surface === 'heartbeat-loop');
+  assert.ok(seatDuplicate, 'the claimed seat\'s duplicate is still judged');
 });
 
 test('sentinels.waits.view-runs-audit-every-minute: the view runs the wait audit every minute, one pass at a time per board [C7]', async () => {

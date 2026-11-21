@@ -294,6 +294,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--health': 'adds each runner\'s health',
   '--lag': 'adds how far each runner trails the board',
   '--main-lag': 'adds how far each runner trails main',
+  '--min-items': 'the fewest unrelated items that must fail a test file to list it',
 });
 
 /** The bare flag a usage fragment starts with. */

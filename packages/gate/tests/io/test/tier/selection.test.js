@@ -15,6 +15,17 @@ import { narrowConfinedTiers } from '../../../../src/io/test/tier/narrow.js';
 import { fixture as repository } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
 import { frozen } from './frozen.js';
+import { H_TEST } from './frozen.js';
+import { SRC_TEST } from './frozen.js';
+import { LONE_TEST } from './frozen.js';
+import { HELPER } from './frozen.js';
+import { CELL_TESTS } from './frozen.js';
+import { NARROW_CONFIG } from './frozen.js';
+import { sealedCell } from './frozen.js';
+import { planWith } from './frozen.js';
+import { READS_TEST } from './frozen.js';
+import { NAMED_TEST } from './frozen.js';
+import { readerCell } from './frozen.js';
 import { change } from './frozen.js';
 import { OTHER_TEST } from './frozen.js';
 import { MIXED_TEST } from './frozen.js';
@@ -87,46 +98,6 @@ test('gate.io-test-tier-selection.a-project-with-no-tier: clause 3: a project wi
     for (const file of DEFAULT_CANARY) assert.ok(plan.proofFiles.includes(file), `${submitGate ?? 'immediate'} submit runs ${file}: ${plan.proofFiles}`);
   }
 });
-
-const H_TEST = 'packages/alpha/tests/uses-helper.test.js';
-const SRC_TEST = 'packages/alpha/tests/uses-source.test.js';
-const LONE_TEST = 'packages/alpha/tests/alone.test.js';
-const HELPER = 'packages/alpha/tests/helpers/h.js';
-const CELL_TESTS = [LONE_TEST, SRC_TEST, H_TEST];
-const NARROW_CONFIG = { gate: 'true', affectedTests: 'node --test', submitInvariants: [], registryGuards: [] };
-
-/** A sealed cell with three tests: one imports a test helper, one the cell's source, one nothing; the canary files ride at main. */
-function sealedCell(t) {
-  const { root, put } = repository(t);
-  const listing = { version: 1, journeys: {}, pureHelpers: {}, leaves: [], findings: {}, rootTests: 0, sealed: ['alpha'], splits: {} };
-  put('package.json', '{"type":"module"}\n');
-  put('packages/alpha/index.js', 'export { a } from "./src/core/a.js";\n');
-  put('packages/alpha/src/core/a.js', 'export const a = 1;\n');
-  put('packages/alpha/data/rows.json', '{"rows":1}\n');
-  put(HELPER, 'export const h = 1;\n');
-  put(H_TEST, 'import { h } from "./helpers/h.js";\nvoid h;\n');
-  put(SRC_TEST, 'import { a } from "../index.js";\nvoid a;\n');
-  put(LONE_TEST, 'import assert from "node:assert/strict";\nassert.ok(true);\n');
-  for (const file of DEFAULT_CANARY) put(file, "import assert from 'node:assert/strict';\nassert.ok(true);\n");
-  put('packages/gate/data/tests/test-cells.json', JSON.stringify(listing));
-  put('packages/gate/data/ceilings/cells-edges.json', JSON.stringify({ files: { 'packages/alpha/src/core/a.js': { cells: 0, deep: 0 } }, cells: { alpha: { imports: [], deepImporters: 0 } } }));
-  put('packages/codemap/data/plan/01-alpha.json', JSON.stringify({ order: 1, name: 'alpha', kind: 'package', root: 'packages/alpha', frontDoor: 'packages/alpha/index.js', paths: [['src/a.js', 'packages/alpha/src/core/a.js', 'seed']] }));
-  git(root, 'add', '-A');
-  writeTestTiers(root);
-  git(root, 'add', '-A');
-  git(root, 'commit', '-q', '-m', 'base');
-  return { root, put, base: git(root, 'rev-parse', 'HEAD').trim() };
-}
-
-/** Commit edits to the sealed cell's existing files, and plan the submit gate with the repo key given. */
-function planWith(box, edits, key) {
-  for (const [file, source] of Object.entries(edits)) box.put(file, source);
-  git(box.root, 'add', '-A');
-  git(box.root, 'commit', '-q', '-m', 'change');
-  const commit = git(box.root, 'rev-parse', 'HEAD').trim();
-  const config = { ...NARROW_CONFIG, ...(key === undefined ? {} : { confinedImportSelection: key }) };
-  return { commit, plan: submitGatePlan(box.root, config, { base: box.base, commit }) };
-}
 
 test('gate.io-test-tier-selection.confined-import-narrows-tests: clause 1: a test helper edit under tests plans only its importer and the canary, and the key absent or off plans all three [C7]', t => {
   const box = sealedCell(t);
@@ -273,23 +244,6 @@ test('gate.io-test-tier-selection.reads-declared-leading-comments-only: clause 1
   assert.deepEqual(reads.get('packages/gate/tests/gone.test.js'), []);
 });
 
-const READS_TEST = 'packages/alpha/tests/reads-fixture.test.js';
-const NAMED_TEST = 'packages/alpha/tests/reads-named.test.js';
-const FIXTURE_READ = "import { readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nreadFileSync(join(import.meta.dirname, 'fixtures', 'rows.json'));\n";
-
-/** The sealed cell plus a test that reads a cell fixture no header names, and one that names the same read in a header. */
-function readerCell(t) {
-  const box = sealedCell(t);
-  box.put('packages/alpha/tests/fixtures/rows.json', '{}\n');
-  box.put(READS_TEST, FIXTURE_READ);
-  box.put(NAMED_TEST, `/** @pullboard-test-input packages/alpha/tests/fixtures/rows.json */\n${FIXTURE_READ}`);
-  git(box.root, 'add', '-A');
-  writeTestTiers(box.root);
-  git(box.root, 'add', '-A');
-  git(box.root, 'commit', '-q', '-m', 'readers');
-  return { ...box, base: git(box.root, 'rev-parse', 'HEAD').trim() };
-}
-
 test('gate.io-test-tier-selection.test-only-change-keeps-undeclared-readers: clause 1: with confinedImportSelection tests, a test whose read firstUndeclaredRead reports as undeclared is selected when it sits in the narrowed cell or its undeclared read is a path inside it [C7]', t => {
   const edit = { [LONE_TEST]: 'import assert from "node:assert/strict";\nassert.ok(3);\n' };
   const plan = planWith(readerCell(t), edit, 'tests').plan;
@@ -307,16 +261,3 @@ test('gate.io-test-tier-selection.test-only-change-keeps-undeclared-readers: cla
   }
 });
 
-test('gate.io-test-tier-selection.test-only-change-keeps-undeclared-readers-real-path: clause 2: submitGatePlan with confinedImportSelection tests plans fewer than 30 proof files for the landed diff of #11202 and every cell test for a one-line product source edit, and the setting off equals the absent key [C7]', t => {
-  const root = git(import.meta.dirname, 'rev-parse', '--show-toplevel').trim();
-  const commit = '76035f0c70';
-  const base = git(root, 'rev-parse', `${commit}^1`).trim();
-  const plan = key => submitGatePlan(root, { ...NARROW_CONFIG, ...(key === undefined ? {} : { confinedImportSelection: key }) }, { base, commit: git(root, 'rev-parse', commit).trim() });
-  const narrowed = plan('tests');
-  assert.ok(narrowed.proofFiles.length < 30, `fewer than 30 proof files: ${narrowed.proofFiles.length}: ${narrowed.proofFiles.slice(0, 40)}`);
-  for (const file of ['apps/cli/tests/io/commands/gate/slot.test.js', 'apps/cli/tests/stable.test.js']) assert.ok(narrowed.proofFiles.includes(file), `${file} is planned: ${narrowed.proofFiles}`);
-  assert.deepEqual(plan('off').proofFiles, plan().proofFiles, 'with the setting off the proof files equal the absent key');
-  const box = readerCell(t);
-  const source = planWith(box, { 'packages/alpha/src/core/a.js': 'export const a = 2;\n' }, 'tests').plan;
-  for (const file of [...CELL_TESTS, READS_TEST, NAMED_TEST]) assert.ok(source.proofFiles.includes(file), `a product source line keeps ${file}: ${source.proofFiles}`);
-});

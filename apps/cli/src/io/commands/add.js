@@ -36,6 +36,7 @@ import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.j
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
+import { cutItem } from '../../../../../packages/items/index.js';
 import { requireLinkedForeign } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
@@ -173,8 +174,9 @@ export async function run(io, args) {
     for (const event of recovered.events) io.onEvent?.(event);
     const id = recovered.result;
     const filed = store.getItem(board, id);
-    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
+    io.result?.({ item: filed, ...(childIds.length ? { children: childIds } : {}), route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
     io.say(`#${id}`);
+  for (const childId of childIds) io.say(`#${childId} child of #${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
     return 0;
@@ -273,6 +275,13 @@ export async function run(io, args) {
   // The guard module loads only when the bar can name another board's files (or --here is given), so a one-board add pays nothing for it [C7].
   const elsewhere = values.here !== undefined || mayNameOtherBoard(ctx, item) ? (await import('../item/other-board.js')).guardOtherBoard(ctx, item, values.here) : null;
   const id = await ordered(ctx, board, 'addItem', [item]);
+  // An item over the board build budget is filed as the parent of its cut children, one per clause [C7,#2539].
+  const cut = cutItem({ criterion: item.criterion, check: item.check, route: item.route, expectedMinutes: item.expectedBuildMinutes }, ctx.config.itemBuildBudgetMinutes ?? 30);
+  const childIds = [];
+  for (const child of cut.children) {
+    childIds.push(await ordered(ctx, board, 'addItem', [{ ...item, parentId: id, criterion: child.criterion, expectedBuildMinutes: child.expectedMinutes, ...(item.checkBaseline ? { checkBaseline: { ...item.checkBaseline } } : {}) }]));
+  }
+  if (cut.note) io.err(`warning: [ITEM_BUILD_BUDGET] ${cut.note}`);
   if (elsewhere) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Filed here though its files belong to the ${elsewhere.boards.join(', ')} board: ${elsewhere.reason}` }]);
   if (differs) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Not a duplicate of #${differs.id}: ${differs.reason}` }]);
   const piece = split?.paths.length ? await fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) : null;

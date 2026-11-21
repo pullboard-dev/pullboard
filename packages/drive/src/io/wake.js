@@ -15,10 +15,10 @@ import { WAKE_FILE } from './local.js';
  * waits ends the next nap at once, so one that arrives mid-claim is not lost.
  *
  * @param {string} folder - The local runner folder.
- * @param {{ mark?: (step: 'touch' | 'wake' | 'timeout') => void }} [options] - mark sees touch (a watch event), then wake (a nap ended early by it) or timeout (the timer ended the nap); absent, nothing changes.
+ * @param {{ mark?: (step: 'touch' | 'wake' | 'timeout') => void, idle?: () => void }} [options] - idle is called each time a nap begins to wait, which is when a touch will end it; mark sees touch (a watch event), then wake (a nap ended early by it) or timeout (the timer ended the nap); absent, nothing changes.
  * @returns {{ nap: (ms: number) => Promise<void>, close: () => void }}
  */
-export function watchWake(folder, { mark = () => {} } = {}) {
+export function watchWake(folder, { mark = () => {}, idle = () => {} } = {}) {
   const waiters = new Set();
   let pending = false, watcher = null;
   try {
@@ -35,6 +35,7 @@ export function watchWake(folder, { mark = () => {} } = {}) {
     nap: ms => {
       if (pending) { pending = false; mark('wake'); return Promise.resolve(); }
       return new Promise(resolve => {
+        idle();
         const done = (step = 'timeout') => { clearTimeout(timer); waiters.delete(done); mark(step); resolve(); };
         const timer = setTimeout(done, ms);
         waiters.add(done);

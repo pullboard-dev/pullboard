@@ -74,7 +74,7 @@ function adoptedItemFolder(root, id) {
  * The claim's native item folder beside the seat checkout; else the folder an earlier seat opened that this claim
  * adopted (the claim moves seats, the work stays in the first seat's folder); else the seat checkout itself.
  */
-function claimFolder(root, id) {
+export function claimFolder(root, id) {
   const itemRoot = join(dirname(root), `${basename(root)}-item-${id}`);
   return fs.exists(itemRoot) ? itemRoot : adoptedItemFolder(root, id) ?? root;
 }
