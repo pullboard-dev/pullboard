@@ -1,0 +1,16 @@
+{
+  "cli.stable.journeys-registered-10546-local-records": {
+    "proves": {
+      "specs": [
+        "C7",
+        "U148"
+      ],
+      "claim": "an init journey with a record in neither the fixtures folder nor a registry beside the journeys is still reported by the journeys-registered-10546 check, and passes once either place records it."
+    },
+    "why": "Without it the check could stop reporting an unrecorded journey once it reads journey-local registries.",
+    "kind": "harness",
+    "inputs": [
+      "apps/cli/tests/stable.test.js"
+    ]
+  }
+}
