@@ -4,15 +4,16 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
+import { machineHome } from '../../../../../packages/resources/index.js';
 import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
 
 const MINUTE = 60_000;
 
 /** Make one aged machine-wide runner row for this fixture's deterministic clock. */
-function unavailable(box, host) {
-  mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  const db = new DatabaseSync(join(process.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'));
+function unavailable(host) {
+  mkdirSync(machineHome(), { recursive: true });
+  const db = new DatabaseSync(join(machineHome(), 'resources.sqlite'));
   db.exec("CREATE TABLE IF NOT EXISTS runner_unavailable (host TEXT PRIMARY KEY, since TEXT, detail TEXT DEFAULT '')");
   db.prepare('INSERT OR REPLACE INTO runner_unavailable (host, since, detail) VALUES (?, ?, ?)')
     .run(host, new Date(Date.now() - 20 * MINUTE).toISOString(), 'CLEANUP_UNVERIFIED');
@@ -24,7 +25,7 @@ const coreBoard = { projectConfig: { lanes: { core: { owns: ['apps/'] } } }, fil
 
 test('cli.io-commands-waits.fresh-board-files-nothing: clause 1: pullboard waits record after init ignores a runner-unavailable host with no board job [test] [C7]', async t => {
   const box = await fixture(t, { ...coreBoard, seats: ['actor'] });
-  unavailable(box, 'other-board-host');
+  unavailable('other-board-host');
   const itemCount = () => box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
   const before = itemCount();
   const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
@@ -39,7 +40,7 @@ test('cli.io-commands-waits.own-runner-filed-in-own-lane: clause 2: waits record
     .run('gate-owned-host', 'gate', null, 'done', now, now);
   box.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, ?, ?, ?)')
     .run('gate-owned-host', 'result', JSON.stringify({ runner: 'owned-host' }), now);
-  unavailable(box, 'owned-host');
+  unavailable('owned-host');
   const before = box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
   const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
@@ -52,7 +53,7 @@ test('cli.io-commands-waits.own-runner-filed-in-own-lane: clause 2: waits record
 
 test('cli.io-commands-waits.record-reaches-record-waits: clause 3: waits record runs on the initialized fixture board and list shows no foreign-host item [test] [C7]', async t => {
   const box = await fixture(t, { ...coreBoard, seats: ['actor'] });
-  unavailable(box, 'other-board-host');
+  unavailable('other-board-host');
   const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
   assert.equal(recorded.document.recorded.filed.length, 0);
