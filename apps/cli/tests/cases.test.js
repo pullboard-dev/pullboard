@@ -1,12 +1,12 @@
 /** @pullboard-world-pin: clause 1 reads the e2e test files themselves to prove the split kept every case. */
-/** @pullboard-test-input apps/cli/journeys/merged/e2e.test.js apps/cli/journeys/list/board.test.js apps/cli/journeys/gate/slot.test.js */
+/** @pullboard-test-input apps/cli/journeys/merged/e2e.test.js apps/cli/journeys/list/board.test.js apps/cli/tests/io/commands/gate/slot.test.js */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
 /** Where the three files are now; they were test/e2e.test.js, test/e2e-board.test.js and test/e2e-gate-slot.test.js. */
-const FILES = ['apps/cli/journeys/merged/e2e.test.js', 'apps/cli/journeys/list/board.test.js', 'apps/cli/journeys/gate/slot.test.js'];
+const FILES = ['apps/cli/journeys/merged/e2e.test.js', 'apps/cli/journeys/list/board.test.js', 'apps/cli/tests/io/commands/gate/slot.test.js'];
 
 /** Each original case as its quote and exact title; a template quote is a case a loop declares once per mode. */
 const CASES = [

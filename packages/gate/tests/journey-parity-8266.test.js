@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/verify/trunk.test.js apps/cli/journeys/engine/merged.test.js apps/cli/journeys/gate/slot.test.js */
+/** @pullboard-test-input apps/cli/journeys/verify/trunk.test.js apps/cli/journeys/engine/merged.test.js apps/cli/tests/io/commands/gate/slot.test.js */
 /**
  * The parity check for the second in-process batch (#8266, U149): one representative case of verify/trunk, engine/merged and
  * gate/slot runs with every CLI call a real process and in-process, and any difference in exit code, JSON result or board state fails [C7].
@@ -15,7 +15,7 @@ let found;
  * gate/slot is sampled by its pre-push case, whose CLI calls are fixed (settings); its other cases poll a gate or a pulled submit,
  * so their call counts follow timing, and its one board is empty, which sampleDifferences does not accept.
  */
-const SLOT = { journey: 'apps/cli/journeys/gate/slot.test.js', cases: ['pre-push keeps its machine gate slot until the hook check finishes'] };
+const SLOT = { journey: 'apps/cli/tests/io/commands/gate/slot.test.js', cases: ['pre-push keeps its machine gate slot until the hook check finishes'] };
 const differences = () => found ??= (async () => {
   const [others, real, inprocess] = await Promise.all([sampleDifferences(SAMPLES), runSample('process', SLOT), runSample('inprocess', SLOT)]);
   assert.ok(real.length >= 1, `${SLOT.journey} made its CLI calls (${real.length})`);

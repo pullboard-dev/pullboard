@@ -3,7 +3,7 @@
   "moved": [
     {
       "from": "apps/cli/journeys/gate/red-state.test.js",
-      "to": "apps/cli/tests/journeys/gate/red-state.test.js",
+      "to": "apps/cli/tests/io/commands/gate/red.test.js",
       "action": "convert",
       "because": "cites a spec id no cell unit or contract test cites",
       "idsFollowed": true
@@ -17,7 +17,7 @@
     },
     {
       "from": "apps/cli/journeys/verify/clause-refusal.test.js",
-      "to": "apps/cli/tests/journeys/verify/clause-refusal.test.js",
+      "to": "apps/cli/tests/io/commands/verify/refusal.test.js",
       "action": "convert",
       "because": "runs in process, so the journey folder is not needed",
       "idsFollowed": true
