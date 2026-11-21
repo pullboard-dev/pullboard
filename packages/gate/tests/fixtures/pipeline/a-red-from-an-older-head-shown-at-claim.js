@@ -25,7 +25,7 @@ const NEW = 'b'.repeat(40);
 
 /** A claimed item with a red gate recorded at the OLD commit, and the item's own submitted commit set by the caller. */
 function redAt(t, itemCommit) {
-  const repo = cellRepo(t);
+  const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { gitRoot: repo.root, real: true });
   const seat = cellSeat(board, { lane: 'web', path: repo.root });
   const item = cellItem(board, { lane: 'web', title: 'Red page', criterion: 'The page renders.', specIds: ['G1'], check: 'true' });

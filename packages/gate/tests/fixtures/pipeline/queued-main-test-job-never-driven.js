@@ -28,7 +28,7 @@ const COMMAND = 'node --test --test-reporter=tap';
 
 /** A one-commit trunk, its commit and its tree id. */
 function trunk(t) {
-  const { root, commit } = cellRepo(t);
+  const { root, commit } = cellRepo(t, { real: true });
   return { root, commit, tree: runFixtureGit(['rev-parse', 'HEAD^{tree}'], { cwd: root }) };
 }
 
