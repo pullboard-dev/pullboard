@@ -119,7 +119,7 @@ test('view.item.timeline-strip-hover: clause 3: each segment carries its stage, 
   }
 });
 
-test('view.io-cockpit-page.compat-by-stage: clause 1: the cockpit page fetches GET /compat-cells and draws one row per language with one cell per stage in CONFORMANCE_STAGES order, each cell carrying its outcome and run id [C7]', async t => {
+test('view.io-cockpit-page.compat-by-stage: clause 1: the cockpit page fetches GET /api/v1/compat-cells and draws one row per language with one cell per stage in CONFORMANCE_STAGES order, each cell carrying its outcome and run id [C7]', async t => {
   const root = cellProject(t, { real: true, gate: 'true' }).repo;
   mkdirSync(join(root, '.pullboard', 'conformance'), { recursive: true });
   writeFileSync(join(root, '.pullboard', 'conformance', 'runs.json'), JSON.stringify([
@@ -130,7 +130,7 @@ test('view.io-cockpit-page.compat-by-stage: clause 1: the cockpit page fetches G
   const none = () => { throw new Error('not used by compat cells'); };
   const view = await serveView({ secret, projectRoot: root, projects: () => [{ root, name: 'Compat fixture' }], runCommand: none, renderPage: () => '', refusalDocument: () => '', boardOpeners: { openBoard: none, openBoardForRead: none } });
   t.after(() => view.close());
-  const answer = await fetch(`http://127.0.0.1:${view.port}/compat-cells`, { headers: { 'x-pullboard-key': secret, connection: 'close' } });
+  const answer = await fetch(`http://127.0.0.1:${view.port}/api/v1/compat-cells`, { headers: { 'x-pullboard-key': secret, connection: 'close' } });
   assert.equal(answer.status, 200);
   const groups = await answer.json();
   const fed = [...new Set(groups.flatMap(group => group.cells.map(cell => cell.language)))].sort();
@@ -145,7 +145,9 @@ test('view.io-cockpit-page.compat-by-stage: clause 1: the cockpit page fetches G
   assert.deepEqual(byName.python.cells[0], { stage: 'claim', outcome: 'partial', run: 'run-python-1' });
   assert.ok(html.includes('partial <code>run-python-1</code>'), 'a cell shows its outcome and its run id');
   const page = cockpitPage('', { commandPhrases: () => ['add'] });
-  assert.ok(page.includes("api('/compat-cells')"), 'the page fetches the compat cells');
+  assert.ok(page.includes("api('/api/v1/compat-cells')"), 'the page fetches the compat cells from a public v1 path');
+  assert.ok(!page.includes("api('/compat-cells')"), 'the page makes no /compat-cells request');
+  assert.ok(page.includes("view.tab === 'pipeline') drawCompatCells()"), 'the Pipeline tab draws the rows');
   assert.ok(page.includes(`const compatRowsHtml = ${compatRowsHtml.toString()};`), 'the page draws them with the same rows function');
   assert.ok(page.indexOf('drawCompatCells();') < page.lastIndexOf('</script>'), 'the draw runs inside the page script');
 });
