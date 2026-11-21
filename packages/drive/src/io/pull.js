@@ -1096,7 +1096,13 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       try {
         const tree = await git.run(checkout.folder, ['rev-parse', 'HEAD^{tree}']);
         const hash = tree.status === 0 ? tree.stdout.trim() : '';
-        if (/^[a-f0-9]{40,64}$/u.test(hash)) receipt.signedCompletion = signCompletion({ version: 1, job: claim.job, nonce: completionNonce, source: claim.candidate, tree: hash, status: result.status, signal: result.signal, outputSha256: result.outputSha256 });
+        if (/^[a-f0-9]{40,64}$/u.test(hash)) {
+          const packet = receipt.gate?.testResults?.packet;
+          const packetSha256 = typeof packet === 'string' ? createHash('sha256').update(packet).digest('hex') : null;
+          receipt.signedCompletion = signCompletion({ version: 1, job: claim.job, nonce: completionNonce, source: claim.candidate, tree: hash,
+            status: result.status, signal: result.signal, outputSha256: result.outputSha256, requestSha256: receipt.gate?.requestSha256,
+            packetSha256, runtimeSha256: executionContext?.runtime ?? null, toolingSha256: executionContext?.tooling ?? null, context: executionContext });
+        }
       } catch { /* Unsigned results remain ordinary execution results. */ }
     }
     try {

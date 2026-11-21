@@ -17,6 +17,7 @@ import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
 import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
+import { pullPacketDigest } from '../../../src/io/test/pull.js';
 import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
 import { generateKeyPairSync } from 'node:crypto';
 import { signRunnerReceipt } from '../../../../../packages/runners/index.js';
@@ -50,6 +51,22 @@ test('cli.io-test-pull.signed-completion: clause 1: a real pulled completion ver
   const unsigned = await signedPullFixture(null);
   assert.equal(unsigned.receipt.status, 0, 'ordinary unsigned execution still returns');
   assert.equal(unsigned.receipt.signedCompletion, undefined);
+});
+
+test('cli.io-test-pull.authenticated-outcome-retention: clause 1: controller accepts only a complete bounded packet bound to the exact request, enrolled runner runtime, tooling and outcomes [C7,#12643]', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const runtimeSha256 = 'a'.repeat(64), toolingSha256 = 'b'.repeat(64), packet = Buffer.from('complete packet').toString('base64');
+  const expected = { job: 'test:exact', nonce: 'c'.repeat(48), source: 'd'.repeat(40), tree: 'e'.repeat(40), status: 0, signal: null,
+    outputSha256: 'f'.repeat(64), requestSha256: '1'.repeat(64), packetSha256: pullPacketDigest(packet), runtimeSha256, toolingSha256 };
+  const row = { version: 1, ...expected, host: 'runner.example', context: { version: 1, runtime: runtimeSha256, tooling: toolingSha256 } };
+  const signed = { ...row, signature: signRunnerReceipt(row, privateKey) };
+  const enrolled = [{ host: row.host, runtimeSha256, publicKey: publicKey.export({ type: 'spki', format: 'der' }).toString('base64url') }];
+  assert.equal(authenticatedPullCompletion(signed, expected, enrolled), true);
+  for (const field of ['requestSha256', 'packetSha256', 'runtimeSha256', 'toolingSha256']) {
+    assert.equal(authenticatedPullCompletion(signed, { ...expected, [field]: '0'.repeat(64) }, enrolled), false, `mismatched ${field}`);
+  }
+  assert.equal(authenticatedPullCompletion(signed, expected, [{ ...enrolled[0], runtimeSha256: '0'.repeat(64) }]), false, 'runtime must match independent enrollment pin');
+  assert.match(testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''), /selectedTestResults\(store, keys\)/u);
 });
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {

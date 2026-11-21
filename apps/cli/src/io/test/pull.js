@@ -7,6 +7,8 @@
  * this entry from it, and the runner posts the entry's receipt line, as it does a gate's.
  */
 import { randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { FILE_TIME_LINE } from '../../../../../packages/gate/heavy.js';
@@ -37,6 +39,11 @@ const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
 
 /** The job kind of a pulled test run; the board records its receipt and applies nothing, since the caller reads it. */
 export const TEST_JOB_KIND = 'test';
+const PACKET_RECEIPT_BYTES = 40 * 1024;
+/** Hash the exact offered request, excluding its self-referential digest. */
+export function pullRequestDigest(request) { const copy = structuredClone(request); if (copy?.input?.data) delete copy.input.data.requestSha256; return createHash('sha256').update(JSON.stringify(copy)).digest('hex'); }
+/** Hash the complete bounded result packet as received. */
+export function pullPacketDigest(packet) { return typeof packet === 'string' ? createHash('sha256').update(packet).digest('hex') : null; }
 // Budget: the waiting command reads its job row once a second, one small local read.
 const POLL_MS = 1_000;
 // Budget: the seat's claim is kept alive every 30 s while it waits, well inside the 2-minute liveness window.
@@ -49,9 +56,14 @@ export function authenticatedPullCompletion(envelope, expected, runners) {
   try {
     if (!envelope || envelope.version !== 1 || envelope.job !== expected.job || envelope.nonce !== expected.nonce
       || envelope.source !== expected.source || envelope.tree !== expected.tree || envelope.outputSha256 !== expected.outputSha256
-      || envelope.status !== expected.status || envelope.signal !== expected.signal) return false;
+      || envelope.status !== expected.status || envelope.signal !== expected.signal
+      || envelope.requestSha256 !== expected.requestSha256 || envelope.packetSha256 !== expected.packetSha256
+      || envelope.runtimeSha256 !== expected.runtimeSha256 || envelope.toolingSha256 !== expected.toolingSha256
+      || envelope.context?.runtime !== expected.runtimeSha256 || envelope.context?.tooling !== expected.toolingSha256) return false;
     const matches = (runners ?? []).filter(row => row.host === envelope.host && typeof row.publicKey === 'string');
-    return matches.length === 1 && verifyRunnerReceipt(envelope, matches[0].publicKey);
+    return matches.length === 1 && matches[0].runtimeSha256 === expected.runtimeSha256
+      && /^[a-f0-9]{64}$/u.test(expected.runtimeSha256 ?? '') && /^[a-f0-9]{64}$/u.test(expected.toolingSha256 ?? '')
+      && verifyRunnerReceipt(envelope, matches[0].publicKey);
   } catch { return false; }
 }
 
@@ -99,6 +111,7 @@ if (hits && Array.isArray(hits.files)) { const hitsFile = join(tools, 'pullboard
 // A review comparison names its run id, so the test runner frames each case's outcome under it [V4,C7].
 const runId = typeof input.runId === 'string' && /^[a-f0-9-]{36}$/u.test(input.runId) ? input.runId : null;
 if (runId) env.${TIMING_RUN_ID_ENV} = runId;
+if (runId) env.PULLBOARD_TEST_RESULT_REQUEST = runId;
 const ran = spawnSync(input.command, { shell: true, cwd: root, env, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] });
 const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
 const text = output.toString('utf8') + (ran.error ? String(ran.error.message) : '');
@@ -172,6 +185,8 @@ const verdicts = () => {
   return out;
 };
 try { receipt.verdicts = verdicts(); } catch { receipt.verdicts = null; }
+try { const keys = input.testResults?.inputKeys, store = env.PULLBOARD_TEST_RESULT_STORE; if (gate && Array.isArray(keys) && keys.length && store) { const packet = gate.packTestResults(gate.selectedTestResults(store, keys)); if (typeof packet === 'string' && Buffer.byteLength(packet) <= ${PACKET_RECEIPT_BYTES}) receipt.testResults = { packet, inputKeys: keys }; } } catch { /* Optional bounded transfer; fresh execution remains available. */ }
+receipt.requestSha256 = input.requestSha256 ?? null;
 // Each file's own wall ms from its time line, read from the whole output before the tail is cut, so a clipped receipt still times every file [C7,#8576].
 try {
   const times = {};
@@ -299,7 +314,12 @@ export async function testJobRow(ctx, { item, commit, main, command, files, runI
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
   const env = testJobEnv(environment);
-  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: { ...testJobData({ main, commit, command, files, runId, fileBudgetMs, testResults: finishTestResults(runId ?? tag, ledger) }), completionNonce } }, commits: [main] };
+  let inputKeys = [];
+  if (Array.isArray(files) && files.length) { try { const { testActionKeys } = await import('../../../../../packages/gate/index.js'); const keys = await testActionKeys(root, { commit, files, env, maintain: false }); inputKeys = [...new Set([...keys.values()].map(row => row.inputKey).filter(value => /^[a-f0-9]{64}$/u.test(value ?? ''))) ].sort(); } catch { /* no exact input keys, no packet */ } }
+  runId ??= randomUUID();
+  const baseResults = finishTestResults(runId, ledger), testResults = inputKeys.length ? { ...(baseResults ?? {}), inputKeys } : baseResults;
+  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: { ...testJobData({ main, commit, command, files, runId, fileBudgetMs, testResults }), completionNonce } }, commits: [main] };
+  request.input.data.requestSha256 = pullRequestDigest(request);
   return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}) } };
 }
@@ -347,7 +367,7 @@ async function offerTestJob(ctx, fields, runs, onOffer) {
   const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
   onOffer?.(job.id, runs);
   await startLocalRunner(ctx);
-  return { job: job.id, ref, completionNonce: row.request.input.data.completionNonce };
+  return { job: job.id, ref, completionNonce: row.request.input.data.completionNonce, requestSha256: row.request.input.data.requestSha256, inputKeys: row.request.input.data.testResults?.inputKeys ?? [], runId: row.request.input.data.runId, run: row.request.run, entry: row.request.input.entry };
 }
 
 /**
@@ -407,7 +427,7 @@ async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) 
   say = line => { if (claimedAt === null && /took test job/u.test(String(line))) claimedAt = new Date().toISOString(); noted?.(line); };
   const runs = testRunsHolder(ctx);
   let enrolled = [], tree = null;
-  try { enrolled = (loadMachineSettings().runners ?? []).map(({ host, publicKey }) => ({ host, publicKey })); } catch { /* A missing trust snapshot cannot block ordinary execution. */ }
+  try { enrolled = (loadMachineSettings().runners ?? []).map(({ host, publicKey, runtimeSha256 }) => ({ host, publicKey, runtimeSha256 })); } catch { /* A missing trust snapshot cannot block ordinary execution. */ }
   try { tree = git(ctx.info.root, ['rev-parse', `${fields.commit}^{tree}`]).trim(); } catch { /* Unavailable identity cannot authenticate a completion. */ }
   const offered = await offerTestJob(ctx, fields, runs, onOffer);
   if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
@@ -422,7 +442,31 @@ async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) 
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    const authenticated = authenticatedPullCompletion(receipt.signedCompletion, { job: offered.job, nonce: offered.completionNonce, source: fields.commit, tree, outputSha256: receipt.outputSha256, status: receipt.status, signal: receipt.signal }, enrolled);
+    const packet = gate.testResults?.packet ?? null, packetSha256 = pullPacketDigest(packet);
+    const pinned = enrolled.filter(row => row.host === receipt.signedCompletion?.host);
+    let toolingSha256 = null;
+    try { const archiveTree = git(ctx.info.root, ['rev-parse', `${fields.main}^{tree}`]).trim(); toolingSha256 = createHash('sha256').update(JSON.stringify({ version: 1, archiveTree, bootstrap: offered.run.slice(1), entry: offered.entry })).digest('hex'); } catch { /* no independent pin */ }
+    const runtimeSha256 = pinned.length === 1 ? pinned[0].runtimeSha256 : null;
+    const authenticated = authenticatedPullCompletion(receipt.signedCompletion, { job: offered.job, nonce: offered.completionNonce, source: fields.commit, tree,
+      outputSha256: receipt.outputSha256, status: receipt.status, signal: receipt.signal, requestSha256: offered.requestSha256, packetSha256, runtimeSha256, toolingSha256 }, enrolled);
+    if (authenticated && typeof packet === 'string' && packet.length <= Math.ceil(PACKET_RECEIPT_BYTES / 3) * 4) {
+      try {
+        const [{ importTestResults, retainTestResultCompletion, testResultStore, validTestResult }, { gunzipSync }] = await Promise.all([import('../../../../../packages/gate/index.js'), import('node:zlib')]);
+        const entries = JSON.parse(gunzipSync(Buffer.from(packet, 'base64'), { maxOutputLength: 8 * 1024 * 1024 }).toString('utf8'));
+        const keys = offered.inputKeys, outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : [];
+        const sortRows = rows => [...rows].sort((a, b) => `${a.file}\0${a.name}`.localeCompare(`${b.file}\0${b.name}`));
+        const complete = Array.isArray(entries) && entries.length > 0 && entries.every(entry => validTestResult(entry) && keys.includes(entry.inputKey)
+          && fields.files.includes(entry.file) && entry.status === 'pass' && entry.origin.request === offered.runId && Array.isArray(entry.tap?.testOutcomes)
+          && JSON.stringify(sortRows(entry.tap.testOutcomes)) === JSON.stringify(sortRows(outcomes.filter(row => row.file === entry.file))))
+          && keys.every(key => entries.some(entry => entry.inputKey === key));
+        if (complete && outcomes.length) {
+          const store = testResultStore(ctx.info.root), completion = { id: offered.runId, commit: fields.commit, tree, code: receipt.status, signal: receipt.signal,
+            outputSha256: receipt.outputSha256, runtimeSha256, toolingSha256 };
+          retainTestResultCompletion(store, { ...completion, signedCompletion: receipt.signedCompletion, testResults: { packet } });
+          importTestResults(store, packet, keys, completion);
+        }
+      } catch { /* Partial or invalid packets are cache misses. */ }
+    }
     return { job: offered.job, runner, green, authenticated, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, load: gate.load && typeof gate.load === 'object' ? gate.load : null, output: String(output), outputBytes: phase?.bytes ?? null, failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
