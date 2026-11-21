@@ -7,6 +7,7 @@ import { nextFor } from '../../../index.js';
 import { reviewOffer } from '../../../index.js';
 import { register } from '../../../index.js';
 import { saveAgentAbilities } from '../../../src/io/needs.js';
+import { saveExpectedBuildMinutes } from '../../../src/io/expected.js';
 import { claim } from '../../../index.js';
 import { largestDisjointWave } from '../../../../items/index.js';
 import { submitFixture } from '../../fixtures/submit.js';
@@ -16,6 +17,8 @@ import { recordSubmitHandoff } from '../../../../jobs/index.js';
 import { setAfterGate } from '../../../src/io/board/item/after-gate.js';
 import { fixture as dispatchFixture } from '../../fixtures/dispatch.js';
 import { getItem } from '../../../index.js';
+import { holdItem } from '../../../index.js';
+import { nextEligible } from '../../../src/io/board/next.js';
 
 const FUTURE = '2999-01-01T00:00:00.000Z';
 const PAST = '2000-01-01T00:00:00.000Z';
@@ -380,4 +383,74 @@ test('store.io-board-next.cost-flat-with-meta-history: clause 2: nextFor stays u
   const loaded = medianNextMs(full);
   assert.ok(loaded < 200, `median nextFor ${loaded.toFixed(1)} ms with history`);
   assert.ok(loaded <= Math.max(2 * base, base + 5), `median nextFor ${loaded.toFixed(1)} ms with history against ${base.toFixed(1)} ms without`);
+});
+
+/**
+ * A dispatch board whose mid actor seat faces one open item of each per-item skip next applies, plus one it may take:
+ * a held item, a strong item (above the mid route), an item whose gate is queued at its head, an item expecting more
+ * minutes than the build budget, an item whose released claim still waits on an unlanded item, and an unmet after-chain.
+ */
+function eligibilityBoard(t) {
+  const box = dispatchFixture(t, { route: 'mid' });
+  const { board } = box;
+  const place = (id, fields) => {
+    board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
+    try { board.db.prepare(`UPDATE item SET ${Object.keys(fields).map(key => `${key}=?`).join(', ')} WHERE item_id=?`).run(...Object.values(fields), id); }
+    finally { board.db.exec('DELETE FROM temp.moving'); }
+  };
+  const ids = {
+    eligible: box.add('Eligible'),
+    held: box.add('Held'),
+    route: box.add('Strong', { route: 'strong' }),
+    gate: box.add('Gate queued at its head'),
+    scope: box.add('Re-scoped above the budget'),
+    waitingOn: box.add('Claim released to wait'),
+    blocker: box.add('Unfinished blocker'),
+  };
+  ids.dependency = box.add('After an unfinished item', { after: [ids.blocker] });
+  holdItem(board, ids.held, { agentId: 'coordinator', reason: 'Fixture hold.' });
+  box.submit(ids.gate);
+  const head = getItem(board, ids.gate).item_commit;
+  place(ids.gate, { item_status: 'open', item_owner: null });
+  recordSubmitHandoff(board.db, ids.gate, { id: `fixture-${ids.gate}`, commit: head, agentId: box.seats.builder.id, state: 'queued' });
+  saveExpectedBuildMinutes(board, ids.scope, 90);
+  board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`claim_waiting:${ids.waitingOn}`, JSON.stringify([ids.blocker]));
+  const codes = { held: 'ITEM_HELD', route: 'ROUTE_FILTER', gate: 'GATE_AT_HEAD', scope: 'ITEM_BUILD_BUDGET', waitingOn: 'WAITING_ON', dependency: 'DEPENDENCY' };
+  return { box, board, ids, codes, place };
+}
+
+test('store.io-board-next.eligible-matches-selection: clause 1: nextEligible returns null for the item next offers a mid seat and the skip code next applies to a held, strong, gate-queued, re-scoped, claim-waiting and after-chained item [C7,#12599]', t => {
+  const { board, ids, codes } = eligibilityBoard(t);
+  assert.equal(nextEligible(board, getItem(board, ids.eligible), 'mid'), null);
+  assert.equal(nextEligible(board, getItem(board, ids.blocker), 'mid'), null);
+  for (const [name, code] of Object.entries(codes)) assert.equal(nextEligible(board, getItem(board, ids[name]), 'mid')?.code, code, name);
+  assert.equal(nextEligible(board, getItem(board, ids.route), 'strong'), null, 'a strong seat may take the strong item');
+  assert.equal(nextEligible(board, getItem(board, ids.dependency), 'mid').waiting[0].item_id, ids.blocker);
+  assert.equal(nextEligible(board, getItem(board, ids.gate), 'mid', { through: 'ITEM_HELD' }), null, 'through ITEM_HELD runs only the hold check');
+});
+
+test('store.io-board-next.selection-unchanged: clause 2: on the same fixture nextFor offers each seat the item nextEligible clears and records, for every other item, the skip code and reason nextEligible names [C7,#12599]', t => {
+  const eligibilityCodes = eligibilityBoard(t).codes;
+  // nextFor records only its first three skipped items, so each case runs on a fresh board where only the item under test
+  // (plus the unfinished blocker, which the dependency cases need) is still open.
+  const alone = (key, name) => {
+    const fresh = eligibilityBoard(t);
+    for (const [other, id] of Object.entries(fresh.ids)) if (other !== name && other !== 'blocker') fresh.place(id, { item_status: 'withdrawn', item_withdrawn_reason: 'Fixture withdrawal.' });
+    const answer = nextFor(fresh.board, { agentId: fresh.box.seats[key].id, lane: 'web', omitIds: name === 'blocker' ? [] : [fresh.ids.blocker], observeIdle: true });
+    return { answer, ...fresh };
+  };
+  for (const key of ['actor', 'builder']) {
+    const strong = key === 'builder';
+    for (const name of ['eligible', 'blocker', ...(strong ? ['route'] : [])]) {
+      const run = alone(key, name);
+      assert.equal(run.answer.item?.item_id, run.ids[name], `${key} is offered ${name}`);
+    }
+    for (const [name, code] of Object.entries(eligibilityCodes)) {
+      if (strong && name === 'route') continue;
+      const run = alone(key, name);
+      assert.equal(run.answer.item, null, `${key} is not offered ${name}: ${run.answer.reasons.join(' | ')}`);
+      if (code !== 'ROUTE_FILTER') assert.ok(run.answer.reasons.includes(nextEligible(run.board, getItem(run.board, run.ids[name]), null).reason), `${name}: ${run.answer.reasons.join(' | ')}`);
+      assert.deepEqual(run.answer.skips?.filter(row => row.item === run.ids[name]), [{ item: run.ids[name], code }], `${key} skips ${name}`);
+    }
+  }
 });
