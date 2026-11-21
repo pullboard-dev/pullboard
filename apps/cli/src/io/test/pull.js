@@ -191,14 +191,13 @@ process.exitCode = receipt.green ? 0 : 1;
 `;
 
 /**
- * True when this test run is a runner job row: always, since every runner job is a row. `--affected` and `--diagnose` keep the existing path, since their
- * selection and full log are read on this machine.
+ * True when this test run is a runner job row: always, since every runner job is a row. The runner receives the selected
+ * files and command, so affected selection and focused diagnosis do not require executing test files on this machine.
  *
  * @param {number | undefined} item - The seat's sole claimed item.
  * @param {Record<string, any>} values - The parsed switches.
  */
 export function pullTestWanted(item, values) {
-  if (values.affected === true || values.diagnose === true) return false;
   return runnerDispatchMode() === 'pull';
 }
 
@@ -645,19 +644,35 @@ export function loadRerunFiles(ran, paths, { enabled = testLoadRerunEnabled() } 
  */
 export async function runPulledTests(ctx, { agent, item, files, values, knownRed, say }) {
   const { root } = ctx.info;
-  const config = ctx.config;
-  const [{ testFiles }, { retainTestOutput, renderTestSummary }, { mainPolicy }] = await Promise.all([import('../../../../../packages/gate/index.js'), import('../../../../../packages/gate/heavy.js'), import('../../../../../packages/sandbox/index.js')]);
-  if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
-    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
-  }
-  const paths = testFiles(root, files);
+  let config = ctx.config;
+  const [{ testFiles, selectAffectedTests, affectedCommand }, { retainTestOutput, renderTestSummary }, { mainPolicy }, { selectRegistryGuards }, { git: readGit }] = await Promise.all([
+    import('../../../../../packages/gate/index.js'), import('../../../../../packages/gate/heavy.js'), import('../../../../../packages/sandbox/index.js'),
+    import('../../../../../packages/kernel/index.js'), import('../../../../../packages/git/index.js'),
+  ]);
   await refuseUncommitted(root);
   const commit = headCommit(root);
   const policy = mainPolicy(root);
   const main = policy.commit;
   if (!commit || !main) throw new Refused('TEST_SNAPSHOT', 'this checkout has no commit or no accepted main to test against; commit the work and run pullboard test again');
+  const affected = values.affected === true;
+  if (affected) config = policy.config;
+  if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
+    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
+  }
+  let full = false;
+  let paths = affected ? [] : testFiles(root, files);
+  if (affected) {
+    const options = { base: main, trunk: main, commit };
+    const selection = selectAffectedTests(root, options);
+    const guards = selectRegistryGuards(root, config.registryGuards, { ...options, git: readGit });
+    full = selection.full;
+    paths = [...new Set([...(full ? [] : selection.files), ...guards])].sort();
+    if (paths.length) paths = testFiles(root, paths);
+  }
   const started = Date.now();
-  const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
+  const focused = paths.length ? affectedCommand(config, paths, config.gate?.selectionUnit ?? 'file') : '';
+  if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
+  const command = full ? `(${config.gate})${focused ? ` && ${focused}` : ''}` : (focused || 'true');
   const budget = fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {};
   let ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...budget }, { agent, say, testRun: values['test-run'] });
   // With test.loadRerun on, a file red only on timing on an overloaded runner is offered once more and the rerun is reported [C7,#10597].
