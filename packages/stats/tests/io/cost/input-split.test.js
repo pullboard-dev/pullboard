@@ -5,7 +5,8 @@ import { test } from 'node:test';
 import { FIXTURE_MODEL } from '../../../../gate/tests/fixtures/testkit.js';
 import { recordCoordinatorUsage } from '../../../src/io/cost.js';
 import { sumUsage } from '../../../src/io/cost/usage.js';
-import { itemCost, publicUsage } from '../../../light.js';
+import { itemCost } from '../../../light.js';
+import { publicUsage } from '../../../light.js';
 
 /** A real in-memory board_meta table behind the two native ports the store function uses. */
 function board() {
