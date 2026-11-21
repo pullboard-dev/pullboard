@@ -9,6 +9,7 @@ const FILE = new URL('../../index.js', import.meta.url);
 
 /** Every name the api barrel exported before it was reflowed [C7]. */
 const BEFORE = [
+  'BOARD_SERVICE_LABEL',
   'CHECK_BASELINE_KIND',
   'JOB_MAX_ATTEMPTS',
   'LANDING_JOB_KIND',
@@ -30,6 +31,8 @@ const BEFORE = [
   'applyTestReceipt',
   'boardJobQueueCall',
   'boardQueueMode',
+  'boardServiceCommands',
+  'boardServicePlist',
   'claimJob',
   'codeAt',
   'combinedReceipt',
@@ -48,6 +51,7 @@ const BEFORE = [
   'gateLedgerHits',
   'heldShards',
   'hopTableOver',
+  'installBoardService',
   'jobArtifacts',
   'jobQueueCall',
   'jobRequest',
