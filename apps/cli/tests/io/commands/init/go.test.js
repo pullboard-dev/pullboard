@@ -1,16 +1,17 @@
-/** A plain Go module goes through init on a scratch board: init records go test ./... as the gate [C7,#10612,#3705]. */
+/** @pullboard-test-input source-cell apps/cli */
+/** A plain Go module goes through init: init records go test ./... as the gate [C7,#10612,#3705]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { GATE } from '../../tests/fixtures/languages/go.js';
-import { GO } from '../../tests/fixtures/languages/go.js';
-import { UNAVAILABLE } from '../../tests/fixtures/languages/go.js';
-import { goSandbox } from '../../tests/fixtures/languages/go.js';
-import { writeProject } from '../../tests/fixtures/languages/go.js';
+import { createE2eHelpers } from '../../../../tests/fixtures/e2e.js';
+import { GATE } from '../../../../tests/fixtures/languages/go.js';
+import { GO } from '../../../../tests/fixtures/languages/go.js';
+import { UNAVAILABLE } from '../../../../tests/fixtures/languages/go.js';
+import { goSandbox } from '../../../../tests/fixtures/languages/go.js';
+import { writeProject } from '../../../../tests/fixtures/languages/go.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
