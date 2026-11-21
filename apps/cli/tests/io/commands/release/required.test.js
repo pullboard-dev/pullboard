@@ -11,7 +11,7 @@ const NOTE = 'Dropping this review because the fixture needs a free reviewer.';
 
 /** A fixture whose actor seat holds the review of one submitted item; releaseReasons is set as asked. */
 async function held(t, releaseReasons) {
-  const box = await fixture(t);
+  const box = await fixture(t, { seats: ['actor', 'builder'] });
   writeFileSync(machineSettingsFile(), JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { localRunner: false },
     review: { releaseReasons } }));
   const id = box.add('Review reason item');
