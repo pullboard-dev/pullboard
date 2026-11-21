@@ -20,7 +20,7 @@
       "specs": [
         "C7"
       ],
-      "claim": "after the board command has exited, refs/pullboard/wip/<item> holds the folder's uncommitted change"
+      "claim": "after a board command returns, a detached worker, not the command's own process, writes refs/pullboard/wip/<item> holding the folder's uncommitted change"
     },
     "why": "Without it moving the snapshot off the command path would lose it when the CLI exits right after main returns.",
     "kind": "journey",

@@ -8,12 +8,10 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { pathToFileURL } from 'node:url';
 import { snapshotOnBoardCall } from '../../../src/io/beater.js';
 import { snapshotWip } from '../../../src/io/item/wip.js';
 import { wipRef } from '../../../src/io/item/wip.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { runFixtureExecFile } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { policyRepository } from '../../../../../packages/store/tests/fixtures/submit.js';
 
@@ -113,19 +111,15 @@ test('cli.io-item-wip.snapshot-does-not-block-the-command: clause 1: a board cal
   ref.stop();
 });
 
-test('cli.io-item-wip.snapshot-survives-command-exit: clause 2: after the command exits, refs/pullboard/wip/<item> holds the uncommitted change [C7,#12746]', async t => {
+test('cli.io-item-wip.snapshot-survives-command-exit: clause 2: after the command returns, its own process holds no snapshot work and refs/pullboard/wip/<item> still comes to hold the uncommitted change [C7,#12746]', async t => {
   const { folder, git } = dirtyFolder(t);
-  const door = pathToFileURL(join(import.meta.dirname, '../../../src/io/beater.js')).href;
-  const script = join(folder, '..', 'board-call.mjs');
-  writeFileSync(script, [
-    `import { snapshotOnBoardCall } from ${JSON.stringify(door)};`,
-    `await snapshotOnBoardCall(${JSON.stringify(folder)}, { seatOf: () => ({ seat: 'core-1', board: '/nowhere/board.sqlite' }), now: () => 9_000_000, claimed: async () => [{ item: 12746, folder: ${JSON.stringify(folder)} }] });`,
-    'process.exit(0);', '',
-  ].join('\n'));
   const ref = watchRef(folder, git, 12746);
-  runFixtureExecFile(process.execPath, [script], { cwd: folder });
+  // The call hands the snapshot to a detached worker process and returns; the CLI's process.exit after main cannot reach that worker.
+  await snapshotOnBoardCall(folder, claimedCall(folder, 9_000_000));
   const commit = ref.found() ?? await ref.seen;
   ref.stop();
+  assert.ok(commit, 'the worker wrote refs/pullboard/wip/<item>');
   assert.equal(git('show', `${commit}:untracked.txt`), 'untracked');
   assert.equal(git('show', `${commit}:tracked.txt`), 'one\nunstaged');
+  assert.equal(git('show', `${commit}:staged.txt`), 'staged');
 });
