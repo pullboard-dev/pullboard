@@ -23,7 +23,6 @@ import { formatTestOutcomes } from '../../../../../packages/gate/heavy.js';
 import { checkoutCommonDir } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { fileKey } from '../../../../../packages/landing/index.js';
-import { planLandingShards } from '../../../../../packages/landing/index.js';
 import { runLandingShards } from '../../../../../packages/landing/index.js';
 import { FILE_TIME_LINE } from '../../../../../packages/landing/index.js';
 import { shardFileTimes } from '../../../../../packages/landing/index.js';
