@@ -116,7 +116,7 @@ function fileSignature(path, includeContents = true) {
     if (stat.isSymbolicLink()) {
       try {
         const followed = fs.stat(path, { bigint: true });
-        const targetPath = fs.realpath(path);
+        const targetPath = fs.realpathNative(path);
         const targetIsNullDevice = isNullDevice(followed, targetPath);
         target = [String(followed.dev), String(followed.ino), String(followed.mode), String(followed.size),
           targetIsNullDevice ? null : String(followed.mtimeNs), targetIsNullDevice ? null : String(followed.ctimeNs)];
@@ -156,7 +156,7 @@ function configNeedsFallback(path, { attribution = false } = {}) {
  */
 function repositorySignature(cwd, info = null, includeHead = false, { attribution = false, directories = true } = {}) {
   const markers = [];
-  try { markers.push(['physical-cwd', fs.realpath(cwd)]); }
+  try { markers.push(['physical-cwd', fs.realpathNative(cwd)]); }
   catch (error) { markers.push(['physical-cwd', error.code ?? 'ERROR']); }
   let folder = resolve(cwd);
   let discoveredGitDir = null;
@@ -178,7 +178,7 @@ function repositorySignature(cwd, info = null, includeHead = false, { attributio
         }
         if (isDirectory) {
           try {
-            discoveredGitDir = fs.realpath(markerPath);
+            discoveredGitDir = fs.realpathNative(markerPath);
             discoveredCommonDir = discoveredGitDir;
           } catch {
             discoveredGitDir = null;
@@ -188,10 +188,10 @@ function repositorySignature(cwd, info = null, includeHead = false, { attributio
           const pointer = /^gitdir: (.+)\n?$/u.exec(marker[6]);
           if (pointer) {
             try {
-              discoveredGitDir = fs.realpath(resolve(folder, pointer[1]));
+              discoveredGitDir = fs.realpathNative(resolve(folder, pointer[1]));
               const common = fileSignature(join(discoveredGitDir, 'commondir'));
               discoveredCommonDir = common?.[6]
-                ? fs.realpath(resolve(discoveredGitDir, common[6].trim()))
+                ? fs.realpathNative(resolve(discoveredGitDir, common[6].trim()))
                 : discoveredGitDir;
             } catch {
               // Let Git's normal reader report malformed or inaccessible worktree metadata.
@@ -1017,12 +1017,12 @@ function boundedRepoInfo(cwd, { env } = {}) {
  */
 function fileRepoInfo(cwd) {
   try {
-    const here = fs.realpath(cwd);
+    const here = fs.realpathNative(cwd);
     let top = here;
     while (!fs.exists(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
     const location = fileLocation(top);
     if (!location) return undefined;
-    const gitDir = fs.realpath(location.gitDir), commonDir = fs.realpath(location.commonDir);
+    const gitDir = fs.realpathNative(location.gitDir), commonDir = fs.realpathNative(location.commonDir);
     if (here === gitDir || here.startsWith(gitDir + sep) || here === commonDir || here.startsWith(commonDir + sep)) return undefined;
     if (fs.exists(join(gitDir, 'config.worktree'))) return undefined;
     const config = fs.readFile(join(commonDir, 'config'), 'utf8');
@@ -1084,7 +1084,7 @@ function readRepoInfo(cwd, env, inherit = false) {
     throw new Refused('NOT_A_REPO', 'not inside a git work tree; run git init, or cd into a repo');
   }
   const [root, gitDir, commonDir] = fields;
-  return { root, commonDir: canonicalCommonDir(commonDir), gitDir, isMain: fs.realpath(commonDir) === fs.realpath(gitDir) };
+  return { root, commonDir: canonicalCommonDir(commonDir), gitDir, isMain: fs.realpathNative(commonDir) === fs.realpathNative(gitDir) };
 }
 
 /** Determine code provenance without letting a caller's active hook redirect Git's repository.
@@ -1103,7 +1103,7 @@ export function codeIsFromMain(root = CODE_ROOT) {
 /** Identify the running source's repository without letting an inherited hook redirect Git. */
 export function codeUsesRepository(commonDir, root = CODE_ROOT) {
   const info = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'], { env: gitChildEnv(root) });
-  return info.status === 0 && fs.realpath(info.stdout.trim()) === fs.realpath(commonDir);
+  return info.status === 0 && fs.realpathNative(info.stdout.trim()) === fs.realpathNative(commonDir);
 }
 
 /** Determine whether the code is from its main checkout, retaining the non-repository fallback. */
@@ -1111,14 +1111,14 @@ function readCodeIsFromMain(root) {
   // Git's own files say whether the code's checkout is the main one: there the worktree Git dir is the shared one.
   const location = fileLocation(root, { clean: true });
   if (location) {
-    try { return fs.realpath(location.commonDir) === fs.realpath(location.gitDir); } catch { /* Git answers below. */ }
+    try { return fs.realpathNative(location.commonDir) === fs.realpathNative(location.gitDir); } catch { /* Git answers below. */ }
   }
   // The same variables `git rev-parse --local-env-vars` names, cleared without a Git process to ask.
   const env = cleanGitEnvironment();
   const info = tryGit(root, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir'], { env });
   const fields = info.stdout.split('\n');
   if (info.status === 0 && fields.length === 3 && fields.every(Boolean)) {
-    return fs.realpath(fields[2]) === fs.realpath(fields[1]);
+    return fs.realpathNative(fields[2]) === fs.realpathNative(fields[1]);
   }
   if (info.status === 0) return repoInfo(root, { env }).isMain;
   let folder = resolve(root);
