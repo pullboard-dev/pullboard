@@ -1,5 +1,6 @@
 /** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js packages/git/src/io/review-folder.js */
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
+import { nextIdleMinutes } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
@@ -32,6 +33,8 @@ import {
   sayCheckBaseline,
 } from '../../../../../packages/gate/heavy.js';
 import {
+  idleSeconds,
+  laneFinished,
   refuseNextIdle,
 } from '../next/steps.js';
 import { reviewPacketLines } from '../../../../../packages/verify/index.js';
@@ -66,6 +69,8 @@ import { seatClaims } from '../next.js';
 import { topUpClaims } from '../next.js';
 import { whoAmI } from '../join.js';
 import {
+  boardFinishedLine,
+  idleTimeoutLine,
   refuseWhileBuilding,
   sayReviewOffer,
 } from '../next/say.js';
@@ -544,6 +549,7 @@ async function nextWithProgress(io, values, progress) {
         return 0;
       }
       if (values.verify) refuseWhileBuilding(ctx);
+      if (values['no-wait'] && !found.laneWork) return answerNoWait(io, ctx, found, values, ordered);
       if (values.defaultLoop && !found.laneWork) {
         // A named step, such as waiting on another seat's rework, says what to do instead of ending the turn (#7922).
         const step = found.nextStep ?? 'nothing for this seat: end your turn';
@@ -600,6 +606,28 @@ async function nextWithProgress(io, values, progress) {
       }
     }
   } } finally { wake?.close(); }
+}
+
+/**
+ * next --no-wait with nothing free: the board-finished line with exit 3 when every item in the seat's lane is verified,
+ * otherwise the idle line with exit 4. Each records its observation, and a recording failure never changes the exit code [C7,#12779].
+ */
+async function answerNoWait(io, ctx, found, values, ordered) {
+  const { seat, finished } = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board);
+    return { seat: me, finished: laneFinished(store.listItems(board, { lane: me.lane, all: true }), me.lane) };
+  });
+  const seconds = idleSeconds(nextIdleMinutes(ctx.config));
+  const observation = finished ? { finished: true } : { timeout: { minutes: Math.floor(seconds / 60), awaited: 'work for this seat' } };
+  try {
+    await withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...observation }]));
+  } catch (error) {
+    io.err?.(`next idle observation was not recorded (${error.code ?? error.message}); the exit code is unchanged`);
+  }
+  const line = finished ? boardFinishedLine(seat.lane) : idleTimeoutLine(seconds);
+  io.result?.({ item: null, idleReason: found.idleReason ?? 'unknown', ...(finished ? { finished: true } : { timeout: { seconds } }), reasons: [line] });
+  io.say(line);
+  return finished ? 3 : 4;
 }
 
 /** The clock a waiting next reads and sleeps through: the real time and the waiter's own timers unless io.nextWaitClock names another, so a test can drive the wait without real minutes [C7,#12761]. */
