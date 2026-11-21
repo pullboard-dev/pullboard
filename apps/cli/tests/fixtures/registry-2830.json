@@ -75,5 +75,20 @@
       "apps/cli/journeys/join/lanes-off.test.js",
       "packages/commits/src/io/hooks.js"
     ]
+  },
+  "cli.journeys-join-lanes-off.out-of-cell-submit-refused": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#2830"
+      ],
+      "claim": "With laneMode off, a commit made without the hook that holds a file in another cell than the claimed item's is refused at submit, naming the file."
+    },
+    "why": "Without it, a hook-skipped commit could carry another cell's file past submit when lanes are off.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "packages/commits/src/io/hooks.js"
+    ]
   }
 }

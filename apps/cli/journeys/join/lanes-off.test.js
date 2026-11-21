@@ -21,7 +21,7 @@ import { fixturePolicy } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { project } = e2e;
+const { project, attackCommit } = e2e;
 
 const LIGHT_MODEL = 'fixture-light';
 const VIEW = 'Files:\n- apps/view/src/page.js\nChange:\n- add the export\nTest:\n- the view test asserts it\nOut of scope: anything else\n';
@@ -141,4 +141,19 @@ test('cli.journeys-join-lanes-off.out-of-cell-commit-refused: clause 2: with lan
   rmSync(join(folder, 'packages/core/src/thing.js'));
   const own = commit(box, folder, 'feat(cell): view change [G1]');
   assert.equal(own.status, 0, own.stdout + own.stderr);
+});
+
+test('cli.journeys-join-lanes-off.out-of-cell-submit-refused: clause 2: with laneMode off, a commit that skipped the hook and holds a file in another cell is refused at submit naming the file [C7,#2830]', async t => {
+  const box = lanesOffProject(VIEW, CORE);
+  const seat = lanelessLightSeat(box, 'light-1');
+  assert.equal((await box.inProcess(seat, 'claim', '1')).code, 0);
+  const folder = `${seat}-item-1`;
+  write(folder, 'apps/view/src/page.js');
+  write(folder, 'packages/core/src/thing.js');
+  attackCommit(box, folder);
+  const submitted = await box.inProcess(folder, 'submit', '1', '--json');
+  // The submit gate judges the pushed commit: it refuses at the call or settles red, and either way names the foreign file.
+  const answer = submitted.code === 0 ? await settleSubmit(t, box, JSON.parse(submitted.out)) : null;
+  assert.ok(answer === null || answer.gate.green === false, 'the gate does not pass the foreign cell');
+  assert.match(answer === null ? submitted.out + submitted.err : JSON.stringify(answer.gate), /packages\/core\/src\/thing\.js/u);
 });
