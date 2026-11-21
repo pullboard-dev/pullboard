@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import {
   acceptedCellsIdentity,
   nudgeAcceptedCells,
-} from '../../../packages/gate/index.js';
+} from '../../../packages/gate/heavy.js';
 import { acceptedInventoryKey } from '../../../packages/codemap/index.js';
 import {
   isolateMachine,
