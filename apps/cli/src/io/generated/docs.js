@@ -28,6 +28,20 @@ export function engineFirstPage(blocks) {
   ].join('\n');
 }
 
+/** The static view page: headings held here, its snapshot table rendered from the declarations; its authored prose is dropped [C7]. */
+export function staticViewPage(blocks) {
+  return [
+    '# Static view export',
+    '',
+    '## Snapshot files',
+    '',
+    '<!-- snapshot-files:start -->',
+    blocks['snapshot-files'].trimEnd(),
+    '<!-- snapshot-files:end -->',
+    '',
+  ].join('\n');
+}
+
 /** Render every generated copy without touching a repository board or rewriting authored prose. */
 export function generatedDocs(root = fileURLToPath(new URL('../../../../../', import.meta.url)), { openBoard } = {}) {
   const board = openBoard(':memory:');
@@ -36,11 +50,10 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   finally { closeBoard(board); }
   let formats = files.readFile(join(root, 'docs', 'formats.md'), 'utf8');
   let spec = files.readFile(join(root, 'docs', 'formats', 'spec.md'), 'utf8');
-  let staticView = files.readFile(join(root, 'docs', 'formats', 'static-view.md'), 'utf8');
   // A table moved to a user page is refreshed there; every other table stays in the guide.
   for (const [name, table] of Object.entries(blocks)) {
+    if (name === 'snapshot-files') continue; // rendered whole into the static view page below
     if (!formats.includes(`<!-- ${name}:start -->`) && spec.includes(`<!-- ${name}:start -->`)) spec = replaceDocTable(spec, name, table);
-    else if (!formats.includes(`<!-- ${name}:start -->`) && staticView.includes(`<!-- ${name}:start -->`)) staticView = replaceDocTable(staticView, name, table);
     else formats = replaceDocTable(formats, name, table);
   }
   let api = files.readFile(join(root, 'docs', 'api.md'), 'utf8');
@@ -53,7 +66,7 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   };
   for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
   return new Map([
-    ['docs/formats.md', formats], ['docs/formats/spec.md', spec], ['docs/formats/static-view.md', staticView], ['docs/api.md', api],
+    ['docs/formats.md', formats], ['docs/formats/spec.md', spec], ['docs/formats/static-view.md', staticViewPage(blocks)], ['docs/api.md', api],
     ['docs/formats/engine-first.md', engineFirstPage(blocks)],
     ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)],
   ]);
