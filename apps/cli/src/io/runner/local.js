@@ -62,7 +62,7 @@ export function startLocalRunner(root, { env = environmentAdapter().all() } = {}
  * @returns {boolean} Whether the runner was woken.
  */
 export function wakeRunnerForOffer() {
-  return loadMachineSettings()['runners.localWake'] === true && wakeLocalRunner(localRunnerFolder());
+  return loadMachineSettings()['runners.localWake'] === true && wakeLocalRunner(localRunnerFolder(), localRunnerHome());
 }
 
 /**
