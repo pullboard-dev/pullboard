@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/kernel */
 /** The fs, process and git remote boundaries register in the adapter switch beside the clock and env ones [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
