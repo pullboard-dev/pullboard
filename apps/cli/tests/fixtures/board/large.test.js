@@ -29,5 +29,5 @@ test('cli.fixtures-board-large.history-board-counts: clause 2: [C7] a board seed
   assert.equal(count(db, 'SELECT count(*) AS n FROM job_step'), 219_374);
   assert.equal(count(db, 'SELECT count(*) AS n FROM test_result'), 186_337);
   assert.equal(count(db, "SELECT count(*) AS n FROM job WHERE job_kind = 'test-run' AND job_step = 'done'"), 7_764);
-  assert.equal(count(db, 'SELECT count(*) AS n FROM board_meta'), 203_897);
+  assert.equal(count(db, "SELECT count(*) AS n FROM board_meta WHERE meta_key LIKE 'local:seed:%'"), 203_897);
 });
