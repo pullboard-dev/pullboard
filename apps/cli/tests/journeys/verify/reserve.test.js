@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { runFixtureSetupGit } from '../../fixtures/child.js';
+import { running } from '../../fixtures/runner/local-stop.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 import { settleSubmit } from '../../fixtures/submit/settle.js';
@@ -20,13 +21,18 @@ import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 function killLocalRunner(machineHome) {
   const folder = join(machineHome, 'local-runner');
   const files = fs.existsSync(folder) ? fs.readdirSync(folder).filter((name) => /^(?:state|starting)(?:-[0-9a-f]{12})?\.json$/u.test(name)) : [];
-  const pids = files.map((name) => {
-    try { return Number(JSON.parse(fs.readFileSync(join(folder, name), 'utf8')).pid); } catch { return 0; }
-  }).filter((pid) => Number.isSafeInteger(pid) && pid > 1);
-  const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; } };
+  // Only a pid the fixture runner wrote moments ago is signalled: an older file may name a pid another process now holds.
+  const fresh = (state) => Date.now() - Number(state.heartbeatAt ?? state.startedAt) < 120_000;
+  const pids = [...new Set(files.map((name) => {
+    try {
+      const state = JSON.parse(fs.readFileSync(join(folder, name), 'utf8'));
+      return fresh(state) ? Number(state.pid) : 0;
+    } catch { return 0; }
+  }).filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid && pid !== process.ppid))];
   for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
-  for (const until = Date.now() + 5000; Date.now() < until && pids.some(alive);) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
-  assert.deepEqual(pids.filter(alive), [], 'the fixture local runner has exited before its home is removed');
+  // `running` ignores an exited child waiting to be reaped: this loop is blocked here, so it cannot reap it and a signal-zero would read it as alive for the whole wait.
+  for (const until = Date.now() + 5000; Date.now() < until && pids.some(running);) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+  assert.deepEqual(pids.filter(running), [], 'the fixture local runner has exited before its home is removed');
 }
 
 test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', async (t) => {
