@@ -16,7 +16,7 @@
   "src/person.js": "packages/person/src/io/main.js",
   "src/qr.js": "packages/person/src/logic/qr.js",
   "test/add-lanes.test.js": "apps/cli/journeys/add/lanes.test.js",
-  "test/agent-session.test.js": "apps/cli/journeys/agents/session.test.js",
+  "test/agent-session.test.js": "apps/cli/tests/io/claim/session.test.js",
   "test/approved-row-changes.test.js": "apps/cli/journeys/spec/changes.test.js",
   "test/implies-phone.test.js": "apps/cli/journeys/shout/phone.test.js",
   "test/intake.test.js": "apps/cli/tests/io/commands/intake/main.test.js",

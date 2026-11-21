@@ -33,6 +33,8 @@ import { watchSpecFilter } from '../../../tests/fixtures/cockpit/spec-watch.js';
 test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 1: doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for shared-row checks.');
+  let phaseMark = performance.now();
+  const phase = (name) => { const now = performance.now(); console.log(`# phase ${name} ${Math.round(now - phaseMark)}`); phaseMark = now; };
 
   const standard = standardDoctrine();
   const [inherited, overridden, declined] = standard.rows;
@@ -53,6 +55,7 @@ test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 
   // The claim and submit run in this process and the commit's hooks too; Chrome below is the subject, not the CLI start-up [C7].
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   await buildLocal(box, demo, 1, 'shared-row.txt');
+  phase('setup and board seeding');
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-shared-rows-chrome-'));
@@ -92,6 +95,7 @@ test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("data?.project?.spec?.some(row => row.id === 'G1') && data?.project?.practice?.some(row => row.id === 'R1')");
+    phase('Chrome start');
     for (const theme of ['light', 'dark']) {
       for (const width of [375, 1280]) {
         await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -217,6 +221,7 @@ test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 
         assert.ok(detail.includes(longOverride.trim()) && detail.includes('Checked in review') && detail.includes(inherited.id) && detail.includes('Cited by') && detail.includes('No items yet'), `${width}px ${theme}: Enter on the picked rule opens full detail: ${detail}`);
         assert.ok(!await chrome.stable('document.documentElement.scrollWidth > document.documentElement.clientWidth'), `${width}px ${theme}: no horizontal overflow`);
         await shot('doctrine', width, theme);
+        phase(`layout ${theme} ${width}`);
       }
     }
     // The same wide layout becomes touch-sized when its primary pointer is coarse.
@@ -237,6 +242,7 @@ test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 
       assert.equal(targets.tap, '44px', kind + ': touch uses the accepted 44px sizing token');
       assert.ok(targets.heights.length > 2 && targets.heights.every(target => target.height >= 44), kind + ': rows and both detail decisions meet the touch target: ' + JSON.stringify(targets));
     }
+    phase('coarse-pointer pass');
   } finally {
     try { await filterTrace?.dispose(); }
     finally {

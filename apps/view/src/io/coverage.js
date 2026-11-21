@@ -26,7 +26,7 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/logic/rules.js', names: ['ruleListModel'], tests: [MAIN_TEST] },
   { module: 'apps/view/src/logic/component.js', names: ['sharedRowHtml'], tests: ['apps/view/tests/logic/component.test.js'] },
   { module: 'packages/spec/light.js', names: ['personNeeds'], tests: ['apps/view/tests/logic/needs/summary/data.test.js'] },
-  { module: 'apps/view/src/io/held.js', names: ['heldNote', 'heldChip'], tests: ['apps/view/tests/logic/needs/summary/data.test.js'] },
+  { module: 'apps/view/src/io/held.js', names: ['heldNote', 'heldChip', 'judgementNote', 'judgementChip'], tests: ['apps/view/tests/logic/needs/summary/data.test.js', 'apps/view/tests/io/held.test.js'] },
   { module: 'apps/view/src/logic/home.js', names: ['homeCapacity'], tests: ['apps/view/tests/logic/home.test.js'] },
   { module: 'apps/view/src/logic/row.js', names: ['recordRowHtml'], tests: [MAIN_TEST] },
   { module: 'apps/view/src/logic/pipeline/render.js', names: ['pipelineHtml'], tests: [MAIN_TEST] },

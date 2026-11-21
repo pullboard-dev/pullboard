@@ -185,7 +185,7 @@
     "tempdir": 1,
     "raw-board": 1
   },
-  "apps/cli/journeys/agents/session.test.js": {
+  "apps/cli/tests/io/claim/session.test.js": {
     "tempdir": 1,
     "hand-policy": 4,
     "model": 1
@@ -455,7 +455,7 @@
     "tempdir": 1,
     "raw-board": 7
   },
-  "apps/cli/journeys/status/writer.test.js": {
+  "apps/cli/tests/status/writer.test.js": {
     "raw-board": 4,
     "repo-read": 1
   },
@@ -1815,9 +1815,6 @@
   "packages/runners/tests/logic/diagnostics/recovery.test.js": {
     "model": 1
   },
-  "apps/cli/tests/fixtures/runner/machine.js": {
-    "repo-read": 1
-  },
   "packages/runners/tests/runner-controller.test.js": {
     "tempdir": 1
   },
@@ -2117,7 +2114,7 @@
   "apps/cli/tests/io/submit/gate/plan.test.js": {
     "tempdir": 2
   },
-  "apps/cli/journeys/submit/wait.test.js": {
+  "apps/cli/tests/io/submit/waiting.test.js": {
     "raw-board": 1
   },
   "apps/cli/tests/fixtures/submit/wait.js": {

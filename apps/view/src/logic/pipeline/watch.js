@@ -239,6 +239,7 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
   });
   const stuckLeft = stuckGroups.reduce((sum, group) => sum + group.count, 0);
   const total = milestoneIds.size;
+  const clock = project?.clock ?? null;
   const stuck = { milestone: milestone?.name ?? null, count: stuckLeft, left: stuckLeft + moving.building.length + moving.gate.length + moving.pending.length + moving.reviewing.length, total, groups: stuckGroups, moving };
 
   // ---------- Where each stage loses work ----------
@@ -353,7 +354,7 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
     .filter(row => row.claimed || row.back || row.submitted)
     .sort((x, y) => y.back - x.back || y.claimed - x.claimed || x.seat.localeCompare(y.seat));
 
-  return { complete, now, windowMinutes, recorded: rec, time, flow, main, stages: stageList, topStage: top?.key ?? null, failures, stuck, bounce, reds: redRows, seats: seatRows,
+  return { complete, now, windowMinutes, recorded: rec, time, flow, main, stages: stageList, topStage: top?.key ?? null, failures, stuck, clock, bounce, reds: redRows, seats: seatRows,
     machine: machine ? { ...machine, startedBeforeMain: Array.isArray(machine.views) && lastMerged ? machine.views.filter(view => view.startedMs < lastMerged.at).length : null } : null };
 }
 
@@ -459,12 +460,19 @@ export function pipelineWatchHtml(model, { href = () => '#', itemHref = id => '#
   const sg = model.stuck, age = minutes => dur(minutes);
   const groupsHtml = sg.groups.map((group, index) => {
     const shownRows = group.rows.slice(0, 5), more = group.count - shownRows.length, openNow = open ? open.includes(group.key) : index < 2;
-    return '<div class="pw-gr' + (openNow ? ' open' : '') + '" data-pipeline-group="' + esc(group.key) + '"><div class="pw-gh" role="button" tabindex="0" aria-expanded="' + openNow + '"><span class="tw">▶</span>' + dot(group.dot) + '<span class="nm">' + esc(group.name) + '</span><span class="ct">' + group.count + '</span><span class="old' + (group.red ? ' back' : '') + '" title="oldest">' + age(group.oldest) + '</span><span class="hint">' + esc(group.hint) + '</span><a class="open" href="' + esc(href(group.ids)) + '" data-pipeline-ids="' + group.ids.join(',') + '">Open in Items ›</a></div>'
+    const clockRules = { 'claimed-idle': ['claim-idle'], released: ['ready'], 'never-claimed': ['ready'], blocked: ['waiting'], held: ['hold'], 'held-twice': ['hold'], 'held-person': ['hold'] }[group.key] ?? [];
+    const deadlines = clockRules.flatMap(rule => {
+      const entry = model.clock?.byRule?.[rule];
+      return entry ? ['next deadline ' + clock(entry.nextDeadlineAt) + ' · default move ' + entry.move] : [];
+    });
+    const hint = [group.hint, ...deadlines].join(' · ');
+    return '<div class="pw-gr' + (openNow ? ' open' : '') + '" data-pipeline-group="' + esc(group.key) + '"><div class="pw-gh" role="button" tabindex="0" aria-expanded="' + openNow + '"><span class="tw">▶</span>' + dot(group.dot) + '<span class="nm">' + esc(group.name) + '</span><span class="ct">' + group.count + '</span><span class="old' + (group.red ? ' back' : '') + '" title="oldest">' + age(group.oldest) + '</span><span class="hint">' + esc(hint) + '</span><a class="open" href="' + esc(href(group.ids)) + '" data-pipeline-ids="' + group.ids.join(',') + '">Open in Items ›</a></div>'
       + '<div class="pw-gl">' + shownRows.map(row => '<a class="pw-ir" href="' + esc(itemHref(row.id)) + '"><span class="id">#' + row.id + '</span><span class="tt">' + esc(row.title) + '</span><span class="dt">' + esc(row.detail) + '</span><span class="ag' + (row.age >= group.redAt ? ' back' : '') + '">' + age(row.age) + '</span></a>').join('')
       + (more > 0 ? '<a class="pw-gmore" href="' + esc(href(group.ids)) + '" data-pipeline-ids="' + group.ids.join(',') + '">' + more + ' more in Items ›</a>' : '') + '</div></div>';
   }).join('');
   const mv = sg.moving;
-  const stuckBody = '<div class="dash-card pw-stuck" aria-label="Where items are not moving">' + (groupsHtml || '<p class="dash-empty pw-none">' + (sg.milestone ? 'Every unfinished item in ' + esc(sg.milestone) + ' is moving.' : 'The board has no release in focus.') + '</p>')
+  const clockAlert = model.clock ? '<p class="pw-clock"><span class="dash-pill static' + (model.clock.withoutOwnerDeadline > 0 ? ' back' : '') + '">items without owner+deadline: ' + num(model.clock.withoutOwnerDeadline) + '</span> <span class="dash-pill static">overdue: ' + num(model.clock.overdue) + ' · oldest ' + dur(model.clock.oldestOverdueMinutes) + '</span></p>' : '';
+  const stuckBody = '<div class="dash-card pw-stuck" aria-label="Where items are not moving">' + clockAlert + (groupsHtml || '<p class="dash-empty pw-none">' + (sg.milestone ? 'Every unfinished item in ' + esc(sg.milestone) + ' is moving.' : 'The board has no release in focus.') + '</p>')
     + '<div class="pw-moving"><span class="ct">Moving</span>'
     + '<span class="pw-kv">' + link(mv.building, dot('building') + '<b>' + mv.building.length + '</b> building') + '</span>'
     + '<span class="pw-kv">' + (model.recorded.gate ? link(mv.gate, dot('gate') + '<b>' + mv.gate.length + '</b> in the gate') : dot('gate') + '<b>—</b> in the gate') + '</span>'

@@ -94,6 +94,18 @@ function tellLocalKeyDiagnostic(io, link) {
   }
 }
 
+/**
+ * Refuse a delivery hand-off on a relay-linked board whose key is unreachable.
+ *
+ * Why: the marks worker writes the record without the relay, so a keyless read would otherwise claim a canonical delivery it cannot sign.
+ * @param {{ info: { commonDir: string } }} ctx The command context.
+ */
+export function requireDeliveryKey(ctx) {
+  const file = relayLinkFile(ctx.info.commonDir);
+  if (!fs.exists(file)) return;
+  readBoardKey(JSON.parse(fs.readFile(file, 'utf8')).board, { legacyKeychain: false });
+}
+
 /** Say once, loudly, each queued move of this checkout's agent that lost to another machine's move (#1013). */
 function tellConflicts(io, link) {
   if (!link) return;

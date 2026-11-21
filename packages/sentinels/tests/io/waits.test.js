@@ -341,7 +341,7 @@ function heldScratchLoops(t) {
   const id = addItem(m.board, { by: 'coordinator', lane: 'core', title: 'Held work', criterion: 'It works.' });
   claim(m.board, id, { agentId: seat, lane: 'core', leaseMs: 4 * 3_600_000, head: 'a'.repeat(40),
     freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' }) });
-  const command = '/bin/zsh -c source /home/agent/.claude/shell-snapshots/snapshot-zsh-1.sh 2>/dev/null || true && '
+  const command = '/bin/zsh -c source /home/user/.claude/shell-snapshots/snapshot-zsh-1.sh 2>/dev/null || true && '
     + '{ while true; do pullboard heartbeat; sleep 60; done }';
   const parent = { pid: 900_000, ppid: 1, ageMs: 60 * MINUTE, started: 'Fri Nov 20 19:00:00 2026', command: '/usr/local/bin/claude' };
   const shell = (pid, ageMs) => ({ pid, ppid: parent.pid, ageMs, started: 'Fri Nov 20 19:50:04 2026', command });

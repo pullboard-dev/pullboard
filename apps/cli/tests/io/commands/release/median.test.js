@@ -11,9 +11,8 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { largeBoard } from '../../../fixtures/board/large.js';
 
-/** The 170 ms target is not met yet: audited exception at the measured median (289 ms, run a5a248a2-f2e6-498a-9ced-39625f0c9b1e) rounded up; the next cut is filed separately. */
+/** The release median target. */
 const TARGET_MS = 170;
-const BUDGET_MS = 300;
 const RUNS = 5;
 
 /** The middle of the samples. */
@@ -21,7 +20,7 @@ function median(samples) {
   return [...samples].sort((a, b) => a - b)[Math.floor(samples.length / 2)];
 }
 
-test('cli.journeys-speed-release-median.the-release-median-on-the-2: clause 1: [C7] the release median on the 2,500-item board measures 289 ms and is held under ' + BUDGET_MS + ' ms (target ' + TARGET_MS + ' ms), in-process', async (t) => {
+test('cli.journeys-speed-release-median.the-release-median-on-the-2: clause 1: [C7] the release median on the 2,500-item board is under ' + TARGET_MS + ' ms, in-process', async (t) => {
   const box = largeBoard(t);
   const db = new DatabaseSync(box.board, { readOnly: true });
   const ids = db.prepare("SELECT item_id AS id FROM item WHERE item_title LIKE 'Seeded item %' ORDER BY item_id LIMIT ?").all(RUNS).map((row) => Number(row.id));
@@ -38,7 +37,7 @@ test('cli.journeys-speed-release-median.the-release-median-on-the-2: clause 1: [
   }
   const middle = median(samples);
   console.log(`# release median ${middle.toFixed(0)} ms (${samples.map((ms) => ms.toFixed(0)).join(', ')})`);
-  assert.ok(middle < BUDGET_MS, `release median ${middle.toFixed(0)} ms (${samples.map((ms) => ms.toFixed(0)).join(', ')}), over ${BUDGET_MS} ms`);
+  assert.ok(middle < TARGET_MS, `release median ${middle.toFixed(0)} ms (${samples.map((ms) => ms.toFixed(0)).join(', ')}), over ${TARGET_MS} ms`);
 });
 
 /** Whether a profiled frame is repo source, so a native or node: frame can be charged to the repo function that called it. */
@@ -241,6 +240,12 @@ test('cli.journeys-speed-release-median.profile-by-git-call: clause 1: [C7] the 
       samples.push(performance.now() - started);
     });
     assert.equal(released.code, 0, `release ${id}: ${released.err}${released.out}`);
+    const argvs = rows.map((row) => row.argv);
+    assert.deepEqual(argvs.filter((argv) => /(^|\s)worktree list(\s|$)/u.test(argv)), [], `release ${id} starts no worktree list`);
+    assert.deepEqual(argvs.filter((argv) => argv.includes('--no-optional-locks')), [], `release ${id} starts no status --no-optional-locks`);
+    const removed = argvs.filter((argv) => /(^|\s)worktree remove(\s|$)/u.test(argv)).length;
+    assert.ok(removed >= 1, `release ${id} removes its idle seat folder`);
+    assert.ok(argvs.filter((argv) => argv.includes('--ignored=matching')).length <= removed, `release ${id} runs status --ignored=matching only for a folder it removes`);
     calls.push(...rows);
   }
   assert.equal(samples.length, RUNS, 'five releases succeeded');
@@ -255,4 +260,28 @@ test('cli.journeys-speed-release-median.profile-by-git-call: clause 1: [C7] the 
   assert.ok(top.length >= 1, 'the release starts at least one git child through child_process');
   console.log(`# release by-git-call median ${median(samples).toFixed(0)} ms (${samples.map((ms) => ms.toFixed(0)).join(', ')})`);
   for (const { argv, caller, ms, count } of top) console.log(`# ${(ms / RUNS).toFixed(1)} ms per release git ${argv} ${caller} (${(count / RUNS).toFixed(1)} calls per release)`);
+});
+
+test('cli.journeys-speed-release-median.counted-git-children: clause 1: [C7] each timed release starts no git worktree list and no status --no-optional-locks, and runs status --ignored=matching only for a folder it removes', async (t) => {
+  const box = largeBoard(t);
+  const db = new DatabaseSync(box.board, { readOnly: true });
+  const ids = db.prepare("SELECT item_id AS id FROM item WHERE item_title LIKE 'Seeded item %' ORDER BY item_id LIMIT ?").all(RUNS).map((row) => Number(row.id));
+  db.close();
+  assert.equal(ids.length, RUNS);
+  for (const id of ids) {
+    const claimed = await box.inProcess(box.web, 'claim', String(id), '--no-next');
+    assert.equal(claimed.code, 0, `claim ${id}: ${claimed.err}${claimed.out}`);
+    let released;
+    const rows = await timeGitCalls(async () => {
+      released = await box.inProcess(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next');
+    });
+    assert.equal(released.code, 0, `release ${id}: ${released.err}${released.out}`);
+    const argvs = rows.map((row) => row.argv);
+    assert.deepEqual(argvs.filter((argv) => /(^|\s)worktree list(\s|$)/u.test(argv)), [], `release ${id} starts no worktree list`);
+    assert.deepEqual(argvs.filter((argv) => argv.includes('--no-optional-locks')), [], `release ${id} starts no status --no-optional-locks`);
+    const ignored = argvs.filter((argv) => argv.includes('--ignored=matching')).length;
+    const removed = argvs.filter((argv) => /(^|\s)worktree remove(\s|$)/u.test(argv)).length;
+    assert.ok(removed >= 1, `release ${id} removes its idle seat folder`);
+    assert.ok(ignored <= removed, `release ${id} runs status --ignored=matching ${ignored} times for ${removed} removed folders`);
+  }
 });

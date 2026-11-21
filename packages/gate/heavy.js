@@ -561,3 +561,4 @@ export { LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, lan
 export { printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly, writeFileTimes, lex };
 export { report, walk, workingSourceInventory, acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure };
 export { waitForAcceptedCells, runJourneyCheck, unregisteredNewTests };
+export { boardWriteIoProblems } from './src/io/board/write.js';
