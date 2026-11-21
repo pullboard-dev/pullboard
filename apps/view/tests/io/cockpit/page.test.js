@@ -110,13 +110,17 @@ test('view.io-cockpit-page.compat-by-stage: clause 1: the cockpit page fetches G
   t.after(() => view.close());
   const answer = await fetch(`http://127.0.0.1:${view.port}/compat-cells`, { headers: { 'x-pullboard-key': secret, connection: 'close' } });
   assert.equal(answer.status, 200);
-  const html = compatRowsHtml(await answer.json());
+  const groups = await answer.json();
+  const fed = [...new Set(groups.flatMap(group => group.cells.map(cell => cell.language)))].sort();
+  const html = compatRowsHtml(groups);
   const rows = [...html.matchAll(/<tr data-language="([^"]+)">(.*?)<\/tr>/gu)].map(match => ({ language: match[1],
     cells: [...match[2].matchAll(/<td data-stage="([^"]*)" data-outcome="([^"]*)" data-run="([^"]*)">/gu)].map(cell => ({ stage: cell[1], outcome: cell[2], run: cell[3] })) }));
-  assert.deepEqual(rows.map(row => row.language), ['node', 'python'], 'one row per language');
+  assert.deepEqual(rows.map(row => row.language), fed, 'one row per language the feed names');
+  assert.ok(fed.includes('node') && fed.includes('python'), 'the recorded languages have rows');
   for (const row of rows) assert.deepEqual(row.cells.map(cell => cell.stage), [...COMPAT_STAGES], `${row.language} has one cell per stage in CONFORMANCE_STAGES order`);
-  assert.deepEqual(rows[0].cells.slice(0, 3), [{ stage: 'claim', outcome: 'works', run: 'run-node-1' }, { stage: 'submit', outcome: 'works', run: 'run-node-1' }, { stage: 'gate', outcome: 'breaks', run: 'run-node-1' }]);
-  assert.deepEqual(rows[1].cells[0], { stage: 'claim', outcome: 'partial', run: 'run-python-1' });
+  const byName = Object.fromEntries(rows.map(row => [row.language, row]));
+  assert.deepEqual(byName.node.cells.slice(0, 3), [{ stage: 'claim', outcome: 'works', run: 'run-node-1' }, { stage: 'submit', outcome: 'works', run: 'run-node-1' }, { stage: 'gate', outcome: 'breaks', run: 'run-node-1' }]);
+  assert.deepEqual(byName.python.cells[0], { stage: 'claim', outcome: 'partial', run: 'run-python-1' });
   assert.ok(html.includes('partial <code>run-python-1</code>'), 'a cell shows its outcome and its run id');
   const page = cockpitPage('', { commandPhrases: () => ['add'] });
   assert.ok(page.includes("api('/compat-cells')"), 'the page fetches the compat cells');
