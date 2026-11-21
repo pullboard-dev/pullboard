@@ -186,6 +186,10 @@ test('cli.io-commands-verify.raised-stakes-scope: clause 2: an independent verif
   assert.doesNotMatch(independent.stdout + independent.stderr, /PENDING_REFREEZE/u);
   const refrozen = await box.runLocal(box.repo, 'refreeze', '1');
   assert.equal(refrozen.code, 0, refrozen.stdout + refrozen.stderr);
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  writeFileSync(join(box.web, 'web/second.html'), 'fixture');
+  e2e.historicalCheckSubmission(box, e2e.attackCommit(box, box.web));
   const own = await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'self accept after the refreeze');
   assert.match(own.stdout + own.stderr, /SELF_VERIFY/u);
   assert.doesNotMatch(own.stdout + own.stderr, /PENDING_REFREEZE/u);
