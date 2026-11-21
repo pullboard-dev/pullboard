@@ -2,14 +2,16 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
+import { inProcessHooksOn } from '../../../tests/fixtures/hook/mode.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../../../packages/store/index.js';
 import { completeSubmitHandoff } from '../../../../../packages/store/index.js';
 import { fixture } from '../../../tests/fixtures/submit/handoff.js';
 import { queueBoard } from '../../../tests/fixtures/submit/handoff.js';
 
-test('cli.journeys-submit-handoff-red-and-stop.a-queued-red-returned-to-its: clause 1: a queued red returned to its builder writes submitOutcome with the refusal code and its pipelineCause on the same renew event [C7,V4]', t => {
-  const box = fixture(t);
+test('cli.journeys-submit-handoff-red-and-stop.a-queued-red-returned-to-its: clause 1: a queued red returned to its builder writes submitOutcome with the refusal code and its pipelineCause on the same renew event [C7,V4]', async t => {
+  const box = await fixture(t);
+  assert.equal(inProcessHooksOn(box.env), true, 'the fixture uses the default in-process hooks');
   const board = queueBoard(box);
   try {
     const item = getItem(board, box.id);
@@ -30,8 +32,9 @@ test('cli.journeys-submit-handoff-red-and-stop.a-queued-red-returned-to-its: cla
   } finally { board.db.close(); }
 });
 
-test('cli.journeys-submit-handoff-red-and-stop.a-queued-gate-stopped-by-an: a queued gate stopped by an infrastructure Git read stays claimed and is never returned to the builder as red [C7,V4]', t => {
-  const box = fixture(t);
+test('cli.journeys-submit-handoff-red-and-stop.a-queued-gate-stopped-by-an: a queued gate stopped by an infrastructure Git read stays claimed and is never returned to the builder as red [C7,V4]', async t => {
+  const box = await fixture(t, { inProcessHooks: false });
+  assert.equal(inProcessHooksOn(box.env), false, 'the fixture uses native subprocess hooks');
   const board = queueBoard(box);
   try {
     const item = getItem(board, box.id);

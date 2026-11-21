@@ -119,8 +119,8 @@ test('cli.stable.journeys-registered: clause 2: [C7,U148] every test under the j
   // The claim policy chaos case keeps its record in the registry of the item that added it (#5705).
   const records = Object.assign({}, ...['registry-10541.json', 'registry-5705.json'].map(name => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
-  // #12243 moved decisions/project and agents/takeover-model under tests/io/commands; their records stay in registry-10541.json.
-  const moved = ['agents/takeover-model.test.js', 'decisions/project.test.js'].map((name) => join(DIR, 'io', 'commands', name));
+  // #12243 moved decisions/project and agents/takeover-model under tests/io/commands; #12246 moved companion/review there too.
+  const moved = ['agents/takeover-model.test.js', 'companion/review.test.js', 'decisions/project.test.js'].map((name) => join(DIR, 'io', 'commands', name));
   for (const area of ['add', 'agents', 'baseline', 'blueprint', 'cells', 'claim', 'companion', 'decisions']) {
     const files = existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : [];
     for (const file of [...files, ...moved.filter((path) => path.includes(`/commands/${area}/`))]) {
@@ -257,8 +257,11 @@ test('cli.stable.journeys-registered-10545: clause 1: [C7,U148] every core-owned
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: inbox/sidebar.test.js.
   const viewOwned = new Set(['inbox/sidebar.test.js']);
+  // #12246 moved the intake journeys under tests/io/commands/intake; they keep their records and are still checked here.
+  const movedIntake = ['boundary', 'main', 'revision'].map((name) => join(DIR, 'io', 'commands', 'intake', `${name}.test.js`));
   for (const area of ['fact', 'hooks', 'imports', 'inbox', 'intake', 'join']) {
-    for (const file of testFiles(join(journeys, area))) {
+    const files = existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : [];
+    for (const file of area === 'intake' ? [...files, ...movedIntake] : files) {
       if (viewOwned.has(file.slice(journeys.length + 1))) continue;
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);

@@ -1,0 +1,16 @@
+{
+  "cli.journeys-show-review-tier.review-family-item-widens-after-20-minutes": {
+    "proves": {
+      "specs": [
+        "V1",
+        "H16"
+      ],
+      "claim": "with review.relaxRequiredFamily on, an item filed with --review-family and no live eligible seat of that family for 20 minutes is offered by the real next --verify to a seat of another session, and the real verify records that the required family was widened and why."
+    },
+    "why": "The widening of a required review family is built from three units; without a journey through the real CLI they could each pass while next and verify never widen an item.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/tests/io/commands/show/tier.test.js"
+    ]
+  }
+}

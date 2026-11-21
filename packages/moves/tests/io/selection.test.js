@@ -19,13 +19,14 @@ import { actorClaims } from '../fixtures/next.js';
 import { fixture } from '../fixtures/next.js';
 import { next } from '../fixtures/next.js';
 import { Refused } from '../../../kernel/index.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 
 /** view and docs own folders, as in pullboard.json; tests owns none, as the verifier lane does. */
 const LANES = { view: { owns: ['apps/view/'] }, docs: { owns: ['guides/'] }, tests: { owns: [] } };
 
 /** A real board with one seat in `lane` running next from its own linked worktree, as a builder seat does. */
 function board(t, lane) {
-  const box = fixture(t, { lanes: LANES });
+  const box = fixture(t, { boardFrom: cellBoard, lanes: LANES });
   const path = join(box.project.dir, `${lane}-seat`);
   mkdirSync(path);
   const seat = cellSeat(box.board, { lane, path, family: 'Family Alpha' });
@@ -134,7 +135,7 @@ function recorded(board, work) {
 }
 
 test('moves.selection.warm-files-bounded: clause 1: with 50 closed items by other seats and 3 recent built items by this seat, the warm files nextSelection.pick uses are exactly those 3 items files, read without listing all items [N2,C7,#10692]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const open = box.add('Open work for the pick');
   const { older, recent } = seedBuilt(box);
   const { value, reads } = recorded(box.board, () => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports));
@@ -151,7 +152,7 @@ test('moves.selection.warm-files-bounded: clause 1: with 50 closed items by othe
 });
 
 test('moves.selection.derived-gate-port: clause 1: with ports.derivedGateAtHead returning a reader, pick passes it to nextFor, so an item the reader names as gated is not picked and the next free item is [C7,#10881]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const gated = box.add('Gated by the derived table');
   const free = box.add('Free work');
   const derivedGateAtHead = () => entry => (entry.item_id === gated ? `gate green at ${'a'.repeat(12)}` : undefined);
@@ -161,7 +162,7 @@ test('moves.selection.derived-gate-port: clause 1: with ports.derivedGateAtHead 
 });
 
 test('moves.selection.derived-gate-port-absent: clause 2: with no port, or a port returning null, pick returns the same item as before and no reader reaches nextFor [C7,#10881]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const first = box.add('First work');
   box.add('Second work');
   const pick = ports => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, ports).item?.item_id;
@@ -180,7 +181,7 @@ function offerOptions(t, box, ports) {
 }
 
 test('moves.selection.derived-seat-family-port: clause 1: with ports.derivedSeatFamily returning a map or a reader, pick passes it to nextFor as derivedSeatFamily and the answer is the port\'s [C7,#11384]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   box.add('Work for the default loop');
   const reader = id => (id === 'seat-x' ? 'openai' : undefined);
   const fromReader = offerOptions(t, box, { ...box.ports, derivedSeatFamily: () => reader });
@@ -193,7 +194,7 @@ test('moves.selection.derived-seat-family-port: clause 1: with ports.derivedSeat
 });
 
 test('moves.selection.derived-seat-family-port-absent: clause 2: with no port, or a port returning null, pick passes no derivedSeatFamily and returns the same item as before [C7,#11384]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const first = box.add('First work');
   box.add('Second work');
   for (const ports of [box.ports, { ...box.ports, derivedSeatFamily: () => null }]) {
@@ -204,7 +205,7 @@ test('moves.selection.derived-seat-family-port-absent: clause 2: with no port, o
 });
 
 test('moves.selection.derived-seat-family-beside-gate: clause 3: pick reads ports.derivedSeatFamily beside ports.derivedGateAtHead, each answering on its own [C7,#11384]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const gated = box.add('Gated by the derived table');
   const free = box.add('Free work');
   const reader = () => undefined;
@@ -224,7 +225,7 @@ function refuseOwnership(box, id) {
 }
 
 test('moves.selection.cross-ownership-passed-over: clause 1: an item whose claim is refused CROSS_OWNERSHIP is passed over, reported once, and the next claimable item is offered [C7,#11862]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const refused = box.add('Bar names a path no lane owns');
   const claimable = box.add('Claimable work');
   refuseOwnership(box, refused);
@@ -236,7 +237,7 @@ test('moves.selection.cross-ownership-passed-over: clause 1: an item whose claim
 });
 
 test('moves.selection.wait-never-offers-refused: clause 2: with wait above 0, an item whose claim refuses for the calling seat is never returned to it; the seat gets the next claimable item or none [C7,#11862]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const refused = box.add('Bar names a path no lane owns');
   refuseOwnership(box, refused);
   const alone = await next(box, { wait: 1 });
@@ -251,7 +252,7 @@ test('moves.selection.wait-never-offers-refused: clause 2: with wait above 0, an
 });
 
 test('moves.selection.wait-claims-ready-item: clause 1: nextOnce with values.wait above 0 and a ready open item claims it for the calling seat and returns no waitingOffer [C7,#11846]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const ready = box.add('Ready work');
   const found = await next(box, { wait: 1 });
   assert.equal(found.item?.item_id, ready);
@@ -261,7 +262,7 @@ test('moves.selection.wait-claims-ready-item: clause 1: nextOnce with values.wai
 });
 
 test('moves.selection.wait-held-unchanged: clause 2: nextOnce with values.wait above 0 and an item the seat already holds returns the held item and makes no second claim [C7,#11846]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const mine = box.add('Work this seat holds');
   box.add('Other ready work');
   await next(box, { wait: 1 });
@@ -297,7 +298,7 @@ async function pickedWith(box, on) {
 }
 
 test('moves.selection.returned-first-on: clause 1: with next.returnedFirst on, next hands an item released once with no refusal ahead of an untouched item, and never one rejected twice since its last criterion edit [C7,#11255]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const walled = box.add('Rejected twice');
   const untouched = box.add('Untouched work');
   const returned = box.add('Released once');
@@ -311,7 +312,7 @@ test('moves.selection.returned-first-on: clause 1: with next.returnedFirst on, n
 });
 
 test('moves.selection.returned-first-off: clause 2: with next.returnedFirst off or unset, next hands exactly the item it hands today on the same board [C7,#11255]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const walled = box.add('Rejected twice');
   box.add('Untouched work');
   const returned = box.add('Released once');
@@ -338,14 +339,14 @@ function whoReaching(t, box, config) {
 }
 
 test('moves.selection.compose-landing-on: clause 1: with slices.composeLanding true in ctx.config, the who handed to the review offer and the default offer carries composeLanding true [C7,#11345]', t => {
-  const seen = whoReaching(t, fixture(t), { slices: { composeLanding: true } });
+  const seen = whoReaching(t, fixture(t, { boardFrom: cellBoard }), { slices: { composeLanding: true } });
   assert.equal(seen.length, 2, 'both offers were reached');
   for (const who of seen) assert.equal(who.composeLanding, true);
 });
 
 test('moves.selection.compose-landing-off: clause 2: with slices.composeLanding unset, the who carries no composeLanding and the offer is unchanged [C7,#11345]', t => {
   for (const config of [{}, { slices: { composeLanding: false } }]) {
-    const seen = whoReaching(t, fixture(t), config);
+    const seen = whoReaching(t, fixture(t, { boardFrom: cellBoard }), config);
     assert.equal(seen.length, 2, 'both offers were reached');
     for (const who of seen) assert.ok(!who.composeLanding, 'composeLanding is false or absent');
   }
@@ -371,7 +372,7 @@ test('moves.io-selection.in-flight-never-handed-out: clause 1: nextOnce never re
 
 /** The seat in web with docs and api as the other lanes, run from a linked worktree as a builder seat is; a claim after a move is made in the seat's new lane. */
 function threeLanes(t) {
-  const box = fixture(t, { lanes: { docs: { owns: ['docs/'] } } });
+  const box = fixture(t, { boardFrom: cellBoard, lanes: { docs: { owns: ['docs/'] } } });
   const ctx = { ...box.ctx, info: { ...box.ctx.info, isMain: false } };
   const ports = { ...box.ports, claimOrdered: (_, open, [id, opts]) => cellClaim(open, id, { id: opts.agentId, lane: opts.lane }, { root: box.root, leaseMs: opts.leaseMs,
     ...(opts.autoNext ? { autoNext: opts.autoNext, autoNextSnapshot: box.ports.claimWorktreeSnapshot() } : {}) }) };

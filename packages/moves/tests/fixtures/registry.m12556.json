@@ -1,0 +1,5 @@
+{
+  "moves.reserve-next-review-reviewer-alive.builder-gets-no-review-while-reviewer-alive": {"proves":{"specs":["C7"],"claim":"At REVIEWER_ALIVE_RESERVE_ENGINE a builder seat is reserved no review while a review-lane seat is alive."},"why":"A regression here must fail a named, registered test.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/reserveNextReview/reviewer-alive.test.js"]},
+  "moves.reserve-next-review-reviewer-alive.builder-reserved-with-no-reviewer-alive": {"proves":{"specs":["C7"],"claim":"With no review-lane seat alive a builder seat is reserved a review as on main."},"why":"A regression here must fail a named, registered test.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/reserveNextReview/reviewer-alive.test.js"]},
+  "moves.reserve-next-review-reviewer-alive.history-before-engine-replays-unchanged": {"proves":{"specs":["C7"],"claim":"A history recorded before REVIEWER_ALIVE_RESERVE_ENGINE replays unchanged."},"why":"A regression here must fail a named, registered test.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/reserveNextReview/reviewer-alive.test.js"]}
+}

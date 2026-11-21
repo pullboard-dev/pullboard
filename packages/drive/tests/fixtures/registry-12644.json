@@ -1,0 +1,16 @@
+{
+  "drive.checkout.fetch-turn-and-work": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a held fetch turn and delayed fetch work are measured independently, while cached commits report zero for both"
+    },
+    "why": "A combined fetch time cannot distinguish runner queueing from transfer.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/tests/io/pull/checkout.test.js",
+      "packages/drive/src/io/pull.js"
+    ]
+  }
+}

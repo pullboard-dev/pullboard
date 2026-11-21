@@ -301,6 +301,22 @@ export function balancedJobs(files, count, times = {}) {
 }
 
 /**
+ * Cut a census into `count` jobs by each file's measured time, heaviest first into the least-loaded job. A file's time is its
+ * secs in the previous census rows (rowFileTimes), then the recorded wall time; a file with neither weighs the known average,
+ * and with no times at all every file weighs one, so the cut is by file count. Why: the base planner cut by file count and one
+ * shard held 264 s of work beside shards of a few seconds [C7].
+ *
+ * @param {string[]} files - Distinct repository-relative test files.
+ * @param {number} count - Most jobs to cut.
+ * @param {Array} rows - The rows of the previous census.
+ * @param {Record<string, number>} [recorded] - Last recorded wall ms by file.
+ * @returns {{ files: string[], weight: number }[]}
+ */
+export function rowPackedJobs(files, count, rows, recorded = {}) {
+  return balancedJobs(files, count, { ...recorded, ...rowFileTimes(rows ?? []) });
+}
+
+/**
  * Cut a census into jobs of at most `limitMs` measured time each (and PULLED_FILES_PER_JOB files), heaviest first. Files,
  * heaviest first, go into the first job they fit, so no job weighs over the larger of the limit and its slowest file, and
  * there are at least ceil(total / limit) jobs. A file with no time weighs the known average, and with no times at all one ms [C7].
