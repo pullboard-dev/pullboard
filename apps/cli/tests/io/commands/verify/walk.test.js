@@ -432,7 +432,7 @@ test('cli.journeys-verify-machine-walk.verdict-decision-arms: clause 1: accept a
   assert.ok(!reject.refusalsOf(entry).has('PENDING_REFREEZE'));
   assert.ok(declaredCodes(machineRules.MACHINE, ['accept']).has('PENDING_REFREEZE'));
   assert.ok(!declaredCodes(machineRules.MACHINE, ['reject']).has('PENDING_REFREEZE'));
-  const changed = editedSource('apps/cli/src/io/commands/verify.js', /if \(decision === 'ACCEPT' && soloLowStakesEnabled\(\)/u,
+  const changed = editedSource('../apps/cli/src/io/commands/verify.js', /if \(decision === 'ACCEPT' && soloLowStakesEnabled\(\)/u,
     "if (decision === 'REJECT') { throw new Refused('REJECT_ARM_PROBE', 'probe'); }\n    if (decision === 'ACCEPT' && soloLowStakesEnabled(");
   assert.ok(codeWalk(changed, { caught: true, decision: 'REJECT' }).refusalsOf(entry).has('REJECT_ARM_PROBE'));
   assert.ok(!codeWalk(changed, { caught: true, decision: 'ACCEPT' }).refusalsOf(entry).has('REJECT_ARM_PROBE'));
