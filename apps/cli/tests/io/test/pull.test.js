@@ -12,10 +12,23 @@ import { testResults } from '../../../../../packages/store/index.js';
 import { fixtureBoard } from '../../../../../packages/board/tests/fixtures/board.js';
 import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
+import { receiptOf } from '../../../src/io/test/pull.js';
+import { offerJob } from '../../../../../packages/api/index.js';
+import { takeJob } from '../../../../../packages/jobs/index.js';
+import { renewLease } from '../../../../../packages/jobs/index.js';
+import { writeStep } from '../../../../../packages/jobs/index.js';
+import { workTestRun } from '../../../../../packages/drive/index.js';
 import { pullTestWanted } from '../../../src/io/test/pull.js';
 import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
+import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
+import { authenticatedPullPacket } from '../../../src/io/test/pull.js';
+import { completePacketEntries } from '../../../src/io/test/pull.js';
+import { pullPacketDigest } from '../../../src/io/test/pull.js';
+import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
+import { generateKeyPairSync } from 'node:crypto';
+import { signRunnerReceipt } from '../../../../../packages/runners/index.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { focusedRunnerPath } from '../../fixtures/test/pulled-entry.js';
 import { runPulledEntry } from '../../fixtures/test/pulled-entry.js';
@@ -28,6 +41,73 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { storeTestResult } from '../../../../../packages/gate/index.js';
+
+test('cli.io-test-pull.signed-completion: clause 1: a real pulled completion verifies only for its enrolled runner and exact fresh request [C7,#12647]', { timeout: 120_000 }, async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pinned = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  const signed = body => { const row = { ...body, host: 'runner.example' }; return { ...row, signature: signRunnerReceipt(row, privateKey) }; };
+  const { receipt, job, nonce, source, tree } = await signedPullFixture(signed);
+  assert.ok(receipt?.signedCompletion, 'the pull runner posts its signed envelope');
+  const expected = { job, nonce, source, tree, status: receipt.status, signal: receipt.signal, outputSha256: receipt.outputSha256 };
+  const runners = [{ host: 'runner.example', publicKey: pinned }];
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, runners), true);
+  assert.equal(authenticatedPullCompletion(null, expected, runners), false, 'unsigned remains unauthenticated');
+  const other = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, [{ host: 'runner.example', publicKey: other }]), false, 'wrong enrolled key');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, { ...expected, nonce: 'cd'.repeat(24) }, runners), false, 'replayed request');
+  for (const field of ['source', 'tree', 'outputSha256']) assert.equal(authenticatedPullCompletion({ ...receipt.signedCompletion, [field]: '0'.repeat(receipt.signedCompletion[field].length) }, expected, runners), false, `tampered ${field}`);
+  const unsigned = await signedPullFixture(null);
+  assert.equal(unsigned.receipt.status, 0, 'ordinary unsigned execution still returns');
+  assert.equal(unsigned.receipt.signedCompletion, undefined);
+});
+
+test('cli.io-test-pull.authenticated-outcome-retention: clause 1: controller accepts only a complete bounded packet bound to the exact request, enrolled runner runtime, tooling and outcomes [C7,#12643]', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const runtimeSha256 = 'a'.repeat(64), toolingSha256 = 'b'.repeat(64), packet = Buffer.from('complete packet').toString('base64');
+  const expected = { job: 'test:exact', nonce: 'c'.repeat(48), source: 'd'.repeat(40), tree: 'e'.repeat(40), status: 0, signal: null,
+    outputSha256: 'f'.repeat(64), requestSha256: '1'.repeat(64), packetSha256: pullPacketDigest(packet), runtimeSha256, toolingSha256 };
+  const row = { version: 1, ...expected, host: 'runner.example', context: { version: 1, runtime: runtimeSha256, tooling: toolingSha256 } };
+  const signed = { ...row, signature: signRunnerReceipt(row, privateKey) };
+  const enrolled = [{ host: row.host, runtimeSha256, publicKey: publicKey.export({ type: 'spki', format: 'der' }).toString('base64url') }];
+  assert.equal(authenticatedPullPacket(signed, expected, enrolled), true);
+  for (const field of ['requestSha256', 'packetSha256', 'runtimeSha256', 'toolingSha256']) {
+    assert.equal(authenticatedPullPacket(signed, { ...expected, [field]: '0'.repeat(64) }, enrolled), false, `mismatched ${field}`);
+  }
+  assert.equal(authenticatedPullPacket(signed, expected, [{ ...enrolled[0], runtimeSha256: '0'.repeat(64) }]), false, 'runtime must match independent enrollment pin');
+  assert.match(testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''), /selectedTestResults\(store, keys\)/u);
+});
+
+test('cli.io-test-pull.authenticated-outcome-retention-origin: clause 2: a packet entry whose origin request differs is not retained [C7,#12643]', () => {
+  const run = '11111111-2222-3333-4444-555555555555', outcomes = [{ file: 'a.test.js', name: 'x', passed: true, skipped: false }];
+  const entry = request => ({ inputKey: 'k1', file: 'a.test.js', status: 'pass', origin: { request }, tap: { testOutcomes: outcomes } });
+  const args = { keys: ['k1'], files: ['a.test.js'], runId: run, outcomes, valid: () => true };
+  assert.equal(completePacketEntries([entry(run)], args), true);
+  assert.equal(completePacketEntries([entry('99999999-2222-3333-4444-555555555555')], args), false, 'earlier request entry');
+  assert.equal(completePacketEntries([entry(run), entry(null)], args), false, 'entry without origin request');
+});
+
+test('cli.io-test-pull.authenticated-outcome-retention-guard: clause 3: the record-only pulled request env neither fires nor skips the completed-entry guard [C7,#12643]', { timeout: 300_000 }, () => {
+  const repo = fixtureCommittedGraph('pull-test-guard-'), scratch = privateFixtureFiles('pull-test-guard-runner-');
+  const runner = join(scratch.root, 'runner'), one = join(runner, 'pull', 'one'), two = join(runner, 'pull', 'two'), three = join(runner, 'pull', 'three');
+  const counter = join(scratch.root, 'executions');
+  repo.put('package.json', '{"type":"module"}\n');
+  repo.put('test/proof.test.js', `import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('proof', () => appendFileSync(${JSON.stringify(counter)}, 'x'));\n`);
+  const commit = repo.commit();
+  mkdirSync(join(runner, 'pull'), { recursive: true });
+  for (const path of [one, two, three]) runFixtureGit(['clone', '-q', repo.root, path]);
+  const entry = join(scratch.root, 'entry.mjs');
+  writeFileSync(entry, testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''));
+  const base = { main: commit, source: commit, files: ['test/proof.test.js'], command: `${process.execPath} ${focusedRunnerPath()} ./test/proof.test.js` };
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PULLBOARD_(TEST_|LEDGER_HITS|TIMING_RUN_ID)/u.test(key)));
+  const run = (root, runId, extra = {}) => runPulledEntry(entry, root, { ...base, runId }, { ...env, ...extra });
+  assert.equal(run(one, '11111111-2222-3333-4444-555555555555').status, 0);
+  const second = run(two, '66666666-2222-3333-4444-555555555555');
+  assert.match(second.stdout, /# reused /u, 'a pulled request id does not make reuse demand a completed entry');
+  assert.equal(readFileSync(counter, 'utf8'), 'x');
+  const guarded = run(three, '77777777-2222-3333-4444-555555555555', { PULLBOARD_TEST_RESULT_REQUEST: '88888888-2222-3333-4444-555555555555' });
+  assert.doesNotMatch(guarded.stdout, /# reused /u, 'the fleet request env still demands a completed entry');
+  assert.equal(readFileSync(counter, 'utf8'), 'xx');
+});
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
   const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
@@ -150,4 +230,44 @@ test('cli.io-test-pull.finish-rows-reach-ledger: clause 2: a finish run of 5 fil
   assert.deepEqual(testResults(db).map(row => row.file).sort(), files);
   const hits = ledgerHits(db, files);
   assert.deepEqual(hits.files.map(row => row[0]).sort(), files);
+});
+
+/** A detached waiter's two lease holders, as the run's worker holds them: the run job it renews and the runner job it waits on. */
+function waiterFixture(t) {
+  const board = fixtureBoard(t);
+  offerJob(board.db, { id: 'run-1', kind: 'noop' });
+  offerJob(board.db, { id: 'runner-1', kind: 'noop' });
+  return { board, runs: { db: board.db }, beats: [] };
+}
+
+test('cli.io-test-pull.stuck-waiter-stops: clause 1: a detached test-run waiter whose runner job lapsed past the wait deadline stops renewing and heartbeating, records the run not finished and exits [C7,#12670]', async t => {
+  const { board, runs, beats } = waiterFixture(t);
+  takeJob(board.db, 'runner-1', 'runner-a', { leaseMs: 30 });
+  const result = await workTestRun(work => work(board), 'run-1',
+    () => receiptOf({}, { job: 'runner-1', agent: 'seat', runs, waitMs: 150, pollMs: 10, beatSeat: agent => beats.push(agent) }).then(() => ({ green: true })),
+    { renewMs: 10, beatSeat: () => beats.push('worker'), runs });
+  assert.equal(result.green, false);
+  assert.equal(result.error.code, 'TEST_JOB_STALLED');
+  const view = board.db.prepare("SELECT job_step_name AS name FROM job_step WHERE job_step_job = 'run-1'").all().map(row => row.name);
+  assert.ok(view.includes('result'), 'the run records its result');
+  const lease = () => board.db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'run-1'").get().until;
+  const settled = { beats: beats.length, lease: lease() };
+  for (let turn = 0; turn < 50; turn += 1) await new Promise(done => setImmediate(done));
+  assert.deepEqual({ beats: beats.length, lease: lease() }, settled, 'no beat and no lease renewal after the waiter stopped');
+});
+
+test('cli.io-test-pull.progressing-waiter-lives: clause 2: a detached test-run waiter whose runner job keeps its lease past the wait deadline keeps waiting until the receipt arrives [C7,#12670]', async t => {
+  const { board, runs, beats } = waiterFixture(t);
+  takeJob(board.db, 'runner-1', 'runner-a', { leaseMs: 60 });
+  let polls = 0;
+  const wait = async () => {
+    polls += 1;
+    const until = Date.now() + 10;
+    while (Date.now() < until) await new Promise(done => setImmediate(done));
+    renewLease(board.db, 'runner-1', 'runner-a', { leaseMs: 60 });
+    if (polls === 25) writeStep(board.db, 'runner-1', 'receipt', { receipt: { status: 0 }, runner: 'runner-a' });
+  };
+  const posted = await receiptOf({}, { job: 'runner-1', agent: 'seat', runs, waitMs: 100, pollMs: 10, wait, beatSeat: agent => beats.push(agent) });
+  assert.equal(posted.runner, 'runner-a');
+  assert.ok(polls >= 25 && beats.length >= 1, `polls ${polls}, beats ${beats.length}`);
 });

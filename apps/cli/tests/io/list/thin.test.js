@@ -8,6 +8,7 @@ import { assertStartupBudgets } from '../../fixtures/budget.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { pinDerivedStateOff } from '../../fixtures/thin-door.js';
 import { thinListRows } from '../../../src/io/list/thin.js';
 
 const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -20,6 +21,7 @@ test('cli.io-list-thin.the-thin-door-returns-the-same-rows: clause 1: the thin d
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
+  t.after(pinDerivedStateOff(box));
   for (let n = 1; n <= 20; n++) {
     const added = await fixtureAdd(box.runLocal, box.repo, 'web', `Thin list item ${n}`);
     assert.equal(added.code, 0, added.err);

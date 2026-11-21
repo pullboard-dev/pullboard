@@ -15,6 +15,15 @@ import { signRunnerReceipt } from '../../../../../packages/runners/light.js';
 
 const RECEIPT = 'PULLBOARD_RUNNER_RESULT';
 
+/** Bind optional pulled completion signing to the enrolled runner's private key [C7]. */
+export function runnerCompletionSigner(host, publicKey, home) {
+  const privateKey = readRunnerSigningKey(home, publicKey);
+  return body => {
+    const signed = { ...body, host };
+    return { ...signed, signature: signRunnerReceipt(signed, privateKey) };
+  };
+}
+
 /** Send the single nonce-bound result line after the complete merged output has drained. */
 export async function receipt(spec, fields, sink) {
   await flushStdout();

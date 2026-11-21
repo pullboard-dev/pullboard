@@ -62,7 +62,7 @@ export function guiRunning({ exec = execFile, uid = process.getuid?.() } = {}) {
  * The cache folder's lock is taken first, so a second service on one runner root refuses RUNNER_ALREADY_RUNNING before it serves [P7].
  */
 export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal, lock = takeRunnerLock, env = process.env } = {}) {
-  const [board, keyFile, cache, hint] = argv;
+  const [board, keyFile, cache, hint, enrolledHost, enrolledKey] = argv;
   const say = line => out(`${new Date().toISOString()} ${line}\n`);
   // The installed service takes its slot count from install-serve, so a start without it would fall to a cores-based default and starve gates [P7].
   if (env.PULLBOARD_RUNNER_JOBS === undefined || env.PULLBOARD_RUNNER_JOBS === '') {
@@ -76,7 +76,15 @@ export async function runService(argv, { serve = serveRunner, port = codePort, o
     const runnerCode = await port(cache);
     // With runners.oneServePerHost on, a daemon-session serve claims nothing while the GUI-session copy runs; off, no peer is passed [P7,#10840].
     const peer = runnerSettingOn(machineSettingsFile(), 'runners.oneServePerHost') ? { session: env.PULLBOARD_RUNNER_SESSION === 'gui' ? 'gui' : 'daemon', guiRunning: () => guiRunning() } : null;
-    const served = await serve({ board, key: fileSystemAdapter().readFile(keyFile).trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint,
+    let signCompletion = null;
+    if (enrolledHost && enrolledKey) {
+      try {
+        const { runnerCompletionSigner } = await import('../../../../runner/light.js');
+        const { processMachineHome } = await import('../../../../../packages/kernel/light.js');
+        signCompletion = runnerCompletionSigner(enrolledHost, enrolledKey, processMachineHome());
+      } catch { say('runner completion signing unavailable; ordinary jobs remain enabled'); }
+    }
+    const served = await serve({ board, key: fileSystemAdapter().readFile(keyFile).trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint, ...(signCompletion ? { signCompletion } : {}),
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'), handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable'),

@@ -1184,24 +1184,24 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/init/ignore.test.js": {
+    "apps/cli/tests/io/init/ignore.test.js": {
       "cells": [
         "app:cli",
         "kernel"
       ],
       "reasons": [
         "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/journeys/init/ignore.test.js)",
+        "runs the CLI (apps/cli/tests/io/init/ignore.test.js)",
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/init/permissions.test.js": {
+    "apps/cli/tests/io/init/permissions.test.js": {
       "cells": [
         "app:cli",
         "resources"
       ],
       "reasons": [
-        "runs the CLI (apps/cli/journeys/init/permissions.test.js)",
+        "runs the CLI (apps/cli/tests/io/init/permissions.test.js)",
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
@@ -1503,7 +1503,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/init/defaults.test.js": {
+    "apps/cli/tests/io/init/defaults.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -1715,7 +1715,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/init/practice.test.js": {
+    "apps/cli/tests/io/init/practice.test.js": {
       "cells": [
         "app:cli",
         "config",
@@ -3034,7 +3034,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/init/testkit.test.js": {
+    "apps/cli/tests/io/init/testkit.test.js": {
       "cells": [
         "app:lib",
         "kernel",

@@ -71,6 +71,7 @@ export function parityText(text, dir) {
     .replace(/(gate-\d+-<hex>)-[0-9a-z]+-\d+/gu, '$1-<job>')
     .replace(/\b(local-[a-z]+-\d+-[a-z]+)-\d{3,}\b/gu, '$1-<pid>')
     .replace(/\b(local-[a-z]+\.local)-\d+\b/gu, '$1-<pid>') // the local runner's name carries its process id
+    .replace(/\b(local-[a-z]+-\d+-[a-z]+\.local)-\d+\b/gu, '$1-<pid>') // the same name on a host such as oracle-70-gate.local
     // The detached comparison worker records its result at no fixed moment, so a call sees it pending, complete or unavailable: a background-measured value.
     .replace(/^comparison (?:pending for #\d+|unavailable: .*|#\d+.*(?:\n(?:head |base |new red:|fixed:|No new red).*)*)$/gmu, '<comparison>')
     .replace(/"steps":\{[^}]*\}/gu, '"steps":"<steps>"')
@@ -104,8 +105,9 @@ export function parityRecord({ dir, env, cwd, args, result }) {
     const db = new DatabaseSync(file, { readOnly: true });
     try {
       // api_stall records a slow machine, not a product result: the parity runs share a loaded machine, so it is left out.
+      // gate-queue is a fleet snapshot a runner's pull claim appends only when the queue differs from the last one, so how many land by this read depends on poll timing, not on the call.
       board = { items: db.prepare('SELECT item_id, item_status, item_lane FROM item ORDER BY item_id').all().map(row => ({ ...row })),
-        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind <> 'api_stall' AND NOT (event_kind = 'fact' AND event_detail LIKE '%Review comparison:%') GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
+        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind NOT IN ('api_stall', 'gate-queue') AND NOT (event_kind = 'fact' AND event_detail LIKE '%Review comparison:%') GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
     } finally { db.close(); }
   }
   // Mask string values only: a bare number of 7 or more digits would read as a hash and break the JSON it sits in.
@@ -162,6 +164,8 @@ export function withoutPullboardEnv(source) {
 const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit', 'run']);
 /** Budget: how long a fixture command waits for the loopback local runner to finish the jobs it offered. */
 const SETTLE_MS = 180_000;
+/** How long a done gate job may wait for its gate_settled event after the queue holds no unfinished job (gates that settle to no event never get one). */
+const GRACE_MS = 3000;
 
 /**
  * Wait until the fixture board's runner job queue holds no unfinished job, so a journey reads a settled gate or landing.
@@ -182,12 +186,18 @@ export function settlePulledJobs(cwd, args, env) {
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
   if (!existsSync(file)) return;
   const deadline = Date.now() + SETTLE_MS;
+  const unsettledUntil = Date.now() + GRACE_MS;
   for (;;) {
     let open = false;
     // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
     try {
       const db = new DatabaseSync(file, { readOnly: true });
-      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
+      try {
+        open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get());
+        // A done gate job's receipt is applied just after the runner marks the job done, and the gate_settled event lands in that apply, so a
+        // show right after would see the thread with or without it. A gate with no event yet is waited for, for at most GRACE_MS.
+        if (!open && Date.now() < unsettledUntil) open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_step = 'done' AND NOT EXISTS (SELECT 1 FROM event WHERE event_kind = 'gate_settled' AND json_extract(event_detail, '$.job') = job_id) LIMIT 1").get());
+      } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
     if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env, { entry: CLI_ENTRY }); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
@@ -228,12 +238,18 @@ export async function settlePulledJobsAsync(cwd, args, env) {
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
   if (!existsSync(file)) return;
   const deadline = Date.now() + SETTLE_MS;
+  const unsettledUntil = Date.now() + GRACE_MS;
   for (;;) {
     let open = false;
     // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
     try {
       const db = new DatabaseSync(file, { readOnly: true });
-      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
+      try {
+        open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get());
+        // A done gate job's receipt is applied just after the runner marks the job done, and the gate_settled event lands in that apply, so a
+        // show right after would see the thread with or without it. A gate with no event yet is waited for, for at most GRACE_MS.
+        if (!open && Date.now() < unsettledUntil) open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_step = 'done' AND NOT EXISTS (SELECT 1 FROM event WHERE event_kind = 'gate_settled' AND json_extract(event_detail, '$.job') = job_id) LIMIT 1").get());
+      } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
     if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env, { entry: CLI_ENTRY }); // A gate switch stopped it (runnerSwitchedEnv).
     await runnerFolderChange(env);
@@ -330,8 +346,10 @@ function sandbox({ declareFamilies = false } = {}) {
   // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const git = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
-  // With test.inProcessHooks on, a plain `commit -m` runs both hooks in this process and answers with a promise; every other call is git as before [C7,#9215].
-  const tryGit = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  // tryGit answers synchronously with real git, so a caller reads `.status` straight away, whatever test.inProcessHooks says [C7,#12653].
+  const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  // With test.inProcessHooks on, a plain `commit -m` runs both hooks in this process and answers with a promise, so only a caller that awaits asks for it [C7,#9215].
+  const tryGitInProcess = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? tryGit(cwd, ...args);
   const declaredFamilies = new Map();
   /** Explicit private vendor labels are fixture data, independent of model and parent identity. */
   const declareFamily = (cwd, family) => {
@@ -389,7 +407,7 @@ function sandbox({ declareFamilies = false } = {}) {
   };
   /** A read of the board that is not the journey's subject, such as the settle wait's poll: in this process, whatever the mode, and recorded nowhere, so the parity call count follows no timing (U149) [C7]. */
   runIn.read = inProcess;
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, tryGitInProcess, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
 }
 
 const CONFIG = {

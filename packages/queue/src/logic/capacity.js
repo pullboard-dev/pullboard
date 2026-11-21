@@ -6,7 +6,9 @@ import { readyItems } from './readiness.js';
 export function routingCapacity(board, agents, foreignBlockers, reads = board.nativePorts) {
   // reads.lineSettings is the state capability, handed in by the composition root as a port.
   const seats = reads.withLocalSeatPresence(board, agents).filter(seat => seat.agent_id !== COORDINATOR);
-  const ready = readyItems(board, foreignBlockers, reads);
+  // With a nextEligible port, an item counts only when next would offer it to a seat of its own route; no port keeps every ready item [C7,#12601].
+  const ready = readyItems(board, foreignBlockers, reads)
+    .filter(item => typeof reads.nextEligible !== 'function' || reads.nextEligible(board, item, item.item_route) === null);
   const readyByRoute = { mid: 0, strong: 0 };
   for (const item of ready) if (item.item_route in readyByRoute) readyByRoute[item.item_route] += 1;
   return { liveOnly: reads.lineSettings(board)['route.liveOnly'],

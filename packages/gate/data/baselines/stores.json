@@ -244,6 +244,11 @@
       "disk": "other",
       "owner": "packages/search/src/logic/sidecar.js"
     },
+    "slice-cache": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "packages/codemap/src/io/slice.js"
+    },
     "source-advances": {
       "kind": "dir",
       "disk": "other",

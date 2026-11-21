@@ -1,0 +1,30 @@
+{
+  "cli.io-commands-status.eligible-ready": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The real status command counts only the ready items next would offer, and recommends builders from that count."
+    },
+    "why": "Without it, status could keep counting held, gate-queued or waiting items next never hands out, and size the fleet from them.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/tests/io/commands/status.test.js",
+      "apps/cli/src/io/commands/status.js"
+    ]
+  },
+  "cli.io-commands-status.eligible-recommended": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The real status command recommends the eligible ready count plus one reviewer per 20 pending reviews."
+    },
+    "why": "Without it, the fleet recommendation could keep sizing from work next never hands out.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/tests/io/commands/status.test.js",
+      "apps/cli/src/io/commands/status.js"
+    ]
+  }
+}

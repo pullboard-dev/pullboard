@@ -59,6 +59,12 @@ function readyBuffer(capacity, seats) {
   return { ...capacity, buildersByRoute };
 }
 
+/** The recommended fleet is the eligible ready count as builders plus one reviewer per 20 pending reviews, rounded up; it comes from the live board, so a forecast whose cache is not current still carries it [C7,#12567]. */
+function eligibleRecommendation(forecast, eligibleReady, pendingReviews) {
+  const reviewers = Number.isSafeInteger(pendingReviews) && pendingReviews > 0 ? Math.ceil(pendingReviews / 20) : 0;
+  return { ...forecast, agents: { ...forecast.agents, recommended: eligibleReady + reviewers } };
+}
+
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
 
@@ -113,7 +119,10 @@ export async function run(io, { values }) {
     landing = landWhy(board, ctx.clock.now());
     clock = statusClock(board, store.readBoardMeta);
     batchLine = adaptiveBatchLine?.(board, adaptiveBatch) ?? null;
-    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: readyBuffer(routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), store.withLocalSeatPresence(board, agents)), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    const capacity = readyBuffer(routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), store.withLocalSeatPresence(board, agents));
+    const reviewQueue = { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) };
+    const capacityForecast = eligibleRecommendation(readCapacity(board, undefined, { currentProofCounters, proofCounter }), capacity.readyItems, reviewQueue.pending);
+    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity, capacityForecast, usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && fs.exists(relayMachineDirectory())) {
@@ -146,5 +155,24 @@ export async function run(io, { values }) {
     const all = await withBoardRead(ctx, (board) => store.listItems(board, { all: true }));
     productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
   }
+  await askReleaseCheck(io, values);
   return 0;
+}
+
+/** The release-check question; plain text so the person answers it at once. */
+export const RELEASE_CHECK_QUESTION = 'Check once a day for new pullboard releases? [y/N] (Enter leaves it unanswered)';
+
+/**
+ * Ask the release-check question once, only at a person's own terminal, and store a yes or no through the config door [O1,C7,#12109].
+ * Why: the answer is the person's alone, so a blank line, a closed stdin or any other text records nothing and the question stays open; the ask path loads lazily so status's static closure holds its count.
+ */
+async function askReleaseCheck(io, values) {
+  if (values.json || !io.stdin?.isTTY || !io.stdout?.isTTY) return;
+  const { updateCheckAsked, recordUpdateCheckAnswer } = await import('../../../../../packages/config/index.js');
+  if (updateCheckAsked()) return;
+  io.say(RELEASE_CHECK_QUESTION);
+  const { firstInputLine } = await import('../support.js');
+  const answer = (await firstInputLine(io.stdin)).trim().toLowerCase();
+  if (/^(?:y|yes)$/u.test(answer)) recordUpdateCheckAnswer(true);
+  else if (/^(?:n|no)$/u.test(answer)) recordUpdateCheckAnswer(false);
 }

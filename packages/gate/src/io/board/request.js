@@ -56,7 +56,6 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/activity/src/io/inbox.js#diffTreePaths': 'state read diffs a claim worktree tree with synchronous git',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
   'apps/view/src/io/state.js#computeRowAges': 'projectState, a view port, reads each spec row age through synchronous git',
-  'packages/git/src/io/main.js#bareWorktreeFinding': 'state read lists a claim worktree folder with a synchronous directory read',
   'packages/git/src/io/main.js#readMainCheckout': 'merge-only submit reads the main checkout with synchronous git',
   'packages/git/src/io/main.js#gitCall': 'merge-only submit runs git through a synchronous helper',
   'packages/git/src/io/main.js#worktreeStatus': 'state read asks git for each claim worktree status',

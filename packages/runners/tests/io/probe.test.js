@@ -5,11 +5,45 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
+import { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { refreshRunnerMeasurements } from '../../src/io/slots.js';
+import { probeRunnerTransport } from '../../index.js';
+import { validateRunner } from '../../../config/index.js';
+import { matchesExecutionContext } from '../../../drive/index.js';
+import { runnerServiceInstaller } from '../../src/io/service.js';
+
+test('runners.probe.pull-runtime-pin: clause 1: authenticated enrollment pins the service Node bytes and missing or replaced binaries cannot match [C7,#12651]', { timeout: 30_000 }, async t => {
+  const home = probes(t);
+  const ssh = (args, options) => spawn('/bin/sh', ['-c', args.at(-1)], { ...options, env: { ...options.env, HOME: home, PULLBOARD_MACHINE_HOME: home } });
+  const observed = await probeRunnerTransport({ host: 'fixture', node: process.execPath }, { enrollSigningKey: true, spawn: ssh, timeoutMs: 20_000 });
+  assert.equal(observed.healthy, true);
+  assert.equal(observed.nodePath, process.execPath, 'installer is launched with this resolved executable');
+  assert.equal(observed.runtimeSha256, createHash('sha256').update(readFileSync(process.execPath)).digest('hex'));
+  const runner = validateRunner({ host: 'fixture', slots: 1, browser: 0, node: observed.nodePath, publicKey: observed.publicKey, runtimeSha256: observed.runtimeSha256 });
+  assert.equal(runner.runtimeSha256, observed.runtimeSha256, 'controller enrollment retains the pin beside its identity');
+  const bin = join(home, 'bin'); mkdirSync(bin);
+  writeFileSync(join(bin, 'launchctl'), '#!/bin/sh\nexit 0\n'); chmodSync(join(bin, 'launchctl'), 0o755);
+  const saved = { PATH: process.env.PATH, HOME: process.env.HOME }, stdin = Object.getOwnPropertyDescriptor(process, 'stdin'), write = process.stdout.write;
+  const plan = { label: 'fixture.pullboard', root: join(home, 'root'), board: 'http://127.0.0.1:1/api/v1/boards/b', key: 'fixture', entry: 'svc.cjs', files: { 'svc.cjs': '// fixture\n' } };
+  let reply = '';
+  Object.assign(process.env, { PATH: `${bin}:${saved.PATH}`, HOME: home });
+  Object.defineProperty(process, 'stdin', { value: Readable.from([Buffer.from(JSON.stringify(plan))]), configurable: true });
+  process.stdout.write = (chunk, ...rest) => { if (typeof chunk === 'string' && chunk.startsWith('{"installed"')) { reply += chunk; return true; } return write.call(process.stdout, chunk, ...rest); };
+  try { await runnerServiceInstaller(); } finally { Object.assign(process.env, saved); Object.defineProperty(process, 'stdin', stdin); process.stdout.write = write; }
+  const plist = readFileSync(JSON.parse(reply).plist, 'utf8');
+  assert.ok(plist.includes(`<string>${observed.nodePath}</string>`), 'installer uses the same resolved Node');
+  const tooling = 'a'.repeat(64), expected = { version: 1, runtime: runner.runtimeSha256, tooling };
+  assert.equal(matchesExecutionContext({ version: 1, runtime: observed.runtimeSha256, tooling }, expected), true);
+  assert.equal(matchesExecutionContext({ version: 1, runtime: 'b'.repeat(64), tooling }, expected), false, 'changed bytes at the same path fail');
+  assert.equal(matchesExecutionContext({ version: 1, runtime: observed.runtimeSha256, tooling }, { version: 1, tooling }), false, 'legacy missing pin cannot authenticate');
+  assert.equal(validateRunner({ host: 'legacy', slots: 1, browser: 0 }).host, 'legacy', 'legacy runners remain usable');
+});
 
 const SLOTS = new URL('../../src/io/slots.js', import.meta.url).href;
 const SETTINGS = { gate: { loadAwareDispatch: true }, runners: [{ host: 'runner-a' }, { host: 'runner-b' }] };

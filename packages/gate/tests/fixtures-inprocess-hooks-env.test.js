@@ -1,4 +1,4 @@
-/** A runner job turns test.inProcessHooks on for every fixture machine home with one variable, and writes nothing about it otherwise [C7]. @pullboard-test-input source-cell packages/gate */
+/** A fixture machine home turns test.inProcessHooks on by default, and only PULLBOARD_FIXTURE_INPROCESS_HOOKS=0 writes nothing about it [C7]. @pullboard-test-input source-cell packages/gate */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -22,15 +22,15 @@ function settingsWith(t, value, settings) {
   return JSON.parse(readFileSync(join(home, 'settings.json'), 'utf8'));
 }
 
-test('gate.fixtures-inprocess-hooks-env.on-writes-true: clause 1: [C7] PULLBOARD_FIXTURE_INPROCESS_HOOKS=1 writes test.inProcessHooks true into the fixture machine home', (t) => {
-  assert.equal(settingsWith(t, '1').test.inProcessHooks, true);
+test('gate.fixtures-inprocess-hooks-env.on-writes-true: clause 1: [C7] every value of PULLBOARD_FIXTURE_INPROCESS_HOOKS except 0, set or unset, writes test.inProcessHooks true', (t) => {
+  for (const value of [undefined, '1', '', 'true', 'yes']) {
+    assert.equal(settingsWith(t, value).test.inProcessHooks, true, `value ${String(value)}`);
+  }
   assert.equal(settingsWith(t, '1', { test: { other: 2 } }).test.other, 2);
 });
 
-test('gate.fixtures-inprocess-hooks-env.off-writes-nothing: clause 1: [C7] unset or any other value writes nothing about test.inProcessHooks', (t) => {
-  for (const value of [undefined, '0', '', 'true', 'yes']) {
-    const written = settingsWith(t, value);
-    assert.equal('test' in written, false, `value ${String(value)}`);
-    assert.deepEqual(written.gate, { runnerDispatch: 'pull' });
-  }
+test('gate.fixtures-inprocess-hooks-env.off-writes-nothing: clause 1: [C7] only the value 0 writes nothing about test.inProcessHooks', (t) => {
+  const written = settingsWith(t, '0');
+  assert.equal('test' in written, false);
+  assert.deepEqual(written.gate, { runnerDispatch: 'pull' });
 });

@@ -11,7 +11,7 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [
   { journey: 'apps/cli/tests/io/add/bar-lint.test.js', cases: ['clause 3: edit refuses the same faults through the real CLI and leaves the bar as it was [C7]'] },
-  { journey: 'apps/cli/journeys/publish/agent.test.js', cases: ['pullboard publish from an agent shell pushes the green head [GH25]'] },
+  { journey: 'apps/cli/tests/io/commands/publish/agent.test.js', cases: ['pullboard publish from an agent shell pushes the green head [GH25]'] },
 ];
 
 test('gate.journey-parity-u149-d52-6.sample-add-bar-lint-and-publish: clause 1: a sample of the add bar-lint and publish agent journeys gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
