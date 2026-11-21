@@ -55,6 +55,6 @@ test('cli.edit.specs-flag: clause 1: edit --specs G2,K3 --reason replaces an ope
   const id = String(JSON.parse(added.out).item.item_id);
   const edited = await box.inProcess(box.repo, 'edit', id, '--specs', 'G2,K3', '--reason', 'the item cites other rows', '--json');
   assert.equal(edited.code, 0, edited.err + edited.out);
-  const shown = JSON.parse((await box.inProcess(box.repo, 'show', id, '--json')).out).item;
+  const shown = JSON.parse((await box.inProcess(box.repo, 'show', id, '--json')).out);
   assert.equal(shown.item_spec_ids, 'G2,K3');
 });
