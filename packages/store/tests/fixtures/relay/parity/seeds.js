@@ -112,6 +112,8 @@ export async function seedLifecycle(context) {
     submitFixture(board, item, { agentId: agent, commit: 'c'.repeat(40), tree: 'b'.repeat(40) });
   }
   await exercise('reserveReview', () => store.reserveReview(board, item, { agentId: reviewer, lane: 'tests', leaseMs: 3600000, policy: 'any' }));
+  await exercise('clearReviewReservation', () => store.clearReviewReservation(board, item, { agentId: 'coordinator' }));
+  store.reserveReview(board, item, { agentId: reviewer, lane: 'tests', leaseMs: 3600000, policy: 'any' });
   await exercise('reserveNextReview', () => store.reserveNextReview(board, { agentId: reviewer, lane: 'tests', leaseMs: 3600000, policy: 'any' }));
   await exercise('verify', () => store.verify(board, item, { agentId: reviewer, decision: 'ACCEPT', head: 'c'.repeat(40),
     digest: 'study-frozen', policy: 'any', note: 'Synthetic native state only; no gate execution claimed.' }));
