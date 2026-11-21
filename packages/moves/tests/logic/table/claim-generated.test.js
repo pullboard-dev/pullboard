@@ -165,7 +165,7 @@ const BREAKS = [
     s.actorClaims.push(...Array.from({ length: 10 - k.live }, (_, i) => claim(120 + i, { parentId: 7 })));
     return { message: 'you already hold ten live claims; submit or release one before claiming another' };
   } },
-  ...['UNKNOWN_SPEC', 'A5_GRAMMAR_VERSION', 'NO_POLICY', 'BAD_CONFIG', 'AGENT_APPROVAL_REQUIRED', 'BAR_NOT_READY', 'BAR_EMPTY'].map(code => ({ row: `rows-in-force-${code.toLowerCase().replaceAll('_', '-')}`,
+  ...['UNKNOWN_SPEC', 'A5_GRAMMAR_VERSION', 'NO_POLICY', 'BAD_CONFIG', 'AGENT_APPROVAL_REQUIRED', 'BAR_NOT_READY', 'BAR_EMPTY', 'CHECK_OVER_CEILING'].map(code => ({ row: `rows-in-force-${code.toLowerCase().replaceAll('_', '-')}`,
     when: (s, k) => k.freezes, apply: (g, s) => { s.io.freeze = { refused: { code, message: 'frozen' } }; return { message: 'frozen' }; } })),
   { row: 'exit-key', apply: (g, s, m, k) => { m.exitRules = { ceiling: 0.8 }; m.exitClaimKey = !k.renewed && g.int(2) ? key('b') : g.pick(['nope', null, key('a').toUpperCase()]); } },
 ];
