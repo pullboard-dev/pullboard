@@ -150,17 +150,23 @@ export async function snapshotClaimedFolders({ board, seat }, { now = Date.now, 
         const last = Number(fs.exists(stamp) ? fs.readFile(stamp, 'utf8') : 0);
         if (Number.isFinite(last) && now() - last < WIP_EVERY_MS && now() >= last) continue;
         fs.writeFile(stamp, String(now()));
-        (snapshot ?? (await import('./item/wip.js')).snapshotWip)(folder, item);
+        await (snapshot ?? (await import('./item/wip.js')).snapshotWip)(folder, item);
       } catch { /* one folder's failed snapshot never stops the others or the caller */ }
     }
   } catch { /* a snapshot never fails a tick or a command */ }
 }
 
+/** Hand one folder's snapshot to a background worker, so the command neither waits for it nor loses it at process exit [C7,#12746]. */
+async function startSnapshotWorker(folder, item) {
+  const { startDetachedCheck } = await import('../../../../packages/drive/light.js');
+  startDetachedCheck(fileURLToPath(new URL('./item/wip-worker.js', import.meta.url)), { args: [folder, String(item)], cwd: folder });
+}
+
 /** A board call by a claiming seat snapshots its claimed item folders, with the once-a-minute throttle; a seat with no claim snapshots nothing. */
-export async function snapshotOnBoardCall(cwd, { seatOf = null, ...options } = {}) {
+export async function snapshotOnBoardCall(cwd, { seatOf = null, snapshot = null, ...options } = {}) {
   try {
     const binding = (seatOf ?? (await import('../../../../packages/seats/light.js')).timingSeat)(cwd);
-    if (binding?.seat && binding.board) await snapshotClaimedFolders({ board: binding.board, seat: binding.seat }, options);
+    if (binding?.seat && binding.board) await snapshotClaimedFolders({ board: binding.board, seat: binding.seat }, { ...options, snapshot: snapshot ?? startSnapshotWorker });
   } catch { /* a snapshot never fails a command */ }
 }
 
