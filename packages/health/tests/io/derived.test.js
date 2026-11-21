@@ -35,7 +35,7 @@ test('health.io-derived.light-door-reads-derived-state: clause 1: packages/healt
   const result = execFileSync(process.execPath, ['--experimental-loader', loaderUrl, '--input-type=module', '--eval', source], {
     cwd: REPO,
     encoding: 'utf8',
-    env: { ...process.env, NODE_NO_WARNINGS: '1' },
+    env: { ...process.env, NODE_OPTIONS: '', NODE_NO_WARNINGS: '1' },
   });
   const loaded = result.split('\n').filter(line => line.startsWith('PULLBOARD_LOADED ')).map(line => new URL(line.slice('PULLBOARD_LOADED '.length)).pathname)
     .filter(file => file.startsWith(`${REPO}/`) && !file.startsWith(`${REPO}/[eval`));
