@@ -1175,7 +1175,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
     code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)), trunkPack: boardOpeners?.trunkPack && ((board, commit) => boardOpeners.trunkPack(board.root, commit)),
     health: () => (pool ? { pool: pool.health() } : {}),
-    jobs: (board, body) => pool ? pool.call('jobs', { board: { id: board.id, root: board.root }, body, now: now() }, { route: `POST /api/v1/boards/${board.id}/jobs`, runner: true }) : boardJobsCall({ board, body, now: now() }, codeIsMain, boardOpeners),
+    jobs: (board, body) => pool ? pool.call('jobs', { board: { id: board.id, root: board.root }, body, now: now() }, { route: `POST /api/v1/boards/${board.id}/jobs`, runner: true, action: ['claim', 'renew', 'progress', 'receipt'].includes(body?.action) ? body.action : null }) : boardJobsCall({ board, body, now: now() }, codeIsMain, boardOpeners),
     costAnalytics: async (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       const { costWindowStart, costAnalyticsSliced } = await loadCostAnalytics();
