@@ -1,5 +1,8 @@
 /** The status command puts live builders per route beside the ready items per route and prints one ready buffer line per route [C7,#12475]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
@@ -71,4 +74,36 @@ test('cli.io-commands-status.eligible-recommended: clause 2: status recommends t
   const { capacity, capacityForecast, reviewQueue } = json.document;
   assert.equal(capacity.readyItems, 2);
   assert.equal(capacityForecast.agents.recommended, capacity.readyItems + Math.ceil((reviewQueue.pending ?? 0) / 20));
+});
+
+/** Record write-hold counter rows in the fixture's machine log, stamped against the fixture clock. */
+function recordHolds(box, rows) {
+  const directory = process.env.PULLBOARD_MACHINE_HOME;
+  mkdirSync(directory, { recursive: true });
+  const now = box.clock.now().getTime();
+  writeFileSync(join(directory, 'board-writes.jsonl'), rows.map(([ago, move, heldMs]) => JSON.stringify({ type: 'counter', key: 'WRITE_HOLD_OVER_1S', at: now - ago, move, heldMs, value: 1 })).join('\n') + '\n');
+}
+
+async function plainStatus(box) {
+  let out = '';
+  const code = await main(['status'], { cwd: box.root, clock: box.clock, stdout: { isTTY: false, write: (part) => { out += part; } }, stderr: { write: () => {} } });
+  assert.equal(code, 0, out);
+  return out.split('\n');
+}
+
+test('cli.io-commands-status.write-hold-alarm: clause 1: with a WRITE_HOLD_OVER_1S violation recorded in the last hour status prints an alarm line naming the count and the worst move and its held ms, and with none it prints no such line [C7,#12616]', async (t) => {
+  const box = await fixture(t);
+  recordHolds(box, [[2 * 3_600_000, 'old-move', 9000]]);
+  assert.equal((await plainStatus(box)).filter(line => line.startsWith('write-hold alarm')).length, 0);
+  recordHolds(box, [[2 * 3_600_000, 'old-move', 9000], [60_000, 'submit', 1200], [30_000, 'claim', 2500]]);
+  const alarm = (await plainStatus(box)).filter(line => line.startsWith('write-hold alarm'));
+  assert.deepEqual(alarm, ['write-hold alarm: 2 board writes held over 1 s in the last hour; worst claim held 2500 ms']);
+});
+
+test('cli.io-commands-status.write-hold-alarm-json: clause 2: status --json carries the same count under writeHoldAlarm [C7,#12616]', async (t) => {
+  const box = await fixture(t);
+  recordHolds(box, [[60_000, 'submit', 1200], [30_000, 'claim', 2500]]);
+  const json = await cli(box, box.root, ['status']);
+  assert.equal(json.code, 0, json.out + json.err);
+  assert.deepEqual(json.document.writeHoldAlarm, { count: 2, move: 'claim', heldMs: 2500, truncated: false });
 });
