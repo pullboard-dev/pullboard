@@ -163,7 +163,6 @@
     "apps/cli/tests/io/submit/red.test.js",
     "apps/cli/tests/io/submit/stops.test.js",
     "apps/cli/tests/io/submit/waiting.test.js",
-    "apps/cli/tests/io/test/pull/retry.test.js",
     "apps/cli/tests/io/test/pull/twelve.test.js",
     "apps/cli/tests/io/worktree/maintenance/all.test.js",
     "apps/cli/tests/move/pairs.test.js",

@@ -122,7 +122,6 @@
     "apps/cli/tests/fixtures/runner/browser/free.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/browser/free/sources.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/capacity.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
-    "apps/cli/tests/fixtures/runner/machine.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/classification.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/drain.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/first.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
