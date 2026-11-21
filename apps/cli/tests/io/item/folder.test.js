@@ -71,9 +71,10 @@ function identity(path) {
 /** Advance a branch through empty commits so the fixture isolates history from checkout changes. */
 function advanceBranch(primary, branch, count) {
   const tree = runFixtureGit(['rev-parse', `${branch}^{tree}`], { cwd: primary });
+  const identity = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
   let tip = runFixtureGit(['rev-parse', branch], { cwd: primary });
   for (let i = 0; i < count; i++) {
-    tip = runFixtureGit(['commit-tree', tree, '-p', tip, '-m', `${branch} ${i}`], { cwd: primary });
+    tip = runFixtureGit([...identity, 'commit-tree', tree, '-p', tip, '-m', `${branch} ${i}`], { cwd: primary });
   }
   runFixtureGit(['update-ref', `refs/heads/${branch}`, tip], { cwd: primary });
   return tip;
