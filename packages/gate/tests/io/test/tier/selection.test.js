@@ -314,7 +314,7 @@ test('gate.io-test-tier-selection.test-only-change-keeps-undeclared-readers-real
   const plan = key => submitGatePlan(root, { ...NARROW_CONFIG, ...(key === undefined ? {} : { confinedImportSelection: key }) }, { base, commit: git(root, 'rev-parse', commit).trim() });
   const narrowed = plan('tests');
   assert.ok(narrowed.proofFiles.length < 30, `fewer than 30 proof files: ${narrowed.proofFiles.length}: ${narrowed.proofFiles.slice(0, 40)}`);
-  for (const file of ['apps/cli/tests/io/commands/gate/slot.test.js', 'apps/cli/tests/stable.test.js']) assert.ok(narrowed.proofFiles.includes(file), `${file} is planned: ${narrowed.proofFiles}`);
+  for (const file of ['apps/cli/journeys/gate/slot.test.js', 'apps/cli/tests/stable.test.js']) assert.ok(narrowed.proofFiles.includes(file), `${file} is planned: ${narrowed.proofFiles}`);
   assert.deepEqual(plan('off').proofFiles, plan().proofFiles, 'with the setting off the proof files equal the absent key');
   const box = readerCell(t);
   const source = planWith(box, { 'packages/alpha/src/core/a.js': 'export const a = 2;\n' }, 'tests').plan;
