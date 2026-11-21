@@ -1,0 +1,16 @@
+{
+  "cli.io-fixture-memo-warm.no-plan-warm": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The fixture memo warm reads no cells plan and warms no checkMoved memo."
+    },
+    "why": "Without it, a regression that makes the warm read the plan or run checkMoved again would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/fixture-memo-warm.test.js",
+      "apps/cli/src/io/fixture-memo-warm.js"
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "cli.journeys-inbox-no-write.read-writes-nothing": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#8943"
+      ],
+      "claim": "With inbox.batchedMarks on, a pullboard inbox read with one fresh interrupt and two unread shouts prints all three and writes no board row as the inbox command."
+    },
+    "why": "Without it, a regression where the inbox read opens the write board again, or the worker stops recording the delivery, would pass unnoticed.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/inbox/no-write.test.js"
+    ]
+  },
+  "cli.journeys-inbox-no-write.worker-records": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#8943"
+      ],
+      "claim": "After the marks worker drains the spool, a second pullboard inbox names the interrupt only as pending by id and shows neither shout again."
+    },
+    "why": "Without it, a regression where the inbox read opens the write board again, or the worker stops recording the delivery, would pass unnoticed.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/inbox/no-write.test.js"
+    ]
+  }
+}

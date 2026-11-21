@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { reusableSubmitProof } from '../../src/io/reuse.js';
 import { submitReusePlanDigest } from '../../src/logic/plan.js';
 
-const CHECK = 'node --test apps/cli/journeys/cells/seals.test.js';
+const CHECK = 'node --test apps/cli/tests/io/commands/cells/seals.test.js';
 const digest = command => createHash('sha256').update(command).digest('hex');
 
 test('clause 2: verify accept uses the recorded submit receipt for a plain node --test check without rerunning it [C7]', () => {

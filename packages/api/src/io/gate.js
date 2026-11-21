@@ -10,6 +10,7 @@ import { redLocationLine } from './gate/where.js';
 import { missingReceiptPart } from './gate/where.js';
 import { redShard } from './gate/where.js';
 import { recordGateSettled } from './gate/settled.js';
+import { recordGateQueue } from './gate/queue-snapshot.js';
 import { settleWindow } from './gate/settled.js';
 import { orderedReceiptMoves } from './gate/moves.js';
 import { sameTimingRed } from '../logic/gate/timing-reds.js';
@@ -39,6 +40,7 @@ import { startReceiptScreen } from './gate/screen-start.js';
 import { applyPostLandReceipt } from './gate/post-land-main-test.js';
 import { postLandJob } from './gate/post-land-main-test.js';
 import { queuePostLandMainTest } from './gate/post-land-main-test.js';
+import { queueLandedReviews } from './gate/landed-review.js';
 import { sprintLandable } from './gate/sprint-land.js';
 import { exactTreeGate } from './gate/exact-tree.js';
 import { rebuiltOnTrunk } from './gate/rebuild.js';
@@ -80,7 +82,6 @@ import { shardNote } from './gate/retry.js';
 const fs = fileSystemAdapter();
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
-
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
@@ -300,9 +301,7 @@ export function postedReceipt(db, job, { runs = null } = {}) {
 }
 
 /** Quote one word for a shell, as the gate's planner quotes the files it names. */
-function shellWord(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
-}
+const shellWord = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 
 /** The shard jobs offered for one gate job, oldest first. runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. Why SHARD_JOBS_SQL reads a key range on job_id (the primary key) from the prefix to the prefix plus U+FFFF (job ids are plain text, so none holds it): substr() scanned every gate-shard row on each pull claim, and +job_kind keeps the planner off job_kind_created, which it picks for a plain key range [C7]. */
 export function shardJobs(db, job, { runs = null } = {}) {
@@ -1156,18 +1155,19 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
     if (seedWide === true) seedWideMainTestsAtMain(board, { now: options.now });
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
-    // A claimed item whose gate settled unknown goes to review once main's receipts excuse every red file, so its claim never pins finished work (#12569).
-    settleWindow.run(board, options.now, () => {
-      settleDoneShardGates(board, ports, { now: options.now });
-      if (!queueFor(board, 'coordinator')) handUnknownGatesToReview(board, ports, { now: options.now ?? Date.now() }, { latestGateJob, offeredGate, postedReceipt, shardedResult, applyGateReceipt });
-    });
+    settleWindow.run(board, options.now, () => settleDoneShardGates(board, ports, { now: options.now }));
   }
   // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
   const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
   const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => (settleWindow.reopen(board), queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports)) });
+  if (body?.action === 'claim' && options.mode === 'pull') recordGateQueue(board, body, options.now ?? Date.now());
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
+/** Reconcile one page of legacy unknown gates outside runner requests. */
+export function maintainUnknownGates(board, { now = Date.now(), after, ...ports } = {}) {
+  return handUnknownGatesToReview(board, { compareWithMain: mainComparison, receiptNow: now, ...ports }, { now, after }, { latestGateJob, offeredGate, postedReceipt, shardedResult, applyGateReceipt });
+}
 /**
  * The runnerCommit port a board's claim answers carry with runners.reportCommit on: the commit the board's trunk main
  * ref points at, read from Git's ref files so no Git process runs on the request path; null (no port) when off, so the
@@ -1494,7 +1494,7 @@ function applyLandingOutcome(board, { job, receipt }, ports) {
   const moved = merged.filter(id => (receipt.landed ?? []).includes(id));
   if (moved.length) store.logEvent(board, 'coordinator', 'main-moved', null, { sha: receipt.trunk, job, items: moved });
   exact.landed(merged);
-  // A landing of sprint items queues one main-wide test job on the landed tip, from the rows loaded above [V2,M1,#12182].
-  if (moved.length) queuePostLandMainTest(board, { job, trunk: receipt.trunk, items: moved.map(id => rows.get(id)), queue: ports.queue ?? null });
+  // A landing of sprint items queues one main-wide test job on the landed tip [V2,M1,#12182] and each landed sprint item's review job [C7,#12503].
+  if (moved.length) { queuePostLandMainTest(board, { job, trunk: receipt.trunk, items: moved.map(id => rows.get(id)), queue: ports.queue ?? null }); queueLandedReviews(board, { items: moved.map(id => rows.get(id)) }); }
   return { applied: merged.length > 0 || returned.length > 0, outcome: 'landed', merged, returned };
 }

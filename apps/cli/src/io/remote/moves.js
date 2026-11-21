@@ -4,7 +4,9 @@
  * Why: the board host runs the real CLI move in the seat's registered worktree, so a refusal comes back with the same
  * code and next step the local command prints.
  */
+import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
+import { join } from 'node:path';
 import { boardPath } from './board.js';
 import { reportRemoteRefusal } from './board.js';
 import { requestJson } from './board.js';
@@ -76,13 +78,39 @@ function sayResult(io, verb, itemId, result, board) {
   if (following?.item) io.say(`next ${following.review ? 'review reserved' : 'build claimed'}: ${itemLine(following.item)}`);
 }
 
+/** The verbs whose success ends the seat's claim, so the beater that keeps it alive stops. */
+const ENDING = new Set(['submit', 'done', 'release']);
+
+/** The board file path of this clone, which only locates its beater lock folder beside its private seat files; a URL-joined seat opens no board there. */
+async function beaterBoardFile(cwd) {
+  let common = join(cwd, '.git');
+  try { common = join(cwd, gitExecFileSync(['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()); } catch { /* not a git folder: the plain .git path locates the lock */ }
+  return (await import('../../../../../packages/store/index.js')).boardFilePath(common);
+}
+
+/**
+ * Keep the claim beater in step with a successful remote move: a claim (or a next that claims) starts the beater with the remote
+ * binding, and a submit, done or release stops it before any claim that move chained is started [P7,B3].
+ * Why: a URL-joined seat's CLI exits after each move, so without a beater its claim is swept two minutes after it is taken.
+ * The beater loads lazily, so a move that never claims pays nothing for it.
+ */
+async function tendBeater(cwd, remote, agent, verb, result, options) {
+  const beater = await import('../beater.js');
+  const board = await beaterBoardFile(cwd);
+  const claimed = (found) => (found?.item && typeof found.item === 'object' && !found.review ? found : null);
+  if (ENDING.has(verb)) beater.stopClaimBeater({ seat: agent, board });
+  const started = verb === 'claim' || verb === 'next' ? claimed(result) : claimed(result?.next);
+  if (started) await beater.startClaimBeater(cwd, { seat: agent, board, remote: { url: remote.url, token: remote.token, agent, seatKey: seatKey(cwd, agent) } }, options);
+}
+
 /**
  * Post one write command to the board host's /moves and return the exit code; a refusal prints its code and next step.
  * @param {any} io
  * @param {{ positionals: string[], values: Record<string, unknown> }} parsed
  * @param {{ url: string, token: string }} remote
+ * @param {object} [beaterOptions] - What startClaimBeater takes (env, session, launch, alive), for a caller that injects them.
  */
-export async function runRemoteMove(io, parsed, remote) {
+export async function runRemoteMove(io, parsed, remote, beaterOptions = {}) {
   try {
     const agent = seatAgent(io.cwd);
     if (!agent) throw new Refused('NO_AGENT', 'this seat has no agent name; run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
@@ -94,6 +122,7 @@ export async function runRemoteMove(io, parsed, remote) {
     const board = new URL(remote.url).origin;
     io.result?.(moved.result ?? moved);
     sayResult(io, body.verb, body.item, moved.result ?? moved, board);
+    await tendBeater(io.cwd, remote, agent, body.verb, moved.result ?? moved, beaterOptions);
   } catch (error) {
     return reportRemoteRefusal(io, error);
   }

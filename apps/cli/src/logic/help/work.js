@@ -39,6 +39,7 @@ export const workHelp = `Work
                      [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--after-gate <id>[,<id>...]|none]   replace the ids it waits on until their gate is green; none clears them
+                [--specs <id>[,<id>...]]   replace the spec rows the item cites; needs --reason
                 [--readiness "<command>"]   the command that says the item is ready to start; "" clears it
                 [--needs browser,gui]   the abilities an agent needs to build it; "" clears them
                 [--sensitive]           select Strict review; edit can set it while open

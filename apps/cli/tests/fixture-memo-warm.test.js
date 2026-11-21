@@ -49,10 +49,10 @@ function history(t) {
   return { root: graph.root, ordinary, planned, analyzer };
 }
 
-test('cli.fixture-memo-warm.only-a-main-that-changes-the-fixture: clause 1: only a main that changes the fixture analyzer closure or the cells plan needs a warm [C7]', t => {
+test('cli.fixture-memo-warm.only-a-main-that-changes-the-fixture: clause 1: only a main that changes the fixture analyzer closure needs a warm [C7]', t => {
   const repo = history(t);
   assert.equal(changesFixtureAnalyzer(repo.root, repo.ordinary), false);
-  assert.equal(changesFixtureAnalyzer(repo.root, repo.planned), true);
+  assert.equal(changesFixtureAnalyzer(repo.root, repo.planned), false, 'a plan-only change warms nothing');
   assert.equal(changesFixtureAnalyzer(repo.root, repo.analyzer), true);
 });
 
@@ -92,4 +92,17 @@ test('cli.fixture-memo-warm.a-warm-that-fails-or-finds-no: clause 2: a warm that
     slot: async () => { throw Object.assign(new Error('no runner admitted'), { code: 'RUNNER_UNAVAILABLE' }); } });
   assert.equal(unplaced.warmed, false);
   assert.deepEqual(storedKeys(store), ['before']);
+});
+
+test('cli.io-fixture-memo-warm.no-plan-warm: clause 2: the warm reads no plan and warms no checkMoved memo [C7]', async t => {
+  const repo = history(t), store = folder(t, 'fixture-memo-warm-noplan-');
+  const steps = [];
+  const slot = async (root, action) => action({ runner: { host: 'runner-1' } });
+  const step = async (root, request) => { steps.push(request); return { value: { cells: 0 } }; };
+  assert.deepEqual(await warmFixtureMemo(repo.root, repo.analyzer, { executionServices: { runners: {}, landing: {} }, slot, step, store, registered: () => true }), { warmed: true, cells: 0 });
+  assert.equal(steps.length, 1);
+  for (const word of ['readPlan', 'PLAN_FILE', 'PLAN_DIR', 'checkMoved', 'cellReadPathMap']) assert.equal(steps[0].entry.includes(word), false, `${word} is gone from the warm entry`);
+  assert.deepEqual(await warmFixtureMemo(repo.root, repo.planned, { executionServices: { runners: {}, landing: {} }, slot, step, store, registered: () => true }),
+    { warmed: false, reason: 'fixture analyzer unchanged' }, 'a plan-only main warms nothing');
+  assert.equal(steps.length, 1);
 });

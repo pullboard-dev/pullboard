@@ -79,28 +79,28 @@
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/show/policy/dependency.test.js",
+      "file": "apps/cli/tests/io/commands/show/dependency.test.js",
       "line": 32,
       "expression": "join(box.repo, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/show/policy/e2e.test.js",
+      "file": "apps/cli/tests/io/commands/show/e2e.test.js",
       "line": 53,
       "expression": "join(box.web, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/show/policy/e2e.test.js",
+      "file": "apps/cli/tests/io/commands/show/e2e.test.js",
       "line": 96,
       "expression": "join(box.repo, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/show/policy/refs.test.js",
+      "file": "apps/cli/tests/io/commands/show/refs.test.js",
       "line": 107,
       "expression": "join(box.web, 'pullboard.json')",
       "kind": "config",
