@@ -1,6 +1,8 @@
 // fixture-subject: addItem (a unit test of readDerivedState over a swept derived file; the board is opened through the fixture kit)
 /** readDerivedState returns the five swept kinds for a main commit and null when the table is not current for it [C7,#8945,#10568]. */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../store/index.js';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
@@ -10,6 +12,7 @@ import { sweepDerivedAtMain } from '../../index.js';
 
 const MAIN = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
+const REPO = resolve(import.meta.dirname, '../../../..');
 
 /** A file-backed board with two seats, one held open item and one accepted unlanded item. */
 function sweptBoard(t, { empty = false } = {}) {
@@ -24,6 +27,23 @@ function sweptBoard(t, { empty = false } = {}) {
   const sweep = (mainCommit, enabled = true) => sweepDerivedState(board, { mainCommit, enabled, listItems, verdictState: () => ({ code: 'STALE_VERDICT' }), gateAtHead: (_b, item) => (item.item_id === ids[0] ? 'gate green at cccccccccccc' : null) });
   return { board, ids, sweep };
 }
+
+test('health.io-derived.light-door-reads-derived-state: clause 1: packages/health/light.js exports readDerivedState as the health index function, and a fresh process importing it loads no file outside packages/health and node built-ins [C7]', async () => {
+  const loader = `export async function load(url, context, nextLoad) { if (url.startsWith('file:')) process.stdout.write('PULLBOARD_LOADED ' + url + '\\n'); return nextLoad(url, context); }`;
+  const loaderUrl = `data:text/javascript;base64,${Buffer.from(loader).toString('base64')}`;
+  const source = `import { readDerivedState } from './packages/health/light.js'; if (typeof readDerivedState !== 'function') process.exitCode = 1;`;
+  const result = execFileSync(process.execPath, ['--experimental-loader', loaderUrl, '--input-type=module', '--eval', source], {
+    cwd: REPO,
+    encoding: 'utf8',
+    env: { ...process.env, NODE_NO_WARNINGS: '1' },
+  });
+  const loaded = result.split('\n').filter(line => line.startsWith('PULLBOARD_LOADED ')).map(line => new URL(line.slice('PULLBOARD_LOADED '.length)).pathname);
+  assert.ok(loaded.length > 0, 'fresh process reported loaded file modules');
+  assert.deepEqual(loaded.filter(file => !file.startsWith(`${REPO}/packages/health/`)), [], 'the health light door loaded a file outside packages/health');
+  const light = await import('../../light.js');
+  const health = await import('../../index.js');
+  assert.equal(light.readDerivedState, health.readDerivedState, 'the light door exports the same function as the health index');
+});
 
 test('health.derived-read.matches-sweep: clause 1: after the sweep at a main commit, readDerivedState returns the five kinds equal to the rows the sweep wrote [C7,#10568]', t => {
   const { board, ids, sweep } = sweptBoard(t);
