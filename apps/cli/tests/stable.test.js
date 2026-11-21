@@ -162,12 +162,29 @@ test('cli.stable.journeys-registered-10549: clause 1: [C7,U148] every core-owned
   }
 });
 
-test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned test under the journeys init, land, lanes, languages, list, log and mcp folders has a registered cli.<area>.<slug> title ID', () => {
-  // Records live in every slice's own registry*.json, as cli.stable.complete reads them; never one slice's file alone.
-  const records = Object.assign({}, ...readdirSync(join(DIR, 'fixtures')).filter((name) => /^registry(?:-\d+)?\.json$/u.test(name)).sort().map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
-  const journeys = join(DIR, '..', 'journeys');
+/** The problems the journeys-registered-10546 check finds: a test under the init, land, lanes, languages, list, log or mcp folders (or moved) without a title ID or a record. */
+function initLandListLogMcpFindings(records, journeys, moved) {
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: init/perf.test.js, init/perf/tab-speed-rows-ceiling.test.js.
-  const viewOwned = new Set(['init/perf.test.js', 'init/perf/tab-speed-rows-ceiling.test.js', 'init/perf/tab-speed-spec.test.js']);
+  const viewOwned = new Set(['init/perf.test.js', 'init/perf/tab-speed-rows-ceiling.test.js']);
+  const findings = [];
+  const areaOf = (path) => path.includes('/io/init/') ? 'init' : path.split('/commands/')[1]?.split('/')[0];
+  for (const area of ['init', 'land', 'lanes', 'languages', 'list', 'log', 'mcp']) {
+    // An area whose journeys all moved into tests/io leaves no folder; the moved files stay checked through the list above.
+    for (const file of [...(existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : []), ...moved.filter((path) => areaOf(path) === area)]) {
+      if (viewOwned.has(file.slice(journeys.length + 1))) continue;
+      const source = readFileSync(file, 'utf8');
+      const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
+      if (ids.length !== [...source.matchAll(TESTS)].length) findings.push(`${file}: every test title starts with an ID`);
+      for (const id of ids) if (!records[id]) findings.push(`${file}: ${id} has a record in a registry file`);
+    }
+  }
+  return findings;
+}
+
+test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned test under the journeys init, land, lanes, languages, list, log and mcp folders has a registered cli.<area>.<slug> title ID', () => {
+  // The same loader cli.stable.complete uses: every slice's fixtures registry*.json plus a registry-<id>.json kept beside a journey.
+  const journeys = join(DIR, '..', 'journeys');
+  const { records } = loadRecords(join(DIR, 'fixtures'), journeys);
   // #12248 moved these journeys under tests/io; they keep their IDs and records and are still checked here.
   const moved = [
     join(DIR, 'io', 'commands', 'land', 'batch-forms.test.js'),
@@ -193,17 +210,21 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
     join(DIR, 'io', 'init', 'practice.test.js'),
     join(DIR, 'io', 'init', 'testkit.test.js'),
   ];
-  const areaOf = (path) => path.includes('/io/init/') ? 'init' : path.split('/commands/')[1]?.split('/')[0];
-  for (const area of ['init', 'land', 'lanes', 'languages', 'list', 'log', 'mcp']) {
-    // An area whose journeys all moved into tests/io leaves no folder; the moved files stay checked through the list above.
-    for (const file of [...(existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : []), ...moved.filter((path) => areaOf(path) === area)]) {
-      if (viewOwned.has(file.slice(journeys.length + 1))) continue;
-      const source = readFileSync(file, 'utf8');
-      const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
-      assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
-      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in a registry*.json`);
-    }
-  }
+  assert.deepEqual(initLandListLogMcpFindings(records, journeys, moved), []);
+});
+
+test('cli.stable.journeys-registered-10546-local-records: clause 2: [C7,U148] an init journey with a record in neither the fixtures folder nor a registry beside the journeys is still reported, and passes once either place records it', () => {
+  const root = privateFixtureFiles('cli-stable-10546-records-').root;
+  mkdirSync(join(root, 'fixtures'));
+  mkdirSync(join(root, 'journeys', 'init'), { recursive: true });
+  const id = 'cli.init-local.records-beside-the-journey';
+  writeFileSync(join(root, 'journeys', 'init', 'local.test.js'), `test('${id}: clause 1: a journey', () => {});\n`);
+  const journeys = join(root, 'journeys');
+  const findings = () => initLandListLogMcpFindings(loadRecords(join(root, 'fixtures'), journeys).records, journeys, []);
+  assert.equal(findings().length, 1, 'no record anywhere is reported');
+  assert.match(findings()[0], new RegExp(`${id} has a record`, 'u'));
+  writeFileSync(join(journeys, 'init', 'registry-1.json'), JSON.stringify({ [id]: {} }));
+  assert.deepEqual(findings(), [], 'a record beside the journey passes');
 });
 
 test('cli.stable.journeys-registered-10547: clause 1: [C7,U148] every core-owned test under the journeys merged, milestone, move, next, publish and queue folders has a registered cli.<area>.<slug> title ID', () => {
