@@ -1,3 +1,5 @@
+/** @pullboard-test-input source-cell apps/cli */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A test job request carries the caller's fixture switches and nothing else from its shell [C7,#10849]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -9,6 +11,61 @@ import { recordTestResults } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
+import { testJobEntry } from '../../../src/io/test/pull.js';
+import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { focusedRunnerPath } from '../../fixtures/test/pulled-entry.js';
+import { runPulledEntry } from '../../fixtures/test/pulled-entry.js';
+import { runFixtureGit } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { storeTestResult } from '../../../../../packages/gate/index.js';
+
+test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
+  const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
+  const runner = join(scratch.root, 'runner'), one = join(runner, 'pull', 'one'), two = join(runner, 'pull', 'two');
+  const counter = join(scratch.root, 'executions');
+  repo.put('package.json', '{"type":"module"}\n');
+  repo.put('test/proof.test.js', `import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('proof', () => appendFileSync(${JSON.stringify(counter)}, 'x'));\n`);
+  const commit = repo.commit();
+  mkdirSync(join(runner, 'pull'), { recursive: true });
+  for (const path of [one, two]) runFixtureGit(['clone', '-q', repo.root, path]);
+  const entry = join(scratch.root, 'entry.mjs');
+  writeFileSync(entry, testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''));
+  const tests = focusedRunnerPath();
+  const data = { main: commit, source: commit, files: ['test/proof.test.js'], command: `${process.execPath} ${tests} ./test/proof.test.js`, runId: '11111111-2222-3333-4444-555555555555' };
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PULLBOARD_(TEST_|LEDGER_HITS|TIMING_RUN_ID)/u.test(key)));
+  const run = (root, extra = {}) => runPulledEntry(entry, root, data, { ...env, ...extra });
+  assert.equal(run(one).status, 0);
+  const second = run(two);
+  assert.equal(second.status, 0);
+  assert.match(second.stdout, /# reused /u);
+  assert.equal(readFileSync(counter, 'utf8'), 'x', 'only first checkout executed');
+  assert.equal(run(two, { TZ: 'Pacific/Honolulu' }).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xx', 'different runtime context executes');
+  const store = join(runner, 'test-results', 'pull-gate');
+  const entries = readdirSync(join(store, 'green')).map(name => {
+    const path = join(store, 'green', name);
+    return { path, value: JSON.parse(readFileSync(path, 'utf8')) };
+  });
+  // Poison every observed context so neither one can accidentally satisfy the next request.
+  for (const { value } of entries) assert.equal(storeTestResult(store, { ...value, status: 'fail' }), true);
+  assert.equal(run(two).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxx', 'previously red key executes');
+  for (const { value } of entries) rmSync(join(store, 'red', value.key), { force: true });
+  for (const { path, value } of entries) writeFileSync(path, JSON.stringify({ ...value, tap: undefined }));
+  assert.equal(run(two).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxx', 'incomplete outcome executes');
+  assert.equal(run(two, { PULLBOARD_TEST_REUSE: '0' }).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxxx', 'fresh-only executes');
+  writeFileSync(join(two, 'test/proof.test.js'), readFileSync(join(two, 'test/proof.test.js'), 'utf8') + '\n// changed input\n');
+  assert.equal(run(two).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxxxx', 'changed input executes');
+});
 
 const SHELL = { PATH: '/usr/bin', HOME: '/home/user', NODE_OPTIONS: '--require ./evil.js', FIXTURE_ONE: '1', PULLBOARD_FIXTURE_INPROCESS_HOOKS: '1', PULLBOARD_FIXTUREX: 'no', MY_FIXTURE_A: 'no' };
 
