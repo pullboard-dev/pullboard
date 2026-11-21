@@ -12,7 +12,10 @@ export const KEY_BOUNDARIES = Object.freeze(['keys', 'github-npm']);
 /** The clock/timers and env/config boundaries that register in the adapter switch beside the key ones, keyed by the name PULLBOARD_TEST_REAL lists [C7]. */
 export const CLOCK_ENV_BOUNDARIES = Object.freeze(['clock', 'env']);
 
-const REGISTERED_BOUNDARIES = Object.freeze([...NETWORK_BOUNDARIES, ...KEY_BOUNDARIES, ...CLOCK_ENV_BOUNDARIES]);
+/** The fs, process and git remote boundaries that register in the adapter switch beside the clock and env ones, keyed by the name PULLBOARD_TEST_REAL lists [C7]. */
+export const FS_PROCESS_GIT_BOUNDARIES = Object.freeze(['fs', 'process', 'git-remote']);
+
+const REGISTERED_BOUNDARIES = Object.freeze([...NETWORK_BOUNDARIES, ...KEY_BOUNDARIES, ...CLOCK_ENV_BOUNDARIES, ...FS_PROCESS_GIT_BOUNDARIES]);
 
 /**
  * Pick the real or fake adapter for one network-facing boundary: the run chooses through its environment, one test overrides with a mode, and an audit is always real.
