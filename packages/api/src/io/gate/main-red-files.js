@@ -9,7 +9,7 @@
  * source it covers. The newest such receipt red counts, or any such receipt for a file on the coordinator's main-red
  * file list (board meta MAIN_RED_FILES_KEY). Anything else excuses nothing.
  */
-import { hasMainReceiptIndex, readBoardMeta } from '../../../../store/index.js';
+import { readBoardMeta } from '../../../../store/index.js';
 import { writeBoardMeta } from '../../../../store/index.js';
 import { MAIN_TEST_KIND } from '../recheck.js';
 import { ledgerInputKeys } from './files.js';
@@ -56,19 +56,12 @@ function failingKeys(phase) {
   return { ...ledgerInputKeys([phase]), ...kept };
 }
 
-/** One access-path decision per open board connection. */
-const indexedReceipts = new WeakMap();
-
 /** The newest keyed main-test receipt for `file` measured at `inputKey`, or null. */
 function mainReceiptAtKey(db, file, inputKey) {
-  if (!indexedReceipts.has(db)) indexedReceipts.set(db, hasMainReceiptIndex(db));
-  // Before background index initialization, start with indexed main-test jobs, never the full receipt stream.
-  const source = indexedReceipts.get(db)
-    ? 'job_step AS step INDEXED BY job_step_file_input_receipt CROSS JOIN job ON job.job_id = step.job_step_job'
-    : 'job CROSS JOIN job_step AS step ON step.job_step_job = job.job_id';
-  const row = db.prepare(`SELECT step.job_step_payload AS payload FROM ${source}
+  // Drive the join from main-test jobs. SQLite otherwise starts from all receipt steps to satisfy the timestamp sort.
+  const row = db.prepare(`SELECT step.job_step_payload AS payload
+    FROM job CROSS JOIN job_step AS step ON step.job_step_job = job.job_id
     WHERE job.job_kind = ? AND step.job_step_name = 'receipt' AND step.job_step_seq = 0
-      AND json_valid(step.job_step_payload) AND json_type(step.job_step_payload, '$.inputKey') = 'text'
       AND json_extract(step.job_step_payload, '$.file') = ? AND json_extract(step.job_step_payload, '$.inputKey') = ?
     ORDER BY step.job_step_at DESC, step.job_step_id DESC LIMIT 1`).get(MAIN_TEST_KIND, file, inputKey);
   let keyed = null;

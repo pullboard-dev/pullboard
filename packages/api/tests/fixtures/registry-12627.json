@@ -9,6 +9,6 @@
     "proves": {"specs": ["C7"], "claim": "A bounded maintenance page hands a gate with matching keyed main evidence to review, keeps a mismatched gate claimed, and resumes later items from its cursor."},
     "why": "Without the exact key and cursor checks, recovery could excuse newly broken work or let an old page starve later items.",
     "kind": "contract",
-    "inputs": ["packages/api/src/io/gate/unknown-review.js", "packages/api/src/io/gate/main-red-files.js", "packages/store/src/io/board/jobs.js"]
+    "inputs": ["packages/api/src/io/gate/unknown-review.js", "packages/api/src/io/gate/main-red-files.js"]
   }
 }

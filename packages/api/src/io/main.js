@@ -1229,12 +1229,12 @@ function startGateMaintenance(projects, clock, maintain) {
 }
 
 /** Run one writable board maintenance page with the gate's normal local or relay receipt ports. */
-async function maintainGatePage({ root, now, after }, isMain, boardOpeners, initializeMainReceiptIndex = false) {
+async function maintainGatePage({ root, now, after }, isMain, boardOpeners) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const ordered = relayLinked(root) ? [] : null;
   const page = withProjectGitTimeout(root, () => {
     const info = repoInfo(root);
-    const board = openBoard(boardFilePath(info.commonDir), undefined, { isMain: isMain !== false && codeIsFromMain(), initializeMainReceiptIndex });
+    const board = openBoard(boardFilePath(info.commonDir), undefined, { isMain: isMain !== false && codeIsFromMain() });
     try {
       board.gitRoot ??= root;
       return maintainUnknownGates(board, { now, after, ordered, trunk: () => trunkRemote(root) ?? root, redLocation: redFactLocationEnabled(), receiptMissingCause: receiptMissingCauseEnabled() });
@@ -1291,7 +1291,7 @@ async function relayReceiptMoves(root, moves, boardOpeners) {
 export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocument } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const itemDetail = itemDetailReader({ withReadBoard, projectItemState, isMain, boardOpeners, cells: DETAIL_CELLS });
-  return { ...readPoolHandlers({ findBoard, afterEvents, createRequest, executeMove, itemDetail }, { isMain, boardOpeners, runCommand, refusalDocument }), jobs: (call) => boardJobsCall(call, isMain, boardOpeners), maintainGates: (call) => maintainGatePage(call, isMain, boardOpeners, true), stall({ projects, by, board = null, route, lagMs }) {
+  return { ...readPoolHandlers({ findBoard, afterEvents, createRequest, executeMove, itemDetail }, { isMain, boardOpeners, runCommand, refusalDocument }), jobs: (call) => boardJobsCall(call, isMain, boardOpeners), maintainGates: (call) => maintainGatePage(call, isMain, boardOpeners), stall({ projects, by, board = null, route, lagMs }) {
     const failed = [];
     let recorded = 0;
     for (const { root } of projects) {
