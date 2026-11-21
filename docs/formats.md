@@ -199,6 +199,7 @@ The `whatsNew` field and the per-checkout version record are on [docs/formats/re
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
 | `item_owner_status` | `item` | `item_owner`, `item_status` | no |
+| `item_parent_status` | `item` | `item_parent_id`, `item_status`, `item_merged_commit` | no |
 | `item_status_id` | `item` | `item_status`, `item_id` | no |
 | `item_verified_unmerged` | `item` | `item_id` | no |
 | `job_kind_created` | `job` | `job_kind`, `job_created` | no |
