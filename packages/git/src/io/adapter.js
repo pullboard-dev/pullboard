@@ -5,6 +5,7 @@ import { accessSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { delimiter } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import {
   execFileSync,
   spawn,
@@ -51,9 +52,10 @@ function projectTimeout(error, options) {
 }
 
 const SHIM = '/usr/bin/git';
+const environment = environmentAdapter();
 
 /** Pick the git binary to spawn: the first PATH git that is not the macOS shim, else what xcrun names, else plain git [C7]. */
-export function resolveGitPath({ path = process.env.PATH ?? '', executable = isExecutable, xcrun = xcrunGit } = {}) {
+export function resolveGitPath({ path = environment.get('PATH', ''), executable = isExecutable, xcrun = xcrunGit } = {}) {
   for (const dir of path.split(delimiter)) {
     if (!dir) continue;
     const candidate = join(dir, 'git');
@@ -84,7 +86,7 @@ const resolvedGit = new Map();
  * @param {string} [path] - The PATH the call runs under; the process PATH when left out.
  * @returns {string}
  */
-export function realGitPath(path = process.env.PATH ?? '') {
+export function realGitPath(path = environment.get('PATH', '')) {
   const known = resolvedGit.get(path);
   if (known !== undefined && (!known.includes('/') || isExecutable(known))) return known;
   const found = resolveGitPath({ path });
@@ -94,7 +96,7 @@ export function realGitPath(path = process.env.PATH ?? '') {
 
 /** The PATH one Git call runs under: its own environment's, else this process's. */
 function callPath(options) {
-  return options?.env?.PATH ?? process.env.PATH ?? '';
+  return options?.env?.PATH ?? environment.get('PATH', '');
 }
 
 /** The real implementation forwards every argument and option without interpreting Git output. */
@@ -126,7 +128,7 @@ export { adapters, selections };
 /** Select an implementation for one call chain; concurrent and nested work cannot change its peers. */
 export function withGitAdapter(adapter, work) {
   needAdapter(adapter);
-  const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
+  const forced = selections.getStore()?.audit || environment.get('PULLBOARD_ADAPTER_AUDIT') === '1';
   return adapters.run(forced ? realGitAdapter : adapter, work);
 }
 
@@ -160,7 +162,7 @@ export function gitSpawn(args, options) {
 }
 
 /** Bind fake/real implementations to one test run without affecting production callers. */
-export function withGitSelection({ fake, real = realGitAdapter, env = process.env }, work) {
+export function withGitSelection({ fake, real = realGitAdapter, env = environment.all() }, work) {
   for (const adapter of [fake, real]) for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
     if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
   }
