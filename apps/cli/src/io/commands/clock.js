@@ -10,7 +10,7 @@ import { context } from '../entry.js';
 import { withBoard } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 
-const USAGE = 'pullboard clock [--dry-run] [--json]';
+const USAGE = 'pullboard clock [--dry-run] [--json] | pullboard clock --watch';
 
 /** One printed line for a listed move. */
 function line(verb, row) {
@@ -25,10 +25,16 @@ function clockPorts() {
 }
 
 /** Run `pullboard clock [--dry-run] [--json]` and return its exit code. */
-export function run(io, { first, second, rest, values }) {
+export async function run(io, { first, second, rest, values }) {
   if (first || second || rest?.length) throw new Refused('USAGE', 'clock takes no arguments', USAGE);
   const ctx = context(io);
   if (!ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'run pullboard clock from the main checkout');
+  if (values.watch) {
+    // The registered timer runs one fresh `pullboard clock` pass per minute, single flight [B4,C7].
+    const { runClockWatch } = await import('../clock/scheduler.js');
+    await runClockWatch(ctx);
+    return 0;
+  }
   const dryRun = values['dry-run'] === true;
   const open = dryRun ? withBoardRead : withBoard;
   const result = open(ctx, board => clockSweep(board, { now: ctx.clock.now().getTime(), dryRun, ports: clockPorts() }));
