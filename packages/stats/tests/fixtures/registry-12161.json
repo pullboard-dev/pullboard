@@ -1,0 +1,44 @@
+{
+  "stats.timeline.review-stages": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The timeline places review-queued, reviewing and verdict rows, a reject opens rework, and a review release ends reviewing with its code."
+    },
+    "why": "Without it a green item's wait for review and the review itself are one unexplained stretch.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/timeline.js",
+      "packages/stats/tests/logic/timeline.test.js"
+    ]
+  },
+  "stats.timeline.no-reviewer": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A waiting-for-review stretch with no other seat's next-idle, claim or reserve is labelled NO_REVIEWER, and plain waiting once another seat appears."
+    },
+    "why": "Without it an item waiting because no reviewer is looking reads the same as one in a queue.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/timeline.js",
+      "packages/stats/tests/logic/timeline.test.js"
+    ]
+  },
+  "stats.io-timeline.review-real-board": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "readItemTimeline on a real board returns reviewing and verdict rows after a submit, a reservation and an accept through the store moves."
+    },
+    "why": "Without it the review stages could pass on fixtures and fail on the board's real events.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/io/timeline.js",
+      "packages/stats/tests/io/timeline.test.js"
+    ]
+  }
+}
