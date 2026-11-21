@@ -2,7 +2,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
-import { ensureJobTables, LEDGER_SCHEMA_SQL } from '../../../../../packages/store/index.js';
+import { ensureJobTables } from '../../../../../packages/store/index.js';
+import { LEDGER_SCHEMA_SQL } from '../../../../../packages/store/index.js';
 
 /** The recorded production scale: items, events, shouts and departed seats. */
 export const LARGE_BOARD = { items: 2_500, events: 112_500, shouts: 58_000, seats: 800 };

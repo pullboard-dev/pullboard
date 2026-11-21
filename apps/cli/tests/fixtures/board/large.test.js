@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { performance } from 'node:perf_hooks';
 import { DatabaseSync } from 'node:sqlite';
-import { HISTORY_BOARD, largeBoard } from './large.js';
+import { HISTORY_BOARD } from './large.js';
+import { largeBoard } from './large.js';
 
 /** One count from a board file. */
 function count(db, sql) {
