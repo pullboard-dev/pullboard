@@ -163,7 +163,11 @@
     "apps/cli/tests/fixtures/resources/cpu.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/resources/settings.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/gate/tests/fixtures/resources/capacity.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
-    "packages/gate/tests/fixtures/resources/release.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks"
+    "packages/gate/tests/fixtures/resources/release.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/gate/tests/fixtures/resources/runner.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/gate/tests/fixtures/resources/verify.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/gate/tests/io/main/audit/attribution.test.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/config/tests/fixtures/maintenance.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks"
   },
   "leaves": [],
   "findings": {},

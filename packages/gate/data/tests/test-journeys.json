@@ -3194,7 +3194,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/worktree/maintenance.test.js": {
+    "apps/cli/tests/io/worktree/maintenance/all.test.js": {
       "cells": [
         "app:cli",
         "app:lib",

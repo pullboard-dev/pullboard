@@ -58,7 +58,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-014.json",
-          "sha256": "cf768f2f1641783657cbe2bb815b85259502e4d609df9ec207cab7b829e410bd"
+          "sha256": "b5bfa2bff92c4d2a43dcf0bbb7ad663cc2a9d7e3720b6c176c26243aac7fe886"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-015.json",
