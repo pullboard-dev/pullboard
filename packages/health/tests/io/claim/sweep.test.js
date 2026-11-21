@@ -174,7 +174,7 @@ function stalledBoard(t, count, quietEvents = []) {
     writeFileSync(join(path, 'work.txt'), 'base\n');
     git(path, 'add', '.');
     git(path, 'commit', '-q', '-m', 'fixture');
-    writeFileSync(join(path, 'dirty.txt'), 'uncommitted\n');
+    writeFileSync(join(path, 'work.txt'), 'changed\n');
   }
   for (const [index, at] of quietEvents.entries()) {
     clock.at = T0 + at * 60_000;
