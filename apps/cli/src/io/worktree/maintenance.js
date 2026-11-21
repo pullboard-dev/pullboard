@@ -13,6 +13,7 @@ import { retireIdleSeats } from './maintenance/idle-seats.js';
 import { retireLandedSeats } from './maintenance/landed-seat.js';
 import { sweepFinishedFolders } from './maintenance/folder-sweep.js';
 import { classifyMaintenanceTree } from './maintenance/classify.js';
+import { goneMaintenanceSeat } from './maintenance/classify.js';
 import { archiveMaintenanceWorktree } from './maintenance/archive.js';
 import { removePartialArchives } from './maintenance/archive.js';
 import { maintenanceArchiveMatches } from './maintenance/archive.js';
@@ -129,6 +130,36 @@ export function maintenanceSummary(report) {
   return `maintenance: active ${report.counts.active}, finished ${report.counts.finished}, orphaned ${report.counts.orphaned}, scratch ${report.counts.scratch}; pruned ${report.pruned}; archived ${report.archived}; space freed ${freed}${report.enabled ? '' : '; off'}`;
 }
 
+/** Free only claims whose holder and checkout still match the gone-seat observation under the checkout lease. */
+async function releaseGoneMaintenanceClaims(root, config, observed, trees, ports, now, readDirectories, directories) {
+  const refusals = new Map();
+  if (!ports.releaseGoneClaim) return refusals;
+  const seats = new Map(observed.seats.map(seat => [seat.agent_id, seat]));
+  const registered = new Map(trees.map(tree => [resolve(tree.path), tree]));
+  for (const claim of observed.items) {
+    if (claim.item_status !== 'claimed' || claim.item_owner === 'coordinator') continue;
+    const seat = seats.get(claim.item_owner);
+    if (!seat?.agent_path) continue;
+    const path = resolve(seat.agent_path);
+    const lastSeen = goneMaintenanceSeat(seat, observed.takeoverMs, now, directories);
+    if (lastSeen === null || maintenanceProtectedPath(path) || contains(path, root)) continue;
+    if (config.worktreeMaintenance.exclude.some(excluded => contains(excluded, path) || contains(path, excluded))) continue;
+    if (observed.seats.some(other => other !== seat && other.agent_path && resolve(other.agent_path) === path
+      && goneMaintenanceSeat(other, observed.takeoverMs, now, directories) === null)) continue;
+    const tree = registered.get(path) ?? registered.get(`${path}-item-${claim.item_id}`);
+    if (!tree || tree.locked || tree.bare) continue;
+    let lease;
+    try {
+      lease = await takeMaintenanceCheckout(tree.path, ports.agentId);
+      await ports.releaseGoneClaim(claim, seat, lastSeen, readDirectories);
+    } catch (error) {
+      refusals.set(path, error.message);
+      refusals.set(`${path}-item-${claim.item_id}`, error.message);
+    } finally { lease?.release(); }
+  }
+  return refusals;
+}
+
 /** Classify every registered tree, retaining uncertain work and revalidating each deletion after its archive/facts. */
 export async function runWorktreeMaintenance(root, config, ports, { now = Date.now() } = {}) {
   if (typeof ports?.readSnapshot !== 'function') throw new Error('maintenance needs its native custody reader');
@@ -142,8 +173,10 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
   const mainRoot = trees[0].path, prior = readMaintenanceState(common), next = { version: 1, trees: {}, lastRun: report };
   const durations = maintenanceDurations(config.worktreeMaintenance);
   const readDirectories = ports.workingDirectories ?? maintenanceWorkingDirectories;
-  const observed = await ports.readSnapshot();
+  const beforeRelease = await ports.readSnapshot();
   const directories = readDirectories();
+  const refusals = await releaseGoneMaintenanceClaims(root, config, beforeRelease, trees, ports, now, readDirectories, directories);
+  const observed = ports.releaseGoneClaim ? await ports.readSnapshot() : beforeRelease;
   for (const tree of trees) {
     const previous = Object.hasOwn(prior.trees, tree.path) ? prior.trees[tree.path] : undefined;
     const row = classifyMaintenanceTree(tree, { mainRoot, currentRoot: root, config,
@@ -155,6 +188,10 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       inactiveSince: row.inactiveSince, agents: row.agents, dirtySince: previous?.dirtySince ?? null,
       dirtyFact: previous?.dirtyFact ?? null,
       ...(previous?.retainedWithdrawal ? { retainedWithdrawal: previous.retainedWithdrawal } : {}) };
+    if (refusals.has(resolve(tree.path))) {
+      entry.reason = refusals.get(resolve(tree.path));
+      continue;
+    }
     if (observeDirt(tree, observed, mainRoot, root, config, now)) {
       try {
         currentTree(root, common, tree.path, tree.head);
@@ -214,7 +251,7 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
   await retireLandedSeats(root, report.entries, { mainRoot, now, observed, ports, report, state: next,
     dirtyPaths: maintenanceDirtyPaths, commitsSafe: maintenanceCommitsSafe });
   // Folders of landed, withdrawn and dead-seat items go each cycle, inside the grace; dirty ones keep their diff at a keep ref (#12537).
-  await sweepFinishedFolders(root, report.entries, { mainRoot, now, observed: await ports.readSnapshot(), ports, report, dirtyPaths: maintenanceDirtyPaths });
+  await sweepFinishedFolders(root, report.entries, { mainRoot, now, config, observed: await ports.readSnapshot(), ports, report, dirtyPaths: maintenanceDirtyPaths, readDirectories });
   // With maintenance.retireIdleSeats on, clean trees idle past the set hours whose HEAD is already on main go too (#9109).
   const idleHours = retireIdleSeatHours();
   if (idleHours !== null) await retireIdleSeats(root, report.entries, { mainRoot, hours: idleHours, now, observed, ports, report, dirtyPaths: maintenanceDirtyPaths });

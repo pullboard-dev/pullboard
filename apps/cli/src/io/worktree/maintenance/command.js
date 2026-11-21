@@ -3,6 +3,9 @@ import { agentHandoff } from '../../../../../../packages/state/index.js';
 import { lineSettings } from '../../../../../../packages/state/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../../../packages/store/index.js';
 import { mainPolicy } from '../../../../../../packages/sandbox/index.js';
+import { getItem } from '../../../../../../packages/store/index.js';
+import { Refused } from '../../../../../../packages/kernel/index.js';
+import { goneMaintenanceSeat } from './classify.js';
 import { listAgents } from '../../../../../../packages/store/index.js';
 import { listItems } from '../../../../../../packages/store/index.js';
 import { logEvent } from '../../../../../../packages/store/index.js';
@@ -14,13 +17,23 @@ import { cleanMaintenanceSeat } from '../maintenance.js';
 import { recordMaintenanceRetention } from './retention.js';
 
 /** Imported heartbeat rows never grant permission to delete a local checkout. */
+function localSeats(board) {
+  return withLocalSeatPresence(board, listAgents(board)).map(seat => ({ ...seat, createdAt: seat.agent_created_at,
+    completedTakeoverAt: agentHandoff(board, seat.agent_id)?.takenAt ?? null }));
+}
+
+/** The line's takeover window governs both claim release and folder custody. */
+function takeoverWindow(board) {
+  const minutes = lineSettings(board).takeoverMinutes;
+  return typeof minutes === 'number' ? minutes * 60_000 : SEAT_LIVE_WINDOW_MS;
+}
+
+/** Read only native seat and item custody with the accepted line takeover window. */
 export function readMaintenanceSnapshot(ctx) {
   return withBoardRead(ctx, board => ({
-    seats: withLocalSeatPresence(board, listAgents(board)).map(seat => ({ ...seat, createdAt: seat.agent_created_at,
-      completedTakeoverAt: agentHandoff(board, seat.agent_id)?.takenAt ?? null })),
+    seats: localSeats(board),
     items: listItems(board, { all: true }),
-    // The line's takeover window, the same one claims use; a seat idle past it with no claim may be retired (#8199).
-    takeoverMs: typeof lineSettings(board).takeoverMinutes === 'number' ? lineSettings(board).takeoverMinutes * 60_000 : SEAT_LIVE_WINDOW_MS,
+    takeoverMs: takeoverWindow(board),
   }));
 }
 
@@ -29,6 +42,26 @@ export function maintenanceCommandPorts(ctx, agentId) {
   return {
     agentId,
     readSnapshot: () => readMaintenanceSnapshot(ctx),
+    /** Compare the captured claim revision in the native release, with a fresh process and heartbeat check before dispatch. */
+    ...(ctx.info.isMain && agentId === 'coordinator' ? {
+      releaseGoneClaim: (claim, seat, lastSeen, readDirectories) => withBoard(ctx, async board => {
+        const revision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=?').get(claim.item_id).id;
+        const args = [claim.item_id, agentId, '', { seat: seat.agent_id, lastSeen: new Date(lastSeen).toISOString(),
+          checkout: { leaseUntil: claim.item_lease_until, itemRevision: revision } }, 'BLOCKED'];
+        const directories = readDirectories();
+        const prepareInWriter = current => {
+          const latest = localSeats(current).find(row => row.agent_id === seat.agent_id);
+          const item = getItem(current, claim.item_id);
+          if (!latest || latest.agent_path !== seat.agent_path || item.item_status !== 'claimed' || item.item_owner !== seat.agent_id
+            || item.item_lease_until !== claim.item_lease_until
+            || goneMaintenanceSeat(latest, takeoverWindow(current), current.clock.now().getTime(), directories) !== lastSeen) {
+            throw new Refused('NOT_YOURS', 'the gone-seat claim or checkout activity changed during maintenance');
+          }
+          return { args };
+        };
+        await ordered(ctx, board, 'release', args, { prepareInWriter });
+      }),
+    } : {}),
     /** Complete every linked archive fact before the runner may reset or remove source. */
     recordArchive: record => withBoard(ctx, async board => {
       for (const item of [...new Set(record.items)]) {
