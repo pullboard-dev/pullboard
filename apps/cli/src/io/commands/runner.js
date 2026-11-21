@@ -264,7 +264,7 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
   if (!observation.healthy) throw new Refused('RUNNER_SETUP', `runner ${second} did not complete its registration probe; fix the SSH connection or configured Node, then run pullboard runner add again`);
   if (typeof observation.publicKey !== 'string') throw new Refused('RUNNER_SETUP', `runner ${second} did not enroll its result signing key; check its Pullboard home permissions, then run pullboard runner add again`);
   if (node === undefined && !observation.nodePath) throw new Refused('RUNNER_SETUP', `runner ${second} did not report an absolute Node path from its login shell; install Node or pass --node <absolute-path>`);
-  if (node === undefined) probed.node = observation.nodePath;
+  if (observation.nodePath) probed.node = observation.nodePath;
   const measuredSize = observation.cores !== undefined ? { cores: observation.cores, memoryMB: observation.memoryMB, measuredAt: new Date().toISOString() } : {};
   // Without --slots the runner's own measurement sets the count; a declared --slots is fixed and always wins.
   if (!slotsGiven && observation.cores === undefined) throw new Refused('RUNNER_NOT_MEASURED', `runner ${second} did not report its cores and memory (${observation.reason}); fix the SSH connection or declare --slots <n> --browser <n>`);
@@ -275,7 +275,7 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
   const verified = auto ? observation.discovered ?? {} : toolchains ? observation.toolchains?.verified ?? {} : undefined;
   if (auto) io.say(Object.keys(verified).length ? `runner ${second}: found toolchains ${Object.entries(verified).map(([name, version]) => `${name} ${version}`).join(', ')}` : `runner ${second}: --toolchain auto found no toolchain; none recorded`);
   for (const problem of toolchains ? observation.toolchains?.problems ?? Object.keys(toolchains).map(name => ({ name, problem: 'missing', declared: toolchains[name], found: null })) : []) io.say(toolchainLine(second, problem));
-  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey, ...(verified && Object.keys(verified).length ? { toolchains: verified } : {}) });
+  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey, ...(observation.runtimeSha256 ? { runtimeSha256: observation.runtimeSha256 } : {}), ...(verified && Object.keys(verified).length ? { toolchains: verified } : {}) });
   const runner = addRunner({ ...configured, gui: observation.gui });
   recordRunnerGui(runner.host, observation.gui);
   io.result?.({ runner });

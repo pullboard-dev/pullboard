@@ -120,6 +120,7 @@ export const workHelp = `Work
   pullboard why <file>[:<line>]         the decisions, rows and items behind a file or line, each with its origin
   pullboard why [<release>] [--json]    the release flow on one screen: each unlanded item's cause, each idle seat, and recent landings
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
+  pullboard next --no-wait              answer at once when nothing is free: idle line exit 4, board finished exit 3
   pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --stuck "<why>"        release the build you hold as BLOCKED with that reason, then print the next instruction

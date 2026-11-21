@@ -1,0 +1,34 @@
+{
+ "cli.io-generated-docs.spec-renders-whole": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "generatedDocs returns docs/formats/spec.md rendered whole from the declarations, on a root that has no such file."
+  },
+  "why": "Without it, a regression where the spec page needs its committed copy to render would pass unnoticed.",
+  "kind": "journey",
+  "inputs": [
+   "apps/cli/src/io/generated/docs.js",
+   "apps/cli/tests/io/generated/docs.test.js",
+   "docs/tools/update-docs.js",
+   "docs/formats/spec.md"
+  ]
+ },
+ "cli.io-generated-docs.spec-written": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "update-docs writes the whole spec page where none exists and --check then passes."
+  },
+  "why": "Without it, a regression where the spec page needs its committed copy to render would pass unnoticed.",
+  "kind": "journey",
+  "inputs": [
+   "apps/cli/src/io/generated/docs.js",
+   "apps/cli/tests/io/generated/docs.test.js",
+   "docs/tools/update-docs.js",
+   "docs/formats/spec.md"
+  ]
+ }
+}

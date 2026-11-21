@@ -27,8 +27,7 @@ import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
 import { loadConfig } from '../../../../../../packages/config/index.js';
 import { Refused } from '../../../../../../packages/kernel/light.js';
-import { runnerControllerCallees } from '../../../fixtures/runner/machine.js';
-import { assertRunnerControllerReachability } from '../../../fixtures/runner/machine.js';
+import { lex } from '../../../../../../packages/kernel/light.js';
 
 const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE UNKNOWN_SPEC'.split(' ');
 /**
@@ -50,7 +49,7 @@ const ENTRY_POINTS = [
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 /** Runner refusals reach lifecycle checks through these package and worker entry points. */
 const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/io/slot.js', '../packages/runners/src/io/result.js',
-  '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
+  '../apps/runner/src/io/worker/entry.js'];
 // The pulled gate runs the doctrine hold through injected runner services (apps/cli/src/io/runner/handoff/services.js), which a static walk cannot follow [#6807].
 // The same services hand the gate its cell checks (requireSubmitCells), which read the cell plan and raise its refusals.
 const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js', '../apps/cli/src/io/cells-submit-checks.js'];
@@ -237,6 +236,43 @@ function factsOf(source, sourceFile) {
   return facts;
 }
 
+/** Remove only the opposite decision's explicitly guarded consequent; unknown guards remain visible. */
+function verdictArm(body, decision) {
+  if (!decision) return body;
+  const code = lex(body).code;
+  const spans = [];
+  /** Find a matching delimiter in the lexed code, leaving strings and comments inert. */
+  const endOf = (start, open, close) => {
+    let depth = 0;
+    for (let at = start; at < code.length; at++) {
+      if (code[at] === open) depth++;
+      if (code[at] === close && --depth === 0) return at;
+    }
+    return -1;
+  };
+  for (const found of code.matchAll(/\bif\s*\(/gu)) {
+    const start = code.indexOf('(', found.index), end = endOf(start, '(', ')');
+    if (end < 0) continue;
+    const condition = body.slice(start + 1, end).trim();
+    const match = /^decision\s*===\s*(['"])(ACCEPT|REJECT)\1(?:\s*&&[\s\S]+)?$/u.exec(condition);
+    if (!match || match[2] === decision || lex(condition).code.includes('||')) continue;
+    let first = end + 1;
+    while (/\s/u.test(code[first] ?? '')) first++;
+    let last;
+    if (code[first] === '{') last = endOf(first, '{', '}');
+    else {
+      let nesting = 0; last = -1;
+      for (let at = first; at < code.length; at++) {
+        if ('([{'.includes(code[at])) nesting++;
+        else if (')]}'.includes(code[at])) nesting--;
+        else if (code[at] === ';' && nesting === 0) { last = at; break; }
+      }
+    }
+    if (last >= first) spans.push([first, last + 1]);
+  }
+  return body.split('').map((ch, at) => spans.some(([first, last]) => at >= first && at < last) && ch !== '\n' ? ' ' : ch).join('');
+}
+
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
  * functions it calls, followed across imports and into the functions the CLI hands the board.
@@ -245,7 +281,7 @@ function factsOf(source, sourceFile) {
  * @param {{ caught?: boolean }} [options] Honor explicit caller/callee catch boundaries for escaping codes.
  * @returns {{ functions: (file: string) => string[], refusalsOf: (key: string, skip?: Set<string>) => Set<string> }}
  */
-function codeWalk(read, { caught = false } = {}) {
+function codeWalk(read, { caught = false, decision = null } = {}) {
   const files = new Map();
   const localFacts = new Map();
   const load = (file) => {
@@ -274,18 +310,19 @@ function codeWalk(read, { caught = false } = {}) {
     }
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
     // The same source parsed once yields the same local facts in any walk of the same mode, except for the one file that reads another file's injection.
-    const shared = file !== INJECTED_TABLES.file;
+    const specific = decision && file === '../apps/cli/src/io/commands/verify.js' && name === 'verifyHere';
+    const shared = file !== INJECTED_TABLES.file && !specific;
     const kept = shared ? LOCAL_FACTS[caught].get(parsed) : undefined;
     let facts = localFacts.get(key) ?? kept?.get(key);
     if (!facts) {
-      const body = bodies.get(name) ?? '';
+      const body = specific ? verdictArm(bodies.get(name) ?? '', decision) : bodies.get(name) ?? '';
       const callbacks = CALLBACKS[file];
       const codes = new Set([...[...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]), ...(body ? tableDataCodes(file, source) : [])]);
       const callees = [
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? callbacks?.[callee])),
         ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : callbacks?.[`${space}.${callee}`])),
       ];
-      callees.push(...runnerControllerCallees(file, body, source), ...lazyCallees(file, body, source), ...injectedCallees(file, body, load));
+      callees.push(...lazyCallees(file, body, source), ...injectedCallees(file, body, load));
       facts = { codes, callees };
       localFacts.set(key, facts);
       if (shared) {
@@ -349,6 +386,16 @@ function codeProblems(machine, read = fromDisk) {
       }
     }
   }
+  // Keep the shared verdict audit, and also check codes exclusive to a guarded arm.
+  const verdictEntry = '../apps/cli/src/io/commands/verify.js#verifyHere';
+  const acceptCodes = codeWalk(read, { caught: true, decision: 'ACCEPT' }).refusalsOf(verdictEntry);
+  const rejectCodes = codeWalk(read, { caught: true, decision: 'REJECT' }).refusalsOf(verdictEntry);
+  for (const [verb, codes, other] of [['accept', acceptCodes, rejectCodes], ['reject', rejectCodes, acceptCodes]]) {
+    const armDeclared = declaredCodes(machine, [verb]);
+    for (const code of codes) {
+      if (!other.has(code) && !armDeclared.has(code) && !(code in NOT_MOVES)) problems.add(`${code} is raised by ${verb} but not declared there`);
+    }
+  }
   const commandFiles = fs.readdirSync(new URL('../../../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
     '../packages/store/src/io/board.js', '../packages/store/src/logic/board/reland.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...LAZY_RAISER_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
@@ -381,6 +428,20 @@ function editedSource(file, line, replacement) {
     return source.replace(line, replacement);
   };
 }
+
+test('cli.journeys-verify-machine-walk.verdict-decision-arms: clause 1: accept and reject attribute guarded refusals to the correct verdict [C7,M1]', () => {
+  const entry = '../apps/cli/src/io/commands/verify.js#verifyHere';
+  const accept = codeWalk(fromDisk, { caught: true, decision: 'ACCEPT' });
+  const reject = codeWalk(fromDisk, { caught: true, decision: 'REJECT' });
+  assert.ok(accept.refusalsOf(entry).has('PENDING_REFREEZE'));
+  assert.ok(!reject.refusalsOf(entry).has('PENDING_REFREEZE'));
+  assert.ok(declaredCodes(machineRules.MACHINE, ['accept']).has('PENDING_REFREEZE'));
+  assert.ok(!declaredCodes(machineRules.MACHINE, ['reject']).has('PENDING_REFREEZE'));
+  const changed = editedSource('../apps/cli/src/io/commands/verify.js', /if \(decision === 'ACCEPT' && soloLowStakesEnabled\(\)/u,
+    "if (decision === 'REJECT') { throw new Refused('REJECT_ARM_PROBE', 'probe'); }\n    if (decision === 'ACCEPT' && soloLowStakesEnabled(");
+  assert.ok(codeWalk(changed, { caught: true, decision: 'REJECT' }).refusalsOf(entry).has('REJECT_ARM_PROBE'));
+  assert.ok(!codeWalk(changed, { caught: true, decision: 'ACCEPT' }).refusalsOf(entry).has('REJECT_ARM_PROBE'));
+});
 
 /**
  * A deep copy of the declaration to break, so the real one stays whole.
@@ -613,10 +674,6 @@ test('cli.journeys-verify-machine-walk.bootstrap-refusals-remain-visible-on-thei
   const walk = codeWalk(source, { caught: true });
   assert.ok(walk.refusalsOf('../packages/store/index.js#recordSpecApprovalBaseline').has('BOOTSTRAP_PROBE'));
   assert.ok(!walk.refusalsOf('../apps/cli/src/io/claim.js#ordered').has('BOOTSTRAP_PROBE'));
-});
-
-test('cli.journeys-verify-machine-walk.same-file-runner-controller-bridges-retain: same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
-  assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
 
 test('cli.journeys-verify-machine-walk.rigor-historical-data-boundaries-do-not: Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {

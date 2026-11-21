@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { runShell } from '../../../packages/gate/index.js';
+import { runShell } from '../../../packages/gate/heavy.js';
 import { cellSandbox } from '../../../packages/store/tests/fixtures/cell.js';
 import { runFixtureChild } from '../../cli/tests/fixtures/child.js';
 

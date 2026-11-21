@@ -1,0 +1,28 @@
+{
+  "store.io-board-write-sequencer.exact-trigger": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "a fact that also lifts an infra hold returns and consumes its own fact row, not the chained unhold_item row."
+    },
+    "why": "Without this test, a regression where trigger consumers read board.lastEvent, which ends as the chained unhold_item row, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/write/trigger.test.js",
+      "packages/store/src/io/board/fact.js",
+      "packages/store/src/io/board/event/log.js"
+    ]
+  },
+  "store.io-board-write-sequencer.exact-trigger-shout": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "a coordinator shout that also lifts an infra hold hands its own shout row to the rigor drafts, not the unhold_item row."
+    },
+    "why": "Without this test, a regression where the shout reads board.lastEvent, which ends as the chained unhold_item row, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/write/trigger.test.js",
+      "packages/store/src/io/board/shout.js",
+      "packages/store/src/io/board/event/log.js"
+    ]
+  }
+}

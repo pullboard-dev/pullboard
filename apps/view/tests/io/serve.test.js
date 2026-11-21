@@ -59,7 +59,7 @@ test('view.serve.no-link-local-says-run-pullboard-view: clause 3: a loopback bro
   assert.ok(!page.includes(secret) && !page.includes('BOARD-DATA-MARKER') && !/[?&]k=/u.test(page), 'no secret, link or board data in the page');
 });
 
-test('view.io-serve.compat-cells: clause 1: GET /compat-cells answers the compat cells of the root runs file as JSON, one node run showing its run id, read only [C7]', async (t) => {
+test('view.io-serve.compat-cells: clause 1: GET /api/v1/compat-cells answers the compat cells of the root runs file as JSON, one node run showing its run id, read only [C7]', async (t) => {
   const root = cellProject(t, { real: true, gate: 'true' }).repo;
   mkdirSync(join(root, '.pullboard', 'conformance'), { recursive: true });
   writeFileSync(join(root, '.pullboard', 'conformance', 'runs.json'), JSON.stringify([
@@ -77,13 +77,13 @@ test('view.io-serve.compat-cells: clause 1: GET /compat-cells answers the compat
     boardOpeners: { openBoard: none, openBoardForRead: none },
   });
   t.after(() => view.close());
-  const answer = await get(view.port, '/compat-cells', { 'x-pullboard-key': secret });
+  const answer = await get(view.port, '/api/v1/compat-cells', { 'x-pullboard-key': secret });
   assert.equal(answer.status, 200);
   const groups = JSON.parse(answer.body.toString('utf8'));
   assert.deepEqual(groups.map((group) => group.stage), ['claim', 'submit', 'gate', 'review', 'accept', 'land']);
   assert.deepEqual(groups[0].cells.find((cell) => cell.language === 'node'), { language: 'node', outcome: 'works', run: 'run-node-1' });
   const post = await new Promise((done, fail) => {
-    const outbound = request({ host: '127.0.0.1', port: view.port, path: '/compat-cells', method: 'POST', agent: false, headers: { connection: 'close', 'x-pullboard-key': secret } }, (response) => { response.resume(); response.on('end', () => done(response.statusCode)); });
+    const outbound = request({ host: '127.0.0.1', port: view.port, path: '/api/v1/compat-cells', method: 'POST', agent: false, headers: { connection: 'close', 'x-pullboard-key': secret } }, (response) => { response.resume(); response.on('end', () => done(response.statusCode)); });
     outbound.once('error', fail);
     outbound.end();
   });

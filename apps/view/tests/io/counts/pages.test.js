@@ -16,7 +16,7 @@ import { cockpitSidebar } from '../../../src/logic/cockpit/sidebar.js';
 import { pageRenderScript } from '../../../src/io/page/render.js';
 import { ruleListModel } from '../../../src/logic/rules.js';
 import { boardCounts } from '../../../src/logic/counts.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';

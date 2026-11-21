@@ -86,3 +86,32 @@ test('drive.local-wake.touch-beats-timer: clause 1: with a 60000 ms nap a touch 
   await quiet.nap(1);
   assert.deepEqual(timedOut, ['timeout']);
 });
+
+test('drive.local-wake.touch-finds-a-runner-under-a-home: clause 1: a runner started under a PULLBOARD_HOME is found by a touch given that home and missed by a touch given none [P7,C7,#12694]', { timeout: 30_000 }, async t => {
+  const folder = temporaryDirectory('pullboard-local-wake-home-');
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const home = join(folder, 'home');
+  const stop = new AbortController();
+  const board = emptyBoard();
+  const origin = `http://127.0.0.1:${await board.listening}`;
+  const first = board.nextClaim();
+  const open = async () => ({ origin, key: 'k', boards: () => [{ root: folder, id: 'b' }], close: async () => {} });
+  const running = serveLocalRunner({ folder, open, capabilities: [], git: testGit, signal: stop.signal, wakeOnOffer: true, home, timing: { heartbeatMs: 600_000 } });
+  t.after(async () => { stop.abort(); await running; board.server.close(); });
+  await first;
+  assert.equal(wakeLocalRunner(folder), false, 'with no home the plain state file is absent, so no runner is found');
+  assert.equal(wakeLocalRunner(folder, home), true, 'with the runner\'s home its keyed state file is found and the touch is written');
+});
+
+test('drive.local-wake.idle-is-called-as-a-nap-waits: clause 1: watchWake calls idle when a nap begins to wait and not again when the nap ends [P7,C7,#12694]', async t => {
+  const folder = temporaryDirectory('pullboard-local-wake-idle-');
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  let idles = 0;
+  const wake = watchWake(folder, { idle: () => { idles += 1; } });
+  t.after(() => wake.close());
+  const napping = wake.nap(60_000);
+  assert.equal(idles, 1, 'a nap that waits reports idle');
+  wake.close();
+  await napping;
+  assert.equal(idles, 1, 'the nap ending reports no second idle');
+});

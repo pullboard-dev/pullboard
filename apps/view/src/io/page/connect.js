@@ -1,6 +1,8 @@
 import {
   heldChip,
   heldNote,
+  judgementChip,
+  judgementNote,
 } from "../held.js";
 import { agentFloorModel } from "../../logic/agent/floor/model.js";
 import { firstRunKit } from "../first/run.js";
@@ -445,6 +447,7 @@ const staleChip = (${staleChip.toString()});
 const roadmapBlock = (${roadmapBlock.toString()});
 // Whether a list row reads held, and its chip, by the Roadmap header's rule, from src/view/held-items.js (#1256).
 const heldNote = (${heldNote.toString()}), heldChip = (${heldChip.toString()});
+const judgementNote = (${judgementNote.toString()}), judgementChip = (${judgementChip.toString()});
 const openPageDialog = (${openPageDialog.toString()}), closePageDialog = (${closePageDialog.toString()});
 /** Parse the bounded reference syntax before requesting additional committed line windows. */
 function codeReferenceParts(ref) {

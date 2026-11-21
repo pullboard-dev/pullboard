@@ -24,7 +24,6 @@ export const MACHINE_DEFAULTS = {
   'claim.checkCeiling': false,
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
-  'docs.regenerateOnCommit': false,
   'engine.nameBehindDevice': false,
   'flakes.rereadRatchet': false,
   'freeze.refuseEmptyBar': false,

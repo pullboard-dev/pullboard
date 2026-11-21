@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { environmentProblem } from '../../../../../packages/config/index.js';
 import { preQueueReuse } from '../../../../../packages/gate/index.js';
-import { testResultDigest } from '../../../../../packages/gate/index.js';
+import { testResultDigest } from '../../../../../packages/gate/heavy.js';
 import { testResultStore } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';

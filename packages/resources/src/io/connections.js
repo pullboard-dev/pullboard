@@ -1,5 +1,7 @@
 /** One retained database connection per file for a long-lived process, so repeated slot calls never leak handles [C7,#3338]. */
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The retained connection per database file, with the inode it was opened on. */
 const sharedConnections = new Map();
@@ -24,7 +26,7 @@ export function closeResourceConnections() {
  * @returns {number | null} The inode.
  */
 function fileIdentity(file) {
-  try { return statSync(file).ino; } catch { return null; }
+  try { return fs.stat(file).ino; } catch { return null; }
 }
 
 /**

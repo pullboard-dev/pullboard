@@ -3,6 +3,7 @@
 /** pullboard next --stuck "<why>" releases the one held claim as BLOCKED through the release move and answers as next does [C7,#11700]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { submitFixture } from '../../fixtures/board/submit.js';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -96,4 +97,65 @@ test('cli.io-commands-next.landing-loads-at-call-time: clause 1: next.js has no 
     assert.ok(source.includes(wrapper), `${name} forwards its arguments to the landing front door at call time`);
   }
   assert.ok(source.includes('mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs'), 'the wrappers are still passed to takeServices');
+});
+
+const IDLE_LINE = '[IDLE_TIMEOUT] nothing for this seat in 90 seconds; the board is not finished. Stop, or call next again.';
+
+/** Every number and word the answer printed, whichever stream or JSON field carried it. */
+const printed = ran => ran.out + ran.err;
+
+test('cli.io-commands-next.no-wait-idle-exit-4: clause 1: next --no-wait on a board with nothing for the seat prints the IDLE_TIMEOUT line first and exits 4 at once; a held review still refuses REVIEW_HELD at once, and plain next without the flag is unchanged [C7,#12779]', async t => {
+  const box = await fixture(t);
+  const plain = await cli(box, box.seats.actor.path, ['next']);
+  assert.doesNotMatch(printed(plain), /IDLE_TIMEOUT|board finished/u, 'plain next prints neither new line');
+  const ran = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
+  assert.equal(ran.code, 4, printed(ran));
+  assert.ok(printed(ran).includes(IDLE_LINE), printed(ran));
+  const events = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind IN ('next-idle-timeout','next-finished')").all().map(row => row.k);
+  assert.deepEqual(events, ['next-idle-timeout'], 'the timeout observation was recorded once');
+  // A held review refuses at once, with no idle line and no exit 4.
+  const reviewed = box.add('A submission whose review another seat holds');
+  box.claim(reviewed);
+  mkdirSync(join(box.seats.builder.path, 'web'), { recursive: true });
+  writeFileSync(join(box.seats.builder.path, 'web/dispatch.js'), 'export const side = "builder";\n');
+  box.git(box.seats.builder.path, 'add', 'web/dispatch.js');
+  box.git(box.seats.builder.path, 'commit', '-q', '-m', 'feat(web): build dispatch fixture [G1]');
+  const head = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
+  submitFixture(box.board, reviewed, { agentId: box.seats.builder.id, commit: head, tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
+  const first = await cli(box, box.seats.outside.path, ['next', '--verify', String(reviewed)]);
+  assert.equal(first.code, 0, printed(first));
+  const held = await cli(box, box.seats.sibling.path, ['next', '--verify', String(reviewed), '--no-wait']);
+  assert.notEqual(held.code, 0, printed(held));
+  assert.notEqual(held.code, 4, printed(held));
+  assert.match(printed(held), /REVIEW_HELD/u);
+  assert.doesNotMatch(printed(held), /IDLE_TIMEOUT/u);
+});
+
+test('cli.io-commands-next.no-wait-finished-exit-3: clause 2: next --no-wait returns the board-finished line with exit 3 when every item in the seat lane is verified, and never when an item is still open or nothing was ever filed [C7,#12779]', async t => {
+  const box = await fixture(t);
+  const never = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
+  assert.equal(never.code, 4, 'a board where nothing was ever filed is never finished: ' + printed(never));
+  const first = box.add('The first item');
+  const second = box.add('The second item', { brief: 'Files: web/second.js\nTest: the real board selects the eligible item.' });
+  // The board lets a status change only inside a move; the fixture opens that window around its one direct write.
+  const verify = id => {
+    const head = box.git(box.root, 'rev-parse', 'HEAD'), digest = 'd'.repeat(64), stamp = '2026-10-25T10:00:00.000Z';
+    box.board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+      VALUES (?, ?, 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, ?)`).run(id, box.seats.sibling.id, head, digest, head, stamp);
+    box.board.db.exec('INSERT INTO temp.moving VALUES (1)');
+    box.board.db.prepare("UPDATE item SET item_status='verified', item_commit=?, item_frozen_digest=?, item_built_by=?, item_verified_by=?, item_verdict='ACCEPT' WHERE item_id=?")
+      .run(head, digest, box.seats.builder.id, box.seats.sibling.id, id);
+    box.board.db.exec('DELETE FROM temp.moving');
+  };
+  verify(first);
+  const open = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
+  assert.notEqual(open.code, 3, 'an open item keeps the board unfinished: ' + printed(open));
+  verify(second);
+  const done = await cli(box, box.seats.sibling.path, ['next', '--no-wait']);
+  assert.equal(done.code, 4, 'a lane with no items of its own is not finished: ' + printed(done));
+  const finished = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
+  assert.equal(finished.code, 3, printed(finished));
+  assert.ok(printed(finished).includes('next: board finished: every item in web is verified. Stop.'), printed(finished));
+  const events = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind='next-finished'").all();
+  assert.equal(events.length, 1, 'the finished observation was recorded');
 });

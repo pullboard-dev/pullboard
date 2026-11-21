@@ -5,7 +5,7 @@ import { chmodSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../git/tests/fixtures/child.js';
 import { draftRow } from '../../index.js';
 
 const CONFIG = { spec: 'SPEC.md' };

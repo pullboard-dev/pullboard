@@ -6,12 +6,12 @@ import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
 import { submitFixture } from './submit.js';
 import { writeBoardMeta } from '../../index.js';
-import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/child.js';
+import { FIXTURE_MODEL } from '../../../git/tests/fixtures/child.js';
 // The board composition root through the board package's fixture, which tests already use (#8202).
 import { openKitBoard } from '../../../../apps/cli/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../git/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../git/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../git/tests/fixtures/child.js';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../kernel/index.js';
 import { addItem } from '../../index.js';
@@ -19,6 +19,8 @@ import { agentById } from '../../index.js';
 import { claim } from '../../index.js';
 import { getItem } from '../../index.js';
 import { register } from '../../index.js';
+import { reserveReview } from '../../index.js';
+import { verify } from '../../index.js';
 import { criterionFreezer } from '../../../moves/index.js';
 import { readSubmitRecords } from '../../../moves/index.js';
 export { readSubmitRecords };
@@ -302,4 +304,19 @@ export function seedLimitedReviewQueue(file, { lane, family, reviewers }) {
     submitFixture(board, id, { agentId: builder, commit: '1'.repeat(40), tree: '1'.repeat(40) });
     return id;
   } finally { closeBoard(board); }
+}
+
+/**
+ * Reserve a submitted item for a reviewer and accept it, through the store's reserveReview and verify moves.
+ *
+ * @param {object} board - A cellBoard.
+ * @param {number} id - A submitted item's id.
+ * @param {{ id: string }} reviewer - A cellSeat other than the builder.
+ * @returns {object} The verify result.
+ */
+export function cellReviewAccept(board, id, reviewer) {
+  const review = { policy: 'any', familyPolicy: 'off' };
+  reserveReview(board, id, { agentId: reviewer.id, leaseMs: 60_000, ...review });
+  const item = getItem(board, id);
+  return verify(board, id, { agentId: reviewer.id, decision: 'ACCEPT', head: item.item_commit, digest: item.item_frozen_digest, note: 'Cell fixture review accept.', ...review });
 }

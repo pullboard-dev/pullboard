@@ -11,7 +11,7 @@
 import { audit } from './harness.mjs';
 
 const VERIFY_AT_COMMIT = ['apps/cli/journeys/spec/e2e/next.test.js', 'verify runs at the submitted commit, against the criterion frozen at claim'];
-const CLEAN_TREE = ['apps/cli/journeys/gate/slot.test.js', 'submit needs a clean tree, nothing untracked, and the gate green at HEAD'];
+const CLEAN_TREE = ['apps/cli/tests/io/commands/gate/slot.test.js', 'submit needs a clean tree, nothing untracked, and the gate green at HEAD'];
 const VERDICT_RULES = ['apps/cli/journeys/resume/board.test.js', 'ACCEPT needs CRITERION_MET'];
 const BOARD_CRITERION = ['packages/store/src/io/board/verify.js', '        criterionUnchanged: (found) =>\n          digest === found.item_frozen_digest', '        criterionUnchanged: (found) =>\n          true || digest === found.item_frozen_digest'];
 const CLI_CRITERION = 'if (digest !== item.item_frozen_digest) throw new Refused(\'CRITERIA_CHANGED\'';
@@ -20,7 +20,7 @@ const RED_GATE = ['apps/cli/src/io/submit/pulled.js', "if (job.gate.green !== tr
 const VERDICT_INSERT = '.run(item.item_id, agentId, decision, reason, note.trim(), item.item_commit,';
 const MOVED = 'if (before && JSON.stringify(after) !== JSON.stringify(before)) refusals.push(';
 const PULL = 'apps/cli/src/io/submit/pull.js';
-const MOVED_TREE = ['apps/cli/journeys/runner/moved.pull.test.js', 'a pulled gate whose script commits or edits a tracked file in its runner checkout'];
+const MOVED_TREE = ['apps/cli/tests/io/submit/moved.test.js', 'a pulled gate whose script commits or edits a tracked file in its runner checkout'];
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [

@@ -654,11 +654,6 @@ export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
 }
 
-/** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
-export function docsRegenerateOnCommit() {
-  return loadMachineSettings().docs?.regenerateOnCommit === true;
-}
-
 /** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
 export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
@@ -964,6 +959,19 @@ export function setPersonSetting(key, text) {
     throw error;
   }
   return settings;
+}
+
+/** Store the person's yes or no to the release-check question as update.check in the machine settings file, keeping every other setting [O1,C7,#12108]. */
+export function recordUpdateCheckAnswer(yes) {
+  if (typeof yes !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'the release-check answer is yes or no');
+  const settings = loadMachineSettings();
+  writeMachineSettings({ ...settings, update: { ...settings.update, check: yes } });
+  return yes;
+}
+
+/** Whether the person has already answered the release-check question: true only once an answer wrote update.check [O1,C7,#12108]. */
+export function updateCheckAsked() {
+  return typeof loadMachineSettings().update?.check === 'boolean';
 }
 
 /** Persist an explicitly configured canary without changing any board's credentials or project policy. */

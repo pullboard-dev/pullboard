@@ -1,6 +1,6 @@
 /** Row evidence and stage precedence (S15, S16). */
 import assert from 'node:assert/strict';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../git/tests/fixtures/child.js';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';

@@ -8,6 +8,7 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { environmentAdapter } from '../../../../env/index.js';
 import { fileSystemAdapter } from '../../../../fs/index.js';
 import { lex } from '../../../../kernel/light.js';
 import { literalShellWords } from '../../../../kernel/light.js';
@@ -17,6 +18,7 @@ import { repoInfo } from '../main.js';
 import { storeName } from '../store-names.js';
 
 const fs = fileSystemAdapter();
+const environment = environmentAdapter();
 
 const binaries = new Map();
 
@@ -33,7 +35,7 @@ function fileDigest(file, stat) {
 /** Resolve a literal executable using the same checkout and PATH as its shell. */
 function executable(root, word) {
   const paths = isAbsolute(word) || word.includes('/') ? [resolve(root, word)]
-    : String(process.env.PATH ?? '').split(delimiter).map(directory => resolve(root, directory || '.', word));
+    : environment.get('PATH', '').split(delimiter).map(directory => resolve(root, directory || '.', word));
   return paths.find(file => { try { fs.access(file, fs.constants.X_OK); return fs.stat(file).isFile(); } catch { return false; } });
 }
 
@@ -268,7 +270,7 @@ export function checkCommandDefinition(root, commands, codeFiles = [], { tool: t
     }
   }
   try {
-    visit(process.platform === 'win32' ? process.env.ComSpec : '/bin/sh');
+    visit(process.platform === 'win32' ? environment.get('ComSpec') : '/bin/sh');
     for (const command of commands) commandFiles(literalShellWords(command));
     for (const file of codeFiles) visit(file, false);
     const result = [...files.values()].sort((left, right) => left.path.localeCompare(right.path));

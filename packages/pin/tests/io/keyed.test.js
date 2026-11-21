@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../git/tests/fixtures/child.js';
 import { saveKeyedResult } from '../../index.js';
 import { keyedResultPath } from '../../index.js';
 

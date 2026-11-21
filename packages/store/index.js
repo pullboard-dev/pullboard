@@ -8,7 +8,8 @@ export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
 export { recordCapacityWeek, capacityWeeks } from './src/io/board/capacity-week.js';
 export { writeBoardMeta, readBoardMeta, deleteBoardMeta, deleteBoardMetaWithPrefix, listBoardMetaWithPrefix } from './src/io/board/meta.js';
 export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
-export { atomic, logEvent, writeOrigin } from './src/io/board/event/log.js';
+export { afterBoardWrite, atomic, logEvent, writeOrigin } from './src/io/board/event/log.js';
+export { writeFileAtomic } from './src/io/atomic.js';
 export { applyHealthFindings } from './src/io/board/health.js';
 export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
 export { archiveOldEvents, ARCHIVE_AFTER_DAYS } from './src/io/board/event/archive.js';
@@ -30,7 +31,7 @@ export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, app
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/io/board/migrate.js';
 export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, itemThreads, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, agentLaneLocked, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor, rowDecisions } from './src/io/board/query.js';
-export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/io/board/read/shouts.js';
+export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, boardNeedsJudgement, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/io/board/read/shouts.js';
 export { readBoardSnapshot } from './src/io/board/read/snapshot.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/io/board/facade.js';
 export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION, OLDEST_UPGRADABLE_SCHEMA, BOARD_TOO_OLD_NEXT, SCHEMA, SCHEMA_DIGEST } from './src/io/board/schema/source.js';
@@ -40,7 +41,7 @@ export { recordNextIdle } from './src/logic/board/stats.js';
 export { guardStore, refreshStoreDeclarations, repairDrift, suspendStoreGuards } from './src/io/board/guards.js';
 export { prepareBoardWriteIdentity, configureBoardJournal, beginBoardWrite, prepareBoardWriteMarker, discardBoardWriteMarker, noteBoardWriteItem, finishBoardWrite, closeBoardWrites, boardWriteHolderText } from './src/io/board/write/lock.js';
 export { ACCEPT_REASON, REJECT_REASONS, moveItem, reserveItem, clearReservation, addBlock, claimBlock, listBlocks, onlyCoordinator, seatFamily, canonicalFamily, reviewReleaseCooldown, reviewerChecks, coordinatorOnly, postRigorNotices, setItem, foreignBlockers, foreignDependencyStates, prepareClaim, claim, admitSubmit, laneLeads, itemPatches, itemPatchDigest, followItemPatches, lineSettings, setLineSetting, setBarReady, signBar, coordinatorCheck, completeCheckBaseline, itemCheckAuthor, checkedLandingCommit, landingTestDefects, recordLandingTestDefect, closeLandingTestDefect, recordSelectorGap, selectorGapCandidate, landingLeaseMove, landingLeaseState, itemFiles, ROUTES, canTake, landingFlakes, landingWaiverCovers, landingWaiverKind, acceptCheck, declareJob, recordJobRun, recordUsage, recordCoordinatorUsage, recordUsageBatch, recordSharedUsage, recordProofRun, storeTestReceipt, agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding, takeCoordinator, prepareMergeOnlySubmit, mechanicalConflictFiles, EVIDENCE_KINDS, inbox, enqueueInboxMark, flushInboxMarks, takeInboxMarks, FACT_KINDS, factReference, recordSpecApprovalBaseline, canonicalMilestoneTarget, landingBatches, rowVerifications, fileTypedRequest, typedRequests, answerTypedRequests, escalate, recordAttempt, recordRelayRefusal, linkPublishRepair, register, REMOTE_AGENT_PATH, isRemoteAgentPath, ensureCoordinator as board_ensureCoordinator, addItem, validateItemAddition, planCompanion, requestCompanion, editItem, validateItemEdit, attachItemPatch, removeItemPatch, release, submit, reviewReleaseNoteProblem, reviewOffer, reserveReview, reserveNextReview, verify, reopen, merged, withdraw, refreeze, shout, recordHealthFindings, passDecision, answerDecision, closeFinishedAsks, appendFact, buildOrder, nextFor, holdLane, releaseLane, holdItem, releaseItemHold, maintainStaleState, recordRowDecisions, applyRowDecisions, recordLandingBatch, recordLandingWaiver, recordLandingFlake, finishLandingBatch, intakeOutside, applyRehomeItem, approveOutside, setLaneLead, activityDeliveryState, activityInterruptWasDelivered, recordActivityDelivery, actOnActivity, openHandoff, takeHandoff, recordNextIdle as board_recordNextIdle, prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './src/io/board.js';
-export { diagnoseWanted, returnedRecord, gateAtHead } from './src/io/board/next.js';
+export { diagnoseWanted, returnedRecord, gateAtHead, nextEligible } from './src/io/board/next.js';
 export { companionPlan, applyCompanionRequest } from './src/io/companion.js';
 export { dispatchWork } from './src/io/eligibility.js';
 export { heldClaim } from './src/io/claim.js';
@@ -140,9 +141,9 @@ export {
   sealClauseInspection,
 } from './src/io/board/repository.js';
 
-export { boardWriteLog } from './src/io/board/write/lock.js';
+export { boardWriteLog, boardWriteHoldAlarm } from './src/io/board/write/lock.js';
 export { objectItemPatch } from './src/io/board.js';
-export { expeditedItems } from './src/io/board.js';
+export { expediteItem, expeditedItems } from './src/io/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/io/board/wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/logic/board/reland.js";
@@ -153,9 +154,12 @@ export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } fro
 export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
 export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
 export { mergedDecision } from './src/io/board/merged-table.js';
+export { claimDecision } from './src/io/board/claim-table.js';
+export { saveItemNeeds, saveAgentAbilities } from './src/io/needs.js';
 export { itemPace } from './src/io/board/sprint-pace.js';
 export { recordPulled, pullingLanding } from './src/io/board/pulled.js';
 export { readShadows } from './src/io/board/shadow-record.js';
 export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entryLines, openEntries, recordEntryAction, dueEscalations, escalateEntries } from './src/logic/board/entries.js';
 export { spoolFile, spoolInboxMarks, drainInboxMarks } from './src/io/inbox-marks.js';
+export { relaxationWitness } from './src/io/relaxation.js';
 export { commitMove, connectBoardWriter, createBoardWriter, serveBoardWriter } from './src/io/board/writer.js';

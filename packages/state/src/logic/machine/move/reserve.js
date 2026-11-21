@@ -10,7 +10,7 @@ import { SOURCE_STATE_REFUSAL } from '../shared.js';
 export const MOVES = [
   {
     verb: 'reserve', from: ['submitted'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    alsoRefuses: [SOURCE_STATE_REFUSAL, { code: 'REVIEW_RELEASE_TWICE', rule: 'a model family that released the review twice without a verdict does not reserve it again', next: 'a seat of another model family reviews it' }, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }],
+    alsoRefuses: [SOURCE_STATE_REFUSAL, { code: 'REVIEW_RELEASE_TWICE', rule: 'a model family that released the review twice without a verdict does not reserve it again', next: 'a seat of another model family reviews it' }, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }, { code: 'BAD_BUILD_BUDGET', rule: 'the captured board build budget is a positive number of minutes', next: 'restore a positive itemBuildBudgetMinutes setting, then retry' }, { code: 'ITEM_BUILD_BUDGET', rule: 'known expected build minutes fit the captured board budget', next: 'cut the item into a parent and children whose expected minutes fit the budget; claim a child' }],
     guards: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'itemExists', IN_STATE, 'gateReceipt', 'reviewCooldownElapsed', 'companionWindow', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree'],
     sets: ['item_review_by', 'item_review_until'], command: 'pullboard next --verify',
   },

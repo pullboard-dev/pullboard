@@ -92,3 +92,39 @@ test('store.logic-board-holds-settled.withdraw-event-flags: clause 2: flagWithdr
   flagWithdrawnDependents(board, event, logEvent);
   assert.deepEqual(logged.map(row => row.id), [20, 21]);
 });
+
+// A stub board whose held query honours every `NOT LIKE 'prefix%'` the SQL carries, so the exclusion in the query is what is tested.
+function stubBoard(items, held, kidsOf = {}) {
+  return { liftSettledHolds: true, db: { prepare: sql => ({
+    get: id => items[id],
+    all: id => {
+      if (!sql.includes('item_hold_reason IS NOT NULL')) return kidsOf[id] ?? [];
+      const skipped = [...sql.matchAll(/NOT LIKE '([^%']*)%'/g)].map(m => m[1]);
+      return held.filter(row => !skipped.some(prefix => row.item_hold_reason.startsWith(prefix)));
+    },
+    run: () => ({}),
+  }) } };
+}
+const lifted = [];
+const liftWith = (board, kind) => {
+  lifted.length = 0;
+  liftSettledHolds(board, { event_id: 30, event_kind: kind, item_id: 99, event_at: '2026-11-21T00:00:00.000Z' }, () => {}, (_board, id, patch) => lifted.push({ id, patch }));
+  return lifted.map(row => row.id);
+};
+
+test('store.logic-board-holds-settled.review-hold-survives: clause 1: a hold whose reason starts with "Coordinator hold:" and names only landed items stays on through main-moved, merged and withdraw events [C7]', () => {
+  const board = stubBoard({ 1: { item_status: 'landed', item_merged_commit: 'abc' } }, [{ item_id: 40, item_hold_reason: 'Coordinator hold: review #1 clause unproven' }]);
+  for (const kind of ['main-moved', 'merged', 'withdraw']) assert.deepEqual(liftWith(board, kind), [], kind);
+});
+
+test('store.logic-board-holds-settled.review-parent-survives: clause 2: a parent held with the "Coordinator hold:" prefix stays held when all its children are done [C7]', () => {
+  const kids = { 50: [{ item_status: 'landed', item_merged_commit: 'abc' }, { item_status: 'withdrawn', item_merged_commit: null }] };
+  const board = stubBoard({}, [{ item_id: 50, item_hold_reason: 'Coordinator hold: parent review' }], kids);
+  assert.deepEqual(liftWith(board, 'merged'), []);
+});
+
+test('store.logic-board-holds-settled.plain-hold-still-lifts: clause 3: a hold without the prefix still lifts as it does today [C7]', () => {
+  const kids = { 51: [{ item_status: 'landed', item_merged_commit: 'abc' }] };
+  const board = stubBoard({ 1: { item_status: 'landed', item_merged_commit: 'abc' } }, [{ item_id: 41, item_hold_reason: 'waiting on #1' }, { item_id: 51, item_hold_reason: 'parent hold' }], kids);
+  assert.deepEqual(liftWith(board, 'merged'), [41, 51]);
+});

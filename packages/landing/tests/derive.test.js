@@ -211,3 +211,21 @@ test('landing.derive.closure-tighten-derive-job-patch: the runner derive job pri
   assert.match(patch, /closure-budget\.json/u);
   assert.match(patch, /\+\s+"show": 3/u);
 });
+
+test('landing.derive.stages-no-generated-docs: stageLandingDerived stages no docs/formats.md, docs/formats/*.md or docs/api.md yet still numbers the engine [C7,#11181]', async t => {
+  const { root, sh } = repo(t);
+  const put = (file, text) => { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), text); };
+  put('docs/formats.md', '| Format | Version |\n| --- | --- |\n| `move engine` | `80` | the fixture |\n');
+  put('docs/formats/spec.md', '# spec\n');
+  put('docs/api.md', '# api\n');
+  put('packages/state/src/io/formats/note.json', '{}\n');
+  sh('add', '-A');
+  sh('commit', '-q', '-m', 'docs');
+  const { engines } = await stageLandingDerived(root);
+  assert.equal(engines.assigned.length, 1, 'the engine leaf is still numbered');
+  const staged = sh('diff', '--cached', '--name-only').split('\n').filter(Boolean);
+  assert.ok(staged.includes(LEAF), staged.join(','));
+  assert.deepEqual(staged.filter(file => file.startsWith('docs/')), [], staged.join(','));
+  assert.deepEqual(engines.files.filter(file => file.startsWith('docs/')), []);
+  assert.match(readFileSync(join(root, 'docs/formats.md'), 'utf8'), /`move engine` \| `80` \|/u, 'the committed table is untouched');
+});

@@ -281,6 +281,8 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   const repeated = new Map();
   // Profile: every millisecond since started belongs to exactly one named span, so the spans add up to the wall time [N2].
   const spans = []; let cursor = started, label = 'startup';
+  // Keep the inclusive claim-write duration beside its child spans, without adding it to the exclusive profile total.
+  let claimWriteStarted = null, claimWriteMs = null;
   /** Close the span that has been running since the last cut. */
   function cut(next) { const at = now(); spans.push({ phase: label, ms: at - cursor }); cursor = at; label = next; }
   /** Keep progress off JSON stdout and retain the actual known item, not an invented candidate. */
@@ -295,7 +297,14 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   /** Name the next real phase and its item before entering potentially slow work. */
   function enter(name, id = null) {
     // A claim sub-step is a profile cut only: a written claim keeps custody, so it never refuses, restarts the timer or changes the phase [N2,#10690].
-    if (name.startsWith('claim ')) { cut(name); return; }
+    if (name.startsWith('claim ')) {
+      if (name === 'claim write') claimWriteStarted = now();
+      if (name === 'claim cover-stuck' && claimWriteStarted !== null) {
+        claimWriteMs = (claimWriteMs ?? 0) + now() - claimWriteStarted;
+        claimWriteStarted = null;
+      }
+      cut(name); return;
+    }
     check();
     cut(name); stop(); phase = name; item = Number.isSafeInteger(id) ? id : null; phaseStarted = now(); warned = false;
     if (COMMITTING.has(name)) committing = true;
@@ -359,6 +368,10 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
     cut(label);
     const total = new Map();
     for (const span of spans) total.set(span.phase, (total.get(span.phase) ?? 0) + span.ms);
+    if (claimWriteMs !== null) {
+      const text = `next profile: claim write total ${Math.round(claimWriteMs)} ms\n`;
+      if (io.stderr?.write) io.stderr.write(text); else io.err?.(text.trimEnd());
+    }
     return [...total].map(([name, ms]) => ({ phase: name, ms })).sort((a, b) => b.ms - a.ms);
   }
   return { enter, run, retry, idle, stop, profile };

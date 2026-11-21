@@ -57,6 +57,25 @@ const draw = (model, extra = {}) => pipelineWatchHtml(model, { href, itemHref: i
 const labels = html => [...html.matchAll(/<p class="dash-lbl"[^>]*>(.*?)<\/p>/gu)].map(match => match[1].replace(/<[^>]*>/gu, ''));
 const idsOf = html => [...html.matchAll(/data-pipeline-ids="([\d,]+)"/gu)].map(match => match[1].split(',').map(Number));
 
+test('view.logic-pipeline-watch.clock-model: pipelineWatchModel carries the project clock and returns null when absent [C7,N26]', () => {
+  const clock = { withoutOwnerDeadline: 2, overdue: 3, oldestOverdueMinutes: 45, byRule: { ready: { count: 1, nextDeadlineAt: NOW, move: 'alarm' } } };
+  assert.equal(pipelineWatchModel({ items: [], clock }, [], { now: NOW }).clock, clock);
+  assert.equal(pipelineWatchModel({ items: [] }, [], { now: NOW }).clock, null);
+});
+
+test('view.logic-pipeline-watch.clock-html: pipelineWatchHtml renders the clock alarm, overdue age, and named group deadlines [C7,N26]', () => {
+  const { project, events } = board();
+  project.clock = { withoutOwnerDeadline: 2, overdue: 3, oldestOverdueMinutes: 45, byRule: {
+    'claim-idle': { count: 1, nextDeadlineAt: NOW + 30 * MINUTE, move: 'release-claim' },
+    ready: { count: 1, nextDeadlineAt: NOW + 60 * MINUTE, move: 'alarm' },
+  } };
+  const html = draw(pipelineWatchModel(project, events, { now: NOW, windowMinutes: 60 }));
+  assert.match(html, /items without owner\+deadline: 2/u);
+  assert.match(html, /overdue: 3 · oldest 45m/u);
+  assert.match(html, /next deadline 12:30 PM · default move release-claim/u);
+  assert.match(html, /next deadline 1:00 PM · default move alarm/u);
+});
+
 test('view.x-pipeline-watch.clause-1-insights-lists-pipeline-as-its: clause 1: Insights lists Pipeline as its fourth page, and the page draws Time, Flow, Main, Why beside Failures, Not moving, Bouncing, Red tests and This machine in that order [N26,#6869]', () => {
   assert.deepEqual(navPages({ cost: true }).filter(page => page.groupId === 'insights').map(page => page.id), ['dashboard', 'activity', 'cost', 'pipeline'], 'Pipeline is the fourth Insights page');
   assert.equal(navPages().find(page => page.id === 'pipeline').what, 'Why work isn\'t moving');

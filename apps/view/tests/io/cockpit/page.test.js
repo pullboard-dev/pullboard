@@ -3,6 +3,9 @@
 /** The item page's Timeline strip: its markup from a timeline document, its read-only route on a real fixture board, and its hover text [C7,#12162]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { readItemTimeline } from '../../../../../packages/stats/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -15,6 +18,9 @@ import { composeViewStyles } from '../../../src/io/styles.js';
 import { itemPanelHtml } from '../../../src/logic/panel/item.js';
 import { itemPanelModel } from '../../../src/logic/panel/item.js';
 import { pageRenderScript } from '../../../src/io/page/render.js';
+import { cockpitPage } from '../../../src/io/cockpit/page.js';
+import { compatRowsHtml } from '../../../src/io/cockpit/page.js';
+import { COMPAT_STAGES } from '../../../src/logic/cockpit/compat.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const NOW = Date.parse('2026-11-20T12:00:00Z');
@@ -75,8 +81,30 @@ test('view.item.timeline-strip-route: clause 2: the read-only route on a real fi
   assert.deepEqual(served, { version: 1, item: id, rows: direct.rows, summary: direct.summary, unmapped: direct.unmapped }, 'the route answers the timeline document');
   assert.deepEqual(served.rows.map(row => row.stage), ['filed', 'claimed']);
   assert.ok(served.summary.total_ms >= 450_000, 'the item has its stretch');
-  assert.equal((await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id + 900}`, { headers: { 'x-pullboard-key': secret } })).status, 404, 'an item with no events is 404');
+  assert.equal((await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id + 900}`, { headers: { 'x-pullboard-key': secret } })).status, 404, 'an item that does not exist is 404');
   assert.equal((await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id}`)).status, 403, 'the route needs the key');
+});
+
+test('view.item.timeline-strip-empty: clause 4: an item that exists with no events answers 200 with an empty timeline, a missing item and a failed command stay 404 [C7,#12710]', async t => {
+  const project = cellProject(t, { real: true, gate: 'true' });
+  const clock = { now: () => new Date(Date.parse('2026-11-20T10:00:00Z')) };
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
+  const logged = cellItem(board, { lane: 'view', title: 'Item with events', route: 'mid', criterion: '1. It draws [test].', brief: 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n', check: 'true' }).item_id;
+  // The event log is append-only, so the bare item is a copy of a logged item's row filed under a new id, with no event of its own.
+  const row = board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(logged), columns = Object.keys(row);
+  const bare = logged + 500;
+  board.db.prepare(`INSERT INTO item (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`).run(...columns.map(column => column === 'item_id' ? bare : row[column]));
+  const runCommand = async () => 1; // the command refuses for all three items
+  const secret = ['strip', 'empty', 'key', '0123456789'].join('-');
+  const unused = () => { throw new Error('not used by the timeline route'); };
+  const view = await serveView({ secret, projectRoot: project.repo, projects: () => [{ root: project.repo, name: 'Strip fixture' }], clock, runCommand, renderPage: () => '', refusalDocument: () => '', boardOpeners: { openBoard: unused, openBoardForRead: unused } });
+  t.after(() => view.close());
+  const ask = id => fetch(`http://127.0.0.1:${view.port}/item-timeline/${id}`, { headers: { 'x-pullboard-key': secret } });
+  const empty = await ask(bare);
+  assert.equal(empty.status, 200, 'an existing item with no events answers 200');
+  assert.deepEqual(await empty.json(), { version: 1, item: bare, rows: [], summary: null, unmapped: [] });
+  assert.equal((await ask(bare + 900)).status, 404, 'a missing item is 404');
+  assert.equal((await ask(logged)).status, 404, 'an item with events whose command failed keeps its error status');
 });
 
 test('view.item.timeline-strip-hover: clause 3: each segment carries its stage, length and reason as title text, and the strip rules use only colour tokens the view already defines [C7,#12162]', () => {
@@ -89,4 +117,37 @@ test('view.item.timeline-strip-hover: clause 3: each segment carries its stage, 
     assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|oklch\(/iu.test(line), `no colour literal: ${line}`);
     for (const token of line.matchAll(/var\((--[\w-]+)\)/gu)) if (/stage|mark|surface|ink|line/u.test(token[1])) assert.ok(new RegExp(`${token[1]}:`, 'u').test(defined), `${token[1]} is defined`);
   }
+});
+
+test('view.io-cockpit-page.compat-by-stage: clause 1: the cockpit page fetches GET /api/v1/compat-cells and draws one row per language with one cell per stage in CONFORMANCE_STAGES order, each cell carrying its outcome and run id [C7]', async t => {
+  const root = cellProject(t, { real: true, gate: 'true' }).repo;
+  mkdirSync(join(root, '.pullboard', 'conformance'), { recursive: true });
+  writeFileSync(join(root, '.pullboard', 'conformance', 'runs.json'), JSON.stringify([
+    { id: 'run-node-1', language: 'node', at: '2026-11-20T10:00:00Z', stages: { claim: 'works', submit: 'works', gate: 'fail' } },
+    { id: 'run-python-1', language: 'python', at: '2026-11-20T10:05:00Z', stages: { claim: 'partial' } },
+  ]));
+  const secret = ['page', 'test', 'key', '3706'].join('-');
+  const none = () => { throw new Error('not used by compat cells'); };
+  const view = await serveView({ secret, projectRoot: root, projects: () => [{ root, name: 'Compat fixture' }], runCommand: none, renderPage: () => '', refusalDocument: () => '', boardOpeners: { openBoard: none, openBoardForRead: none } });
+  t.after(() => view.close());
+  const answer = await fetch(`http://127.0.0.1:${view.port}/api/v1/compat-cells`, { headers: { 'x-pullboard-key': secret, connection: 'close' } });
+  assert.equal(answer.status, 200);
+  const groups = await answer.json();
+  const fed = [...new Set(groups.flatMap(group => group.cells.map(cell => cell.language)))].sort();
+  const html = compatRowsHtml(groups);
+  const rows = [...html.matchAll(/<tr data-language="([^"]+)">(.*?)<\/tr>/gu)].map(match => ({ language: match[1],
+    cells: [...match[2].matchAll(/<td data-stage="([^"]*)" data-outcome="([^"]*)" data-run="([^"]*)">/gu)].map(cell => ({ stage: cell[1], outcome: cell[2], run: cell[3] })) }));
+  assert.deepEqual(rows.map(row => row.language), fed, 'one row per language the feed names');
+  assert.ok(fed.includes('node') && fed.includes('python'), 'the recorded languages have rows');
+  for (const row of rows) assert.deepEqual(row.cells.map(cell => cell.stage), [...COMPAT_STAGES], `${row.language} has one cell per stage in CONFORMANCE_STAGES order`);
+  const byName = Object.fromEntries(rows.map(row => [row.language, row]));
+  assert.deepEqual(byName.node.cells.slice(0, 3), [{ stage: 'claim', outcome: 'works', run: 'run-node-1' }, { stage: 'submit', outcome: 'works', run: 'run-node-1' }, { stage: 'gate', outcome: 'breaks', run: 'run-node-1' }]);
+  assert.deepEqual(byName.python.cells[0], { stage: 'claim', outcome: 'partial', run: 'run-python-1' });
+  assert.ok(html.includes('partial <code>run-python-1</code>'), 'a cell shows its outcome and its run id');
+  const page = cockpitPage('', { commandPhrases: () => ['add'] });
+  assert.ok(page.includes("api('/api/v1/compat-cells')"), 'the page fetches the compat cells from a public v1 path');
+  assert.ok(!page.includes("api('/compat-cells')"), 'the page makes no /compat-cells request');
+  assert.ok(page.includes("view.tab === 'pipeline') drawCompatCells()"), 'the Pipeline tab draws the rows');
+  assert.ok(page.includes(`const compatRowsHtml = ${compatRowsHtml.toString()};`), 'the page draws them with the same rows function');
+  assert.ok(page.indexOf('drawCompatCells();') < page.lastIndexOf('</script>'), 'the draw runs inside the page script');
 });

@@ -15,6 +15,7 @@ export const MOVES = [
     verb: 'accept', from: ['submitted', 'verified'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
     guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'gateReceipt', 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'companionWindow', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'noUnverifiedStack', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'proofNoted'],
     alsoRefuses: [
+      { code: 'PENDING_REFREEZE', rule: 'a builder self-accept uses a frozen row whose stakes have not risen on main', next: 'the coordinator runs pullboard refreeze <id>' },
       ...VERDICT_REACHED_REFUSALS,
       { code: 'NOT_LANDED', rule: 'a verdict on a withdrawn item needs its forced merge, and no verdict yet', next: 'see its state with pullboard show <id>; only an item a forced merge landed with no verdict takes this accept' },
       { code: 'AGENT_APPROVAL_REQUIRED', rule: 'the reviewed source satisfies the accepted spec approval policy', next: 'ask the coordinator to arrange the person confirmation or decline' },

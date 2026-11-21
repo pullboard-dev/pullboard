@@ -4,6 +4,7 @@ import * as store from '../../../../packages/store/index.js';
 import { hookRead } from './support.js';
 import { withBoard } from './context.js';
 import { gitOut } from '../../../../packages/store/index.js';
+import { loadSpec } from '../../../../packages/spec/index.js';
 import { ID_RE } from '../../../../packages/spec/index.js';
 import { correctedCitations } from '../../../../packages/spec/index.js';
 import { qualifiedId } from '../../../../packages/spec/index.js';
@@ -51,6 +52,11 @@ export function citations(ctx, { ids, since }) {
   const elsewhere = unseen ? committedIds(ctx.info.root, ctx.config.spec, ['--all']).ids : new Map();
   for (const [id, where] of byItems) if (ids.has(id) || !elsewhere.has(id)) cited.set(id, where);
   return cited;
+}
+
+/** The row ids this board's spec has, so a filed item cites only rows that exist here. */
+export function specRowIds(ctx) {
+  return loadSpec(ctx.info.root, ctx.config).rows.map((row) => row.id);
 }
 
 /** Current board evidence, with each item's accepting receipts included once. */

@@ -228,3 +228,52 @@ test('stats.timeline.released-lease-lapsed: clause 1: a release event whose deta
   assert.equal(rows[3].actor, 'core-2');
   assert.deepEqual(unmapped, []);
 });
+
+/** A gate job that is queued just after its submit, claimed a minute in and green three minutes later, all relative to T0. */
+function gateAfter(id, submitAt) {
+  return job(id, 'gate', submitAt + 5 * SEC, [['queued', submitAt + 5 * SEC], ['claimed', submitAt + MIN, '{"runner":"r1"}'], ['green', submitAt + 4 * MIN]]);
+}
+
+test('stats.timeline.review-stages: clause 1: gate-settled green, reserve, reject, claim, gate-settled green, reserve, accept give review-queued, reviewing, verdict reject, rework, then review-queued, reviewing, verdict accept with exact bucket lengths, and a review release ends reviewing with its code [C7,#12161]', () => {
+  const first = gateAfter('gate:1', 10 * MIN), second = gateAfter('gate:2', 40 * MIN);
+  const { rows, summary, unmapped } = timelineOf({
+    events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit'), event(4, 20 * MIN, 'reserve', {}, 'core-2'),
+      event(5, 25 * MIN, 'reject', { reason: 'clause 1 unmet' }, 'core-2'), event(6, 30 * MIN, 'claim'), event(7, 40 * MIN, 'submit'),
+      event(8, 55 * MIN, 'reserve', {}, 'core-2'), event(9, 58 * MIN, 'accept', {}, 'core-2'), event(10, 60 * MIN, 'merged', { commit: 'abc1234' }, 'coordinator')],
+    jobs: [first.job, second.job], steps: [...first.steps, ...second.steps],
+  });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'submitted', 'gate-queued', 'gate-running', 'gate-settled', 'review-queued', 'reviewing', 'verdict',
+    're-claimed', 'submitted', 'gate-queued', 'gate-running', 'gate-settled', 'review-queued', 'reviewing', 'verdict', 'merged']);
+  assert.deepEqual(rows.filter(row => row.stage === 'verdict').map(row => row.reason), ['reject', 'accept']);
+  assert.deepEqual(rows.filter(row => row.stage === 'review-queued').map(row => row.at), [T0 + 14 * MIN, T0 + 44 * MIN]);
+  assert.deepEqual(summary.buckets, { building: 10 * MIN, 'waiting for runner': 2 * MIN, testing: 6 * MIN, 'waiting for review': 17 * MIN, reviewing: 8 * MIN, 'waiting to land': 2 * MIN, landing: 0, rework: 15 * MIN });
+  assert.equal(summary.unaccounted_ms, 0);
+  assert.deepEqual(unmapped, []);
+
+  const released = timelineOf({
+    events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit'), event(4, 20 * MIN, 'reserve', {}, 'core-2'),
+      event(5, 50 * MIN, 'release', { review: true, reason: 'Review idle for 30 minutes.', reasonCode: 'REVIEW_IDLE' }, 'sentinel'),
+      event(6, 60 * MIN, 'reserve', {}, 'core-3'), event(7, 65 * MIN, 'accept', {}, 'core-3')],
+    jobs: [first.job], steps: first.steps,
+  });
+  assert.deepEqual(stagesOf(released.rows), ['filed', 'claimed', 'submitted', 'gate-queued', 'gate-running', 'gate-settled', 'review-queued', 'reviewing', 'reviewing', 'review-queued', 'reviewing', 'verdict']);
+  const end = released.rows.find(row => row.stage === 'reviewing' && row.edge === 'end');
+  assert.equal(end.reason, 'REVIEW_IDLE');
+  assert.equal(end.at, T0 + 50 * MIN);
+  assert.equal(released.summary.buckets.reviewing, 35 * MIN);
+  assert.equal(released.summary.buckets['waiting for review'], 16 * MIN);
+});
+
+test('stats.timeline.no-reviewer: clause 2: a waiting-for-review stretch with no other seat next-idle, claim or reserve is NO_REVIEWER, and once another seat next-idle appears the rest is plain waiting for review [C7,#12161]', () => {
+  const gate = gateAfter('gate:1', 10 * MIN);
+  const input = { events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit')], jobs: [gate.job], steps: gate.steps, now: T0 + 44 * MIN };
+  const alone = timelineOf({ ...input, seatEvents: [{ at: T0 + 16 * MIN, by: 'core-1', kind: 'next-idle' }, { at: T0 + 20 * MIN, by: 'core-1', kind: 'claim' }] });
+  assert.equal(alone.summary.waits.NO_REVIEWER, 30 * MIN, 'the builder own events never end NO_REVIEWER');
+  assert.equal(alone.summary.buckets['waiting for review'], 0);
+  const seen = timelineOf({ ...input, seatEvents: [{ at: T0 + 12 * MIN, by: 'core-2', kind: 'next-idle' }, { at: T0 + 20 * MIN, by: 'core-2', kind: 'next-idle' }] });
+  assert.equal(seen.summary.waits.NO_REVIEWER, 6 * MIN, 'an event before the wait began does not count');
+  assert.equal(seen.summary.buckets['waiting for review'], 24 * MIN);
+  const none = timelineOf(input);
+  assert.equal(none.summary.waits.NO_REVIEWER, 0, 'a caller that passes no seat events gets no label');
+  assert.equal(none.summary.buckets['waiting for review'], 30 * MIN);
+});

@@ -3,16 +3,6 @@ import { cleanGitEnvironment } from '../../../../git/light.js';
 import { repoInfo } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/light.js';
 /** Exact controller/holder custody; native queue cleanup alone changes resource availability [C7]. */
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
@@ -21,6 +11,9 @@ import { leaseTokenDigest } from './disposition.js';
 import { openPoolReadOnly } from '../lock.js';
 import { recoveryIdentity } from '../recovery.js';
 import { cleanupCharges } from '../recovery.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Retain only this controller's declared deadline or unresolved lifecycle observation. */
 export function createControllerCustody(owner, parentPid, { processStarted, machineHome, registerController, releaseController, observeUnavailable, rebindController }, sourceRoot) {
@@ -30,7 +23,7 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
   let source;
   if (typeof sourceRoot === 'string' && isAbsolute(sourceRoot)) {
     try {
-      const state = statSync(sourceRoot);
+      const state = fs.stat(sourceRoot);
       source = { root: sourceRoot, dev: state.dev, ino: state.ino };
     } catch { /* The controller's ordinary source observer retains its original cancellation/refusal order. */ }
   }
@@ -41,7 +34,7 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
       registered = undefined;
     }
     if (!file) return;
-    try { unlinkSync(file); }
+    try { fs.unlink(file); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     file = undefined;
   };
@@ -55,20 +48,20 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
       registerController(owner, parentPid, registered);
     }
     const directory = join(machineHome(), 'controller-deadlines');
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    fs.mkdir(directory, { recursive: true, mode: 0o700 });
     const bytes = JSON.stringify({ version: 1, token: owner.token, pool: owner.pool, holderPid: parentPid, holderStarted,
       controllerPid: process.pid, started, ...(source ? { source } : {}),
       ...(deadline ? { deadline } : {}), ...(problem ? { problem } : {}) });
     if (!file) {
       const candidate = join(directory, randomUUID() + '.json');
-      writeFileSync(candidate, bytes, { flag: 'wx', mode: 0o600 });
+      fs.writeFile(candidate, bytes, { flag: 'wx', mode: 0o600 });
       file = candidate;
       return;
     }
     const temporary = `${file}.${randomUUID()}.tmp`;
-    writeFileSync(temporary, bytes, { flag: 'wx', mode: 0o600 });
-    try { renameSync(temporary, file); }
-    finally { try { unlinkSync(temporary); } catch (error) { if (error.code !== 'ENOENT') throw error; } }
+    fs.writeFile(temporary, bytes, { flag: 'wx', mode: 0o600 });
+    try { fs.rename(temporary, file); }
+    finally { try { fs.unlink(temporary); } catch (error) { if (error.code !== 'ENOENT') throw error; } }
   };
   // Unbounded, healthy work still needs custody if this controller exits without its normal finally.
   publish();
@@ -103,13 +96,13 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
 /** Read complete records only; damaged or foreign files never identify a native holder. */
 function custodyRecords(pool, machineHome) {
   const directory = join(machineHome(), 'controller-deadlines');
-  if (!existsSync(directory)) return [];
+  if (!fs.exists(directory)) return [];
   const records = [];
-  for (const name of readdirSync(directory).filter(name => /^[a-f0-9-]{36}\.json$/u.test(name))) {
+  for (const name of fs.list(directory).filter(name => /^[a-f0-9-]{36}\.json$/u.test(name))) {
     try {
-      const file = join(directory, name), state = lstatSync(file);
+      const file = join(directory, name), state = fs.lstat(file);
       if (!state.isFile() || state.size > 4096) continue;
-      const record = JSON.parse(readFileSync(file, 'utf8'));
+      const record = JSON.parse(fs.readFile(file, 'utf8'));
       if (record.version !== 1 || record.pool !== pool || typeof record.token !== 'string'
         || !Number.isSafeInteger(record.holderPid) || record.holderPid < 1
         || !Number.isSafeInteger(record.controllerPid) || record.controllerPid < 1
@@ -134,7 +127,7 @@ function orphanReason(record, holder, sameProcess) {
   if (!source || source.root !== holder.repo || !isAbsolute(source.root)
     || !Number.isSafeInteger(source.dev) || !Number.isSafeInteger(source.ino)) return null;
   try {
-    const state = statSync(source.root);
+    const state = fs.stat(source.root);
     if (!state.isDirectory() || state.dev !== source.dev || state.ino !== source.ino) return 'source directory identity changed';
   } catch (error) {
     if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return 'source directory is gone';
@@ -170,8 +163,8 @@ export function orphanedControllerLeases(db, { sameProcess }) {
 /** Join diagnostics to exact holders, including dead controllers; this health reader never releases capacity. */
 export function controllerLeaseHealth(now, { processStarted, machineHome, sameProcess }) {
   const expectedPool = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(expectedPool)) return [];
-  const pool = realpathSync(expectedPool), db = openPoolReadOnly(pool);
+  if (!fs.exists(expectedPool)) return [];
+  const pool = fs.realpath(expectedPool), db = openPoolReadOnly(pool);
   try {
     const rows = orphanedControllerLeases(db, { sameProcess }).map(({ token: _token, controller_identity: _identity, recovery: _recovery, cause, ...holder }) => ({ ...holder, problem: cause }));
     const orphanPids = new Set(rows.map(row => row.controllerPid));
@@ -273,11 +266,11 @@ export function runnerBoardFile(root, hops = 3) {
   let info;
   try { info = repoInfo(root); } catch { return null; }
   const boardFile = join(info.commonDir, 'pullboard', 'board.sqlite');
-  if (existsSync(boardFile)) return boardFile;
+  if (fs.exists(boardFile)) return boardFile;
   if (hops <= 0) return null;
   const origin = gitSpawnSync(['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   const url = origin.status === 0 ? origin.stdout.trim() : '';
-  return url && isAbsolute(url) && existsSync(url) ? runnerBoardFile(url, hops - 1) : null;
+  return url && isAbsolute(url) && fs.exists(url) ? runnerBoardFile(url, hops - 1) : null;
 }
 
 /**
@@ -289,11 +282,11 @@ export function runnerItemSources(root, hops = 3) {
   try { info = repoInfo(root); } catch { return []; }
   const config = join(info.commonDir, 'config');
   const boardFile = join(info.commonDir, 'pullboard', 'board.sqlite');
-  if (existsSync(boardFile)) return [config, boardFile];
+  if (fs.exists(boardFile)) return [config, boardFile];
   if (hops <= 0) return [config];
   const origin = gitSpawnSync(['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   const url = origin.status === 0 ? origin.stdout.trim() : '';
-  return [config, ...(url && isAbsolute(url) && existsSync(url) ? runnerItemSources(url, hops - 1) : [])];
+  return [config, ...(url && isAbsolute(url) && fs.exists(url) ? runnerItemSources(url, hops - 1) : [])];
 }
 
 /** Boards a waiting controller already resolved, by checkout; a board file keeps its place for the controller's whole life. */
@@ -309,7 +302,7 @@ export function runnerItemState(root, item) {
   const id = Number(item);
   if (!Number.isSafeInteger(id)) return null;
   let boardFile = observedBoards.get(root);
-  if (!boardFile || !existsSync(boardFile)) {
+  if (!boardFile || !fs.exists(boardFile)) {
     boardFile = runnerBoardFile(root);
     if (!boardFile) { observedBoards.delete(root); return null; }
     observedBoards.set(root, boardFile);

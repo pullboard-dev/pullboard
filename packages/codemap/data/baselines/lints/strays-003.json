@@ -36,7 +36,7 @@
     "apps/cli/journeys/submit/main/red.test.js": 1,
     "apps/cli/journeys/submit/preflight.test.js": 1,
     "apps/cli/journeys/submit/stacked.test.js": 1,
-    "apps/cli/journeys/submit/wait.test.js": 1,
+    "apps/cli/tests/io/submit/waiting.test.js": 1,
     "apps/cli/journeys/sync/main.test.js": 1,
     "apps/cli/journeys/test-value/main.test.js": 1,
     "apps/cli/journeys/test/command.test.js": 1,

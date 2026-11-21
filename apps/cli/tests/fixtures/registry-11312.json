@@ -1,0 +1,11 @@
+{
+  "cli.io-next-real-size.review-seat-take": {
+    "proves": {
+      "specs": ["N2"],
+      "claim": "next --verify for a review seat on the real-size board prints its next profile lines and finishes under 2 s."
+    },
+    "why": "Only the build seat's take was profiled, so the review seat's phase times were never recorded.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/tests/io/next/real-size.test.js"]
+  }
+}

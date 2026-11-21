@@ -6,6 +6,7 @@
  *
  * Why here: main-test was a controller-dispatch kind; under pull nothing ran it and every row stayed queued (#6063).
  */
+import { createHash } from 'node:crypto';
 import { tryGit } from '../../../git/index.js';
 import { plainTrunkRef } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
@@ -122,6 +123,20 @@ if (ran.status !== 0) {
     }
   } catch { failing = null; signatures = null; }
 }
+// A run that only exceeded its test-file budget: it printed the budget line and outcome frames that all passed, so it names its passing cases and the budget failure. No budget line, no frames or any case not passed (a crash, an unfinished run) names nothing [C7].
+let budget = null;
+if (ran.status !== 0 && failing === null) {
+  try {
+    const over = /test file budget: (\\S+) took (\\d+)ms, over its (\\d+)ms test file budget/u.exec(text);
+    const passed = [];
+    let others = 0;
+    for (const line of text.split('\\n')) {
+      if (!line.startsWith('# pullboard test outcomes ')) continue;
+      for (const row of JSON.parse(line.slice('# pullboard test outcomes '.length)).tests ?? []) { if (row.passed === true && row.skipped !== true) passed.push(String(row.name).slice(0, ${MAIN_CASE_NAME_UNITS})); else others++; }
+    }
+    if (over && over[1] === file && passed.length && !others) budget = { tookMs: Number(over[2]), limitMs: Number(over[3]), passed: passed.slice(0, ${CASES}), passedCount: passed.length };
+  } catch { budget = null; }
+}
 // The run's own cache frame names the file's test input key (the file, its import closure and declared inputs), so a gate on
 // another main whose inputs to this file are the same reads this receipt [C7,SC11].
 let inputKey = null;
@@ -130,7 +145,7 @@ for (const line of text.split('\\n')) {
   try { const row = JSON.parse(line.slice(${INPUT_FRAME.length})); if (row?.file === file && /^[0-9a-f]{64}$/u.test(row.inputKey ?? '')) inputKey = row.inputKey; } catch { /* A torn frame names no key. */ }
 }
 // The verdict line ends the output and fits the runner's 4 KiB tail whole; the run's own text takes what room is left.
-const verdict = '${MAIN_TEST_LINE}' + JSON.stringify({ green: ran.status === 0, status: ran.status, failing, signatures, inputKey });
+const verdict = '${MAIN_TEST_LINE}' + JSON.stringify({ green: ran.status === 0, status: ran.status, failing, signatures, inputKey, ...(budget ? { budget } : {}) });
 process.stdout.write(text.slice(-Math.max(0, Math.min(1500, 3900 - verdict.length))) + '\\n' + verdict + '\\n');
 process.exitCode = ran.status === 0 ? 0 : 1;
 `;
@@ -183,6 +198,39 @@ export function offerMainTests(board, { now = Date.now() } = {}) {
   return offered;
 }
 
+/** The case name and signature a file's test-file budget failure keys under; the same failure of the same file always matches. */
+export function budgetCase(file) {
+  const name = `test file budget: ${file}`.slice(0, MAIN_CASE_NAME_UNITS);
+  return { name, signature: createHash('sha256').update(`pullboard test file budget:${file}`).digest('hex') };
+}
+
+/** A verdict line's budget-only account, or null: a red with no named failing case whose every case passed and whose file only went over its budget. */
+function budgetOnly(ran, file) {
+  const budget = ran?.budget;
+  if (ran?.green !== false || (Array.isArray(ran.failing) && ran.failing.length) || !budget) return null;
+  const whole = value => Number.isInteger(value) && value > 0;
+  if (!whole(budget.tookMs) || !whole(budget.limitMs) || !whole(budget.passedCount)
+    || !Array.isArray(budget.passed) || !budget.passed.length || budget.passed.some(name => typeof name !== 'string')) return null;
+  return { ...budget, ...budgetCase(file) };
+}
+
+/**
+ * Key a budget-only run: red under the file's one budget case, naming the cases that passed and the budget it went over.
+ * Why: the run printed no failing case, so it keyed nothing and the gates waiting on it never re-judged (#12692). Only a
+ * gate failing that same budget case reads main-owned; any other failing case of the file reads new. The comparison cache
+ * is not written: a file-level red there would excuse a file's unnamed failures.
+ */
+function recordBudgetOnly(board, { job, at, receipt, ran, budget }, { now }) {
+  const { db } = board;
+  atomically(db, () => {
+    writeStep(db, job, 'receipt', { id: job, tree: at.tree, file: at.file, command: at.command, verdict: 'red', failing: [budget.name], signatures: [budget.signature], budgetOnly: true,
+      passed: budget.passed, passedCount: budget.passedCount, budget: { tookMs: budget.tookMs, limitMs: budget.limitMs }, main: receipt.commit ?? null, at: now,
+      ...(/^[0-9a-f]{64}$/u.test(ran.inputKey ?? '') ? { inputKey: ran.inputKey } : {}) }, { seq: 0, now });
+    finishJob(db, job, null, { now });
+  });
+  return { applied: true, outcome: 'recorded', verdict: 'red' };
+}
+
 /**
  * Apply a main-test job's posted receipt: write the keyed main receipt `{ id, tree, file, command, verdict, failing,
  * signatures, main, at }` as the job's receipt step 0, which the gate's main-red verdict reads (returnedMainReceipts). A receipt
@@ -201,6 +249,8 @@ export function applyMainTestReceipt(board, { job, receipt }, { now = Date.now()
   let ran = null;
   try { ran = line ? JSON.parse(line.slice(MAIN_TEST_LINE.length)) : null; } catch { ran = null; }
   if (!at || typeof ran?.green !== 'boolean') return { applied: false, outcome: 'unread' };
+  const budget = budgetOnly(ran, at.file);
+  if (budget) return recordBudgetOnly(board, { job, at, receipt, ran, budget }, { now });
   // A red whose cases could not be read keys nothing: a receipt naming none would excuse no case and bounce the builder for main's own red [C7].
   if (!ran.green && !(Array.isArray(ran.failing) && ran.failing.length)) return { applied: false, outcome: 'unnamed' };
   const named = ran.green || !Array.isArray(ran.failing) ? [] : ran.failing.map((name, index) => ({ name, signature: ran.signatures?.[index] })).filter(row => typeof row.name === 'string');

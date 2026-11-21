@@ -221,6 +221,11 @@ export function fixtureCellsPlan(repo, text) {
   writeFileSync(join(repo, 'packages/codemap/data/plan/cells.json'), text);
 }
 
+/** Opt a fixture project into cell inventory through its committed policy. */
+export function fixtureCellsPlanPolicy(repo, plan) {
+  fixtureProjectPolicy(repo, { config: { cells: { plan } } });
+}
+
 /**
  * Commit the native submit hand-off policy into a fixture project and bring its web checkout up to date.
  *

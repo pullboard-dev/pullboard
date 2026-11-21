@@ -41,6 +41,18 @@ export function mainLaneWork(items) {
   };
 }
 
+/**
+ * Whether a lane's work is all done: at least one item was ever filed in it and every one is verified or withdrawn.
+ * Why: a seat that is told "finished" stops, so an open, claimed, submitted, rejected or blocked item, or an empty lane, must never read as finished [C7,#12779].
+ */
+export function laneFinished(items, lane) {
+  const own = items.filter(item => item.item_lane === lane && item.item_status !== 'withdrawn');
+  return own.length > 0 && own.every(item => item.item_status === 'verified');
+}
+
+/** The seconds an idle next --no-wait reports: next.idleMinutes in seconds, never more than 90 [C7,#12779]. */
+export const idleSeconds = minutes => Math.min(minutes * 60, 90);
+
 /** Preserve empty-queue refusals while sending a main-checkout newcomer to existing lane work. */
 export function refuseNextIdle(io, reasons, displayed, { minutes, verify, laneWork, lane, route }) {
   const waited = minutes ? ` after ${minutes} minutes` : '';

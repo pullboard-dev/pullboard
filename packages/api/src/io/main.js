@@ -108,6 +108,7 @@ import { seedWideMainTestsEnabled } from '../../../config/index.js';
 import { retryNewRedsOnceEnabled } from '../../../config/index.js';
 import { receiptMissingCauseEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
+import { excuseMainRedFilesEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
 import { recordLapseEnabled } from '../../../config/index.js'; import { runnersCoresPerShard } from '../../../config/index.js';
 import { runnerCommitReportEnabled } from '../../../config/index.js';
@@ -833,7 +834,7 @@ function isLiteralIPv4(host) {
  * reads through it on the request; the state materializer runs the same builds on its worker thread, so a
  * read there never builds at all.
  */
-export function createStateSnapshots({ projects = listApiProjects, scope, isMain, onStateBuild, onItemBuild, now = () => Date.now(), boardOpeners, viewPorts } = {}) {
+export function createStateSnapshots({ projects = listApiProjects, scope, isMain, onStateBuild, onItemBuild, now = () => Date.now(), boardOpeners, viewPorts , stopRules } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary } = viewPorts ?? {};
   if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createStateSnapshots needs view projection ports');
@@ -890,6 +891,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
       afterSequence: cached?.sequence ?? 0,
       changedLeases,
       onItemBuild,
+      stopRules,
       projects: apiProjects,
       scopeCommonDir,
       observedAt,
@@ -992,7 +994,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
  * @param {{ secret: string | Buffer, coordinatorSecret?: string | Buffer | null, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord, handlerPorts, gateMaintenanceBeat } = {}) {
+export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord, handlerPorts, workerCwd = process.cwd(), gateMaintenanceBeat , stopRules } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
   if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createLocalApiHandler needs view projection ports');
@@ -1028,7 +1030,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
   // loopback is shared with every runner and seat, so it never acts as the coordinator unless a separate secret is named [P7,#10785].
   const coordinatorKey = coordinatorSecret !== undefined ? (coordinatorSecret === null ? null : Buffer.from(coordinatorSecret))
     : personChannel === 'view' || permittedHosts.length === 0 ? key : null;
-  const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
+  const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts , stopRules });
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
   const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, codeStampCache: codeStampCacheEnabled(), onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
@@ -1042,7 +1044,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     return Promise.reject(new Refused('STATE_WORKER_STOPPED', 'the state worker stopped, so this read is refused rather than built on the request thread; restart pullboard serve'));
   }
   // With handlerPorts, the runner job queue runs in a worker pool and never on this thread, even when the pool is full [A2,C7].
-  const pool = handlerPorts ? startHandlerPool({ portsModule: handlerPorts, isMain: codeIsMain, Refused, onFailure: (error) => process.stderr.write(`pullboard: an API handler worker stopped (${error?.message ?? error}); it was replaced\n`) }) : null;
+  const pool = handlerPorts ? startHandlerPool({ portsModule: handlerPorts, isMain: codeIsMain, cwd: workerCwd, Refused, onFailure: (error) => process.stderr.write(`pullboard: an API handler worker stopped (${error?.message ?? error}); it was replaced\n`) }) : null;
   const localItem = itemDetailReader({ withReadBoard, projectItemState, isMain: codeIsMain, boardOpeners, onItemBuild, cells: DETAIL_CELLS });
   // The fingerprints of the summary states each board's clients were sent, least recently sent
   // first, and the latest sequence a forgotten one had. A build only read for an item, a search or
@@ -1253,7 +1255,7 @@ function exactTreeCheckOn(root) {
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, gateAgedMs, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), failFastShards: failFastShardsEnabled(), seedWideMainTests: seedWideMainTestsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), exactTreeCheck: body?.action === 'receipt' && exactTreeCheckOn(board.root), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, gateAgedMs, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), failFastShards: failFastShardsEnabled(), seedWideMainTests: seedWideMainTestsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), excuseMainRedFiles: excuseMainRedFilesEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), exactTreeCheck: body?.action === 'receipt' && exactTreeCheckOn(board.root), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }
@@ -1309,11 +1311,11 @@ export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocu
  * Serve the RFC 0002 API on loopback, or a chosen interface address, behind the session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, watchdog, onStallRecord, pullRoute, gateMaintenanceBeat } = {}) {
+export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, workerCwd = process.cwd(), watchdog, onStallRecord, pullRoute, gateMaintenanceBeat , stopRules } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
-  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, gateMaintenanceBeat, allowedHosts: address === ADDRESS ? [] : [address] });
+  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, workerCwd, gateMaintenanceBeat, stopRules, allowedHosts: address === ADDRESS ? [] : [address] });
   // A watchdog, when given, names the routes behind any request-thread stall and records it on the boards [A2,C7].
   const watched = watchdog?.({ onStall: (stall) => { process.stderr.write(`pullboard: the API request thread stalled ${Math.round(stall.lagMs)} ms during ${stall.routes.join(', ') || stall.route}\n`); void handler.recordStall({ route: stall.route, lagMs: stall.lagMs, board: /\/api\/v1\/boards\/([^/?]+)/u.exec(stall.route)?.[1] ?? null }).then(onStallRecord, () => {}); } });
   // serve.pullRoute: a handler given here answers /pull/ itself; without one the path falls to the API handler as before (#8765).
