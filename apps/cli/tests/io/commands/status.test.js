@@ -5,6 +5,8 @@ import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
 import { main } from '../../fixtures/native.js';
 import { getItem } from '../../../../../packages/store/index.js';
+import { itemsNeedingRescope } from '../../../../../packages/store/index.js';
+import { nextEligible } from '../../../../../packages/store/index.js';
 import { holdItem } from '../../../../../packages/store/index.js';
 import { recordSubmitHandoff } from '../../../../../packages/jobs/index.js';
 
@@ -26,7 +28,7 @@ test('cli.io-commands-status.ready-buffer: clause 2: the real status command car
   }
 });
 
-test('cli.io-commands-status.eligible-ready: clause 1: status readyByRoute counts only the items next would offer, not a held item, a gate-queued item or a claim waiting to land [C7,#12567]', async (t) => {
+test('cli.io-commands-status.eligible-ready: clause 1: status readyByRoute counts only the items next would offer, not a held item, a gate-queued item, a claim waiting to land, a route-filtered item or an after-chain, and agrees with next on a re-scoped item [C7,#12567]', async (t) => {
   const box = await fixture(t);
   const { board } = box;
   const place = (id, fields) => {
@@ -37,7 +39,12 @@ test('cli.io-commands-status.eligible-ready: clause 1: status readyByRoute count
   const file = name => ({ brief: `Files: web/${name}.js\nTest: the real status command counts what next offers.` });
   const ids = { mid: box.add('Eligible mid', { route: 'mid', ...file('a') }), strong: box.add('Eligible strong', { route: 'strong', ...file('b') }),
     held: box.add('Held', { route: 'mid', ...file('c') }), gate: box.add('Gate queued at head', { route: 'mid', ...file('d') }),
-    waiting: box.add('Claim waiting to land', { route: 'strong', ...file('e') }) };
+    waiting: box.add('Claim waiting to land', { route: 'strong', ...file('e') }), rescope: box.add('Re-scoped, given back ineligible', { route: 'strong', ...file('f') }) };
+  ids.chain = box.add('After an unfinished item', { route: 'mid', after: [ids.mid], ...file('g') });
+  const claimed = await cli(box, box.seats.builder.path, ['claim', String(ids.rescope)]);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  const released = await cli(box, box.seats.builder.path, ['release', String(ids.rescope), '--reason', 'INELIGIBLE', '--note', 'cannot be built as written']);
+  assert.equal(released.code, 0, released.out + released.err);
   holdItem(board, ids.held, { agentId: 'coordinator', reason: 'Fixture hold.' });
   box.submit(ids.gate);
   recordSubmitHandoff(board.db, ids.gate, { id: `fixture-${ids.gate}`, commit: getItem(board, ids.gate).item_commit, agentId: box.seats.builder.id, state: 'queued' });
@@ -46,8 +53,14 @@ test('cli.io-commands-status.eligible-ready: clause 1: status readyByRoute count
   const json = await cli(box, box.root, ['status']);
   assert.equal(json.code, 0, json.out + json.err);
   const { capacity, capacityForecast, reviewQueue } = json.document;
-  assert.deepEqual(capacity.readyByRoute, { mid: 1, strong: 1 });
-  assert.equal(capacity.readyItems, 2);
+  // Status and next agree item by item: the strong item is a ROUTE_FILTER skip for a mid seat and is counted under strong only; the after-chain item is a DEPENDENCY skip.
+  assert.equal(nextEligible(board, getItem(board, ids.strong), 'mid')?.code, 'ROUTE_FILTER');
+  assert.equal(nextEligible(board, getItem(board, ids.chain), 'mid')?.code, 'DEPENDENCY');
+  // A re-scoped item is only left out of other-lane move targets, so next still offers it in its own lane and status counts it too.
+  assert.deepEqual(itemsNeedingRescope(board, 'web', 'strong').map(row => row.id), [ids.rescope]);
+  assert.equal(nextEligible(board, getItem(board, ids.rescope), 'strong'), null);
+  assert.deepEqual(capacity.readyByRoute, { mid: 1, strong: 2 });
+  assert.equal(capacity.readyItems, 3);
 });
 
 test('cli.io-commands-status.eligible-recommended: clause 2: status recommends the eligible ready count plus one reviewer per 20 pending reviews, rounded up [C7,#12567]', async (t) => {
