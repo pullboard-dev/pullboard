@@ -75,7 +75,7 @@ export async function offerWithLog(t, { concurrentOffer = false, derived = null,
   if (ledger) seedLedger(board, main, ledger);
   // The offer reads machine settings from this private home: parallel gates on, so each entry's changed files are read.
   process.env.PULLBOARD_MACHINE_HOME = home;
-  fixtureMachineSettings(home, { landing: { parallelGates: true }, ...(derived && derived.setting !== false ? { health: { derivedState: true } } : {}) });
+  fixtureMachineSettings(home, { landing: { parallelGates: true }, health: { derivedState: Boolean(derived) && derived.setting !== false } });
   if (derived) sweepDerivedState(board, { mainCommit: derived.swept === 'older' ? '0'.repeat(40) : main, enabled: true, listItems: target => store.listItems(target, { all: true }), verdictState: item => derived.verdicts?.[item.item_id] ?? null, gateAtHead: () => null });
   // The git adapter seam logs each git start (the real adapter spawns an absolute binary, so a PATH shim sees nothing); the lock seam logs where the lock is held, so the log orders git against the lock.
   const log = join(home, 'git-and-lock.log');
