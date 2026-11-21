@@ -22,6 +22,7 @@ import { claimOverlaps } from '../../../items/index.js';
 import { localDependencyIds } from '../../../items/index.js';
 import { conflictRates } from '../../../items/index.js';
 import { rejectionReturnEnabled } from '../../../store/index.js';
+import { writeFileAtomic } from '../../../store/index.js';
 import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
@@ -32,7 +33,6 @@ import { laneNames } from '../../../seats/index.js';
 import { lightShaped } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { machineSettingsFile } from '../../../config/index.js';
-import { fileSystemAdapter } from '../../../fs/index.js';
 import { nextReadinessCache } from '../../../config/index.js';
 import { nextLabelBounds } from '../../../config/index.js';
 import { nextReturnedFirst } from '../../../config/index.js';
@@ -55,8 +55,6 @@ import { forcedLandedUnreviewed } from '../../../verify/index.js';
 import { ownSessionReviews } from '../../../verify/index.js';
 import { relayLinked } from '../../../link/index.js';
 import { criterionFreezer } from './freezer.js';
-
-const cacheFs = fileSystemAdapter();
 
 /** The refusals next passes over, as it does a bar that cannot be built: the unbuildable codes, and a bar naming paths no lane owns, which claim by id still refuses [C7,#11862]. */
 const PASSED_OVER = new Set([...UNBUILDABLE, 'CROSS_OWNERSHIP']);
@@ -139,16 +137,13 @@ function cachedDirtyPaths(root, named, read) {
   const fingerprint = (paths) => head && index
     ? JSON.stringify([head, stamp(index), [...new Set([...paths, ...named])].sort().map(path => [path, stamp(join(root, path))])]) : null;
   let entry;
-  if (file) { try { entry = JSON.parse(cacheFs.readFile(file, 'utf8')); } catch { /* no cache yet, or one a crash left half written: read the status */ } }
+  if (file) { try { entry = JSON.parse(readFileSync(file, 'utf8')); } catch { /* no cache yet, or one a crash left half written: read the status */ } }
   if (Array.isArray(entry?.paths) && entry.fingerprint && entry.fingerprint === fingerprint(entry.paths)) return entry.paths;
   const paths = read();
   const next = fingerprint(paths);
   if (file && next) {
-    const temp = `${file}.${process.pid}.tmp`;
-    try {
-      cacheFs.writeFile(temp, JSON.stringify({ fingerprint: next, paths }));
-      cacheFs.rename(temp, file);
-    } catch { /* an unwritable cache only costs a status */ }
+    try { writeFileAtomic(file, JSON.stringify({ fingerprint: next, paths })); }
+    catch { /* an unwritable cache only costs a status */ }
   }
   return paths;
 }
