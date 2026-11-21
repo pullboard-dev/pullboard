@@ -1,0 +1,4 @@
+{
+  "cli.io-test-pull.authenticated-outcome-retention": {"proves":{"specs":["C7"],"claim":"the controller accepts a pulled packet only when it binds the exact request, enrolled runner runtime, tooling and outcomes"},"why":"A retained pulled packet is reusable proof, so any mismatch in request, packet, runtime or tooling identity must confer none.","kind":"journey","inputs":["apps/cli/tests/io/test/pull.test.js"]},
+  "cli.io-test-pull.authenticated-outcome-retention-origin": {"proves":{"specs":["C7"],"claim":"a packet entry whose origin request differs from the pulled request is not retained"},"why":"An entry the runner reused from an earlier run must not become this request's retained proof.","kind":"journey","inputs":["apps/cli/tests/io/test/pull.test.js"]}
+}
