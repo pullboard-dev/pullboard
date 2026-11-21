@@ -138,12 +138,25 @@ function commandLoads(args, runner = false, extraEnv = {}, top = ROOT) {
   return { loaded: urls.size, urls, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
+/** One line per package (or apps/cli folder) with its loaded module count, largest first, so the next cut is named from the print [C7]. */
+function groupLines(urls) {
+  const counts = new Map();
+  for (const file of underTop(urls, ROOT)) {
+    const parts = file.split('/');
+    const key = parts.slice(0, parts[0] === 'apps' ? 3 : 2).join('/');
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([key, n]) => `${n} ${key}`);
+}
+
 for (const [command, budget] of Object.entries(budgets)) {
   test(`pullboard ${command} loads at most ${budget} modules plus headroom; a lower count means lower the budget [C7]`, t => {
     const measure = top => RUNNER_ROW.test(command) ? commandLoads(command.replace(RUNNER_ROW, ''), true, {}, top).urls
       : GIT_HOOK_ROW.test(command) ? commandLoads(command.replace(GIT_HOOK_ROW, ''), false, { GIT_EXEC_PATH: '/usr/libexec/git-core' }, top).urls
         : commandLoads(command, false, {}, top).urls;
-    const loaded = measure(ROOT).size;
+    const urls = measure(ROOT);
+    const loaded = urls.size;
+    if (command === 'show 1') for (const line of groupLines(urls)) t.diagnostic(`pullboard show 1 group ${line}`);
     if (loaded > budget + headroom(budget)) assert.fail(overMessage(command, loaded, budget, addedAgainstMain(ROOT, MAIN_REFS, measure)));
     if (loaded < budget) t.diagnostic(`pullboard ${command} loaded ${loaded}; lower its budget in closure-budget.json to ${loaded}`);
   });
