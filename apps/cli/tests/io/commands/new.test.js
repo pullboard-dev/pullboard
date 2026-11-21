@@ -89,18 +89,19 @@ test('cli.io-commands-new.lints-generated-tests-pass: clause 2: the registry and
   const tests = Object.keys(newPackageFiles('tidy-cell', 'x')).filter(path => /\/tests\/[^/]+\.test\.js$/u.test(path));
   assert.ok(tests.some(path => path.endsWith('inputs.test.js')) && tests.some(path => path.endsWith('registry.test.js')), tests.join());
   // node:test's own runner loads the generated files in its isolated children, so this test spawns nothing itself.
-  const passed = [], failed = [];
+  const passed = [], failed = [], noise = [];
   // Inside a node:test child the marker makes the grandchildren answer in a form the runner API does not read; hide it while they run.
   const marker = process.env.NODE_TEST_CONTEXT;
   delete process.env.NODE_TEST_CONTEXT;
   try {
     for await (const event of run({ files: tests.map(path => join(box.repo, path)), cwd: box.repo })) {
       if (event.type === 'test:pass') passed.push(event.data.name);
+      if (event.type === 'test:stderr' || event.type === 'test:stdout') noise.push(event.data.message);
       if (event.type === 'test:fail') failed.push(`${event.data.name}: ${event.data.details?.error?.message ?? ''} ${event.data.details?.error?.cause?.message ?? ''} ${event.data.details?.error?.cause?.stack ?? ''}`);
     }
   } finally {
     if (marker !== undefined) process.env.NODE_TEST_CONTEXT = marker;
   }
-  assert.deepEqual(failed, []);
+  assert.deepEqual(failed, [], noise.join('').slice(0, 3000));
   assert.ok(passed.length >= tests.length, `ran ${passed.length} cases for ${tests.length} files`);
 });
