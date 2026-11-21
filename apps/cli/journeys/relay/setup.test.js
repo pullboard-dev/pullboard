@@ -23,6 +23,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   plainCommand,
 } from '../../tests/fixtures/relay/setup.js';
