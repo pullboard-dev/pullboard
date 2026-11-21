@@ -1,0 +1,4 @@
+{
+  "store.merged.merged-at-commit-time": {"proves":{"specs":["C7"],"claim":"At MERGED_AT_ENGINE merged() records detail.mergedAt as the commit's committer time in ms on the merged event while event_at stays the record time."},"why":"Without this case the timeline would keep charging landing lag from the record time, so the wait it reports stays wrong.","kind":"cell unit","inputs":["packages/store/src/io/board/merged.js"]},
+  "store.merged.merged-at-absent": {"proves":{"specs":["C7"],"claim":"Below MERGED_AT_ENGINE, or when the caller passes no mergedAt or one that is not a safe integer, the merged event has no mergedAt key."},"why":"Without this case an old-engine board or a bad caller value would write a made-up time into a merged event.","kind":"cell unit","inputs":["packages/store/src/io/board/merged.js"]}
+}
