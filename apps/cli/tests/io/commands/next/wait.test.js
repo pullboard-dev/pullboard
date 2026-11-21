@@ -8,11 +8,15 @@ import { setImmediate as yieldEventLoop } from 'node:timers/promises';
 import { withFixtureBoard } from '../../../fixtures/board.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
 import { startBoardWriter } from '../../../fixtures/board-writer.js';
+import { main } from '../../../fixtures/native.js';
+import { captureCommandInProcess } from '../../../fixtures/process.js';
 import { createFixtureWorktree } from '../../../fixtures/testkit.js';
 import { fixtureAdd } from '../../../fixtures/testkit.js';
 
 const WAIT_MINUTES = '0.1';
 const OFFER_WAKE_SECONDS = 1;
+const FAKE_WAIT_MS = 2 * 60_000;
+const FAKE_STEP_MS = 30_000;
 
 /** Run the production next command in this process and answer its result with the process CPU seconds and wall seconds it took. */
 async function measured(box, cwd, ...args) {
@@ -74,4 +78,46 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   assert.equal(result.code, 0, `filed ${(filedAt - began) / 1000} s in, item ${JSON.stringify(item).slice(0, 400)}: ${result.out}\n${result.err}`);
   assert.match(result.out, new RegExp(`#${item.item_id}\\b`, 'u'), `the wait did not hand over the offered item: ${result.out}`);
   assert.ok(delay < OFFER_WAKE_SECONDS, `the wait returned ${delay} s after the item was filed`); // budget: declared by the bar of #11798 clause 2
+});
+
+/** A next run through the production command with a driven clock: now() reads it, and each sleep hands it to `sleep`. */
+function drivenNext(box, cwd, clock, ...args) {
+  return captureCommandInProcess((argv, io) => main(argv, { ...io, nextWaitClock: clock }), ['next', ...args], { cwd, env: box.env });
+}
+
+test('cli.io-commands-next-wait.fake-clock-idle: clause 1: a next --wait 2 against a fake clock the test advances returns its idle answer only once the fake clock has passed 2 minutes [C7,#12761]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  let fake = 1_000_000;
+  const began = fake, seen = [];
+  let sleeps = 0;
+  const clock = {
+    now: () => { seen.push(fake); return fake; },
+    sleep: async (wake, { deadline }) => { sleeps += 1; fake = Math.min(fake + FAKE_STEP_MS, Number.isFinite(deadline) ? Math.max(deadline, fake) : Infinity); },
+  };
+  const result = await drivenNext(box, box.web, clock, '--wait', '2');
+  assert.ok(result.code === 0 || result.code === 1, `exit ${result.code}: ${result.err}`);
+  assert.doesNotMatch(result.err, /\n\s+at [^\n]*\.js:\d+/u, `the wait ended in an error: ${result.err}`);
+  assert.ok(fake >= began + FAKE_WAIT_MS, `the idle answer came with the fake clock at ${fake - began} ms, before 2 minutes`);
+  assert.ok(fake - began < FAKE_WAIT_MS + FAKE_STEP_MS, `the fake clock ran on to ${fake - began} ms after the deadline`);
+  assert.ok(seen.some(at => at - began > 0 && at - began < FAKE_WAIT_MS), 'the loop never read the clock before the deadline, so it did not wait on it');
+  assert.ok(sleeps >= FAKE_WAIT_MS / FAKE_STEP_MS, `the wait slept through the clock ${sleeps} times, so it did not sleep through the seam`);
+});
+
+test('cli.io-commands-next-wait.fake-clock-wake: clause 1: a wake from a newly filed item returns at once whatever the fake clock says [C7,#12761]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const fake = 1_000_000;
+  const clock = { now: () => fake, sleep: (wake, { after }) => wake.wait({ after }) };
+  const waiting = drivenNext(box, box.web, clock, '--wait', '2');
+  const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  while (!withFixtureBoard(board, open => open.db.prepare("SELECT 1 AS found FROM event WHERE event_kind = 'next-idle'").get())) await yieldEventLoop();
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Offered while a driven seat waits', '--specs', 'G1', '--criterion', 'renders', '--json');
+  assert.equal(added.status ?? added.code, 0, `${added.out ?? added.stdout}\n${added.err ?? added.stderr}`);
+  const item = JSON.parse(added.out ?? added.stdout).item;
+  const result = await waiting;
+  assert.equal(result.code, 0, `${result.out}\n${result.err}`);
+  assert.match(result.out, new RegExp(`#${item.item_id}\\b`, 'u'), `the wait did not hand over the offered item: ${result.out}`);
 });

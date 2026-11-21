@@ -327,7 +327,8 @@ async function nextWithProgress(io, values, progress) {
   values = { ...values, observeIdle: true, idleBlockers: nextIdleBlockers() };
   let lastIdleReason;
   const heardShouts = new Set();
-  const deadline = Date.now() + minutes * 60_000;
+  const waitClock = io.nextWaitClock ?? realWaitClock;
+  const deadline = waitClock.now() + minutes * 60_000;
   const origin = ctx.info.root;
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
@@ -533,7 +534,7 @@ async function nextWithProgress(io, values, progress) {
       }
       lastIdleReason = idleKey;
     }
-    if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
+    if (!found.retry && (found.laneWork || waitClock.now() >= deadline)) {
       // Nothing else to build: the board holds this next until the seat's own queued test run comes back [C7].
       if (testRuns.pending.length && await deliverWhenReady(io, ctx)) return 0;
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
@@ -587,19 +588,22 @@ async function nextWithProgress(io, values, progress) {
             .get(whoAmI(ctx, board).id, new Date(ctx.clock.now().getTime() - cooldown).toISOString());
           if (release?.at) due.push(Date.parse(release.at) + cooldown);
         }
-        return due.length ? Math.min(deadline, Date.now() + Math.min(...due) - ctx.clock.now().getTime()) : deadline;
+        return due.length ? Math.min(deadline, waitClock.now() + Math.min(...due) - ctx.clock.now().getTime()) : deadline;
       });
-      await progress.idle(found.reasons, () => wake.wait({ after: wakeVersion, deadline: until }));
+      await progress.idle(found.reasons, () => waitClock.sleep(wake, { after: wakeVersion, deadline: until }));
       wakeVersion = wake.version();
-      quiet = passSignature; quietAt = Date.now();
+      quiet = passSignature; quietAt = waitClock.now();
       // Another seat's write that changes nothing this seat can take, hear or hold is not a reason to select again; a read path this signature misses is caught by the recheck [C7,#11798].
-      while (quiet !== null && !testRuns.pending.length && Date.now() < until && Date.now() - quietAt < QUIET_RECHECK_MS && seatSignature(ctx) === quiet) {
-        await wake.wait({ after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS) });
+      while (quiet !== null && !testRuns.pending.length && waitClock.now() < until && waitClock.now() - quietAt < QUIET_RECHECK_MS && seatSignature(ctx) === quiet) {
+        await waitClock.sleep(wake, { after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS) });
         wakeVersion = wake.version();
       }
     }
   } } finally { wake?.close(); }
 }
+
+/** The clock a waiting next reads and sleeps through: the real time and the waiter's own timers unless io.nextWaitClock names another, so a test can drive the wait without real minutes [C7,#12761]. */
+const realWaitClock = { now: () => Date.now(), sleep: (wake, options) => wake.wait(options) };
 
 /** The longest a waiting next trusts an unchanged signature before it selects again, so a read path the signature misses cannot hold a seat for long [C7,#11798]. */
 const QUIET_RECHECK_MS = 30_000;
