@@ -32,6 +32,11 @@ const HOT_INDEXES = [
   'CREATE INDEX IF NOT EXISTS event_kind_id ON event (event_kind, event_id)',
 ];
 
+/** Only live coordinator call-outs enter this index; answered and unrelated shout history stays outside every `next` read [C7]. */
+const COORDINATOR_CALLOUT_INDEX_SQL = `CREATE INDEX IF NOT EXISTS shout_open_coordinator_callout ON shout (shout_id)
+  WHERE shout_to='coordinator' AND shout_from <> 'coordinator' AND shout_answers IS NULL AND shout_answered_at IS NULL
+    AND (shout_text LIKE '%needs a sharper bar%' OR shout_text LIKE 'Queued gate for #%' OR shout_text LIKE '%has two send-backs%' OR shout_text LIKE 'Stuck: decision #%' OR shout_text LIKE '%decision request%')`;
+
 /**
  * Create the hot-query indexes. They index columns that migrate() adds to older boards, so this runs
  * after it, never inside the table schema.
@@ -117,6 +122,7 @@ const ADDITIVE_COLUMNS = [
   ['item', 'item_reservation_holder', 'TEXT'],
   ['item', 'item_reservation_by', 'TEXT'],
   ['item', 'item_reservation_at', 'TEXT'],
+  ['shout', 'shout_answered_at', 'TEXT'],
 ];
 
 /** The same columns as DDL, for the shared-schema declaration a worktree compares a trunk board against. */
@@ -128,6 +134,11 @@ function missingAdditiveColumns(db) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all();
     return columns.length > 0 && !columns.some(entry => entry.name === column);
   });
+}
+
+/** True when the bounded coordinator call-out lookup has not been installed on an older board. */
+function missingCoordinatorCalloutIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='shout_open_coordinator_callout'").get();
 }
 
 /** Add each additive column only when absent. Why public: the shared-schema declaration must know the columns a trunk board carries. */
@@ -144,7 +155,7 @@ function missingLedgerCommitIndex(db) {
 
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingSeatEventIndex(db) || missingStatusIndexes(db) || missingSeatKindIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
+  return missingAdditiveColumns(db) || missingCoordinatorCalloutIndex(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingSeatEventIndex(db) || missingStatusIndexes(db) || missingSeatKindIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
@@ -156,6 +167,7 @@ export function ensureAdditiveIndexes(db) {
   db.exec(STATUS_SQL);
   db.exec(SEAT_KIND_SQL);
   db.exec(SEAT_EVENT_SQL);
+  db.exec(COORDINATOR_CALLOUT_INDEX_SQL);
   ensureJobTables(db);
   db.exec(LEDGER_SCHEMA_SQL);
   db.exec(EVENT_ARCHIVE_SCHEMA_SQL);
@@ -169,7 +181,7 @@ export function ensureAdditiveIndexes(db) {
  */
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
-  return missingAdditiveColumns(db) || HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
+  return missingAdditiveColumns(db) || missingCoordinatorCalloutIndex(db) || HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
     || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingSeatEventIndex(db) || missingStatusIndexes(db) || missingSeatKindIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
 }
 
@@ -186,6 +198,7 @@ export function ensureAdditiveSchema(db) {
   db.exec(STATUS_SQL);
   db.exec(SEAT_KIND_SQL);
   db.exec(SEAT_EVENT_SQL);
+  db.exec(COORDINATOR_CALLOUT_INDEX_SQL);
   db.exec(JOB_SCHEMA_SQL);
   db.exec(RUN_SCHEMA_SQL);
   db.exec(LEDGER_SCHEMA_SQL);
