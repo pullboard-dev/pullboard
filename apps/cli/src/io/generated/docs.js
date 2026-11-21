@@ -1,7 +1,6 @@
 /** One generation boundary for source-owned format, API, and help declarations [C7,A1,A5,M1]. */
 import { join } from 'node:path';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
-import { git } from '../../../../../packages/git/index.js';
 import { fileURLToPath } from 'node:url';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { JSON_SHAPES } from '../../../../../packages/config/index.js';
@@ -199,33 +198,4 @@ export function writeGeneratedDocs(root, outputs, ports) {
   const changed = generatedDocDrift(root, outputs);
   for (const file of changed) files.writeFile(join(root, file), outputs.get(file));
   return changed;
-}
-
-/** The staged paths whose content feeds a generated copy: command, format and event declarations, the store schema and the settings of the tools. */
-const DECLARATION_SOURCE = /^(?:apps\/cli\/src\/io\/(?:command-docs|documentation)\/|packages\/[^/]+\/src\/io\/(?:formats|schema)\/|packages\/(?:store|config|state)\/)/u;
-
-/**
- * Regenerate and stage the generated documentation copies when a commit changes the declarations they are built from (#9664).
- * Why: the hand lander skips the landing batch that regenerates them, so drift reached main twice in one day. A copy the
- * person has partly staged is left alone and named, so no unstaged hunk is staged.
- *
- * @param {string} root the committing checkout
- * @param {{ openBoard: Function }} ports
- * @returns {string[]} notes for the person committing
- */
-export function regenerateStagedDocs(root, ports) {
-  const staged = git(root, ['diff', '--cached', '--name-only', '-z']).split('\0').filter(Boolean);
-  if (!staged.some(path => DECLARATION_SOURCE.test(path))) return [];
-  const changed = generatedDocDrift(root, undefined, ports);
-  if (!changed.length) return [];
-  const unstaged = new Set(git(root, ['diff', '--name-only', '-z']).split('\0').filter(Boolean));
-  const partly = changed.filter(file => unstaged.has(file));
-  const outputs = generatedDocs(root, ports);
-  const fixable = changed.filter(file => !unstaged.has(file));
-  for (const file of fixable) files.writeFile(join(root, file), outputs.get(file));
-  if (fixable.length) git(root, ['add', '--', ...fixable]);
-  return [
-    ...(fixable.length ? [`regenerated ${fixable.join(', ')} and staged them`] : []),
-    ...(partly.length ? [`not regenerated, because they are partly staged: ${partly.join(', ')}`] : []),
-  ];
 }

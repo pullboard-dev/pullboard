@@ -133,7 +133,6 @@
     "apps/cli/tests/io/init/boundary.test.js",
     "apps/cli/tests/io/init/codex-automation.test.js",
     "apps/cli/tests/io/init/defaults.test.js",
-    "apps/cli/tests/io/init/docs-regenerate.test.js",
     "apps/cli/tests/io/init/gate-set.test.js",
     "apps/cli/tests/io/init/ignore-rules.test.js",
     "apps/cli/tests/io/init/ignore.test.js",
