@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, readFileSync, watch } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { watch } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
@@ -129,14 +132,14 @@ test('cli.io-test-census.sigterm-cancels-own-shards: clause 1: SIGTERM withdraws
   first.kill('SIGTERM');
   const ended = await first.closed;
   assert.equal(ended.signal, null, ended.output);
-  for (const id of firstIds.slice(1)) {
-    assert.equal(jobView(board.db, id).step, 'done');
-    assert.equal(call({ action: 'claim', runner: `cancel-${id}`, capabilities: ['node22'], jobs: [id] }).claim, null);
-  }
+  for (const id of firstIds.slice(1)) assert.equal(jobView(board.db, id).step, 'done');
   assert.deepEqual(jobView(board.db, firstIds[0]).steps.find(step => step.name === 'receipt').payload.receipt, receipt);
-  for (const id of secondIds) {
-    const claimed = call({ action: 'claim', runner: `other-${id}`, capabilities: ['node22'], jobs: [id] }).claim;
-    assert.equal(claimed?.job, id, `second controller's ${id} remains dispatchable`);
+  const dispatchable = [];
+  for (let i = 0; i < secondIds.length + firstIds.length + 1; i += 1) {
+    const claimed = call({ action: 'claim', runner: `fixture-queue-${i}`, capabilities: ['node22'] }).claim;
+    if (!claimed) break;
+    dispatchable.push(claimed.job);
   }
+  assert.deepEqual(dispatchable.sort(), [...secondIds].sort(), 'only the other controller’s jobs remain dispatchable');
   assert.equal(second.exitCode, null, 'the second controller remains alive');
 });
