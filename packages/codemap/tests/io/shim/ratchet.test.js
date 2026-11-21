@@ -28,9 +28,6 @@ function files(overrides = {}) {
     [`:index:${moved}`]: 'export const request = true;\n',
     'HEAD:packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ paths: [[shim, moved]], frontDoor }] }),
     ':index:packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ paths: [[shim, moved]], frontDoor }] }),
-    ':index:packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [
-      { importer, target: shim, contractItem: 12797, expires: '2099-12-31' },
-    ] }),
     ...overrides,
   };
 }
@@ -67,8 +64,14 @@ test('codemap.io-shim-ratchet.unchanged-multiset-passes: before and accepted dup
 });
 
 test('codemap.io-shim-ratchet.temporary-edge-is-bounded: exact criterion edge and valid metadata admit only the contracted import [C7]: clause 3: temporary edge is bounded', () => {
-  assert.deepEqual(staged(`import '${specifier}';`).problems, []);
-  const wrongCriterion = reader(files({ [`HEAD:${importer}`]: '', [`:index:${importer}`]: `import '${specifier}';` }));
+  const validEdge = JSON.stringify({ version: 1, edges: [
+    { importer, target: shim, contractItem: 12797, expires: '2099-12-31' },
+  ] });
+  const allowed = reader(files({ [`HEAD:${importer}`]: '', [`:index:${importer}`]: `import '${specifier}';`,
+    ':index:packages/codemap/data/plan/temporary-edges.json': validEdge }));
+  assert.deepEqual(stagedShimImportProblems({ paths: [importer], read: allowed.read, parseImports: parser, criterion }), []);
+  const wrongCriterion = reader(files({ [`HEAD:${importer}`]: '', [`:index:${importer}`]: `import '${specifier}';`,
+    ':index:packages/codemap/data/plan/temporary-edges.json': validEdge }));
   assert.equal(stagedShimImportProblems({ paths: [importer], read: wrongCriterion.read, parseImports: parser,
     criterion: `${importer} -> ${frontDoor}` }).length, 1);
   const expired = reader(files({ ':index:packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [
