@@ -671,7 +671,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       if (timelineRoute) {
         let output = '';
         const status = await runCommand(['timeline', timelineRoute[1], '--json'], { cwd: projectRoot ?? process.cwd(), ...(clock ? { clock } : {}), stdout: { isTTY: false, write: (text) => { output += text; } }, stderr: { write: () => {} }, onEvent: () => {} });
-        if (status) return json(res, 404, { error: `no timeline for #${timelineRoute[1]}` });
+        // An item with no events has no strip; answering 200 with no rows keeps the browser console free of a 404 the page asked for on purpose.
+        if (status) return json(res, 200, { version: 1, item: Number(timelineRoute[1]), rows: [], summary: null, unmapped: [] });
         return reply(res, 200, 'application/json; charset=utf-8', output);
       }
       // The compatibility cells, read only: the recorded conformance runs of this project's root as page cells.

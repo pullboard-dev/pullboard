@@ -81,7 +81,9 @@ test('view.item.timeline-strip-route: clause 2: the read-only route on a real fi
   assert.deepEqual(served, { version: 1, item: id, rows: direct.rows, summary: direct.summary, unmapped: direct.unmapped }, 'the route answers the timeline document');
   assert.deepEqual(served.rows.map(row => row.stage), ['filed', 'claimed']);
   assert.ok(served.summary.total_ms >= 450_000, 'the item has its stretch');
-  assert.equal((await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id + 900}`, { headers: { 'x-pullboard-key': secret } })).status, 404, 'an item with no events is 404');
+  const empty = await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id + 900}`, { headers: { 'x-pullboard-key': secret } });
+  assert.equal(empty.status, 200, 'an item with no events answers 200, so the page logs no 404');
+  assert.deepEqual(await empty.json(), { version: 1, item: id + 900, rows: [], summary: null, unmapped: [] }, 'with no rows and no summary, so the panel draws no strip');
   assert.equal((await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id}`)).status, 403, 'the route needs the key');
 });
 
