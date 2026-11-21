@@ -1,0 +1,5 @@
+{
+  "cli.io-item-bar-spec.refuses-a-removed-gate-file": {"proves":{"specs":["C7"],"claim":"With items.barRulesAtAdd on, a lane bar deleting or renaming a file approved must rows gate on is refused SPEC_GATE_ROW naming the row ids."},"why":"Without it a lane builder claims a bar that pre-commit refuses and the spec cannot be edited from the lane, so the claim is wasted.","kind":"cell unit","inputs":["apps/cli/src/io/item/bar.js"]},
+  "cli.io-item-bar-spec.next-step-is-the-split": {"proves":{"specs":["C7"],"claim":"The SPEC_GATE_ROW refusal names the lane piece, then the coordinator piece filed after it with --split-coordinator."},"why":"Without it the filer gets a refusal with no way forward.","kind":"cell unit","inputs":["apps/cli/src/io/item/bar.js"]},
+  "cli.io-item-bar-spec.accepts-off-reads-and-other-filers": {"proves":{"specs":["C7"],"claim":"With the setting off, for a coordinator or person filer, or for a criterion that only reads the file or deletes a file no approved must row names, the bar is accepted."},"why":"Without it the rule would block bars it was never meant to refuse.","kind":"cell unit","inputs":["apps/cli/src/io/item/bar.js"]}
+}

@@ -65,9 +65,11 @@ import { previousShardMs } from '../../logic/census.js';
 import { selfTunedJobMinutes } from '../../logic/census-tune.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
+import { endJob } from '../../../../../packages/jobs/index.js';
 import { censusCarry } from './census-carry.js';
 import { fileBudgetField } from './file-limit.js';
 import { withFileLimit } from './file-limit.js';
+import { withBoard } from '../context.js';
 
 /** Tracked test entry files at HEAD, the way the gate lists them for a full suite. */
 async function trackedTests(root) {
@@ -188,11 +190,21 @@ function pulledCensus(ctx, io, values = {}) {
     const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
     const commit = headCommit(root), main = mainPolicy(root).commit ?? commit;
     const plan = cutPlan(root, files, count), killSeconds = censusFileKillSeconds(), times = killSeconds ? readFileTimes(root) : {}, perRunner = censusJobsPerRunner(), quiet = censusJobsPerRunnerQuiet();
-    await Promise.all(plan.map(async (shard, index) => {
+    const stopped = new AbortController(), active = new Map();
+    const stopJob = (job, runs) => runs ? endJob(runs.db, job, 'withdrawn', { detail: 'census controller received SIGTERM' }) : withBoard(ctx, board => endJob(board.db, job, 'withdrawn', { detail: 'census controller received SIGTERM' }));
+    const onTerm = () => {
+      stopped.abort(new Error('census controller received SIGTERM'));
+      // The ids are captured as each offer succeeds, so termination can end this run only.
+      for (const [job, runs] of active) stopJob(job, runs);
+    };
+    process.once('SIGTERM', onTerm);
+    try { await Promise.all(plan.map(async (shard, index) => {
       const label = `${index + 1}/${plan.length}`, started = Date.now();
       const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
       try {
-        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...(fileLimit === false ? {} : { ...fileBudgetField(values), ...(shardFileKillMs(shard.files, times, killSeconds) ? { fileBudgetMs: shardFileKillMs(shard.files, times, killSeconds) } : {}) }), ...(perRunner ? { censusPerRunner: perRunner } : {}), ...(perRunner && quiet ? { censusPerRunnerQuiet: quiet } : {}) });
+        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), signal: stopped.signal,
+          onOffer: (job, runs, done = false) => { if (done) active.delete(job); else { active.set(job, runs); if (stopped.signal.aborted) stopJob(job, runs); } },
+          ...(fileLimit === false ? {} : { ...fileBudgetField(values), ...(shardFileKillMs(shard.files, times, killSeconds) ? { fileBudgetMs: shardFileKillMs(shard.files, times, killSeconds) } : {}) }), ...(perRunner ? { censusPerRunner: perRunner } : {}), ...(perRunner && quiet ? { censusPerRunnerQuiet: quiet } : {}) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
         write(`# census-times ${JSON.stringify({ enqueuedAt: ran.enqueuedAt, claimedAt: ran.claimedAt, startedAt: ran.startedAt, endedAt: ran.endedAt, load1: ran.loadAtStart })}\n`);
@@ -204,6 +216,7 @@ function pulledCensus(ctx, io, values = {}) {
         write(`${error?.message ?? error}\n`);
       }
     }));
+    } finally { process.removeListener('SIGTERM', onTerm); }
     write('# landing result: done\n');
     return { isGreen: true };
   };

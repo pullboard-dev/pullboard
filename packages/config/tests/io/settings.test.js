@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { adapterLintSshEnabled } from '../../index.js';
 import { failFastShardsEnabled } from '../../index.js';
 import { holdsLiftSettled } from '../../index.js';
+import { excuseMainRedFilesEnabled } from '../../index.js';
 import { joinCoordinatorSeat } from '../../index.js';
 import { jsdocCheckEnabled } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
@@ -135,4 +136,13 @@ test('config.io-settings.lift-settled-on: clause 1: holdsLiftSettled returns tru
   assert.equal(withSettings({ holds: { liftSettled: true } }, holdsLiftSettled), true);
   assert.equal(withSettings({ holds: { liftSettled: false } }, holdsLiftSettled), false);
   assert.match(describeSetting('holds.liftSettled').description, /default/iu);
+});
+
+test('config.io-settings.excuse-main-red-files-setting: clause 1: gate.excuseMainRedFiles defaults to false, is described, rejects a non-boolean with BAD_MACHINE_SETTINGS, and excuseMainRedFilesEnabled() is true only for an exact true [C7,#12129]', () => {
+  assert.equal(MACHINE_DEFAULTS['gate.excuseMainRedFiles'], false);
+  assert.match(describeSetting('gate.excuseMainRedFiles').description, /red on main|main also fails/iu);
+  assert.equal(withSettings({}, excuseMainRedFilesEnabled), false);
+  assert.equal(withSettings({ gate: { excuseMainRedFiles: false } }, excuseMainRedFilesEnabled), false);
+  assert.equal(withSettings({ gate: { excuseMainRedFiles: true } }, excuseMainRedFilesEnabled), true);
+  assert.throws(() => withSettings({ gate: { excuseMainRedFiles: 'true' } }, excuseMainRedFilesEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.excuseMainRedFiles/u.test(error.message));
 });

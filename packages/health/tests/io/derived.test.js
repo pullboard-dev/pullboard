@@ -1,6 +1,10 @@
 // fixture-subject: addItem (a unit test of readDerivedState over a swept derived file; the board is opened through the fixture kit)
 /** readDerivedState returns the five swept kinds for a main commit and null when the table is not current for it [C7,#8945,#10568]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../store/index.js';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
@@ -10,6 +14,26 @@ import { sweepDerivedAtMain } from '../../index.js';
 
 const MAIN = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
+const REPO = resolve(import.meta.dirname, '../../../..');
+const STATIC_IMPORT = /^\s*(?:import|export)\s[^'"`;]*?from\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]/gmu;
+
+/** Every health module reached through static import and re-export statements. */
+function importClosure(entry) {
+  const seen = new Set();
+  const stack = [resolve(REPO, entry)];
+  const external = new Set();
+  while (stack.length) {
+    const file = stack.pop();
+    if (seen.has(file) || !existsSync(file)) continue;
+    seen.add(file);
+    for (const match of readFileSync(file, 'utf8').matchAll(STATIC_IMPORT)) {
+      const specifier = match[1] ?? match[2];
+      if (specifier.startsWith('.')) stack.push(resolve(dirname(file), specifier));
+      else external.add(specifier);
+    }
+  }
+  return { files: [...seen], external: [...external] };
+}
 
 /** A file-backed board with two seats, one held open item and one accepted unlanded item. */
 function sweptBoard(t, { empty = false } = {}) {
@@ -24,6 +48,16 @@ function sweptBoard(t, { empty = false } = {}) {
   const sweep = (mainCommit, enabled = true) => sweepDerivedState(board, { mainCommit, enabled, listItems, verdictState: () => ({ code: 'STALE_VERDICT' }), gateAtHead: (_b, item) => (item.item_id === ids[0] ? 'gate green at cccccccccccc' : null) });
   return { board, ids, sweep };
 }
+
+test('health.io-derived.light-door-reads-derived-state: clause 1: packages/health/light.js exports readDerivedState as the health index function, and its import closure loads no file outside packages/health and node built-ins [C7]', async () => {
+  const closure = importClosure('packages/health/light.js');
+  assert.ok(closure.files.length > 0, 'the health light door import closure is nonempty');
+  assert.deepEqual(closure.files.filter(file => !file.startsWith(`${REPO}/packages/health/`)), [], 'the health light door reaches a file outside packages/health');
+  assert.deepEqual(closure.external.filter(specifier => !specifier.startsWith('node:')), [], 'the health light door imports a non-Node package');
+  const light = await import('../../light.js');
+  const health = await import('../../index.js');
+  assert.equal(light.readDerivedState, health.readDerivedState, 'the light door exports the same function as the health index');
+});
 
 test('health.derived-read.matches-sweep: clause 1: after the sweep at a main commit, readDerivedState returns the five kinds equal to the rows the sweep wrote [C7,#10568]', t => {
   const { board, ids, sweep } = sweptBoard(t);
