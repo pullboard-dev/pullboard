@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/gate/piped-pull.test.js apps/cli/tests/fixtures/pull.js */
+/** @pullboard-test-input apps/cli/tests/io/commands/gate/pipe.test.js apps/cli/tests/fixtures/pull.js */
 /** @pullboard-world-pin: clause 2 reads the committed pull fixture source to prove its quick calls start no CLI process in-process. */
 /**
  * The parity check for the pull fixture (U149): its add, claim and bar calls now run in-process (a warm worker thread for the sync
@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/gate/piped-pull.test.js', cases: ['a pulled gate of a piped command settles red on the runner when an early stage fails [V16,C7]'] }];
+const SAMPLES = [{ journey: 'apps/cli/tests/io/commands/gate/pipe.test.js', cases: ['a pulled gate of a piped command settles red on the runner when an early stage fails [V16,C7]'] }];
 
 test('gate.journey-parity-pull.a-pull-fixture-sample-gives-the-same: clause 1: a pull-fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);

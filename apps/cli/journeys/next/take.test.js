@@ -255,8 +255,12 @@ test('cli.journeys-next-take.health-observes-each-of-two-free: health observes e
   assert.ok(observed.dispatch.every(pair => [first, second].includes(pair.item)));
   assert.equal(new Set(observed.dispatch.map(pair => pair.seat)).size, 2, 'each free seat has its own observation');
   box.scan(); box.advance(300000); box.scan();
-  const messages = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
-  assert.equal(messages.length, 2, 'each free seat has one loud warning');
+  const stuck = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
+  assert.equal(stuck.length, 0, 'UNPAIRED_WORK is a routine finding: it is buffered for the digest, not shouted at once (#11268)');
+  box.advance(10 * 60 * 1000); box.scan();
+  const digests = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Digest:'));
+  assert.equal(digests.length, 1, 'the coordinator hears one digest line naming the free seats once the window has passed');
+  for (const seat of new Set(observed.dispatch.map(pair => pair.seat))) assert.ok(digests[0].shout_text.includes(seat), `the digest names the free seat ${seat}`);
 });
 
 test('cli.journeys-next-take.take-build-one-step: clause 1: next --take --build claims the one open build item, with a submitted review waiting, in a single call that reserves no review [C7,#11942]', async t => {

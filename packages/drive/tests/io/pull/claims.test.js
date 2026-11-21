@@ -40,6 +40,12 @@ function boardBehindFetch(t, job, { trunk = 'unused', down = () => false, answer
   };
   const answer = call => {
     if (call.action === 'claim') { const claim = board.claim(call.runner); return { claim, ...(claim ? { trunk } : {}) }; }
+    // The runner's one renew for every job it holds names each job with its own token and gets one lease answer per job [C7,#12150].
+    if (call.action === 'renew' && Array.isArray(call.held)) {
+      return { leases: call.held.map(({ job: id, token }) => token === `${call.runner}:${board.attempt}`
+        ? { job: id, renewed: renewLease(db, id, call.runner, { now: board.now(), lapsed: true }) }
+        : { job: id, renewed: false, refused: 'JOB_LEASE_MOVED' }) };
+    }
     if (call.token !== `${call.runner}:${board.attempt}`) return null;
     if (call.action === 'renew') return { renewed: renewLease(db, job.id, call.runner, { now: board.now(), lapsed: true }) };
     if (call.action === 'release') return backOffLease(db, job.id, call.runner, { attempt: board.attempt, reason: call.reason, now: board.now() });
@@ -110,7 +116,7 @@ async t => {
   const running = serveRunner({ git: pullGit, board: BOARD, runner: 'r-long', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, trunkPack: async () => {},
     say: line => { said.push(line); },
     timing: { renewMs: 100, renewRetryMs: 50, leaseMs: 300 } });
-  assert.equal((await back).renewed, true, 'the board renewed the lapsed lease no runner had claimed');
+  assert.equal((await back).leases[0].renewed, true, 'the board renewed the lapsed lease no runner had claimed');
   const leaseUntil = jobView(board.db, 'gate:long').leaseUntil;
   assert.ok(leaseUntil > board.now(), 'the runner renewed its lapsed lease when the board answered again');
   assert.equal(board.claim('r-rival'), null, 'another runner cannot take the renewed job');
