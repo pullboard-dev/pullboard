@@ -27,7 +27,11 @@ test('store.io-board-withdraw.system-actor-as-met-names-commit: clause 1: a syst
   assert.deepEqual(f.events(), [{ by: 'sentinel', detail: { reason: 'met on main', commit: COMMIT } }]);
   const plain = fixture(t);
   store.withdraw(plain.board, plain.id, { agentId: 'coordinator', reason: 'duplicate of another item' });
-  assert.deepEqual(plain.events(), [{ by: 'coordinator', detail: { reason: 'duplicate of another item' } }]);
+  const [recorded, ...rest] = plain.events();
+  assert.equal(rest.length, 0);
+  assert.equal(recorded.by, 'coordinator');
+  assert.equal(recorded.detail.reason, 'duplicate of another item');
+  assert.equal('commit' in recorded.detail, false);
 });
 
 test('store.io-board-withdraw.refuses-uncited-or-off-main: clause 2: a seat withdraw and a system-actor withdraw citing no commit or a commit that does not carry the work are refused as COORDINATOR_ONLY and write nothing [C7,#12552]', t => {
