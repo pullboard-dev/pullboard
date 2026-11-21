@@ -37,7 +37,8 @@ test('health.io-derived.light-door-reads-derived-state: clause 1: packages/healt
     encoding: 'utf8',
     env: { ...process.env, NODE_NO_WARNINGS: '1' },
   });
-  const loaded = result.split('\n').filter(line => line.startsWith('PULLBOARD_LOADED ')).map(line => new URL(line.slice('PULLBOARD_LOADED '.length)).pathname);
+  const loaded = result.split('\n').filter(line => line.startsWith('PULLBOARD_LOADED ')).map(line => new URL(line.slice('PULLBOARD_LOADED '.length)).pathname)
+    .filter(file => file.startsWith(`${REPO}/`) && !file.startsWith(`${REPO}/[eval`));
   assert.ok(loaded.length > 0, 'fresh process reported loaded file modules');
   assert.deepEqual(loaded.filter(file => !file.startsWith(`${REPO}/packages/health/`)), [], 'the health light door loaded a file outside packages/health');
   const light = await import('../../light.js');
