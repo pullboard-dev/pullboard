@@ -1,4 +1,13 @@
-import { Refused } from '../../../kernel/index.js';
+
+/** A boundary-free refusal with the same public fields as the kernel refusal. */
+class QuestionRefusal extends Error {
+  constructor(code, message, next) {
+    super(`[${code}] ${message}`);
+    this.name = 'Refused';
+    this.code = code;
+    if (typeof next === 'string' && next.trim()) this.next = next.trim();
+  }
+}
 
 /** Shared bounded answer grammar used by blueprint questions and signed row decisions. */
 export const CHOICES = '. Choices: ';
@@ -24,25 +33,25 @@ export function positions(text, separator) {
  * @param {string} id - The row id, for the refusal's next step.
  * @returns {{ text: string, answer: string, listed: boolean }}
  */
-export function answerQuestion(text, given, id) {
+export function answerQuestion(text, given, id, Refusal = QuestionRefusal) {
   const at = text.lastIndexOf(CHOICES);
   const approve = `the person approves its exact new text instead: pullboard spec approve ${id} --text "<the answered row>"`;
-  if (at < 0 || !text.endsWith('.')) throw new Refused('SPEC_ANSWER', `${id} does not read as a question with its choices: it has no ". Choices: " list`, approve);
+  if (at < 0 || !text.endsWith('.')) throw new Refusal('SPEC_ANSWER', `${id} does not read as a question with its choices: it has no ". Choices: " list`, approve);
   const head = text.slice(0, at);
   const choicesText = text.slice(at + CHOICES.length, -1);
   const parts = choicesText.split(', ');
   // The same bound readQuestion keeps, so the runs of parts below stay a small, fixed amount of work.
   if (parts.length > MOST_CHOICE_PARTS) {
-    throw new Refused('SPEC_ANSWER_CHOICES', `${id} lists ${parts.length} choice parts, more than the ${MOST_CHOICE_PARTS} an answer can read`,
+    throw new Refusal('SPEC_ANSWER_CHOICES', `${id} lists ${parts.length} choice parts, more than the ${MOST_CHOICE_PARTS} an answer can read`,
       `the person approves its exact answered text instead: pullboard spec approve ${id} --text "<ask>: <answer>. Choices: <choices>."`);
   }
   const runs = parts.flatMap((_, from) => parts.slice(from).map((__, length) => parts.slice(from, from + length + 1).join(', ')));
   const colons = positions(head, ': ');
   const listedSplits = colons.filter((colon) => runs.includes(head.slice(colon + 2)));
-  if (!colons.length || listedSplits.length > 1) throw new Refused('SPEC_ANSWER', `${id}'s question and its current answer cannot be told apart`, approve);
+  if (!colons.length || listedSplits.length > 1) throw new Refusal('SPEC_ANSWER', `${id}'s question and its current answer cannot be told apart`, approve);
   const ask = head.slice(0, listedSplits[0] ?? colons.at(-1));
   const answer = given.trim();
-  if (answer.includes(CHOICES.trim())) throw new Refused('SPEC_ANSWER', `the answer to ${id} cannot hold "Choices:"`, `give the answer alone: pullboard spec answer ${id} "<answer>"`);
+  if (answer.includes(CHOICES.trim())) throw new Refusal('SPEC_ANSWER', `the answer to ${id} cannot hold "Choices:"`, `give the answer alone: pullboard spec answer ${id} "<answer>"`);
   const listed = runs.find((choice) => choice.toLowerCase() === answer.toLowerCase());
   const chosen = listed ?? answer;
   return { text: `${ask}: ${chosen}${CHOICES}${listed ? choicesText : `${choicesText}, ${answer}`}.`, answer: chosen, listed: Boolean(listed) };
@@ -58,16 +67,16 @@ export function answerQuestion(text, given, id) {
  * @param {string} answered - The decision's signed text.
  * @returns {string | null}
  */
-export function answerFromText(pending, answered) {
+export function answerFromText(pending, answered, Refusal = QuestionRefusal) {
   const at = answered.lastIndexOf(CHOICES);
   if (at < 0) return null;
   const head = answered.slice(0, at);
   for (const colon of positions(head, ': ')) {
     try {
-      const read = answerQuestion(pending, head.slice(colon + 2), 'row');
+      const read = answerQuestion(pending, head.slice(colon + 2), 'row', Refusal);
       if (read.text === answered) return read.answer;
     } catch (error) {
-      if (!(error instanceof Refused)) throw error;
+      if (!(error instanceof Refusal)) throw error;
       // This split of the answered text is no answer to the pending row; try the next one.
     }
   }

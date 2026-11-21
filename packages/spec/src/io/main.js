@@ -28,8 +28,8 @@ import { Refused } from '../../../kernel/light.js';
 import { CHOICES } from '../logic/questions.js';
 import { MOST_CHOICE_PARTS } from '../logic/questions.js';
 import { positions } from '../logic/questions.js';
-import { answerQuestion } from '../logic/questions.js';
-import { answerFromText } from '../logic/questions.js';
+import { answerQuestion as answerQuestionPure } from '../logic/questions.js';
+import { answerFromText as answerFromTextPure } from '../logic/questions.js';
 import {
   CHECK_FIELDS,
   FIELD_NAMES,
@@ -592,4 +592,14 @@ export function headerRows(header) {
   return { shown, more: plus ? Number(plus[1]) : 0, rest: header.slice(0, match.index) };
 }
 
-export { CHOICES, MOST_CHOICE_PARTS, positions, answerQuestion, answerFromText };
+export { CHOICES, MOST_CHOICE_PARTS, positions };
+
+/** Keep the historical refusal class for callers through the full spec door. */
+export function answerQuestion(text, given, id) {
+  return answerQuestionPure(text, given, id, Refused);
+}
+
+/** Keep the historical refusal class while reading signed question answers. */
+export function answerFromText(pending, answered) {
+  return answerFromTextPure(pending, answered, Refused);
+}
