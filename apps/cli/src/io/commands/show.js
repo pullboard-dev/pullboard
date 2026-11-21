@@ -168,9 +168,9 @@ export async function run(io, { first, values }) {
     if (thin) {
       const stored = thin.item;
       return { item: stored, queuedSubmit: null, queuedJobId: null, gateText: null, machine: thin.machine, progress: thin.progress, independence: thin.independence,
-        verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id), proofReceipts: [], cost: thin.cost,
+        verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id), proofReceipts: thin.receipts ?? [], cost: thin.cost,
         approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(stored) }, { store, verifiedPasskeyRowDecision }),
-        gateJob: newestGateJob(board.db, id, []), fields: [], links: [], afterGate: [], afterGateMeasure: undefined, foreign: new Map(),
+        gateJob: newestGateJob(board.db, id, thin.receipts ?? []), fields: [], links: [], afterGate: [], afterGateMeasure: undefined, foreign: new Map(),
         moves: thin.history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
         related: store.relatedItems(board, stored), reviewer: store.reviewHolder(board, stored), agents: thin.agents, mainMerge: mainMergeFor(board, id),
         submits: thin.history.filter((event) => event.event_kind === 'submit') };
