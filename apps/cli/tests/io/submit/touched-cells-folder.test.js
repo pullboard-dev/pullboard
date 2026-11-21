@@ -1,7 +1,8 @@
 /** @pullboard-test-input packages/codemap/data/plan/** */
 /** touchedCells names the same cells from folders as from the plan's path rows [C7,#8555]. */
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { touchedCells } from '../../../src/io/cells-submit-checks.js';
