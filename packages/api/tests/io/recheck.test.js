@@ -11,6 +11,8 @@ import { MAIN_TEST_JOB } from '../../../drive/index.js';
 import * as jobs from '../../../jobs/index.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { applyMainTestReceipt } from '../../src/io/recheck.js';
+import { budgetCase } from '../../src/io/recheck.js';
+import { compareGateWithMain } from '../../src/io/gate.js';
 import { seedWideMainTests } from '../../src/io/recheck.js';
 import { boardJobQueueCall } from '../../src/io/gate.js';
 import { MAIN_TEST_ENTRY } from '../../src/io/recheck.js';
@@ -189,4 +191,61 @@ test('api.io-recheck.claim-path-seeds-once: clause 1: with the setting off a pul
   assert.ok(once >= 1, 'with the setting on the claim seeds the wide files');
   claim({ seedWideMainTests: true });
   assert.equal(seeded(), once, 'a second claim at the same main seeds nothing more');
+});
+
+const passing = [{ file, name: 'main passes', passed: true, skipped: false }, { file, name: 'main also passes', passed: true, skipped: false }];
+const budgetLine = `test file budget: ${file} took 166184ms, over its 120000ms test file budget (159693ms of its own at runner load 1.0x); split it or move it to the audit\n`;
+
+/** The gate lookup over the board's keyed main receipts, as the CLI provides it. */
+function lookupOver(tree) {
+  return ({ db, cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(name => classifyGateRed(db, returnedMainReceipts(db), { tree, file: name, command,
+    reds: cases.filter(row => row.file === name).map(row => row.name), now: 3000 })) });
+}
+
+/** A gate receipt red on one case of the file, signed as given. */
+function gateRed(name, signature) {
+  return { gate: { phases: [{ role: 'proof', status: 1, failures: [{ file, name }], failureSignatures: [signature] }] } };
+}
+
+test('api.io-recheck.budget-only-keys-cases: clause 1: a main-test run whose cases all pass but whose file is over its test-file budget keys a receipt naming the passing cases and the budget, so waiting gates re-judge [C7,#12692]', async t => {
+  const tree = 'e'.repeat(40);
+  const { verdict, tail } = await entryVerdict(formatTestOutcomes(id, passing) + budgetLine);
+  assert.equal(verdict.failing, null);
+  assert.deepEqual(verdict.budget, { tookMs: 166184, limitMs: 120000, passed: ['main passes', 'main also passes'], passedCount: 2 });
+  const { board, job } = queued(t, tree);
+  const result = applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 });
+  assert.deepEqual({ applied: result.applied, outcome: result.outcome, verdict: result.verdict }, { applied: true, outcome: 'recorded', verdict: 'red' });
+  const [keyed] = returnedMainReceipts(board.db);
+  assert.deepEqual(keyed.failing, [budgetCase(file).name]);
+  assert.deepEqual(keyed.passed, ['main passes', 'main also passes']);
+  assert.equal(keyed.budgetOnly, true);
+  assert.deepEqual(keyed.budget, { tookMs: 166184, limitMs: 120000 });
+  assert.equal(classifyGateRed(board.db, returnedMainReceipts(board.db), { tree, file, command, reds: ['main passes'], now: 3000 }).job, null, 'a recorded receipt queues no further job');
+});
+
+test('api.io-recheck.budget-only-no-mask: clause 2: an item failing a case main passed in a budget-only run reads as new; only the same budget failure reads main-owned [C7,#12692]', async t => {
+  const tree = 'e'.repeat(40);
+  const { tail } = await entryVerdict(formatTestOutcomes(id, passing) + budgetLine);
+  const { board, job } = queued(t, tree);
+  applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 });
+  board.gitRoot = '/fixture';
+  const sign = 'd'.repeat(64);
+  const own = compareGateWithMain(board, gateRed('main passes', sign), 'c'.repeat(40), lookupOver(tree));
+  assert.deepEqual(own.cases.map(row => row.onMain), [false], 'a case main passed is the item\'s own, never main-owned');
+  const over = budgetCase(file);
+  const same = compareGateWithMain(board, gateRed(over.name, over.signature), 'c'.repeat(40), lookupOver(tree));
+  assert.deepEqual(same.cases.map(row => row.onMain), [true], 'the same budget failure is main-owned');
+  const other = budgetCase('tests/other.test.js');
+  const different = compareGateWithMain(board, gateRed(other.name, other.signature), 'c'.repeat(40), lookupOver(tree));
+  assert.deepEqual(different.cases.map(row => row.onMain), [false], 'another file\'s budget failure is not this one');
+});
+
+test('api.io-recheck.budget-only-unfinished: clause 3: a run that names no cases and did not finish writes no receipt, whether it lacks the budget line or the outcome frames [C7,#12692]', async t => {
+  const tree = 'e'.repeat(40);
+  for (const output of [formatTestOutcomes(id, passing), budgetLine, formatTestOutcomes(id, [...passing, { file, name: 'crashed', passed: false, skipped: false }]) + budgetLine]) {
+    const { tail } = await entryVerdict(output);
+    const { board, job } = queued(t, tree);
+    assert.equal(applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 }).applied, false);
+    assert.deepEqual(returnedMainReceipts(board.db), []);
+  }
 });
