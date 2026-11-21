@@ -168,10 +168,35 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: init/perf.test.js, init/perf/tab-speed-rows-ceiling.test.js.
   const viewOwned = new Set(['init/perf.test.js', 'init/perf/tab-speed-rows-ceiling.test.js', 'init/perf/tab-speed-spec.test.js']);
+  // #12248 moved these journeys under tests/io; they keep their IDs and records and are still checked here.
+  const moved = [
+    join(DIR, 'io', 'commands', 'land', 'batch-forms.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'hand-refusals.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'hand.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'junit-report.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'main-no-remote.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'noop.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'parallel-push.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'pipeline.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'runner-compose.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'self-check.test.js'),
+    join(DIR, 'io', 'commands', 'lanes', 'main.test.js'),
+    join(DIR, 'io', 'init', 'agents-cells.test.js'),
+    join(DIR, 'io', 'init', 'boundary.test.js'),
+    join(DIR, 'io', 'init', 'codex-automation.test.js'),
+    join(DIR, 'io', 'init', 'defaults.test.js'),
+    join(DIR, 'io', 'init', 'docs-regenerate.test.js'),
+    join(DIR, 'io', 'init', 'gate-set.test.js'),
+    join(DIR, 'io', 'init', 'ignore-rules.test.js'),
+    join(DIR, 'io', 'init', 'ignore.test.js'),
+    join(DIR, 'io', 'init', 'permissions.test.js'),
+    join(DIR, 'io', 'init', 'practice.test.js'),
+    join(DIR, 'io', 'init', 'testkit.test.js'),
+  ];
+  const areaOf = (path) => path.includes('/io/init/') ? 'init' : path.split('/commands/')[1]?.split('/')[0];
   for (const area of ['init', 'land', 'lanes', 'languages', 'list', 'log', 'mcp']) {
-    // An area whose journeys all moved into tests/io leaves no folder; the moved files keep their IDs and records.
-    if (!existsSync(join(journeys, area))) continue;
-    for (const file of testFiles(join(journeys, area))) {
+    // An area whose journeys all moved into tests/io leaves no folder; the moved files stay checked through the list above.
+    for (const file of [...(existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : []), ...moved.filter((path) => areaOf(path) === area)]) {
       if (viewOwned.has(file.slice(journeys.length + 1))) continue;
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
