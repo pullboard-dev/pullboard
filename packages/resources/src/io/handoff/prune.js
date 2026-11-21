@@ -1,18 +1,13 @@
 /** Finished submit-handoff folders are pruned by the dispatcher loop, never by a person or agent command [C7]. */
-import {
-  appendFileSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-} from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import {
   dirname,
   join,
 } from 'node:path';
 import { machineHome } from '../home.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** How long a handoff folder stays after its gate ended: 30 minutes. */
 export const HANDOFF_FOLDER_KEEP_MS = 30 * 60_000;
@@ -33,14 +28,14 @@ export function rememberHandoffRoot(directory) {
   const root = dirname(directory);
   if (handoffRoots().includes(root)) return;
   try {
-    mkdirSync(dirname(rootsFile()), { recursive: true, mode: 0o700 });
-    appendFileSync(rootsFile(), root + '\n', { mode: 0o600 });
+    fs.mkdir(dirname(rootsFile()), { recursive: true, mode: 0o700 });
+    fs.appendFile(rootsFile(), root + '\n', { mode: 0o600 });
   } catch { /* a root that cannot be remembered is swept only while its launches run */ }
 }
 
 /** Every remembered submit-handoffs root. */
 export function handoffRoots() {
-  try { return readFileSync(rootsFile(), 'utf8').split('\n').filter(Boolean); }
+  try { return fs.readFile(rootsFile(), 'utf8').split('\n').filter(Boolean); }
   catch { return []; }
 }
 
@@ -51,7 +46,7 @@ export function handoffRoots() {
 function endedAt(directory) {
   let ended = null;
   for (const name of ['submission.json', 'refusal.json']) {
-    try { ended = Math.max(ended ?? 0, statSync(join(directory, name)).mtimeMs); } catch { /* no such result */ }
+    try { ended = Math.max(ended ?? 0, fs.stat(join(directory, name)).mtimeMs); } catch { /* no such result */ }
   }
   return ended;
 }
@@ -68,12 +63,12 @@ function endedAt(directory) {
 export function redLogKept(root, directory) {
   let item;
   try {
-    statSync(join(directory, 'refusal.json'));
-    item = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8')).item;
+    fs.stat(join(directory, 'refusal.json'));
+    item = JSON.parse(fs.readFile(join(directory, 'request.json'), 'utf8')).item;
   } catch { return false; }
   if (!Number.isSafeInteger(item)) return false;
   const file = join(dirname(root), 'board.sqlite');
-  try { statSync(file); } catch { return false; }
+  try { fs.stat(file); } catch { return false; }
   let db;
   try {
     db = new DatabaseSync(file, { readOnly: true });
@@ -96,14 +91,14 @@ export function pruneFinishedHandoffs(roots, { now = Date.now(), keepMs = HANDOF
   const removed = [];
   for (const root of new Set(roots)) {
     let names;
-    try { names = readdirSync(root); } catch { continue; }
+    try { names = fs.list(root); } catch { continue; }
     for (const name of names) {
       if (removed.length >= limit) return removed;
       if (protect.has(name)) continue;
       const directory = join(root, name);
       const ended = endedAt(directory);
       if (ended === null || now - ended < keepMs || redLogKept(root, directory)) continue;
-      try { rmSync(directory, { recursive: true, force: true }); removed.push(directory); } catch { /* retried on the next pass */ }
+      try { fs.rm(directory, { recursive: true, force: true }); removed.push(directory); } catch { /* retried on the next pass */ }
     }
   }
   return removed;
