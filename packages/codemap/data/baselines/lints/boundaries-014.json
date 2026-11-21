@@ -37,7 +37,7 @@
     "apps/cli/journeys/init/shards.test.js->src/package-files.js": 1,
     "apps/cli/journeys/init/shards.test.js->src/test-file-pool.js": 1,
     "apps/cli/journeys/init/shards.test.js->test/main-audit-receipt.test.js": 1,
-    "apps/cli/journeys/init/shards/audit.test.js->apps/cli/tests/fixtures/main/audit/cases.js": 1,
+    "apps/cli/tests/io/init/audit.test.js->apps/cli/tests/fixtures/main/audit/cases.js": 1,
     "apps/cli/journeys/intake/drill.test.js->apps/cli/tests/fixtures/bridge.js": 1,
     "apps/cli/journeys/intake/drill.test.js->apps/cli/tests/fixtures/child.js": 1,
     "apps/cli/journeys/intake/drill.test.js->apps/cli/tests/fixtures/drill.js": 1,

@@ -9554,7 +9554,7 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/runner/moved.pull.test.js",
+      "file": "apps/cli/tests/io/submit/moved.test.js",
       "specs": [
         "C7",
         "P7",
@@ -9590,7 +9590,7 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/runner/runners/toolchains.test.js",
+      "file": "packages/gate/tests/toolchains.test.js",
       "specs": [
         "C7"
       ],
@@ -9614,7 +9614,7 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/runner/toolchains/refusal.test.js",
+      "file": "packages/resources/tests/refusal.test.js",
       "specs": [
         "C7"
       ],

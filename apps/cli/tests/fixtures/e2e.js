@@ -26,6 +26,7 @@ import { sharedCompileCache } from './sandbox/compile-cache.js';
 import { DatabaseSync } from 'node:sqlite';
 import { request } from 'node:http';
 import { connect } from 'node:net';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
@@ -71,7 +72,7 @@ export function parityText(text, dir) {
     .replace(/(gate-\d+-<hex>)-[0-9a-z]+-\d+/gu, '$1-<job>')
     .replace(/\b(local-[a-z]+-\d+-[a-z]+)-\d{3,}\b/gu, '$1-<pid>')
     .replace(/\b(local-[a-z]+\.local)-\d+\b/gu, '$1-<pid>') // the local runner's name carries its process id
-    .replace(/\b(local-[a-z]+-\d+-[a-z]+\.local)-\d+\b/gu, '$1-<pid>') // the same name on a host such as oracle-70-gate.local
+    .replace(/\b(local-[a-z]+-\d+-[a-z]+\.local)-\d+\b/gu, '$1-<pid>') // the same name on a host whose name has a dash and a number
     // The detached comparison worker records its result at no fixed moment, so a call sees it pending, complete or unavailable: a background-measured value.
     .replace(/^comparison (?:pending for #\d+|unavailable: .*|#\d+.*(?:\n(?:head |base |new red:|fixed:|No new red).*)*)$/gmu, '<comparison>')
     .replace(/"steps":\{[^}]*\}/gu, '"steps":"<steps>"')
@@ -100,6 +101,15 @@ export function parityRecord({ dir, env, cwd, args, result }) {
   const file = common.status === 0 ? join(common.stdout.trim(), 'pullboard', 'board.sqlite') : null;
   // A command that hands a gate job on finishes its board writes when a runner posts the receipt, at no fixed moment after it
   // returns, so its own record carries no board state; the next call's record compares the settled board instead.
+  // The inbox hands its delivery record to a detached marks worker that lands at no fixed moment, so the board is read once the worker
+  // has drained its spool (bounded; a spool that never drains is read anyway so the comparison fails visibly) [C7].
+  if (file) {
+    const board = dirname(file);
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && existsSync(board) && readdirSync(board).some(name => name.startsWith('pullboard-inbox-marks.jsonl'))) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
   if (file && existsSync(file) && !(result.code === 0 && JOB_OFFERING.has(args[0]))) {
     // @pullboard-board-file journey: a read-only look at the rows the command wrote, for the parity check.
     const db = new DatabaseSync(file, { readOnly: true });

@@ -251,13 +251,11 @@ export function installRunnerOnlyUncountedCase(fixtures) {
       const tiers = {};
       for (const registry of ['test-manifest.json', 'tiers.json']) {
         const { files } = JSON.parse(readFileSync(join(import.meta.dirname, '../../../data/tests', registry), 'utf8'));
-        for (const name of ['doctrine.test.js', 'doctrine-uncounted.test.js']) {
-          const row = files.find(entry => entry.file === `apps/cli/journeys/resources/${name}`);
-          assert.ok(row, `${registry} lists ${name}`);
-          if (registry === 'tiers.json') tiers[name] = row.tier;
-        }
+        const row = files.find(entry => entry.file === 'apps/cli/tests/io/commands/resources/runner-only.test.js');
+        assert.ok(row, `${registry} lists the merged runner-only file that holds both doctrine journeys`);
+        if (registry === 'tiers.json') tiers.merged = row.tier;
       }
-      assert.equal(tiers['doctrine-uncounted.test.js'], tiers['doctrine.test.js']);
+      assert.ok(tiers.merged, 'the merged file that holds doctrine.test.js and doctrine-uncounted.test.js has one tier');
     });
     const brokenCommit = helpers.commitFile(box, box.web, 'web/mode.txt', 'broken\n', 'feat(web): private uncountable control [G1]');
     assert.equal(brokenCommit.status, 0, brokenCommit.failure ?? brokenCommit.stderr);

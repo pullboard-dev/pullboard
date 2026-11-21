@@ -1,0 +1,28 @@
+{
+  "view.held.judgement-note": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: judgementNote reads 'needs a judgement: <reason>, <attempts> attempts' with the refusal text for a listed item, and null for an unlisted item or a board without the list."
+    },
+    "why": "Without it the needs-judgement wording could regress with no test naming what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/io/held.test.js"
+    ]
+  },
+  "view.held.judgement-chip-on-roadmap": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: the roadmap row markup shows the needs-judgement chip with its note on hover for a listed item and is unchanged for every other row."
+    },
+    "why": "Without it the chip could vanish or leak onto other rows with no test naming what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/io/held.test.js"
+    ]
+  }
+}

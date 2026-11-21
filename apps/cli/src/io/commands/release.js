@@ -23,6 +23,17 @@ import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 const fs = fileSystemAdapter();
 
 /**
+ * The worktree snapshot the releasing actor's last claim recorded when `next` auto-claimed (detail.autoNextSnapshot), or null
+ * when that claim is another actor's or has none. A release compares its own snapshot only against this one, so with none
+ * the snapshot is not read and no Git child runs [C7,#12391].
+ */
+function lastClaimSnapshot(board, id, actor) {
+  const claim = board.db.prepare("SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'claim' ORDER BY event_id DESC LIMIT 1").get(id);
+  if (claim?.event_by !== actor) return null;
+  try { return JSON.parse(claim.event_detail ?? '{}').autoNextSnapshot ?? null; } catch { return null; }
+}
+
+/**
  * A seat whose session ends releases its build claims at once (#1225), keeping its work at a board ref, so no claim
  * waits out the idle clock after its agent has gone. Run by the SessionEnd hook; a seat may also run it on exit.
  */
@@ -36,7 +47,7 @@ async function releaseOnSessionEnd(io) {
       const shown = handoff.changedFiles.slice(0, 8);
       const more = handoff.changedCount - shown.length;
       const note = `session ended; ${handoff.pin ? `work kept at ${handoff.pin} (${handoff.changedCount} file(s): ${shown.join(', ')}${more > 0 ? `, +${more} more` : ''})` : `no work could be pinned: ${handoff.unpinned}`}`;
-      await ordered(ctx, board, 'release', [item.item_id, me.id, note, { worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root) }, 'OTHER']);
+      await ordered(ctx, board, 'release', [item.item_id, me.id, note, { worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root, { claimSnapshot: lastClaimSnapshot(board, item.item_id, me.id) }) }, 'OTHER']);
       released.push(item.item_id);
     }
     cleanItemFolders(ctx, board, me);
@@ -125,7 +136,7 @@ export async function run(io, args) {
     }
     const missing = releaseReasonProblem(values.reason, args[2]);
     if (missing) throw missing;
-    args.push({ ...(blockedOn ? { blockedOn } : {}), worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root) }, values.reason);
+    args.push({ ...(blockedOn ? { blockedOn } : {}), worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root, { claimSnapshot: lastClaimSnapshot(board, args[0], me.id) }) }, values.reason);
   }
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;

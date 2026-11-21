@@ -68,7 +68,7 @@ export { dashboardModel } from "./src/io/dashboard/model.js";
 export { dashboardRuntime } from "./src/io/dashboard/runtime.js";
 export { firstRunKit } from "./src/io/first/run.js";
 export { tabTitle } from "./src/logic/tab.js";
-export { heldChip, heldNote } from "./src/io/held.js";
+export { heldChip, heldNote, judgementChip, judgementNote } from "./src/io/held.js";
 export { historyLoadingScript, historyNote } from "./src/io/history.js";
 export { HOSTED_RELEASE, hostedReleaseDistance, hostedReleaseInfo, hostedReleaseNote, releaseVersionsThrough, shippedReleaseVersions } from "./src/io/release.js";
 export { viewLanAddress } from "./src/io/address.js";

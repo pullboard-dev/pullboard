@@ -34,6 +34,7 @@ import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
+import { refuseEmptyBar } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { cutItem } from '../../../../../packages/items/index.js';
@@ -174,9 +175,9 @@ export async function run(io, args) {
     for (const event of recovered.events) io.onEvent?.(event);
     const id = recovered.result;
     const filed = store.getItem(board, id);
-    io.result?.({ item: filed, ...(childIds.length ? { children: childIds } : {}), route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
+    // A receipt records one move (the parent addItem); cut children are separate later moves, so a replay has none to report.
+    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
     io.say(`#${id}`);
-  for (const childId of childIds) io.say(`#${childId} child of #${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
     return 0;
@@ -236,7 +237,7 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
-  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief, check: item.check });
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief, check: item.check, refuseEmpty: refuseEmptyBar() });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');

@@ -14,6 +14,7 @@ import { requireNoCoordinatorPath } from '../item/bar.js';
 import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
 import { requireCellTestFixture } from '../item/bar.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
+import { refuseEmptyBar } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
@@ -131,7 +132,7 @@ export async function run(io, args) {
   // A new check is read against the stored criterion, so BAR_CHECK_NO_TEST speaks on a check-only edit too.
   const storedBar = store.getItem(board, id);
   const barWarnings = sealed ? [] : guardBar(change.criterion ?? (change.check !== undefined ? storedBar.item_criterion : undefined),
-    { allowLong: Boolean(values['force-size']?.trim()), check: change.check ?? (change.criterion !== undefined ? storedBar.item_check : undefined) });
+    { allowLong: Boolean(values['force-size']?.trim()), refuseEmpty: change.criterion !== undefined && refuseEmptyBar(), check: change.check ?? (change.criterion !== undefined ? storedBar.item_check : undefined) });
   if (change.criterion !== undefined || change.brief !== undefined) {
     const before = store.getItem(board, id);
     briefFilesAbsentFromMain(ctx, { criterion: change.criterion ?? before.item_criterion, brief: change.brief ?? before.item_brief }, itemsBarRulesAtAdd());

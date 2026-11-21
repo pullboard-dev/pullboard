@@ -18,6 +18,7 @@ import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 import { queueTestRun } from '../../../../../drive/index.js';
 import { testRunItem } from '../../../../../drive/index.js';
 import { captureLapsedClaims } from '../../../../index.js';
+import { sweepClaims } from '../../../../index.js';
 import { withdraw } from '../../../../../store/index.js';
 import { dependencyWaiters } from '../../../../../items/index.js';
 import { keepClaimWork } from '../../../../index.js';
@@ -257,7 +258,7 @@ test('health.io-stale-state-capture.idle-30-releases: clause 2: a claim whose se
  * A real private board: one seat with a committed worktree claimed 90 minutes ago on a one-minute lease, so the lease and the
  * one-hour stale interval have both passed. Its seat heartbeats now, as a waiter running old code does for a stalled run.
  */
-function stalledFixture(t, { factAgo = null } = {}) {
+function stalledFixture(t, { factAgo = null, rowAgo = null } = {}) {
   const files = privateFixtureFiles('pullboard-capture-stalled-job-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
   const start = Date.now() - 90 * MINUTE;
@@ -281,6 +282,8 @@ function stalledFixture(t, { factAgo = null } = {}) {
     logEvent(board, holder, 'fact', id, { id: 'recent', kind: 'note', text: 'working', ref: null, supersedes: null });
   }
   now = start + 90 * MINUTE;
+  // The same seat event written straight to the board's event table, so the claim stands when the sweep reads it.
+  if (rowAgo !== null) board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, 'fact', ?, '{}')").run(new Date(now - rowAgo * MINUTE).toISOString(), holder, id);
   logEvent(board, holder, 'heartbeat', id, {});
   /** One job row as the jobs cell writes it; `progressAgo` is when its step last moved, and its lease is live unless `leaseUntil` says otherwise. */
   const job = ({ kind, step, progressAgo, owner = 'runner-waiter', leaseUntil = now + MINUTE, agent = holder }) => {
@@ -293,7 +296,15 @@ function stalledFixture(t, { factAgo = null } = {}) {
     for (const name of ['alive', 'note:lease']) board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, 0, '{}', ?)").run(jobId, name, now);
   };
   const rows = () => (captureLapsedClaims({ clock: { now: () => new Date(now) }, config: {} }, board, helper)?.claims ?? []);
-  return { id, holder, job, rows, head: runFixtureGit(['rev-parse', 'HEAD'], { cwd: root, env }).trim() };
+  /** The full sentinel sweep with the real ordered stale-state move, at the fixture's clock; returns the item's row after it. */
+  const sweep = async (live) => {
+    if (live !== undefined) board.movesLive = { reclaim: live };
+    const ctx = { clock: { now: () => new Date(now) }, config: { health: {} }, io: {} };
+    const ordered = async (_ctx, target, operation, args) => { assert.equal(operation, 'maintainStaleState'); return maintainStaleState(target, ...args); };
+    await sweepClaims(ctx, board, helper, ordered);
+    return board.db.prepare('SELECT item_status, item_owner FROM item WHERE item_id=?').get(id);
+  };
+  return { board, id, holder, job, rows, sweep, head: runFixtureGit(['rev-parse', 'HEAD'], { cwd: root, env }).trim() };
 }
 
 test('health.io-stale-state.stalled-job-heartbeat: clause 1: a lapsed claim whose only fresh heartbeat and job lease come from a test run stuck at one step is captured and released with its handoff pin, keeping the commit [C7,#12690,clause 1]', t => {
@@ -367,4 +378,34 @@ test('health.io-stale-state-capture.keep-on-release-row: clause 2: captureLapsed
   assert.equal(released.idle, 'release');
   assert.ok(released.handoff.head, 'the handoff is pinned');
   assert.deepEqual(released.kept, { head, branch: `keep/${idle.id}`, dirtyRef: null, unsaved: null }, 'the same row names the saved branch');
+});
+
+test('health.io-stale-state.sweep-releases-stalled-waiter: clause 1: the full sweepClaims path releases a lapsed claim held only by a stalled test waiter, with its handoff pin and commit kept, with the release table off and on [C7,#12696,clause 1]', async t => {
+  for (const live of [false, true]) {
+    const f = stalledFixture(t);
+    f.job({ kind: 'test-run', step: 'pulled', progressAgo: 80 });
+    const item = await f.sweep(live);
+    assert.equal(item.item_status, 'open', `reclaim table ${live ? 'on' : 'off'}: the sweep released the claim and the release rule accepted it`);
+    assert.equal(item.item_owner, null);
+    const release = f.board.db.prepare("SELECT event_by, event_detail FROM event WHERE item_id=? AND event_kind='release' ORDER BY event_id DESC LIMIT 1").get(f.id);
+    assert.match(release.event_detail, new RegExp(`refs/pullboard/handoffs/${f.id}/${f.head.slice(0, 12)}`, 'u'), 'and records the board ref that pins it');
+  }
+});
+
+test('health.io-stale-state.sweep-keeps-live-claim: clause 2: the full sweepClaims path keeps a lapsed claim with a gate job, a progressing test job or a recent event from its seat [C7,#12696,clause 2]', async t => {
+  const cases = [
+    ['a running gate job', f => f.job({ kind: 'gate', step: 'claimed', progressAgo: 80 }), {}],
+    ['a queued gate job', f => f.job({ kind: 'gate', step: 'offered', progressAgo: 1, owner: null, leaseUntil: 0 }), {}],
+    ['a test job that progressed 10 minutes ago', f => f.job({ kind: 'test-run', step: 'running', progressAgo: 10 }), {}],
+    ['a seat event 10 minutes ago', () => {}, { rowAgo: 10 }],
+  ];
+  for (const live of [false, true]) {
+    for (const [name, add, options] of cases) {
+      const f = stalledFixture(t, options);
+      add(f);
+      assert.equal(f.board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(f.id).item_status, 'claimed', `${name}: the claim stands before the sweep`);
+      const item = await f.sweep(live);
+      assert.equal(item.item_status, 'claimed', `reclaim table ${live ? 'on' : 'off'}: ${name} keeps the claim`);
+    }
+  }
 });

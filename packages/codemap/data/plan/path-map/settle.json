@@ -48,7 +48,7 @@
   "apps/relay/tests/io/board/inbox.test.js": "apps/cli/journeys/relay/inbox.test.js",
   "apps/lib/tests/io/serving/path.test.js": "apps/cli/journeys/runner/recovery.test.js",
   "apps/lib/tests/logic/native/query.test.js": "apps/cli/journeys/status/query.test.js",
-  "apps/lib/tests/logic/native/no.test.js": "apps/cli/journeys/status/writer.test.js",
+  "apps/lib/tests/logic/native/no.test.js": "apps/cli/tests/status/writer.test.js",
   "packages/gate/tests/study.test.js": "apps/cli/journeys/study/metrics.test.js",
   "apps/lib/tests/io/submit/requeue/gate.test.js": "apps/cli/journeys/submit/analysis.test.js",
   "apps/lib/tests/cells/cache.test.js": "apps/cli/journeys/submit/cache.test.js",
