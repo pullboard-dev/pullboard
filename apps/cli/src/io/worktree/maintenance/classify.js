@@ -114,6 +114,11 @@ export function itemObligation(item, now) {
   return null;
 }
 
+/** An open item nobody holds: its claim was released or lapsed, so the folder it left is the board's to sweep [C7,#12530]. */
+export function claimEnded(item, now) {
+  return Boolean(item) && !itemClosed(item) && itemObligation(item, now) === null;
+}
+
 /** Classify one registered Git worktree using only canonical board rows and prior sweep observations.
  * Conservative uncertainty stays protected because the caller may later archive or prune this tree.
  * @param {{ path?: string, head?: string, locked?: boolean, bare?: boolean }} tree
@@ -180,7 +185,8 @@ export function classifyMaintenanceTree(tree, {
   }
   const folderClaim = itemSeat && items.find(item => item.item_id === folderItem && itemObligation(item, now));
   if (folderClaim) return result('active', true, 'item-folder-obligation', [itemSeat.agent_id], [folderItem]);
-  if (itemSeat && takeoverMs !== null && !goneSeat && !items.some(item => item.item_id === folderItem && itemClosed(item))) {
+  if (itemSeat && takeoverMs !== null && !goneSeat && !items.some(item => item.item_id === folderItem && itemClosed(item))
+    && !claimEnded(items.find(item => item.item_id === folderItem), now)) {
     return result('active', true, 'item-seat-present', [itemSeat.agent_id], [folderItem]);
   }
 

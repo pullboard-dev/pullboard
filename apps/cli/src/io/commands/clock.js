@@ -6,6 +6,7 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { clockSweep } from '../../../../../packages/health/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import * as store from '../../../../../packages/store/index.js';
+import { clockFolderSweep } from '../worktree/maintenance/claim-ended.js';
 import { context } from '../entry.js';
 import { withBoard } from '../entry.js';
 import { withBoardRead } from '../entry.js';
@@ -38,6 +39,8 @@ export async function run(io, { first, second, rest, values }) {
   const dryRun = values['dry-run'] === true;
   const open = dryRun ? withBoardRead : withBoard;
   const result = open(ctx, board => clockSweep(board, { now: ctx.clock.now().getTime(), dryRun, ports: clockPorts() }));
+  // The folder row of the clock: sweep folders whose claim ended in the same pass, so its deadline holds between timer ticks [#12530].
+  if (!dryRun) await clockFolderSweep(ctx, ctx.info.root);
   io.result?.(result);
   for (const row of result.applied) io.say(line(dryRun ? 'would apply' : 'applied', row));
   for (const row of result.pending) io.say(line('pending', row));
