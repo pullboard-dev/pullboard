@@ -1,0 +1,5 @@
+{
+  "store.logic-board-holds-settled.review-hold-survives": {"proves":{"specs":["C7"],"claim":"clause 1: a hold whose reason starts with \"Coordinator hold:\" and names only landed items stays on through main-moved, merged and withdraw events."},"why":"A coordinator review hold lifted by the settled-hold rule let the lander merge an item with a clause unproven.","kind":"cell unit","inputs":["packages/store/src/logic/board/holds.js"]},
+  "store.logic-board-holds-settled.review-parent-survives": {"proves":{"specs":["C7"],"claim":"clause 2: a parent held with the \"Coordinator hold:\" prefix stays held when all its children are done."},"why":"The parent-children settle rule must not lift a coordinator review hold.","kind":"cell unit","inputs":["packages/store/src/logic/board/holds.js"]},
+  "store.logic-board-holds-settled.plain-hold-still-lifts": {"proves":{"specs":["C7"],"claim":"clause 3: a hold without the \"Coordinator hold:\" prefix still lifts when its named items or children are done."},"why":"The exclusion must stay narrow so ordinary holds keep settling.","kind":"cell unit","inputs":["packages/store/src/logic/board/holds.js"]}
+}
