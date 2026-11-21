@@ -17,6 +17,7 @@ import { agentSessionDigest } from '../../../../packages/person/index.js';
 import { requireHandoffActive } from '../../../../packages/state/light.js';
 import { requestedCommandMove } from '../../../../packages/state/index.js';
 import { CLAIM_CHECK_CEILING_ENGINE } from '../../../../packages/state/index.js';
+import { CLAIM_CHECK_SHAPE_ENGINE } from '../../../../packages/state/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { gitSyncLinked } from '../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../packages/config/index.js';
@@ -26,6 +27,7 @@ import { lightShaped } from '../../../../packages/seats/index.js';
 import { claimCheckCeilingEnabled } from '../../../../packages/config/index.js';
 import { checkVerdict } from '../../../../packages/config/index.js';
 import { frozenCheckCeilingMs } from '../../../../packages/config/index.js';
+import { checkHidesResult } from '../logic/check-shape.js';
 import { itemCheckBaseline } from '../../../../packages/store/light.js';
 
 /**
@@ -383,6 +385,8 @@ export function claimFreezer(ctx, board) {
   return (item) => {
     // With claim.checkCeiling on, an item whose recorded check measured over its ceiling is refused here; a pending or unmeasured baseline claims as before [C7,#1273].
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_CHECK_CEILING_ENGINE && claimCheckCeilingEnabled()) {
+      // A check that hides its output or masks its exit is refused first, before any baseline is read [C7,#1273].
+      if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_CHECK_SHAPE_ENGINE && checkHidesResult(item.item_check)) throw new Refused('CHECK_UNSOUND', 'the check hides its output or masks its exit, so it can never show a failure; run it plainly over the named test files, or ask the coordinator to re-bar it');
       const baseline = itemCheckBaseline(board, item);
       if (baseline) checkVerdict({ measuredMs: typeof baseline.seconds === 'number' ? baseline.seconds * 1000 : undefined, ceilingMs: frozenCheckCeilingMs(ctx.config), remeasurePending: baseline.result === 'pending', strict: false });
     }
