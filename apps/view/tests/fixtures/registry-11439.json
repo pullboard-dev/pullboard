@@ -1,0 +1,4 @@
+{
+ "view.io-flow.home-panel-from-injected-reader": {"proves":{"specs":["N26","C7"],"claim":"clause 1: flowHomePanel(readFlow) draws the Flow markup with the unlanded item row and the idle seat from an injected reader, with no health import in apps/view."},"why":"The home page shows the Flow panel; the view cannot import health, so the serve entry injects the reader.","kind":"unit","inputs":["apps/view/src/io/flow.js","apps/view/tests/io/flow.test.js"]},
+ "view.io-flow.page-carries-panel-only-with-reader": {"proves":{"specs":["N26","C7"],"claim":"clause 2: the page built by cockpitPage contains the Flow panel markup when a reader is injected and none when it is not."},"why":"Without a reader the page must not claim a flow it cannot read.","kind":"unit","inputs":["apps/view/src/io/cockpit/page.js","apps/view/src/logic/cockpit/markup.js","apps/view/tests/io/flow.test.js"]}
+}

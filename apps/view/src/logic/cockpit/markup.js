@@ -5,7 +5,7 @@ import { navSideHtml } from "../nav.js";
 
 /** Return the original markup section of the self-contained cockpit document, its shell the top layout of the approved navigation [N26]. */
 export function cockpitMarkup(sections) {
-  const { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup } = sections;
+  const { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup, flowPanel = '' } = sections;
   return `<!doctype html>
 <html lang="en" data-nav="top" data-side="collapsed">
 <head>
@@ -94,6 +94,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     </div>
     <aside class="detail sx-rail" aria-label="Agents and credentials">
       <div id="agents"></div>
+      ${flowPanel}
       <section id="credentials" aria-label="Agent credentials"></section>
     </aside>
   </section>
