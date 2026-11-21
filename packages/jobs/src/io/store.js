@@ -22,6 +22,34 @@ export function setWriteHold(hold) {
   writeHold = hold ?? null;
 }
 
+/** The prepared-commit port a composition root fills so jobs can commit prepared board statements without importing the store; none set refuses [C7]. */
+let preparedCommit = null;
+
+/**
+ * Set the prepared-commit port: (board, move, statements) => result, or null to clear it.
+ * Why: the jobs cell may not import the store that owns the commit, so the composition root passes its commit function in.
+ *
+ * @param {((board: unknown, move: unknown, statements: unknown) => unknown) | null} port
+ * @returns {void}
+ */
+export function setPreparedCommit(port) {
+  preparedCommit = port ?? null;
+}
+
+/**
+ * Commit prepared job statements through the prepared-commit port and return its result.
+ *
+ * @param {unknown} board
+ * @param {unknown} move
+ * @param {unknown} statements
+ * @returns {unknown}
+ * @throws {Refused} PREPARED_COMMIT_UNSET when no port is set.
+ */
+export function commitJobStatements(board, move, statements) {
+  if (!preparedCommit) throw new Refused('PREPARED_COMMIT_UNSET', 'no prepared-commit port is set; the composition root must call setPreparedCommit before jobs commit statements');
+  return preparedCommit(board, move, statements);
+}
+
 /** How long atomically() keeps retrying a busy board before it refuses with BOARD_BUSY, in ms [C7]. */
 const BUSY_BOUND_MS = 30000;
 /** The first and the longest busy_timeout a retry of a busy BEGIN waits in SQLite, in ms; it doubles from the first to the longest [C7]. */
