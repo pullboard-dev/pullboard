@@ -28,6 +28,8 @@ export default Object.freeze({ operation: "reserveNextReview", order: 17, engine
   nextSteps: Object.freeze({
   "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
   "COORDINATOR_VERIFIES": "leave the review to the coordinator; record readiness on the item: pullboard fact <id> note \"ready for coordinator review\"",
+  "BAD_BUILD_BUDGET": "restore a positive itemBuildBudgetMinutes setting, then retry",
+  "ITEM_BUILD_BUDGET": "cut the item into a parent and children whose expected minutes fit the budget; claim a child",
   "LINE_SETTING_RANGE": "read the allowed range with pullboard settings line, then record an in-range value or off with its reason and window numbers",
   "MAIN_IS_COORDINATOR": "use an independent agent checkout for agent work, or run person-only actions from the main checkout as the coordinator",
   "MILESTONES_CORRUPT": "restore the board from a known-good export: pullboard import <file>",

@@ -10,11 +10,11 @@ export const TIMING_ROWS = Object.freeze([
   Object.freeze({ file: 'packages/items/tests/io/declaration/indexed', namePrefix: 'items.declaration.seat-family-indexed:' }),
   Object.freeze({ file: 'packages/items/tests/io/declaration/scope', namePrefix: 'items.declaration.seat-records-budget:' }),
   Object.freeze({ file: 'apps/cli/journeys/speed/release-median', namePrefix: 'cli.journeys-speed-release-median.' }),
-  Object.freeze({ file: 'apps/cli/journeys/view/cold-state', namePrefix: 'cli.journeys-view-cold-state.a-cold-state-build-over-300-items-takes-under:' }),
+  Object.freeze({ file: 'apps/cli/tests/io/commands/view/cold', namePrefix: 'cli.journeys-view-cold-state.a-cold-state-build-over-300-items-takes-under:' }),
   Object.freeze({ file: 'apps/cli/tests/io/submit/fast', namePrefix: 'cli.journeys-submit-fast.submit-on-a-clean-committed-item:' }),
   Object.freeze({ file: 'packages/gate/tests/io/main/admission-loans-p95-landing', namePrefix: 'p95 stays below twice standalone' }),
   Object.freeze({ file: 'packages/resources/tests/io/write/queue', namePrefix: 'resources.queue.at-1-000-simulated-seats-and:' }),
-  Object.freeze({ file: 'apps/cli/journeys/resume/tour', namePrefix: 'cli.journeys-resume-tour.the-tour-runs-a-reject-and:' }),
+  Object.freeze({ file: 'apps/cli/tests/io/resume/tour', namePrefix: 'cli.journeys-resume-tour.the-tour-runs-a-reject-and:' }),
 ]);
 
 /** A test file path without its final extension, so a row names the file whichever suffix the runner reports. */

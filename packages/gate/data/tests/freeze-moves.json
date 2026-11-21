@@ -7774,7 +7774,7 @@
       "generatedBy": "packages/moves/tests/logic/table/submit-generated.test.js"
     },
     {
-      "file": "apps/cli/tests/io/submit/compose.test.js",
+      "file": "apps/cli/journeys/submit/compose.test.js",
       "specs": [
         "C7",
         "L3",

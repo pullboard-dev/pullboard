@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { commitWithHooks } from './tour-commit.js';
 import { ensureLocalRunner } from './runner/local.js';
 import { startLocalRunner } from './runner/local.js';
+import { localRunnerFolder } from './runner/local.js';
 import { slowestSteps } from '../logic/tour-steps.js';
 import { typed } from '../logic/tour-steps.js';
 import { CHECKOUT_SESSION_TOKEN_ENV } from '../../../../packages/seats/index.js';
@@ -128,7 +129,14 @@ async function warmLocalRunner(repo, env) {
   if (loadMachineSettings()['runners.localWake'] !== true) return;
   const caller = processEnvironment.get('PULLBOARD_MACHINE_HOME');
   processEnvironment.set('PULLBOARD_MACHINE_HOME', env.PULLBOARD_MACHINE_HOME);
-  try { await ensureLocalRunner(repo, { start: (root) => startLocalRunner(root, { env }) }); } finally {
+  try {
+    await ensureLocalRunner(repo, { start: (root) => startLocalRunner(root, { env }) });
+    // Wait until the runner is idle, not just started: a touch that lands while it still loads is lost, and its first claim then follows its own timer, not the wake [C7,#12694].
+    const log = join(localRunnerFolder(), 'runner.log');
+    for (const until = Date.now() + 30_000; Date.now() < until; await new Promise((done) => setTimeout(done, 50))) {
+      if (fs.exists(log) && /^\S+ runner-idle$/mu.test(fs.readFile(log))) break;
+    }
+  } finally {
     if (caller === undefined) processEnvironment.delete('PULLBOARD_MACHINE_HOME'); else processEnvironment.set('PULLBOARD_MACHINE_HOME', caller);
   }
 }

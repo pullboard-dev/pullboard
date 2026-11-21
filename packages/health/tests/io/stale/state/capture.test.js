@@ -20,6 +20,7 @@ import { testRunItem } from '../../../../../drive/index.js';
 import { captureLapsedClaims } from '../../../../index.js';
 import { withdraw } from '../../../../../store/index.js';
 import { dependencyWaiters } from '../../../../../items/index.js';
+import { keepClaimWork } from '../../../../index.js';
 import { dependencyWaitedIds } from '../../../../src/io/stale/state/capture.js';
 
 const MINUTE = 60_000;
@@ -240,7 +241,7 @@ function idleFixture(t, claimedAgo) {
   now = Date.now();
   logEvent(board, holder, 'heartbeat', id, {});
   const rows = () => (captureLapsedClaims({ clock: { now: () => new Date(now) }, config: {} }, board, helper)?.claims ?? []);
-  return { id, rows };
+  return { id, rows, board, holder, seat: join(files.root, 'seat') };
 }
 
 test('health.io-stale-state-capture.idle-30-releases: clause 2: a claim whose seat heartbeats but made no non-renewal move or commit for 31 minutes is captured as an idle release with a handoff, and none at 29 minutes [C7,#12468,clause 2]', t => {
@@ -250,4 +251,120 @@ test('health.io-stale-state-capture.idle-30-releases: clause 2: a claim whose se
   assert.ok(released[0].handoff, 'the release row carries a handoff');
   const young = idleFixture(t, 29);
   assert.deepEqual(young.rows(), [], 'idle for 29 minutes: no row');
+});
+
+/**
+ * A real private board: one seat with a committed worktree claimed 90 minutes ago on a one-minute lease, so the lease and the
+ * one-hour stale interval have both passed. Its seat heartbeats now, as a waiter running old code does for a stalled run.
+ */
+function stalledFixture(t, { factAgo = null } = {}) {
+  const files = privateFixtureFiles('pullboard-capture-stalled-job-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
+  const start = Date.now() - 90 * MINUTE;
+  let now = start;
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.test',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.test' };
+  const board = fixtureBoard(t, { clock: { now: () => new Date(now) } });
+  register(board, { lane: 'coordinator', path: join(files.root, 'coordinator') });
+  const root = join(files.root, 'seat');
+  mkdirSync(root);
+  policyRepository(root);
+  writeFileSync(join(root, 'work.txt'), 'base\n');
+  runFixtureGit(['add', '.'], { cwd: root, env });
+  runFixtureGit(['commit', '-q', '-m', 'fixture'], { cwd: root, env });
+  const holder = register(board, { lane: 'core', path: root, route: 'strong' });
+  const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Work', criterion: 'Work' });
+  claim(board, id, { agentId: holder, lane: 'core', leaseMs: MINUTE, freeze: () => ({ text: 'Work', digest: 'bar' }) });
+  const helper = register(board, { lane: 'core', path: join(files.root, 'helper'), route: 'strong' });
+  if (factAgo !== null) {
+    now = start + 90 * MINUTE - factAgo * MINUTE;
+    logEvent(board, holder, 'fact', id, { id: 'recent', kind: 'note', text: 'working', ref: null, supersedes: null });
+  }
+  now = start + 90 * MINUTE;
+  logEvent(board, holder, 'heartbeat', id, {});
+  /** One job row as the jobs cell writes it; `progressAgo` is when its step last moved, and its lease is live unless `leaseUntil` says otherwise. */
+  const job = ({ kind, step, progressAgo, owner = 'runner-waiter', leaseUntil = now + MINUTE, agent = holder }) => {
+    const jobId = `${kind}:${id}:${step}:${progressAgo}`;
+    board.db.prepare(`INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(jobId, kind, id, step, owner, leaseUntil, now - 85 * MINUTE, now - progressAgo * MINUTE);
+    board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'queued', ?, ?)")
+      .run(jobId, JSON.stringify({ agent, files: ['a.test.js'] }), now - 85 * MINUTE);
+    // The waiter's renewals: an alive mark and a lease note written this minute, which are never progress.
+    for (const name of ['alive', 'note:lease']) board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, 0, '{}', ?)").run(jobId, name, now);
+  };
+  const rows = () => (captureLapsedClaims({ clock: { now: () => new Date(now) }, config: {} }, board, helper)?.claims ?? []);
+  return { id, holder, job, rows, head: runFixtureGit(['rev-parse', 'HEAD'], { cwd: root, env }).trim() };
+}
+
+test('health.io-stale-state.stalled-job-heartbeat: clause 1: a lapsed claim whose only fresh heartbeat and job lease come from a test run stuck at one step is captured and released with its handoff pin, keeping the commit [C7,#12690,clause 1]', t => {
+  const f = stalledFixture(t);
+  f.job({ kind: 'test-run', step: 'pulled', progressAgo: 80 });
+  const rows = f.rows();
+  assert.deepEqual(rows.map(row => [row.id, row.idle]), [[f.id, 'release']], 'no step or result progress for the stale interval: released');
+  assert.equal(rows[0].handoff.head, f.head, 'the release keeps the holder commit');
+  assert.match(rows[0].handoff.pin, new RegExp(`^refs/pullboard/handoffs/${f.id}/${f.head.slice(0, 12)}$`, 'u'), 'and pins it to a board ref');
+});
+
+test('health.io-stale-state.progressing-job-keeps-claim: clause 2: a lapsed claim with a gate job, a test job that progressed inside the stale interval, or a recent event from its seat is never released [C7,#12690,clause 2]', t => {
+  const quiet = stalledFixture(t);
+  assert.deepEqual(quiet.rows().map(row => row.id), [quiet.id], 'control: with nothing in flight the same claim is released');
+  const gate = stalledFixture(t);
+  gate.job({ kind: 'gate', step: 'claimed', progressAgo: 80 });
+  assert.deepEqual(gate.rows(), [], 'a running gate job holds the claim');
+  const queued = stalledFixture(t);
+  queued.job({ kind: 'gate', step: 'offered', progressAgo: 1, owner: null, leaseUntil: 0 });
+  assert.deepEqual(queued.rows(), [], 'a queued gate job holds the claim');
+  const progressed = stalledFixture(t);
+  progressed.job({ kind: 'test-run', step: 'running', progressAgo: 10 });
+  assert.deepEqual(progressed.rows(), [], 'a test job that moved 10 minutes ago holds the claim');
+  const event = stalledFixture(t, { factAgo: 10 });
+  assert.deepEqual(event.rows(), [], 'a seat event 10 minutes ago holds the claim');
+});
+
+/** The fixture's seat becomes a real git repository whose last commit is older than the idle limit, with an item folder beside it when asked. */
+function seatRepository(seat, { itemId = null } = {}) {
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.test', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.test' };
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
+  policyRepository(seat);
+  writeFileSync(join(seat, 'work.txt'), 'base\n');
+  git(seat, 'add', '.');
+  git(seat, 'commit', '-q', '-m', 'fixture');
+  let folder = seat;
+  if (itemId !== null) {
+    folder = `${seat}-item-${itemId}`;
+    git(seat, 'worktree', 'add', '-q', '--detach', folder);
+  }
+  const old = new Date(Date.now() - 90 * MINUTE);
+  utimesSync(git(folder, 'rev-parse', '--path-format=absolute', '--git-path', 'logs/HEAD').trim(), old, old);
+  return { folder, head: git(folder, 'rev-parse', 'HEAD').trim(), git };
+}
+
+test('health.io-stale-state-capture.keep-writes-branch: clause 1: keepClaimWork writes keep/<id> at the item folder HEAD and a dirty ref for uncommitted changes, and reports unsaved without throwing [C7,#12114,clause 1]', t => {
+  const fixtureIdle = idleFixture(t, 31);
+  const row = { actor: fixtureIdle.holder, id: fixtureIdle.id };
+  const missing = keepClaimWork(fixtureIdle.board, row);
+  assert.equal(missing.branch, null, 'no repository: nothing saved');
+  assert.match(missing.unsaved, /no readable commit|missing/u, 'the reason is named');
+  const { folder, head, git } = seatRepository(fixtureIdle.seat, { itemId: fixtureIdle.id });
+  const clean = keepClaimWork(fixtureIdle.board, row);
+  assert.deepEqual(clean, { head, branch: `keep/${row.id}`, dirtyRef: null, unsaved: null }, 'a clean folder keeps only the branch');
+  assert.equal(git(folder, 'rev-parse', `keep/${row.id}`).trim(), head);
+  writeFileSync(join(folder, 'work.txt'), 'changed\n');
+  const dirty = keepClaimWork(fixtureIdle.board, row);
+  assert.equal(dirty.dirtyRef, `refs/pullboard/handoffs/${row.id}/dirty-${head.slice(0, 12)}`, 'a dirty folder also gets a ref');
+  assert.equal(git(folder, 'show', `${dirty.dirtyRef}:work.txt`).trim(), 'changed', 'the ref holds the uncommitted change');
+  rmSync(folder, { recursive: true, force: true });
+  rmSync(fixtureIdle.seat, { recursive: true, force: true });
+  const gone = keepClaimWork(fixtureIdle.board, row);
+  assert.equal(gone.branch, null);
+  assert.ok(gone.unsaved, 'a missing folder is reported, not thrown');
+});
+
+test('health.io-stale-state-capture.keep-on-release-row: clause 2: captureLapsedClaims puts keepClaimWork next to the handoff on an idle release row [C7,#12114,clause 2]', t => {
+  const idle = idleFixture(t, 31);
+  const { head } = seatRepository(idle.seat);
+  const [released] = idle.rows();
+  assert.equal(released.idle, 'release');
+  assert.ok(released.handoff.head, 'the handoff is pinned');
+  assert.deepEqual(released.kept, { head, branch: `keep/${idle.id}`, dirtyRef: null, unsaved: null }, 'the same row names the saved branch');
 });

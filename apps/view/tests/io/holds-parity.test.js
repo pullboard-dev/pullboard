@@ -6,7 +6,7 @@ import { createStateSnapshots } from '../../../../packages/api/index.js';
 import { apiBoardOpeners } from '../../../cli/tests/fixtures/board.js';
 import { viewApiPorts } from '../../src/io/ports.js';
 import { projectState } from '../../src/io/serve.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../packages/store/tests/fixtures/cell.js';

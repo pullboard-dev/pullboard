@@ -147,6 +147,47 @@ function reviewerAliveFor(board, agentId, reviewHeartbeats) {
   return [...lanes].some(([id, other]) => id !== agentId && REVIEW_LANES.has(other) && Date.parse(reviewHeartbeats.get(id) ?? '') > cutoff);
 }
 
+/** The nextEligible skips nextFor applies only after its seat-specific checks, at their original place in its loop. */
+const LATE_SKIPS = new Set(['FOREIGN_DEPENDENCY', 'WAITING_ON', 'DEPENDENCY']);
+
+/**
+ * Whether next would offer this open item to a build seat of `route`, as one per-item answer status can count with [C7,#12599].
+ * Null when every per-item check passes; otherwise the first skip next applies, in next's own order: ITEM_HELD, ROUTE_FILTER,
+ * GATE_AT_HEAD (a gate queued, running, green or deferred and unsettled at the item's head), the expected-build budget
+ * (ITEM_BUILD_BUDGET), FOREIGN_DEPENDENCY, WAITING_ON (a released claim still waiting to land) and DEPENDENCY (an unmet
+ * after-chain). Seat-specific checks (focus, collisions, contention, rework routing, first refusal) stay in nextFor.
+ * A null `route` skips the route check, for a caller that already filtered routes. With `through: 'ITEM_HELD'` only the hold
+ * check runs, so a caller can drop held items first and run the costlier checks only on the items it still considers.
+ *
+ * @param {any} board
+ * @param {any} item an item row
+ * @param {string | null} route the seat's route
+ * @param {{ derivedGateAtHead?: (entry: any) => string | undefined, buildBudgetMinutes?: number, through?: string }} [options]
+ * @returns {{ code: string, reason: string, waiting?: any[] } | null}
+ */
+export function nextEligible(board, item, route, { derivedGateAtHead, buildBudgetMinutes = 30, through } = {}) {
+  if (item.item_hold_reason) return { code: 'ITEM_HELD', reason: `#${item.item_id} is held by coordinator: ${item.item_hold_reason}` };
+  if (through === 'ITEM_HELD') return null;
+  if (route != null && !canTake(route, item.item_route)) return { code: 'ROUTE_FILTER', reason: `#${item.item_id} (${item.item_route}) is above your ${route} route` };
+  // A derived answer is trusted only when it names a reason; no answer computes the gate as before, so a newer gate is never missed [C7].
+  const derived = derivedGateAtHead?.(item);
+  const gated = typeof derived === 'string' ? derived : gateAtHead(board, item);
+  if (gated) return { code: 'GATE_AT_HEAD', reason: `#${item.item_id}: ${gated}; nothing to build` };
+  const scope = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(item, buildBudgetMinutes) : null;
+  if (scope) return { code: scope.code, reason: `${scope.message}; ${scope.next ?? ''}` };
+  const foreign = foreignBlockers(board, item);
+  if (foreign.length) return { code: 'FOREIGN_DEPENDENCY', reason: `#${item.item_id} waits on ${foreign.map(ref => `${itemDependencies.dependencyLabel(ref)} (${ref.status} on its own board)`).join(', ')}` };
+  const heldFor = claimWaitingOn(board, item.item_id);
+  if (heldFor.length) return { code: 'WAITING_ON', reason: `#${item.item_id} is waiting on ${heldFor.map(id => `#${id}`).join(', ')} to land` };
+  const waiting = itemDependencies.localDependencyIds(item)
+    .map((id) => current(board, itemById(board, id)))
+    .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn'
+      // An after-gate parent that is submitted with a green gate at its head no longer holds its dependent back [C7,#11805].
+      && !(afterGateIds(board, item.item_id).includes(before.item_id) && gateGreenParent(board, before.item_id)));
+  if (waiting.length) return { code: 'DEPENDENCY', reason: `#${item.item_id} waits on ${waiting.map(waitingOn).join(', ')}`, waiting };
+  return null;
+}
+
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
@@ -362,7 +403,7 @@ export function nextFor(board, options) {
     && (!ownRejectionFirst || entry.item_verdict === 'REJECT' && entry.item_built_by === agentId));
   const mine = laneItems
     // The listed row carries the hold: a full getItem per open item cost next 190 ms on a 2,500-item board (#5329).
-    .filter((entry) => { const held = Boolean(entry.item_hold_reason); if (held) skip(entry, 'ITEM_HELD'); return !held; })
+    .filter((entry) => { const held = nextEligible(board, entry, null, { through: 'ITEM_HELD' }); if (held) skip(entry, held.code); return !held; })
     // route.reservations (off unless a machine turns it on): an item reserved for another seat is skipped and its holder named; its holder is offered it as usual [C7,#9161].
     .filter((entry) => {
       const holder = reservations ? entry.item_reservation_holder : null;
@@ -444,17 +485,11 @@ export function nextFor(board, options) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
     const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
     if (diagnosisProblem) { skip(entry, diagnosisProblem.code); reasons.push(diagnosisProblem.message); continue; }
-    // A derived answer is trusted only when it names a reason; no answer computes the gate as before, so a newer gate is never missed [C7].
-    const derived = derivedGateAtHead?.(entry);
-    const gated = typeof derived === 'string' ? derived : gateAtHead(board, entry);
-    if (gated) { skip(entry, 'GATE_AT_HEAD'); reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
-    const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
-    if (scopeProblem) { skip(entry, scopeProblem.code); reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
-    const waiting = itemDependencies.localDependencyIds(entry)
-      .map((id) => current(board, itemById(board, id)))
-      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn'
-        // An after-gate parent that is submitted with a green gate at its head no longer holds its dependent back [C7,#11805].
-        && !(afterGateIds(board, entry.item_id).includes(before.item_id) && gateGreenParent(board, before.item_id)));
+    // One per-item answer, in next's order; each check acts at its own place below, so skips and reasons keep their order [C7,#12599].
+    // Routes were filtered above (a light-shaped strong item passes there), so the route check is not repeated.
+    const eligibility = nextEligible(board, entry, null, { derivedGateAtHead, buildBudgetMinutes });
+    if (eligibility && !LATE_SKIPS.has(eligibility.code)) { skip(entry, eligibility.code); reasons.push(eligibility.reason); continue; }
+    const waiting = eligibility?.code === 'DEPENDENCY' ? eligibility.waiting : [];
     const continuation = exitContinuationProblem(board, entry.item_id, agentId);
     if (continuation) { skip(entry, continuation.code); reasons.push(continuation.message); continue; }
     if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {
@@ -474,26 +509,21 @@ export function nextFor(board, options) {
     }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
-    if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
-    const foreign = foreignBlockers(board, entry);
-    if (foreign.length) {
-      skip(entry, 'FOREIGN_DEPENDENCY');
-      reasons.push(`#${entry.item_id} waits on ${foreign.map(ref => `${itemDependencies.dependencyLabel(ref)} (${ref.status} on its own board)`).join(', ')}`);
-      continue;
-    }
+    if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); overlapping.push({ entry, shared, collisions, functionPlan, rework, eligibility }); continue; }
+    if (eligibility?.code === 'FOREIGN_DEPENDENCY') { skip(entry, eligibility.code); reasons.push(eligibility.reason); continue; }
     const continuationSummary = exitContinuationSummary(board, entry.item_id);
-    const heldFor = claimWaitingOn(board, entry.item_id);
-    if (heldFor.length) { skip(entry, 'WAITING_ON'); reasons.push(`#${entry.item_id} is waiting on ${heldFor.map(id => `#${id}`).join(', ')} to land`); continue; }
+    if (eligibility?.code === 'WAITING_ON') { skip(entry, eligibility.code); reasons.push(eligibility.reason); continue; }
     if (!waiting.length && focus && !focus.ids.has(entry.item_id) && otherFocusedWork()) return empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] });
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
     skip(entry, 'DEPENDENCY');
     if (idleBlockers && blockers.length < 3) blockers.push({ item: entry.item_id, waitsOn: waiting[0].item_id });
-    reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
+    reasons.push(eligibility.reason);
   }
   // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
-  for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {
-    if (waiting.length || foreignBlockers(board, entry).length || claimWaitingOn(board, entry.item_id).length) continue;
+  for (const { entry, shared, collisions, functionPlan, rework, eligibility } of overlapping) {
+    // Only FOREIGN_DEPENDENCY, WAITING_ON or DEPENDENCY can remain here; any of them keeps the overlap from being offered.
+    if (eligibility) continue;
     return { item: entry, reasons: focusReasons(board, entry, [...reasons.filter(line => !collisions.includes(line)), ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
   }
   if (ownRejectionFirst) return { item: held, reasons };

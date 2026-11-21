@@ -7,7 +7,7 @@
  */
 import { audit } from './harness.mjs';
 
-const COMMON_DIR = ['apps/cli/journeys/list/board.test.js', 'the board lives in the git common dir'];
+const COMMON_DIR = ['apps/cli/tests/io/commands/list/board.test.js', 'the board lives in the git common dir'];
 const RACE = ['apps/cli/journeys/spec/e2e/next.test.js', 'two agents racing for one item'];
 const LEASE = ['apps/cli/journeys/resume/board.test.js', 'a claim is a lease'];
 const SHOUTS = ['apps/cli/journeys/resume/board.test.js', 'shouts reach a lane, an agent or all'];
@@ -25,12 +25,12 @@ const MUTANTS = [
   ['B4', 'a lapsed claim stays held', [['packages/store/src/io/board/query.js', "return item.item_status === 'claimed' && ((item.item_lease_until ?? '') > now(board) || itemWorkInFlight(board, item));", "return item.item_status === 'claimed';"]], LEASE, 'red'],
   ['B4', 'claiming again keeps the old lease', [['packages/store/src/io/board/claim.js', 'item_lease_until: leaseUntil,', 'item_lease_until: isRenewal(found) ? found.item_lease_until : leaseUntil,']], LEASE, 'red'],
   ['B4', 'the default lease is 3h', [['packages/config/src/io/main.js', "lease: '2h',", "lease: '3h',"]], ['packages/seats/tests/io/lanes.test.js', "a claim's lease is 2h"], 'red'],
-  ['B6', 'an item may cite an id the spec does not have', [['packages/spec/src/io/main.js', "if (!row) return [`${id} is not in ${namespaced ? 'doctrine' : spec.name ?? 'the spec'}`];", 'if (!row) return [];']], ['apps/cli/journeys/list/board.test.js', 'items cite spec ids that exist'], 'red'],
+  ['B6', 'an item may cite an id the spec does not have', [['packages/spec/src/io/main.js', "if (!row) return [`${id} is not in ${namespaced ? 'doctrine' : spec.name ?? 'the spec'}`];", 'if (!row) return [];']], ['apps/cli/tests/io/commands/list/board.test.js', 'items cite spec ids that exist'], 'red'],
   ['B7', 'inbox never marks shouts read', [['packages/store/src/logic/board/inbox.js', '  if (markRead && query.seats.some(seat => seat.agent_last_shout_id < acknowledged)) {', '  if (false && markRead && query.seats.some(seat => seat.agent_last_shout_id < acknowledged)) {']], SHOUTS, 'red'],
   ['B7', "a shout to a lane never reaches the lane's agents", [['packages/store/src/logic/board/audience.js', 'return [cursor, seat, seat, lane,', "return [cursor, seat, seat, '',"]], SHOUTS, 'red'],
   ['B7', 'a shout to all reaches nobody', [['packages/store/src/logic/board/audience.js', "shout_to IN ('all', ?, ?)", "shout_to IN ('', ?, ?)"]], SHOUTS, 'red'],
   ['B8', 'an item waiting on another can be claimed anyway', [['packages/store/src/io/board/claim.js', "if (before.item_status !== 'verified' && !((board.executionEngineVersion", 'if (false && !((board.executionEngineVersion']], ['apps/cli/journeys/resume/board.test.js', 'an item can wait on others'], 'red'],
-  ['B9', 'submit pins nothing', [['apps/cli/src/io/submit.js', "  git(root, ['update-ref', pin, commit]);\n", '']], ['apps/cli/journeys/gate/slot.test.js', 'submit needs a clean tree, nothing untracked'], 'red'],
+  ['B9', 'submit pins nothing', [['apps/cli/src/io/submit.js', "  git(root, ['update-ref', pin, commit]);\n", '']], ['apps/cli/tests/io/commands/gate/slot.test.js', 'submit needs a clean tree, nothing untracked'], 'red'],
   ['B10', "a claimed item's brief cannot be edited", [['packages/store/src/io/board/edit.js', "const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing', 'item_spec_ids'].filter(", "const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing', 'item_spec_ids', 'item_brief'].filter("]], BRIEF_EDIT, 'red'],
   ['B10', 'next leaves out the brief', [['apps/cli/src/io/commands/next.js', "        sayBrief(io, item.item_brief);\n        for (const line of notices) io.say(`  ${line}`);", "        for (const line of notices) io.say(`  ${line}`);"]], BRIEF_SHOWN, 'red'],
   ['B10', 'show leaves out the brief', [['apps/cli/src/io/commands/show.js', '  sayBrief(io, item.item_brief);\n  for (const move of relayPending)', '  for (const move of relayPending)']], BRIEF_SHOWN, 'red'],

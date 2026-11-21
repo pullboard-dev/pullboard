@@ -1,0 +1,30 @@
+{
+  "store.io-board-state.needs-judgement-listed": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: with next.returnedFirst on and the stop rules passed in, the state carries needsJudgement for the walled item and none for a reworked or untouched item."
+    },
+    "why": "Keeps the needs-judgement list in the board state from regressing unseen.",
+    "kind": "contract",
+    "inputs": [
+      "packages/store/index.js",
+      "packages/store/src/io/board/state.js"
+    ]
+  },
+  "store.io-board-state.needs-judgement-off": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: with next.returnedFirst off or unset, or no stop rules passed, the state carries no needsJudgement key."
+    },
+    "why": "Keeps every projection hashing as before when the setting is off.",
+    "kind": "contract",
+    "inputs": [
+      "packages/store/index.js",
+      "packages/store/src/io/board/state.js"
+    ]
+  }
+}

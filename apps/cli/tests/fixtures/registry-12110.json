@@ -1,0 +1,3 @@
+{
+  "cli.journeys-version-notice.the-release-check-question-is-asked-once": {"proves":{"specs":["C7"],"claim":"The release-check question prints on a fresh home until the person answers, the answer is stored, the next status prints none, and with no answer update.check stays off."},"why":"Without it, status could ask again after an answer, answer for the person, or turn the check on unasked.","kind":"journey","inputs":["apps/cli/journeys/version/notice.test.js"]}
+}

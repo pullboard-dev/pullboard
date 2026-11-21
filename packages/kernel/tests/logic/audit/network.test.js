@@ -20,7 +20,7 @@ test('kernel.audit.network-boundary-selects-real-or-fake: #9856 clause 1: the ne
   assert.equal(selectBoundaryAdapter('network', { fake, real, env: { PULLBOARD_TEST_REAL: 'all' }, mode: 'fake' }), fake);
   assert.throws(() => selectBoundaryAdapter('network', { fake, real, mode: 'both' }), TypeError);
   assert.throws(() => selectBoundaryAdapter('network', { fake, env: {} }), TypeError);
-  assert.throws(() => selectBoundaryAdapter('clock', { fake, real, env: {} }), TypeError);
+  assert.throws(() => selectBoundaryAdapter('nonesuch', { fake, real, env: {} }), TypeError);
 });
 
 test('kernel.audit.board-api-boundary-selects-real-or-fake: #9856 clause 2: the board HTTP API boundary selects real or fake the same way [C7]', () => {

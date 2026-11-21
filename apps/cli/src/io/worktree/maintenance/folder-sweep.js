@@ -129,7 +129,7 @@ export async function sweepFinishedFolders(root, entries, { mainRoot, now, confi
           // The fact naming the kept commit lands before the folder goes; a failed record leaves the folder.
           await ports.recordSweep?.({ action: 'kept', rule: found.rule, path, item: found.item, ref: kept.ref, commit: kept.commit });
           // Git's forced removal drops ignored files too, which the keep commit does not hold: those stay.
-          if (maintenanceGit(path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])) { entry.reason = 'ignored data are outside folder sweep custody; worktree kept'; continue; }
+          if (maintenanceGit(path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])) { entry.reason = `uncommitted changes kept at ${kept.ref}; ignored data are outside folder sweep custody; worktree kept`; entry.keepRef = kept.ref; continue; }
           maintenanceGit(root, ['worktree', 'remove', '--force', path]);
           if (fs.exists(path)) { entry.reason = `uncommitted changes kept at ${kept.ref}; worktree kept (rule ${found.rule})`; entry.keepRef = kept.ref; continue; }
           entry.action = 'swept';

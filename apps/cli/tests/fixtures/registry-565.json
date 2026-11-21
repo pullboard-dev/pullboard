@@ -1,0 +1,17 @@
+{
+  "cli.journeys-fact-team-children.a-parent-shows-its-childrens-states": {
+    "proves": {
+      "specs": [
+        "E33",
+        "E32",
+        "B24"
+      ],
+      "claim": "A parent item lists each child's board, id and state from the child boards, and the parent's replica holds no child title, criterion or note."
+    },
+    "why": "Without it, a parent could leak child text or lose a child's state and nobody would notice.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/fact/team/children.test.js"
+    ]
+  }
+}

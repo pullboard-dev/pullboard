@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSandbox } from '../../../../../packages/store/tests/fixtures/cell.js';
