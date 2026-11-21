@@ -128,7 +128,7 @@ if (hits && Array.isArray(hits.files)) { const hitsFile = join(tools, 'pullboard
 // A review comparison names its run id, so the test runner frames each case's outcome under it [V4,C7].
 const runId = typeof input.runId === 'string' && /^[a-f0-9-]{36}$/u.test(input.runId) ? input.runId : null;
 if (runId) env.${TIMING_RUN_ID_ENV} = runId;
-if (runId) { env.PULLBOARD_TEST_RESULT_REQUEST = runId; env.PULLBOARD_TEST_RESULT_REUSE_UNCOMPLETED = '1'; }
+if (runId) env.PULLBOARD_TEST_RESULT_REQUEST = runId;
 const ran = spawnSync(input.command, { shell: true, cwd: root, env, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] });
 const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
 const text = output.toString('utf8') + (ran.error ? String(ran.error.message) : '');
