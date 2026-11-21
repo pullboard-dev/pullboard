@@ -27,6 +27,7 @@ function conflictIndex(t, baseSource, leftSource, rightSource) {
     git(root, 'commit', '-q', '-m', `side ${index}`);
     return git(root, 'rev-parse', 'HEAD');
   });
+  git(root, 'checkout', '-q', '--detach', base);
   git(root, 'read-tree', '-m', base, heads[0], heads[1]);
   return { root };
 }
