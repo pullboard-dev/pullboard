@@ -1,0 +1,3 @@
+{
+  "landing.derive.stages-no-generated-docs": {"proves":{"specs":["C7"],"claim":"stageLandingDerived stages no docs/formats.md, docs/formats/*.md or docs/api.md, and still numbers the engine leaf."},"why":"Generated docs are never committed; landing numbers engines but leaves the generated documents to be produced on demand.","kind":"cell unit","inputs":["packages/landing/src/io/derive.js","packages/landing/tests/derive.test.js"]}
+}

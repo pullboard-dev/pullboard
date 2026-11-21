@@ -28,7 +28,7 @@ function numberAt(box, commit, name) {
 
 /**
  * Land two engine-adding items, accepted in `order`, and check each took the next number in landing order inside its
- * own merge, that the documented move engine follows, and that the landed board still replays.
+ * own merge, that landing leaves the generated format table unstaged, and that the landed board still replays.
  *
  * @param {object} helpers - land.test.js's own project, item, verdict and output helpers.
  * @param {number[]} order - The verdict order; the pulled land job chooses its own landing order, which the numbers follow.
@@ -64,7 +64,7 @@ export async function landEnginesInOrder({ landProject, itemWorktree, submitItem
   const numbers = names.map((name) => numberAt(box, result.batch.tip, name));
   assert.deepEqual([...numbers].sort((a, b) => a - b), [81, 82], `the two leaves took the next two numbers: ${numbers}`);
   for (const entry of entries) assert.ok(json(box, box.repo, 'show', String(entry.item)).item_merged_commit, `#${entry.item} has its merged receipt`);
-  assert.match(box.git(box.repo, 'show', `${result.batch.tip}:docs/formats.md`), /\| `move engine` \| `82` \|/u, 'the documented move engine follows the highest landed number');
+  assert.match(box.git(box.repo, 'show', `${result.batch.tip}:docs/formats.md`), /\| `move engine` \| `80` \|/u, 'landing stages no generated docs, so the committed table stays as it was [#11181]');
   const landed = box.git(box.repo, 'show', `${result.batch.tip}:packages/state/src/logic/engines/alpha-engine.js`);
   assert.match(landed, /^export const ALPHA_ENGINE = \d+;$/mu, 'the export line itself names its number');
   assert.ok(!landed.includes("from './engine-next.js'"), 'a landed leaf no longer imports the placeholder');
