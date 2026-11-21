@@ -68,6 +68,8 @@ function reviveOrigins(rows) {
  */
 export function rowOrigins(root, file, lines = null) {
   const signature = () => gitReadSignature(root, [file, '.mailmap'], { attribution: true });
+  // Another process's lock and cache files move directory stats, so the cross-process key ignores directory churn.
+  const stable = () => gitReadSignature(root, [file, '.mailmap'], { attribution: true, directories: false });
   const before = signature();
   const key = before === null ? null : JSON.stringify([root, file, before, lines]);
   if (key !== null && originCache.has(key)) {
@@ -77,8 +79,9 @@ export function rowOrigins(root, file, lines = null) {
     return cached;
   }
   // A new process reuses the last process's blame when the file, .mailmap, main tip and HEAD are all unchanged.
-  const tips = key === null ? null : originTips(root);
-  const diskKey = tips === null ? null : JSON.stringify([key, tips]);
+  const stableBefore = key === null ? null : stable();
+  const tips = stableBefore === null ? null : originTips(root);
+  const diskKey = tips === null ? null : JSON.stringify([root, file, stableBefore, lines, tips]);
   let store = null;
   if (diskKey !== null) {
     try { store = boardFolderFile(root, ORIGIN_FILE); } catch { store = null; }
@@ -110,7 +113,7 @@ export function rowOrigins(root, file, lines = null) {
   if (key !== null && result.status === 0 && before === signature()) {
     originCache.set(key, origins);
     while (originCache.size > ORIGIN_CACHE_LIMIT) originCache.delete(originCache.keys().next().value);
-    if (store !== null && diskKey !== null && originTips(root)?.join() === tips.join()) {
+    if (store !== null && diskKey !== null && stable() === stableBefore && originTips(root)?.join() === tips.join()) {
       const entries = readOriginFile(store);
       delete entries[diskKey];
       const kept = Object.entries(entries).slice(-(ORIGIN_CACHE_LIMIT - 1));
