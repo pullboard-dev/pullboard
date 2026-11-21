@@ -110,3 +110,44 @@ test('landing.shard-proof.a-land-job-whose-proof-names: clause 1: a land job who
   assert.equal(receipt.outcome, 'landed', receipt.detail);
   assert.equal(at('refs/heads/main'), receipt.trunk, 'trunk moves once every shard is green');
 });
+
+const TIMING = ['test/b.test.js'];
+
+test('landing.shard-proof.timing-files-in-plan: clause 1: shardedProofCheck sends the merged checkout\'s declared proof files as plan.timing [test] [C7]', async t => {
+  const { payload, workdir } = landing(t);
+  const offered = [], read = [];
+  const shards = { ...shardsOf(offered, [{ [`${JOB}:shard:a`]: green, [`${JOB}:shard:b`]: green }]), timingFiles: (root, files) => { read.push(files); return TIMING; } };
+  const receipt = await runLandingJob(payload, { workdir, shards });
+  assert.equal(receipt.outcome, 'landed', receipt.detail);
+  assert.deepEqual(read, [FILES], 'the reader is asked about the proof files');
+  assert.deepEqual(offered[0].plan, { runner: 'true', files: FILES, cores: 1, timing: TIMING });
+});
+
+test('landing.shard-proof.timing-shards-within-cores: clause 2: with a declared file shards are offered even when the files fit the runner\'s cores, and a sharded: false answer runs the proof here [test] [C7]', async t => {
+  const fits = landing(t);
+  const offered = [];
+  const shards = { ...shardsOf(offered, [{ [`${JOB}:shard:a`]: green, [`${JOB}:shard:b`]: green }], { cores: 3 }), timingFiles: () => TIMING };
+  const receipt = await runLandingJob(fits.payload, { workdir: fits.workdir, shards });
+  assert.equal(receipt.outcome, 'landed', receipt.detail);
+  assert.equal(offered.length, 1, 'three files within three cores still offer shards');
+  const refused = landing(t);
+  const asked = [];
+  const here = { ...shardsOf([], [{}], { cores: 3 }), timingFiles: () => TIMING, offer: request => { asked.push(request); return { sharded: false, shards: [] }; } };
+  const local = await runLandingJob(refused.payload, { workdir: refused.workdir, shards: here });
+  assert.equal(asked.length, 1);
+  assert.equal(local.outcome, 'landed', local.detail);
+  assert.deepEqual(local.proof, { files: 3, reused: 0, ran: 3 }, 'the proof ran on this runner');
+});
+
+test('landing.shard-proof.no-timing-plan-unchanged: clause 3: with no declared file the plan stays { runner, files, cores } and a proof within the cores runs here without an offer [test] [C7]', async t => {
+  const sharded = landing(t);
+  const offered = [];
+  const receipt = await runLandingJob(sharded.payload, { workdir: sharded.workdir, shards: { ...shardsOf(offered, [{ [`${JOB}:shard:a`]: green, [`${JOB}:shard:b`]: green }]), timingFiles: () => [] } });
+  assert.equal(receipt.outcome, 'landed', receipt.detail);
+  assert.deepEqual(offered[0].plan, { runner: 'true', files: FILES, cores: 1 });
+  const within = landing(t);
+  const none = [];
+  const local = await runLandingJob(within.payload, { workdir: within.workdir, shards: { ...shardsOf(none, [{}], { cores: 3 }), timingFiles: () => [] } });
+  assert.equal(local.outcome, 'landed', local.detail);
+  assert.deepEqual(none, [], 'no offer');
+});

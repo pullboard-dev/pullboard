@@ -1,0 +1,5 @@
+{
+  "landing.shard-proof.timing-files-in-plan": {"proves":{"specs":["C7"],"claim":"shardedProofCheck sends the merged checkout's declared timing proof files as plan.timing."},"why":"Without it the board cannot give a timing-declared file an exclusive runner.","kind":"cell unit","inputs":["packages/landing/src/io/runner/shard-proof.js"]},
+  "landing.shard-proof.timing-shards-within-cores": {"proves":{"specs":["C7"],"claim":"with a declared timing file shards are offered even when the files fit the runner's cores, and a sharded: false answer runs the proof on this runner."},"why":"Without it a small proof with a timing file runs loaded instead of alone.","kind":"cell unit","inputs":["packages/landing/src/io/runner/shard-proof.js"]},
+  "landing.shard-proof.no-timing-plan-unchanged": {"proves":{"specs":["C7"],"claim":"with no declared timing file the plan stays { runner, files, cores } and a proof within the cores runs here without an offer."},"why":"Turning the timing plan on must not change a proof that declares none.","kind":"cell unit","inputs":["packages/landing/src/io/runner/shard-proof.js"]}
+}
