@@ -25,8 +25,6 @@
   "stats/tests/allowance.test.js",
   "stats/tests/io/cost/session.test.js",
   "stats/tests/logic/pipeline/ledger.test.js",
-  "sync/tests/io/large.test.js",
-  "sync/tests/io/local.test.js",
   "transport/tests/io/main.test.js",
   "transport/tests/io/pull-board.test.js",
   "transport/tests/io/pull-restart.test.js",
