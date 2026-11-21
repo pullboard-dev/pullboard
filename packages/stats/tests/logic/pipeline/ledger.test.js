@@ -16,7 +16,7 @@ import { newFold } from '../../../src/logic/activity.js';
 import { claudeProjectName } from '../../../src/io/logs.js';
 import { readSessions } from '../../../src/io/logs.js';
 import { readPipelineLedger } from '../../../src/io/ledger.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../git/tests/fixtures/child.js';
 
 const T0 = Date.parse('2026-11-09T10:00:00.000Z');
 const MIN = 60_000;
