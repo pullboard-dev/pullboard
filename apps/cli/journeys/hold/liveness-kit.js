@@ -123,6 +123,10 @@ function seeded(seed) {
 export async function runLivenessFlow(t, { step, fault = 'kill', seed = 1 } = {}) {
   if (!STEPS[step]) throw new Refused('LIVENESS_STEP', `unknown step "${step}": choose one of ${STEP_NAMES.join(', ')}`);
   if (!FAULTS.includes(fault)) throw new Refused('LIVENESS_FAULT', `unknown fault "${fault}": choose one of ${FAULTS.join(', ')}`);
+  // A claim launches a detached beater that beats its seat on the wall clock; on this fake-clock board it stamps the holder from the future, so a cut holder never reads gone. Under load it lands after the holder's last fake beat [C7].
+  const beater = process.env.PULLBOARD_CLAIM_BEATER;
+  process.env.PULLBOARD_CLAIM_BEATER = '0';
+  t.after(() => { if (beater === undefined) delete process.env.PULLBOARD_CLAIM_BEATER; else process.env.PULLBOARD_CLAIM_BEATER = beater; });
   const box = await fixture(t);
   const id = box.add(`Liveness flow broken at ${step}`);
   const flow = await STEPS[step](box, id);
