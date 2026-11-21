@@ -1006,6 +1006,10 @@
       "kind": "json",
       "owner": "packages/seats/src/io/agent/session.js"
     },
+    "pullboard-policy-cache.json": {
+      "kind": "json",
+      "owner": "packages/sandbox/src/io/trusted/policy/committed.js"
+    },
     "pullboard-pruned-refs.jsonl": {
       "kind": "jsonl",
       "owner": "packages/runners/src/io/source/cache.js"
