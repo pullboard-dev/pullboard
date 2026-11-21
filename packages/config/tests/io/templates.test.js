@@ -2,7 +2,10 @@
 /** The seat loop tells a seat to wait one minute on next, repeat at once, and stop only on an idle board [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { SEAT_LOOP, SEAT_LOOP_WORD_BUDGET, renderCodexAutomation, renderWorkerSkill } from '../../src/io/templates.js';
+import { SEAT_LOOP } from '../../src/io/templates.js';
+import { SEAT_LOOP_WORD_BUDGET } from '../../src/io/templates.js';
+import { renderCodexAutomation } from '../../src/io/templates.js';
+import { renderWorkerSkill } from '../../src/io/templates.js';
 
 const WAIT_STOP_LINES = [
   'Never wait, never sleep, never poll, never stop while the board has work.',
