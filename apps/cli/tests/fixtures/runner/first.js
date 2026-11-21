@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/gate/index.js packages/runners/index.js */
+/** @pullboard-module-loads packages/gate/heavy.js packages/gate/index.js packages/runners/index.js */
 /** Exercise runner-first placement, zero local pools, and public submit/landing gate paths [C7]. */
 import { executionServices } from '../gate/execution.js';
 import { executionServicesSource } from '../gate/execution.js';
@@ -25,7 +25,7 @@ import { fixtureAdd } from '../testkit.js';
 function runPrivateGateLease(box, behavior = '') {
   const gateUrl = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
   const runnersUrl = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
-  const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
+  const source = `import { withGateSlot } from ${JSON.stringify(gateUrl.replace(/index\.js$/u, "heavy.js"))};
 ${executionServicesSource(gateUrl)}
 import { RunnerDropped } from ${JSON.stringify(runnersUrl)};
 const root = ${JSON.stringify(box.repo)};
@@ -82,7 +82,7 @@ export async function runnerFirstPolicyCase(e2e) {
   let releaseHeld;
   let heldRun;
   try {
-    const { withGateSlot } = await import(pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href);
+    const { withGateSlot } = await import(pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/heavy.js')).href);
     let announce;
     const admitted = new Promise(resolvePromise => { announce = resolvePromise; });
     heldRun = withGateSlot(box.repo, async lease => {
