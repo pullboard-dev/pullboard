@@ -5,13 +5,13 @@ import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { closeBoard } from "../../../index.js";
-import { ledgerFiles } from "../../../index.js";
-import { ledgerMainReds } from "../../../index.js";
-import { recordTestResults } from "../../../index.js";
-import { missingAdditiveSchema } from "../../../src/io/board/indexes.js";
-import { openKitBoard } from "../../fixtures/cell.js";
-import { temporaryDirectory } from "../../fixtures/tmp.js";
+import { closeBoard } from "../../../../../store/index.js";
+import { ledgerFiles } from "../../../../../store/index.js";
+import { ledgerMainReds } from "../../../../../store/index.js";
+import { missingAdditiveSchema } from "../../../../../store/index.js";
+import { recordTestResults } from "../../../../../store/index.js";
+import { cellBoard } from "../../../../fixtures/cell-board.js";
+import { temporaryDirectory } from "../../../../../store/tests/fixtures/tmp.js";
 
 const MAIN = "a".repeat(40);
 const OTHER = "b".repeat(40);
@@ -27,7 +27,7 @@ function seededBoard(t) {
   const directory = temporaryDirectory("pullboard-ledger-commit-index-");
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, "board.sqlite");
-  const board = openKitBoard(file);
+  const board = cellBoard(t, file, undefined, { real: true });
   try {
     const row = (name, status) => ({ file: name, inputKey: KEY, command: "proof", context: CONTEXT, status });
     recordTestResults(board.db, { receipt: "r1", origin: "gate", commit: MAIN, rows: [row("a.test.js", "fail"), row("b.test.js", "pass")] });
@@ -84,6 +84,6 @@ test("store.ledger.commit-index-upgrade: clause 2: a board without the index rep
     rows: db.prepare("SELECT count(*) AS n FROM test_result").get().n,
   }));
   assert.deepEqual(probe(), { missing: true, index: false, rows: 4 });
-  closeBoard(openKitBoard(file));
+  cellBoard(t, file, undefined, { real: true });
   assert.deepEqual(probe(), { missing: false, index: true, rows: 4 });
 });

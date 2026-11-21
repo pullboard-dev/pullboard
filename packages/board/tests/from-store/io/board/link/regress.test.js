@@ -3,20 +3,20 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { closeBoard } from '../../../../index.js';
-import { boardId } from '../../../../index.js';
-import { createBoardLinkCapability } from '../../../../index.js';
-import { applyBoardLink } from '../../../../index.js';
-import { approveBoardLink } from '../../../../index.js';
-import { receiveBoardState } from '../../../../index.js';
-import { addItem } from '../../../../index.js';
-import { claim } from '../../../../index.js';
-import { getItem } from '../../../../index.js';
+import { closeBoard } from '../../../../../../store/index.js';
+import { boardId } from '../../../../../../store/index.js';
+import { createBoardLinkCapability } from '../../../../../../store/index.js';
+import { applyBoardLink } from '../../../../../../store/index.js';
+import { approveBoardLink } from '../../../../../../store/index.js';
+import { receiveBoardState } from '../../../../../../store/index.js';
+import { addItem } from '../../../../../../store/index.js';
+import { claim } from '../../../../../../store/index.js';
+import { getItem } from '../../../../../../store/index.js';
 import { generateBoardKey } from '../../../../../kernel/index.js';
-import { regressedIds } from '../../../../src/io/board/link/regress.js';
-import { openKitBoard } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
-import { submitFixture } from '../../../fixtures/submit.js';
+import { regressedIds } from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
+import { submitFixture } from '../../../../../../store/tests/fixtures/submit.js';
 
 const CHILD = 'c'.repeat(32);
 const RECEIVED = '2026-11-19T08:00:00.000Z';
@@ -29,7 +29,7 @@ const authority = {
 
 /** A parent board linked to a child named `kid`, with a function that receives one child state at the next position. */
 async function linked(t) {
-  const board = openKitBoard(':memory:', { now: () => new Date(RECEIVED) });
+  const board = cellBoard(t, ':memory:', { now: () => new Date(RECEIVED) });
   t.after(() => closeBoard(board));
   const parent = { boardId: boardId(board), organization: 'fixture', handle: 'parent' };
   const child = { boardId: CHILD, organization: 'fixture', handle: 'kid' };

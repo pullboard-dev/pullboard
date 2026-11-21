@@ -2,20 +2,19 @@
 // fixture-subject: addItem (a store unit test of resendPendingBoardStates over a seeded board)
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { boardLinkDeliveryReceipt } from '../../../../index.js';
-import { boardLinkEnvelope } from '../../../../index.js';
-import { boardLinkEnvelopeDigest } from '../../../../index.js';
-import { closeBoard } from '../../../../index.js';
-import { resendPendingBoardStates } from '../../../../index.js';
-import { openCellBoard as openBoard } from '../../../fixtures/cell.js';
-import { boardId } from '../../../../index.js';
-import { createBoardLinkCapability } from '../../../../index.js';
-import { applyBoardLink } from '../../../../index.js';
-import { approveBoardLink } from '../../../../index.js';
-import { receiveBoardState } from '../../../../index.js';
-import { readReceivedBoardState } from '../../../../index.js';
-import { generateBoardKey } from '../../../../../kernel/index.js';
-import { openKitBoard } from '../../../fixtures/cell.js';
+import { boardLinkDeliveryReceipt } from '../../../../../../store/index.js';
+import { boardLinkEnvelope } from '../../../../../../store/index.js';
+import { boardLinkEnvelopeDigest } from '../../../../../../store/index.js';
+import { closeBoard } from '../../../../../../store/index.js';
+import { resendPendingBoardStates } from '../../../../../../store/index.js';
+import { boardId } from '../../../../../../store/index.js';
+import { createBoardLinkCapability } from '../../../../../../store/index.js';
+import { applyBoardLink } from '../../../../../../store/index.js';
+import { approveBoardLink } from '../../../../../../store/index.js';
+import { receiveBoardState } from '../../../../../../store/index.js';
+import { readReceivedBoardState } from '../../../../../../store/index.js';
+import { generateBoardKey } from '../../../../../../kernel/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
 
 const SOURCE = 'a'.repeat(32);
 const DESTINATION = 'b'.repeat(32);
@@ -43,7 +42,7 @@ function receiptFor(envelope, deliveryId) {
 
 /** A board with one queued delivery per correlation ID; a receipt is stored only for those named in `delivered`. */
 function queued(t, correlations, delivered = []) {
-  const board = openBoard(':memory:');
+  const board = cellBoard(t, ':memory:');
   t.after(() => closeBoard(board));
   const envelopes = {};
   for (const [index, correlationId] of correlations.entries()) {
@@ -98,7 +97,7 @@ test('store.io-board-link-relay.resend-keeps-failed-entry-pending: clause 3: whe
 });
 
 test('store.io-board-link-relay.state-records-received-at: clause 1: after receiveBoardState installs a state, readReceivedBoardState returns it with receivedAt from the board clock, and a record stored before this change reads with no receivedAt [E32,H16,#11044]', async t => {
-  const board = openKitBoard(':memory:', { now: () => new Date(RECEIVED) });
+  const board = cellBoard(t, ':memory:', { now: () => new Date(RECEIVED) });
   t.after(() => closeBoard(board));
   const parent = { boardId: boardId(board), organization: 'fixture', handle: 'parent' };
   const child = { boardId: CHILD, organization: 'fixture', handle: 'child' };
