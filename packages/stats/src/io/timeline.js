@@ -6,6 +6,10 @@ import { timelineOf } from '../logic/timeline.js';
 const JOB_KINDS = Object.keys(TIMELINE_JOB_KINDS);
 /** The single indexed read shared by an item or fleet timeline call. */
 export const GATE_QUEUE_SQL = 'SELECT event_id AS id, event_at AS at, event_detail AS detail FROM event WHERE event_kind = ? AND event_id BETWEEN ? AND ? ORDER BY event_id';
+/** The seat events that show a seat other than the builder is looking for work, read once per call by kind and event id range (event_kind_id). */
+export const SEAT_EVENTS_SQL = 'SELECT event_id AS id, event_at AS at, event_by AS by, event_kind AS kind FROM event WHERE event_kind = ? AND event_id BETWEEN ? AND ? ORDER BY event_id';
+/** The event kinds that count as a seat looking for review work. */
+const SEAT_KINDS = ['next-idle', 'claim', 'reserve'];
 
 /**
  * The rows of one item's timeline, folded by timelineOf.
@@ -24,7 +28,16 @@ export function readItemTimeline(board, id, { now } = {}) {
   const stepsOf = db.prepare('SELECT job_step_job AS job, job_step_name AS name, job_step_at AS at, job_step_payload AS payload FROM job_step WHERE job_step_job = ? ORDER BY job_step_at, job_step_id');
   const steps = jobs.flatMap(job => stepsOf.all(job.id));
   const gateQueue = readGateQueueRows(db);
-  return timelineOf({ item: id, events, jobs, steps, gateQueue, ...(now === undefined ? {} : { now }) });
+  const seatEvents = readSeatEvents(db, events[0]?.id ?? null);
+  return timelineOf({ item: id, events, jobs, steps, gateQueue, seatEvents, ...(now === undefined ? {} : { now }) });
+}
+
+/** next-idle, claim and reserve events from an event id to the latest, one indexed read per kind; empty when there is no start. */
+function readSeatEvents(db, low) {
+  const latest = low === null ? null : db.prepare('SELECT event_id AS high FROM event ORDER BY event_id DESC LIMIT 1').get();
+  if (!latest) return [];
+  const read = db.prepare(SEAT_EVENTS_SQL);
+  return SEAT_KINDS.flatMap(kind => read.all(kind, low, latest.high).map(row => ({ id: row.id, at: Date.parse(row.at), by: row.by, kind: row.kind })));
 }
 
 /** Read gate-queue snapshots through event_kind_id; the fold keeps only rows inside each item's queued stretch. */
@@ -81,15 +94,18 @@ export function readFleetTimelines(board, { since, now }) {
     }
   }
   const gateQueue = readGateQueueRows(db);
-  const timelines = [...touched].sort((a, b) => a - b).map(id => ({ item: id, ...readItemTimelineWithQueue(db, id, gateQueue, now) }));
+  const firstOf = db.prepare('SELECT event_id AS id FROM event WHERE item_id = ? ORDER BY event_id LIMIT 1');
+  const starts = [...touched].map(id => firstOf.get(id)?.id).filter(value => value !== undefined);
+  const seatEvents = readSeatEvents(db, starts.length ? Math.min(...starts) : null);
+  const timelines = [...touched].sort((a, b) => a - b).map(id => ({ item: id, ...readItemTimelineWithQueue(db, id, gateQueue, seatEvents, now) }));
   return { since, timelines, fleetRows };
 }
 
 /** Read one item's indexed sources while reusing the fleet call's one shared snapshot query. */
-function readItemTimelineWithQueue(db, id, gateQueue, now) {
+function readItemTimelineWithQueue(db, id, gateQueue, seatEvents, now) {
   const events = db.prepare('SELECT event_id AS id, event_at AS at, event_by AS by, event_kind AS kind, item_id AS item, event_detail AS detail FROM event WHERE item_id = ? ORDER BY event_id').all(id);
   const jobs = db.prepare(`SELECT job_id AS id, job_kind AS kind, job_created AS created FROM job WHERE job_kind IN (${JOB_KINDS.map(() => '?').join(', ')}) AND job_item = ? ORDER BY job_created, job_id`).all(...JOB_KINDS, id);
   const stepsOf = db.prepare('SELECT job_step_job AS job, job_step_name AS name, job_step_at AS at, job_step_payload AS payload FROM job_step WHERE job_step_job = ? ORDER BY job_step_at, job_step_id');
   const steps = jobs.flatMap(job => stepsOf.all(job.id));
-  return timelineOf({ item: id, events, jobs, steps, gateQueue, ...(now === undefined ? {} : { now }) });
+  return timelineOf({ item: id, events, jobs, steps, gateQueue, seatEvents, ...(now === undefined ? {} : { now }) });
 }
