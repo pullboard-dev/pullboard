@@ -354,6 +354,7 @@ test('health.io-stale-state-capture.keep-writes-branch: clause 1: keepClaimWork 
   assert.equal(dirty.dirtyRef, `refs/pullboard/handoffs/${row.id}/dirty-${head.slice(0, 12)}`, 'a dirty folder also gets a ref');
   assert.equal(git(folder, 'show', `${dirty.dirtyRef}:work.txt`).trim(), 'changed', 'the ref holds the uncommitted change');
   rmSync(folder, { recursive: true, force: true });
+  rmSync(fixtureIdle.seat, { recursive: true, force: true });
   const gone = keepClaimWork(fixtureIdle.board, row);
   assert.equal(gone.branch, null);
   assert.ok(gone.unsaved, 'a missing folder is reported, not thrown');
