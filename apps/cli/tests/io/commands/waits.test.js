@@ -15,7 +15,7 @@ function unavailable(box, host) {
   const db = new DatabaseSync(join(process.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'));
   db.exec("CREATE TABLE IF NOT EXISTS runner_unavailable (host TEXT PRIMARY KEY, since TEXT, detail TEXT DEFAULT '')");
   db.prepare('INSERT OR REPLACE INTO runner_unavailable (host, since, detail) VALUES (?, ?, ?)')
-    .run(host, new Date(box.clock.now().getTime() - 20 * MINUTE).toISOString(), 'CLEANUP_UNVERIFIED');
+    .run(host, new Date(Date.now() - 20 * MINUTE).toISOString(), 'CLEANUP_UNVERIFIED');
   db.close();
 }
 
@@ -43,6 +43,7 @@ test('cli.io-commands-waits.own-runner-filed-in-own-lane: clause 2: waits record
   const before = box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
   const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
+  assert.ok(recorded.document.waits.rows.some(row => row.surface === 'runner-unavailable' && row.holder === 'owned-host'), 'the board-used host wait is in the snapshot');
   const items = box.board.db.prepare('SELECT item_title, item_lane, item_criterion FROM item').all();
   assert.equal(items.length, before + 1, 'the board-used host files one item');
   assert.equal(items.at(-1).item_lane, 'core');
@@ -54,7 +55,7 @@ test('cli.io-commands-waits.record-reaches-record-waits: clause 3: waits record 
   unavailable(box, 'other-board-host');
   const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
-  assert.match(recorded.out, /filed 0/u);
+  assert.equal(recorded.document.recorded.filed.length, 0);
   const listed = await cli(box, box.seats.actor.path, ['list']);
   assert.equal(listed.code, 0, listed.out + listed.err);
   assert.equal(box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n, 0, 'the initialized board has no filed item');
