@@ -115,7 +115,6 @@ import { reofferTrunkBusyEnabled } from '../../../config/index.js';
 import { jobsAvoidRunnersEnabled } from '../../../config/index.js';
 import { gateClaimHop } from './hop.js';
 import { boardJobQueueCall } from './gate.js';
-import { startBeat } from '../../../drive/index.js';
 import { maintainUnknownGates } from './gate.js';
 import { runnerCommitPort } from './gate.js';
 import { boardQueueMode } from './jobs.js';
@@ -993,7 +992,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
  * @param {{ secret: string | Buffer, coordinatorSecret?: string | Buffer | null, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord, handlerPorts } = {}) {
+export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord, handlerPorts, gateMaintenanceBeat } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
   if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createLocalApiHandler needs view projection ports');
@@ -1197,7 +1196,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem, say() {}, err() {} }),
   }, { tagState: true });
   // One background page at a time, in the ordinary worker lane so runner claims and receipts keep their reserved workers.
-  const gateMaintenance = personChannel === 'api' ? startGateMaintenance(apiProjects, now, (call) =>
+  const gateMaintenance = gateMaintenanceBeat ? startGateMaintenance(gateMaintenanceBeat, apiProjects, now, (call) =>
     pool ? pool.call('maintainGates', call) : maintainGatePage(call, codeIsMain, boardOpeners)) : null;
   const closeStreams = handler.close;
   handler.close = () => { gateMaintenance?.(); materializer?.close(); pool?.close(); closeStreams?.(); };
@@ -1207,7 +1206,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
 }
 
 /** Round-robin one board page every five seconds, retaining its cursor between worker calls. */
-function startGateMaintenance(projects, clock, maintain) {
+function startGateMaintenance(startBeat, projects, clock, maintain) {
   const cursors = new Map();
   let next = 0, running = false, closed = false;
   const beat = startBeat(async () => {
@@ -1310,11 +1309,11 @@ export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocu
  * Serve the RFC 0002 API on loopback, or a chosen interface address, behind the session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, watchdog, onStallRecord, pullRoute } = {}) {
+export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, watchdog, onStallRecord, pullRoute, gateMaintenanceBeat } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
-  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, allowedHosts: address === ADDRESS ? [] : [address] });
+  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, gateMaintenanceBeat, allowedHosts: address === ADDRESS ? [] : [address] });
   // A watchdog, when given, names the routes behind any request-thread stall and records it on the boards [A2,C7].
   const watched = watchdog?.({ onStall: (stall) => { process.stderr.write(`pullboard: the API request thread stalled ${Math.round(stall.lagMs)} ms during ${stall.routes.join(', ') || stall.route}\n`); void handler.recordStall({ route: stall.route, lagMs: stall.lagMs, board: /\/api\/v1\/boards\/([^/?]+)/u.exec(stall.route)?.[1] ?? null }).then(onStallRecord, () => {}); } });
   // serve.pullRoute: a handler given here answers /pull/ itself; without one the path falls to the API handler as before (#8765).
