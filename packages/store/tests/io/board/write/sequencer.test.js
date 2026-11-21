@@ -1,7 +1,8 @@
 /** @pullboard-test-input source-cell store */
 /** The board sequencer commits only prepared writes: statements and params, never a callback [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
