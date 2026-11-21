@@ -6,7 +6,7 @@ import { fixtureProjectPolicy } from '../../../../../../packages/gate/tests/fixt
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
-import { openBoard } from '../../../../../lib/index.js';
+import { openKitBoard as openBoard } from '../../../fixtures/child.js';
 import { runCliInProcess } from '../../../fixtures/process.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
 import { submitFixture } from '../../../fixtures/board/submit.js';
