@@ -15,6 +15,6 @@ export function withdrawDecision(board, id, call, from) {
   const found = board.db.prepare('SELECT item_status, item_title, item_check, item_frozen, item_frozen_digest FROM item WHERE item_id=?').get(id);
   const snapshot = { actor: { id: call.agentId, joined: true },
     item: found ? { id, status: found.item_status, title: found.item_title, check: found.item_check, frozen: found.item_frozen, frozenDigest: found.item_frozen_digest } : null };
-  const move = { id, actor: call.agentId, reason: call.reason, expected: call.expected };
+  const move = { id, actor: call.agentId, reason: call.reason, expected: call.expected, cause: call.cause, metCommit: call.metCommit };
   return runWithdrawTable(from, structuredClone(snapshot), structuredClone(move));
 }

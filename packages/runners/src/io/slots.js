@@ -163,7 +163,7 @@ export async function refreshRunnerMeasurements(settings, { measure, record, now
     const { settle } = claim;
     let failed = true, facts;
     try {
-      const observed = await measure(runner, { observeGui: true, ...(cpu ? { observeLoad: true } : {}) });
+      const observed = await measure(runner, { observeGui: true, ...(cpu ? { observeLoad: true } : {}), ...(cpu && settings.gate?.sampleSwap === true ? { observeSwap: true } : {}) });
       if (!observed.healthy || !Number.isSafeInteger(observed.cores) || observed.cores < 1
           || !Number.isSafeInteger(observed.memoryMB) || observed.memoryMB < 1) return;
       facts = { cores: observed.cores, memoryMB: observed.memoryMB,

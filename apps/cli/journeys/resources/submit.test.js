@@ -38,7 +38,7 @@ test('cli.journeys-resources-submit.opt-in-native-submit-uses-a: clause 1: opt-i
   const id = JSON.parse(registered.added.out).item.item_id;
   succeeded(await box.runAsync(box.web, 'claim', String(id), '--json'));
   tick('after claim');
-  const built = helpers.commitFile(box, box.web, 'web/registered.txt', 'actual worker control\n', 'feat(web): registered runner-only control [G1]');
+  const built = await helpers.commitFile(box, box.web, 'web/registered.txt', 'actual worker control\n', 'feat(web): registered runner-only control [G1]');
   assert.equal(built.status, 0, built.failure ?? built.stderr);
   tick('after commit');
   succeeded(await box.runAsync(box.repo, 'settings', 'gate.runnersOnly', 'on'));

@@ -29,6 +29,7 @@ import {
 import { BOARD_PROGRESS_ENGINE } from '../../../../../state/index.js';
 import { suspendStoreGuards } from "../guards.js";
 import { notifyUnblocked } from '../../../logic/board/notices.js';
+import { measureBoardWritePhase } from '../write/lock.js';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 const fileSystem = fileSystemAdapter();
 
@@ -188,6 +189,32 @@ export function atomic(board, work, { reviewPolicy = true, writePolicy = true } 
 }
 
 /**
+ * The statement and params that append one event, with every read logEvent needs for the row done here, outside any
+ * transaction: the engine's kind refusal, the replaced-agent refusal, whether `by` is a seat, its model and the clock.
+ * Why here: this module is the one home of the event table's writes; write/event.js hands the same statement to commitPrepared.
+ *
+ * @param {any} board
+ * @param {string} by
+ * @param {string} kind
+ * @param {number | null} itemId
+ * @param {object} [detail]
+ * @param {Date} [at]
+ * @returns {{ sql: string, params: unknown[] }}
+ */
+export function eventAppendStatement(board, by, kind, itemId, detail = {}, at) {
+  // A kind a newer engine declares is refused before anything is written, so an older board's history keeps its meaning [M1].
+  const tooNew = eventKindRefusal(board, kind);
+  if (tooNew) throw new Refused(tooNew.code, tooNew.message, tooNew.next);
+  // A refused authenticated request remains auditable; it is not an outgoing board move.
+  if (kind !== 'relay_refused') requireHandoffActive(board, by, kind, [{ item: kind === 'shout' ? detail.item : undefined }]);
+  const isAgent = Boolean(board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(by));
+  const recorded = { ...detail, ...((board.executionEngineVersion ?? ENGINE_VERSION) >= 8 && isAgent ? { model: agentModel(board, by) ?? 'unknown' } : {}),
+    ...(board.movePerson ? { person: board.movePerson } : {}) }; // The person behind a relayed move, from engine 73 (engine.js) [E3].
+  return { sql: 'INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)',
+    params: [at ? at.toISOString() : board.clock.now().toISOString(), by, kind, itemId, JSON.stringify(recorded)] };
+}
+
+/**
  * Append one move to the event log (R2), retaining its exact row for an API response (A2).
  * Exported for the board's own split modules, such as milestones.js, which record moves the same way.
  *
@@ -203,32 +230,28 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
   // Standalone native writers take the same actual lock; nested moves retain their existing savepoints.
   if (!(TRANSACTION_DEPTH.get(board) ?? 0)) return atomic(board, () => logEvent(board, by, kind, itemId, detail, at));
   noteBoardWriteItem(board.db, itemId);
-  // A kind a newer engine declares is refused before anything is written, so an older board's history keeps its meaning [M1].
-  const tooNew = eventKindRefusal(board, kind);
-  if (tooNew) throw new Refused(tooNew.code, tooNew.message, tooNew.next);
-  // A refused authenticated request remains auditable; it is not an outgoing board move.
-  if (kind !== 'relay_refused') requireHandoffActive(board, by, kind, [{ item: kind === 'shout' ? detail.item : undefined }]);
+  const statement = eventAppendStatement(board, by, kind, itemId, detail, at);
   board.db.exec('SAVEPOINT proof_event_append');
   try {
     ensureProofCounters(board, { refresh: false });
-    const model = agentModel(board, by);
-    const isAgent = Boolean(board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(by));
-    const recorded = { ...detail, ...((board.executionEngineVersion ?? ENGINE_VERSION) >= 8 && isAgent ? { model: model ?? 'unknown' } : {}),
-      ...(board.movePerson ? { person: board.movePerson } : {}) }; // The person behind a relayed move, from engine 73 (engine.js) [E3].
-    const inserted = board.db
-      .prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)')
-      .run(at ? at.toISOString() : board.clock.now().toISOString(), by, kind, itemId, JSON.stringify(recorded));
-    const event = board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
-    appendProofCounter(board, event);
+    // Each named part is timed, so a long hold names its slowest step: the record itself or one of the per-event hooks [C7,#12605].
+    const phase = (name, work) => measureBoardWritePhase(board.db, name, work);
+    const event = phase('event-insert', () => {
+      const inserted = board.db
+        .prepare(statement.sql)
+        .run(...statement.params);
+      return board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
+    });
+    phase('appendProofCounter', () => appendProofCounter(board, event));
     board.lastEvent = event;
     (board.emittedEvents ??= []).push(event);
-    liftConditionalHold(board, event, logEvent, setItem);
-    liftInfraHold(board, event, logEvent, setItem);
-    liftTwiceHold(board, event, logEvent, setItem);
-    liftSettledHolds(board, event, logEvent, setItem);
-    flagWithdrawnDependents(board, event, logEvent);
+    phase('liftConditionalHold', () => liftConditionalHold(board, event, logEvent, setItem));
+    phase('liftInfraHold', () => liftInfraHold(board, event, logEvent, setItem));
+    phase('liftTwiceHold', () => liftTwiceHold(board, event, logEvent, setItem));
+    phase('liftSettledHolds', () => liftSettledHolds(board, event, logEvent, setItem));
+    phase('flagWithdrawnDependents', () => flagWithdrawnDependents(board, event, logEvent));
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold'].includes(kind)) {
-      notifyUnblocked(board, event, logEvent);
+      phase('notifyUnblocked', () => notifyUnblocked(board, event, logEvent));
     }
     board.db.exec('RELEASE proof_event_append');
     return event;

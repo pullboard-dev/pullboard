@@ -7,6 +7,7 @@ import { defaults } from '../../src/io/main.js';
 import { loadConfig } from '../../src/io/main.js';
 import { provenBreakRequired } from '../../src/io/main.js';
 import { nextIdleMinutes } from '../../src/io/main.js';
+import { describeSetting } from '../../src/io/settings/descriptions.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureProjectPolicy } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -93,4 +94,10 @@ test('config.io-main.next-idle-minutes: clause 1: next.idleMinutes accepts a pos
   assert.equal(nextIdleMinutes(configFromSource(JSON.stringify({ next: { idleMinutes: 3 } }), root)), 3);
   assert.equal(nextIdleMinutes(configFromSource(JSON.stringify({ next: { wholeItemsFirst: true } }), root)), 10);
   assert.throws(() => configFromSource(JSON.stringify({ next: { idleMinutes: 0 } }), root), error => error.code === 'BAD_CONFIG' && error.message.includes('next.idleMinutes'));
+});
+
+test('config.io-main.inbox-batched-marks-default-on: clause 1: inbox.batchedMarks defaults true, an explicit false stays false, and the setting description says on by default [C7]', () => {
+  assert.equal(configFromSource('{}', fixtureRepo()).inbox.batchedMarks, true);
+  assert.equal(configFromSource(JSON.stringify({ inbox: { batchedMarks: false } }), fixtureRepo()).inbox.batchedMarks, false);
+  assert.match(describeSetting('inbox.batchedMarks').description, /on \(default\)/i);
 });

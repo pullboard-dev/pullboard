@@ -1,7 +1,49 @@
 /** The cells move plan: one move item per cell, leaf-first, from the dry run's path map [D3,CD60,CD64]. */
 import { posix } from 'node:path';
 import { Refused } from '../../../../kernel/index.js';
+import { cellOf } from '../cell/lint/inventory.js';
 import { testFile } from '../cell/lint/inventory.js';
+
+/** Compute a leaf-first verification order without changing the historical move plan. */
+export function verificationOrder(plan, edges) {
+  const names = plan.cells.map(cell => cell.name);
+  const known = new Set(names);
+  const legacy = new Map();
+  for (const cell of plan.cells) for (const [from, to] of cell.paths) {
+    legacy.set(from, cell.name);
+    legacy.set(to, cell.name);
+  }
+  for (const entry of plan.entries ?? []) legacy.set(entry.path, entry.cell);
+  const owner = file => {
+    const root = cellOf(file);
+    const name = root?.startsWith('apps/') ? `app:${root.slice(5)}` : root?.startsWith('packages/') ? root.slice(9) : null;
+    return known.has(name) ? name : legacy.get(file);
+  };
+  const cuts = new Set(plan.cells.flatMap(cell => cell.cuts.map(cut => `${cut.cell}->${cell.name}`)));
+  const dependencies = new Map(names.map(name => [name, new Set()]));
+  for (const cell of plan.cells) for (const prerequisite of cell.item?.after ?? []) {
+    if (!known.has(prerequisite)) throw new Refused('CELLS_PLAN_ORDER', `unknown prerequisite ${prerequisite} of ${cell.name}`);
+    dependencies.get(cell.name).add(prerequisite);
+  }
+  for (const [file, rows] of edges) for (const { target } of rows) {
+    if (testFile(file) || testFile(target)) continue;
+    const from = owner(file), to = owner(target);
+    if (from && to && from !== to && !cuts.has(`${from}->${to}`)) dependencies.get(from).add(to);
+  }
+  const result = [], visiting = new Set(), visited = new Set(), stack = [];
+  const visit = name => {
+    if (visiting.has(name)) {
+      const cycle = [...stack.slice(stack.indexOf(name)), name];
+      throw new Refused('CELLS_PLAN_ORDER_CYCLE', `uncut cell dependency cycle: ${cycle.join(' -> ')}`);
+    }
+    if (visited.has(name)) return;
+    visiting.add(name); stack.push(name);
+    for (const next of names) if (dependencies.get(name).has(next)) visit(next);
+    stack.pop(); visiting.delete(name); visited.add(name); result.push(name);
+  };
+  for (const name of names) visit(name);
+  return result;
+}
 
 // RFC 0006 [CD14]: a cell name is one lowercase word; the dry run's hyphenated names get one word here.
 export const CELL_NAMES = Object.freeze({

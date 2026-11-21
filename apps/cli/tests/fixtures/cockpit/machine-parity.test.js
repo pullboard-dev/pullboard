@@ -15,6 +15,7 @@ import {
   machine,
   project,
 } from './machine.js';
+import { fixtureSettledMachine } from '../testkit.js';
 import { runTwice } from './machine-twin.js';
 
 const records = privateFixtureFiles('machine-parity-').root;
@@ -42,4 +43,13 @@ test('clause 2: nothing is written when PULLBOARD_PARITY_RECORD is unset [C7,U14
   delete process.env.PULLBOARD_PARITY_RECORD;
   await runTwice(box, repo, ['status']);
   assert.equal(existsSync(file), false);
+});
+
+test('clause 3: box.tryGit answers a result whose status reads without await, with test.inProcessHooks on [C7,#12659]', () => {
+  const box = machine();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  const { repo } = project(box, 'demo');
+  const answer = box.tryGit(repo, 'rev-parse', '--git-dir');
+  assert.ok(!(answer instanceof Promise), 'a plain tryGit is not a promise');
+  assert.equal(answer.status, 0);
 });

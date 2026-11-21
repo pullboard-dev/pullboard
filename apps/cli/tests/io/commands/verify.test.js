@@ -2,6 +2,7 @@
 /** A strict item's accept states what the reviewer broke: refused without --broke, recorded with it, and unchanged for reject and for items that do not require it [C7,#12047]. */
 import assert from 'node:assert/strict';
 import { copyFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -15,7 +16,10 @@ import { provenBreakStatement } from '../../../src/io/commands/verify.js';
 import { soloLowStakesFacts } from '../../../src/io/commands/verify.js';
 import { refuseLinkedDependencies } from '../../../src/io/commands/verify.js';
 import { verdictIsolation } from '../../../src/io/commands/verify.js';
+import { fileFixtureItem } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+import { joinFixtureSeat } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -136,4 +140,57 @@ test('cli.io-commands-verify.solo-check-facts: soloLowStakesFacts takes redBefor
   assert.deepEqual(checksOf({ baseline: RED_BASELINE, check: { checked: true, state: 'red' } }), [{ machineRun: true, redBefore: true, greenAfter: false }]);
   assert.deepEqual(soloLowStakesFacts({ ...FROZEN_LOW, item_check: '' }, true, { approval: SOUND, baseline: RED_BASELINE, check: GREEN_RUN }).checks, []);
   assert.deepEqual(soloLowStakesFacts(FROZEN_LOW, false, { approval: SOUND, baseline: RED_BASELINE, check: GREEN_RUN }), {});
+});
+
+/** A web-1 item frozen on spec row G1 written low, submitted and waiting, with verify.soloLowStakes on for the machine. */
+async function frozenLowItem() {
+  const box = e2e.project('true');
+  const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
+  const stake = (text, stakes) => text.replace(/(- G1 \[approved, must\] .*?)( \| stakes: \w+)?\n/u, `$1 | stakes: ${stakes}\n`);
+  const commitSpec = (stakes) => {
+    fixtureProjectPolicy(box.repo, { config: JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')), spec: stake(spec, stakes) });
+    box.git(box.repo, 'add', 'SPEC.md');
+    box.git(box.repo, 'commit', '-q', '-m', `docs: write G1 stakes ${stakes}`);
+  };
+  commitSpec('low');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Low row', criterion: 'the page renders', check: 'true', args: ['--specs', 'G1'] });
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web/index.html'), 'fixture');
+  e2e.historicalCheckSubmission(box, e2e.attackCommit(box, box.web));
+  const current = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...current, verify: { ...current.verify, soloLowStakes: true } });
+  return { box, commitSpec };
+}
+
+test('cli.io-commands-verify.raised-stakes-self-accept: clause 1: a builder self-accept on an item frozen with a low row that main now writes as team is refused PENDING_REFREEZE naming the row and pullboard refreeze [C7,#1084]', async () => {
+  const { box, commitSpec } = await frozenLowItem();
+  commitSpec('team');
+  const refused = await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'self accept on the old record');
+  assert.notEqual(refused.code, 0);
+  const text = refused.stdout + refused.stderr;
+  assert.match(text, /PENDING_REFREEZE/u);
+  assert.match(text, /G1/u);
+  assert.match(text, /pullboard refreeze 1/u);
+});
+
+test('cli.io-commands-verify.raised-stakes-scope: clause 2: an independent verifier accept is not refused by the raised-stakes check, and a self-accept after pullboard refreeze meets the ordinary team-row SELF_VERIFY [C7,#1084]', async () => {
+  const { box, commitSpec } = await frozenLowItem();
+  const commit = box.git(box.web, 'rev-parse', 'HEAD').trim();
+  commitSpec('team');
+  const review = join(box.dir, 'raised-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
+  assert.equal(joinFixtureSeat(box, review, 'api').code, 0);
+  const independent = await box.runLocal(review, 'verify', '1', 'accept', '--note', 'independent accept');
+  assert.doesNotMatch(independent.stdout + independent.stderr, /PENDING_REFREEZE/u);
+  const refrozen = await box.runLocal(box.repo, 'refreeze', '1');
+  assert.equal(refrozen.code, 0, refrozen.stdout + refrozen.stderr);
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
+  writeFileSync(join(box.web, 'web/second.html'), 'fixture');
+  e2e.historicalCheckSubmission(box, e2e.attackCommit(box, box.web));
+  const own = await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'self accept after the refreeze');
+  assert.match(own.stdout + own.stderr, /SELF_VERIFY/u);
+  assert.doesNotMatch(own.stdout + own.stderr, /PENDING_REFREEZE/u);
 });

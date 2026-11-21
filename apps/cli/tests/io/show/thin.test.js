@@ -10,6 +10,7 @@ import { privateFixtureFiles } from '../../fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { openKitBoard } from '../../fixtures/board.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { pinDerivedStateOff } from '../../fixtures/thin-door.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { declareItemField } from '../../../../../packages/store/index.js';
 import { events } from '../../../../../packages/store/index.js';
@@ -31,6 +32,7 @@ async function plainProject(t, count = 1) {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
+  t.after(pinDerivedStateOff(box));
   for (let n = 1; n <= count; n++) {
     const added = await fixtureAdd(box.runLocal, box.repo, 'web', `Thin show item ${n}`);
     assert.equal(added.code, 0, added.err);

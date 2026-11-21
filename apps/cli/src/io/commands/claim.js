@@ -73,7 +73,7 @@ export async function run(io, { first }) {
   let itemFolder = null;
   let folderProblem = null;
   try {
-    itemFolder = await phase.time('openItemFolder', () => openItemFolder(ctx, me, id, { board, renewed: result.renewed, onConflict: (files, line) => io.say(`warning: ${line}`),
+    itemFolder = await phase.time('openItemFolder', () => openItemFolder(ctx, me, id, { board, renewed: result.renewed, onBehind: line => io.say(line),
       onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
         text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
         ref: null }]),

@@ -14,6 +14,7 @@ import { BLOCKS_FILE } from "../../../../items/index.js";
 import * as store from "../board.js";
 import { itemCheckBaseline } from "../../logic/board/item/baseline.js";
 import { roadmap } from "./milestones.js";
+import { boardStateClock } from "./state/clock.js";
 import { displayAgentName } from "../../../../seats/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { loadConfig } from "../../../../config/index.js";
@@ -138,6 +139,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     // The browser's state carries each lane hold and each item's own hold with its reason; the native projection says the same so their hashes match (#1256).
     state.holds = store.laneHolds(board);
     state.itemHolds = currentItems.filter((item) => item.item_hold_reason).map((item) => ({ item: item.item_id, reason: item.item_hold_reason, by: item.item_hold_by, at: item.item_hold_at }));
+    // The clock health document the last clock pass stored, or null when none ran; the watch shows it [B4,C7].
+    state.clock = boardStateClock(board.db);
     const projectData = {
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),

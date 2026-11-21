@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as nativeBoard from '../../../../lib/index.js';
-const { openBoardForRead, acceptedCellsPorts } = nativeBoard;
+const { openBoardForRead } = nativeBoard;
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';
 import { flakeLedger } from '../../../../../packages/flakes/index.js';
@@ -19,7 +19,6 @@ import {
 import { produceAcceptedCells } from '../../../../lib/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { isAbsolute } from 'node:path';
-import { cellsBacklogCollector } from '../cells/backlog.js';
 import { boardCommandBudgetCheck } from './budget.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
 
@@ -39,5 +38,5 @@ if (cellsOnly) {
   // A landing that changes the fixture analyzer warms the shared memo on a runner before gates need it (#4045).
   if (environmentAdapter().get('PULLBOARD_CELLS_PINNED') !== args[1]) await warmFixtureMemo(root, args[1], { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() } });
 } else if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
-  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, cellsBacklog: cellsBacklogCollector(root, acceptedCellsPorts), commandBudget: boardCommandBudgetCheck(), commandBudgetOwnerPath: 'apps/cli/pullboard.js' });
+  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, commandBudget: boardCommandBudgetCheck(), commandBudgetOwnerPath: 'apps/cli/pullboard.js' });
 }

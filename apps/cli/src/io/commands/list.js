@@ -13,6 +13,7 @@ import {
 } from '../../../../../packages/merge/light.js';
 import {
   verdictProjector,
+  verdictTrunk,
 } from '../../../../../packages/verify/read.js';
 import {
   agentDisplayName,
@@ -30,7 +31,7 @@ export const nativeBoardRequired = false;
  * An item with no row answers undefined, and the projector computes its freshness as before.
  */
 async function derivedVerdictTable(root, board) {
-  const [{ readDerivedState }, { verdictTrunk }] = await Promise.all([import('../../../../../packages/health/index.js'), import('../../../../../packages/verify/index.js')]);
+  const { readDerivedState } = await import('../../../../../packages/health/light.js');
   let main;
   try { main = verdictTrunk(root, { trunkRef }); } catch { return null; }
   const table = readDerivedState(board, { mainCommit: main, enabled: true });

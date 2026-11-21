@@ -21,6 +21,7 @@ import { primaryCheckoutRoot } from '../worktree.js';
 import { unfinishedFolderMessage } from '../unfinished.js';
 import { unfinishedItemFolders } from '../unfinished.js';
 import { unfinishedOperation } from '../unfinished.js';
+import { restoreWip } from './wip.js';
 import { writeItemMarker } from './folder/identity.js';
 export { itemFolderIdentity, itemFolderPath } from './folder/identity.js';
 import { itemFolderPath } from './folder/identity.js';
@@ -518,29 +519,26 @@ function sameDirectory(first, second) {
 }
 
 /**
- * Bring a clean item folder up to main's tip, keeping every commit the item branch already has.
- * Why: a claim handed over a branch hundreds of commits behind main, so the submit merge was a huge new head every time (#3797).
- * A dirty folder is left as it was; a merge that conflicts is aborted on the clean tree, and submit still merges main then.
- * A reopened item resumes its earlier builder's branch the same way; a conflict is named file by file (#2906).
- *
+ * Fast-forward a clean item folder with no commits of its own, or return a note about a divergent branch.
+ * Finish and submit merge main, so claim can leave divergent folders untouched [C7,#12577].
  * @param {string} path the item folder
- * @param {string} root the repository root, whose trunk setting is shared by every folder
- * @returns {string[]} the files a conflicting merge with main named; empty when the folder is at main's tip
+ * @param {string} trunk the repository's trunk branch
+ * @returns {string|null} the note to report, if the branch has diverged
  */
-function advanceToMain(path, root) {
-  const trunk = trunkBranch(root);
-  // A folder already at the trunk's tip is current, read from Git's files: a warm next reopened it with a Git process each time (#8691).
+function advanceToMain(path, trunk) {
+  // A folder at the trunk tip needs no Git process on a warm claim (#8691).
   const head = checkoutHead(path);
-  if (head !== undefined && head === checkoutRefCommit(path, `refs/heads/${trunk}`)) return [];
-  if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return [];
+  if (head !== undefined && head === checkoutRefCommit(path, `refs/heads/${trunk}`)) return null;
+  const distance = tryGit(path, ['rev-list', '--left-right', '--count', `HEAD...${trunk}`]);
+  if (distance.status !== 0) return null;
+  const [ahead, behind] = distance.stdout.split(/\s+/u).map(Number);
+  if (!behind) return null;
+  if (ahead) return `item branch is ${behind} commit${behind === 1 ? '' : 's'} behind ${trunk}, and submit merges ${trunk}`;
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
-  if (status.status !== 0 || status.stdout) return [];
-  const workers = parallelCheckout(path);
-  if (tryGit(path, [...workers, 'merge', '--ff-only', '-q', trunk]).status === 0) return [];
-  if (tryGit(path, [...workers, 'merge', '--no-edit', '-q', trunk]).status === 0 || !unfinishedOperation(path, tryGit)) return [];
-  const conflicted = tryGit(path, ['diff', '--name-only', '--diff-filter=U']);
-  tryGit(path, ['merge', '--abort']);
-  return conflicted.status === 0 ? conflicted.stdout.split('\n').filter(Boolean) : [];
+  if (status.status === 0 && !status.stdout) {
+    tryGit(path, [...parallelCheckout(path), 'merge', '--ff-only', '-q', trunk]);
+  }
+  return null;
 }
 
 /**
@@ -577,17 +575,15 @@ function replaceGoneFolder(root, path, ref) {
       : `${ref} holds no earlier commits: nothing waits to be submitted.\n`));
 }
 
-/**
- * Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7].
- * A merge with main that conflicts is left undone and its files go to `options.onConflict`, else one stderr line (#2906).
- */
+/** Open or reuse the item's branch folder, fast-forwarding where possible. Runner-hosted folders stay on their runner [C7]. */
 export async function openItemFolder(ctx, me, id, options = {}) {
   const path = await openFolder(ctx, me, id, options);
-  const trunk = trunkBranch(ctx.info.root);
-  const conflicts = typeof path === 'string' && fs.exists(path) ? advanceToMain(path, ctx.info.root) : [];
-  if (conflicts.length) {
-    const line = `merging ${trunk} into the item branch conflicts in ${conflicts.join(', ')}; the folder keeps the branch as it was: run git merge ${trunk} there and resolve those files`;
-    if (options.onConflict) options.onConflict(conflicts, line); else process.stderr.write(`warning: ${line}\n`);
+  if (typeof path === 'string' && fs.exists(path)) {
+    const note = advanceToMain(path, trunkBranch(ctx.info.root));
+    if (note) {
+      if (options.onBehind) options.onBehind(note);
+      else process.stderr.write(`${note}\n`);
+    }
   }
   return path;
 }
@@ -662,10 +658,12 @@ async function openFolder(ctx, me, id, options = {}) {
   const exists = branchExists(root, ref);
   if (exists && await recoverPriorFolder(ctx, me, id, path, ref, options)) {
     writeItemMarker(path, me.id, id);
+    restoreWip(path, id);
     return path;
   }
   if (await reuseIdleFolder(ctx, me, id, path, ref, exists, options)) {
     writeItemMarker(path, me.id, id);
+    restoreWip(path, id);
     return path;
   }
   // A prepared spare is moved into place and switched to the branch; only without one is every file written (#5776).
@@ -674,6 +672,7 @@ async function openFolder(ctx, me, id, options = {}) {
     git(root, [...workers, ...(exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunk])]);
   }
   writeItemMarker(path, me.id, id);
+  restoreWip(path, id);
   await prepareSpareFolder(root, seat, trunk, workers);
   return path;
 }

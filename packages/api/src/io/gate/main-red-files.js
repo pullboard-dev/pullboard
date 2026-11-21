@@ -58,10 +58,12 @@ function failingKeys(phase) {
 
 /** The newest keyed main-test receipt for `file` measured at `inputKey`, or null. */
 function mainReceiptAtKey(db, file, inputKey) {
-  const row = db.prepare(`SELECT step.job_step_payload AS payload FROM job_step AS step JOIN job ON job.job_id = step.job_step_job
+  // Drive the join from main-test jobs. SQLite otherwise starts from all receipt steps to satisfy the timestamp sort.
+  const row = db.prepare(`SELECT step.job_step_payload AS payload
+    FROM job CROSS JOIN job_step AS step ON step.job_step_job = job.job_id
     WHERE job.job_kind = ? AND step.job_step_name = 'receipt' AND step.job_step_seq = 0
       AND json_extract(step.job_step_payload, '$.file') = ? AND json_extract(step.job_step_payload, '$.inputKey') = ?
-    ORDER BY step.job_step_at DESC LIMIT 1`).get(MAIN_TEST_KIND, file, inputKey);
+    ORDER BY step.job_step_at DESC, step.job_step_id DESC LIMIT 1`).get(MAIN_TEST_KIND, file, inputKey);
   let keyed = null;
   try { keyed = row ? JSON.parse(row.payload) : null; } catch { keyed = null; }
   return keyed && ['red', 'green'].includes(keyed.verdict) ? { id: typeof keyed.id === 'string' ? keyed.id : null, verdict: keyed.verdict, main: typeof keyed.main === 'string' ? keyed.main : null } : null;
