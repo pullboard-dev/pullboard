@@ -115,6 +115,8 @@ import { reofferTrunkBusyEnabled } from '../../../config/index.js';
 import { jobsAvoidRunnersEnabled } from '../../../config/index.js';
 import { gateClaimHop } from './hop.js';
 import { boardJobQueueCall } from './gate.js';
+import { startBeat } from '../../../drive/index.js';
+import { maintainUnknownGates } from './gate.js';
 import { runnerCommitPort } from './gate.js';
 import { boardQueueMode } from './jobs.js';
 import { trunkRemote } from '../../../config/index.js';
@@ -1194,11 +1196,52 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
     revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem, say() {}, err() {} }),
   }, { tagState: true });
+  // One background page at a time, in the ordinary worker lane so runner claims and receipts keep their reserved workers.
+  const gateMaintenance = personChannel === 'api' ? startGateMaintenance(apiProjects, now, (call) =>
+    pool ? pool.call('maintainGates', call) : maintainGatePage(call, codeIsMain, boardOpeners)) : null;
   const closeStreams = handler.close;
-  handler.close = () => { materializer?.close(); pool?.close(); closeStreams?.(); };
+  handler.close = () => { gateMaintenance?.(); materializer?.close(); pool?.close(); closeStreams?.(); };
   // A request-thread stall is recorded through the pool on the boards the API serves, never as a write on this thread.
   handler.recordStall = (stall) => (pool ? Promise.resolve().then(() => pool.call('stall', { projects: apiProjects().map(({ root }) => ({ root })), by: COORDINATOR, ...stall }, { internal: true })) : Promise.resolve({ recorded: 0 }));
   return handler;
+}
+
+/** Round-robin one board page every five seconds, retaining its cursor between worker calls. */
+function startGateMaintenance(projects, clock, maintain) {
+  const cursors = new Map();
+  let next = 0, running = false, closed = false;
+  const beat = startBeat(async () => {
+    if (running) return;
+    try {
+      running = true;
+      const roots = projects().map(project => project.root);
+      for (const root of cursors.keys()) if (!roots.includes(root)) cursors.delete(root);
+      if (!roots.length) return;
+      next %= roots.length;
+      const root = roots[next++];
+      const { after } = await maintain({ root, now: clock(), after: cursors.get(root) ?? 0 });
+      cursors.set(root, after);
+    } catch (error) {
+      if (!closed && error?.code !== 'API_BUSY') process.stderr.write(`pullboard: gate maintenance failed: ${error.message}\n`);
+    } finally { running = false; }
+  }, 5_000);
+  return () => { closed = true; beat.stop(); };
+}
+
+/** Run one writable board maintenance page with the gate's normal local or relay receipt ports. */
+async function maintainGatePage({ root, now, after }, isMain, boardOpeners, initializeMainReceiptIndex = false) {
+  const { openBoard } = requireBoardOpeners(boardOpeners);
+  const ordered = relayLinked(root) ? [] : null;
+  const page = withProjectGitTimeout(root, () => {
+    const info = repoInfo(root);
+    const board = openBoard(boardFilePath(info.commonDir), undefined, { isMain: isMain !== false && codeIsFromMain(), initializeMainReceiptIndex });
+    try {
+      board.gitRoot ??= root;
+      return maintainUnknownGates(board, { now, after, ordered, trunk: () => trunkRemote(root) ?? root, redLocation: redFactLocationEnabled(), receiptMissingCause: receiptMissingCauseEnabled() });
+    } finally { store.closeBoard(board); }
+  });
+  if (ordered?.length) await relayReceiptMoves(root, ordered, boardOpeners);
+  return page;
 }
 
 /** Whether the repo's landing.exactTreeCheck is on; a config that cannot be read leaves it off, as the default does [#12179]. */
@@ -1248,7 +1291,7 @@ async function relayReceiptMoves(root, moves, boardOpeners) {
 export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocument } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const itemDetail = itemDetailReader({ withReadBoard, projectItemState, isMain, boardOpeners, cells: DETAIL_CELLS });
-  return { ...readPoolHandlers({ findBoard, afterEvents, createRequest, executeMove, itemDetail }, { isMain, boardOpeners, runCommand, refusalDocument }), jobs: (call) => boardJobsCall(call, isMain, boardOpeners), stall({ projects, by, board = null, route, lagMs }) {
+  return { ...readPoolHandlers({ findBoard, afterEvents, createRequest, executeMove, itemDetail }, { isMain, boardOpeners, runCommand, refusalDocument }), jobs: (call) => boardJobsCall(call, isMain, boardOpeners), maintainGates: (call) => maintainGatePage(call, isMain, boardOpeners, true), stall({ projects, by, board = null, route, lagMs }) {
     const failed = [];
     let recorded = 0;
     for (const { root } of projects) {

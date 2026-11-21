@@ -1,0 +1,14 @@
+{
+  "api.gate-unknown-review.claim-skips-recovery": {
+    "proves": {"specs": ["C7"], "claim": "The pull claim path returns a runner lease without querying historical keyed main-test receipts for gate recovery."},
+    "why": "A historical gate recovery scan on the request path congests the runner queue.",
+    "kind": "contract",
+    "inputs": ["packages/api/src/io/gate.js", "packages/api/src/io/gate/unknown-review.js"]
+  },
+  "api.gate-unknown-review.bounded-recovery": {
+    "proves": {"specs": ["C7"], "claim": "A bounded maintenance page hands a gate with matching keyed main evidence to review, keeps a mismatched gate claimed, and resumes later items from its cursor."},
+    "why": "Without the exact key and cursor checks, recovery could excuse newly broken work or let an old page starve later items.",
+    "kind": "contract",
+    "inputs": ["packages/api/src/io/gate/unknown-review.js", "packages/api/src/io/gate/main-red-files.js", "packages/store/src/io/board/jobs.js"]
+  }
+}

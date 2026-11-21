@@ -40,6 +40,20 @@ export const JOB_SCHEMA_SQL = `
 `;
 
 /**
+ * The historical keyed main-test receipt lookup. Install it only on the maintenance initialization path:
+ * an existing board can have a large job_step table, so a regular writable open must not build it.
+ */
+export const MAIN_RECEIPT_INDEX_SQL = `CREATE INDEX IF NOT EXISTS job_step_file_input_receipt ON job_step (
+    json_extract(job_step_payload, '$.file'), json_extract(job_step_payload, '$.inputKey'), job_step_at DESC, job_step_id DESC
+  ) WHERE job_step_name = 'receipt' AND job_step_seq = 0
+    AND json_valid(job_step_payload) AND json_type(job_step_payload, '$.inputKey') = 'text';`;
+
+/** Detect whether the maintenance initializer has installed the keyed receipt lookup. */
+export function hasMainReceiptIndex(db) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'job_step_file_input_receipt'").get());
+}
+
+/**
  * The board's one row per runner job a move decides on: its id, kind, item, state, outcome, receipt summary and
  * hand-off record [B2,R2]. Additive like the job tables; run ids are never reused. Runner traffic itself lives in the
  * runs file (~/pbseat/coord/runner-store-design.md, section 1), so this table stays small.

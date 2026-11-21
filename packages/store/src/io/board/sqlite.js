@@ -5,7 +5,7 @@ import { fileSystemAdapter } from '../../../../fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
-import { JOB_SCHEMA_SQL } from "./jobs.js";
+import { JOB_SCHEMA_SQL, MAIN_RECEIPT_INDEX_SQL, hasMainReceiptIndex } from "./jobs.js";
 import { PROGRAM_SCHEMA_SQL } from "../../../../jobs/index.js";
 import { RUN_SCHEMA_SQL } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
@@ -237,7 +237,7 @@ function refuseBoardBeyondOneRelease(file, runtimePorts) {
  * @param {{ ports: object, isMain?: boolean, onDiagnostic?: (message: string) => void, writeContext?: {command?:string, seat?:string, path?:string}, gitRoot?: string }} [options] Only main upgrades schema; gitRoot is a local verification port, never replicated metadata.
  * @returns {{ db: DatabaseSync, clock: { now: () => Date } }}
  */
-export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext, gitRoot, ports } = {}) {
+export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext, gitRoot, initializeMainReceiptIndex = false, ports } = {}) {
   const runtimePorts = requireRuntimePorts(ports);
   if (!clock || typeof clock.now !== 'function') throw new Refused('NO_POLICY', 'Supply the native board clock before opening storage.');
   const { guardStore, refreshStoreDeclarations, repairDrift, storeTriggers } = runtimePorts.guards;
@@ -305,6 +305,11 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
       if (standing !== 'drifted' && missingAdditiveIndexes(db)) atomic(board, () => {
         if (boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION) !== 'current') return;
         ensureAdditiveIndexes(db);
+        recordSchemaStamp(db, SCHEMA_DIGEST);
+      }, { reviewPolicy: false });
+      if (initializeMainReceiptIndex && standing === 'current' && !hasMainReceiptIndex(db)) atomic(board, () => {
+        if (boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION) !== 'current' || hasMainReceiptIndex(db)) return;
+        db.exec(MAIN_RECEIPT_INDEX_SQL);
         recordSchemaStamp(db, SCHEMA_DIGEST);
       }, { reviewPolicy: false });
       if (standing !== 'drifted') settleJobBlobs(db, onDiagnostic);
