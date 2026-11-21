@@ -174,9 +174,9 @@ export async function run(io, args) {
     for (const event of recovered.events) io.onEvent?.(event);
     const id = recovered.result;
     const filed = store.getItem(board, id);
-    io.result?.({ item: filed, ...(childIds.length ? { children: childIds } : {}), route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
+    // A receipt records one move (the parent addItem); cut children are separate later moves, so a replay has none to report.
+    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
     io.say(`#${id}`);
-  for (const childId of childIds) io.say(`#${childId} child of #${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
     return 0;
