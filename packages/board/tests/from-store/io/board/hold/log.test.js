@@ -5,13 +5,13 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellProject } from '../../../fixtures/cell.js';
-import { boardHoldPercentiles } from '../../../../src/io/board/hold/log.js';
-import * as store from '../../../../index.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
-import { temporaryRepository } from '../../../fixtures/submit.js';
+import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
+import { boardHoldPercentiles } from '../../../../../../store/src/io/board/hold/log.js';
+import * as store from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
+import { temporaryRepository } from '../../../../../../store/tests/fixtures/submit.js';
 
 /** Run a body with the machine home pointed at a fresh directory, then restore it. */
 function withHome(t, body) {

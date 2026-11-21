@@ -1,22 +1,22 @@
 /** A claim of an after-gate dependent records one note on it naming the parent, its head and the claim time; a verified parent records the minutes saved and a send-back a rebuild [C7,#12325,#12326]. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { recordSubmitHandoff } from "../../../../../jobs/index.js";
-import { setAfterGate } from "../../../../src/io/board/item/after-gate.js";
-import { getItem } from "../../../../index.js";
-import { itemThread } from "../../../../index.js";
-import { fixture } from "../../../fixtures/dispatch.js";
+import { recordSubmitHandoff } from "../../../../../../jobs/index.js";
+import { setAfterGate } from "../../../../../../store/src/io/board/item/after-gate.js";
+import { getItem } from "../../../../../../store/index.js";
+import { itemThread } from "../../../../../../store/index.js";
+import { fixture } from "../../../../../../store/tests/fixtures/dispatch.js";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import * as store from "../../../../index.js";
-import { ENGINE_VERSION } from "../../../../../state/index.js";
-import { afterGateReport } from "../../../../index.js";
-import { recordAfterGateClaim } from "../../../../src/io/board/item/after-gate-report.js";
-import { recordAfterGateRebuild } from "../../../../src/io/board/item/after-gate-report.js";
-import { cellBoard } from "../../../fixtures/cell.js";
-import { cellItem } from "../../../fixtures/cell.js";
-import { cellSeat } from "../../../fixtures/cell.js";
-import { temporaryRepository } from "../../../fixtures/submit.js";
+import * as store from "../../../../../../store/index.js";
+import { ENGINE_VERSION } from "../../../../../../state/index.js";
+import { afterGateReport } from "../../../../../../store/index.js";
+import { recordAfterGateClaim } from "../../../../../../store/src/io/board/item/after-gate-report.js";
+import { recordAfterGateRebuild } from "../../../../../../store/src/io/board/item/after-gate-report.js";
+import { cellBoard } from "../../../../fixtures/cell-board.js";
+import { cellItem } from "../../../../../../store/tests/fixtures/cell.js";
+import { cellSeat } from "../../../../../../store/tests/fixtures/cell.js";
+import { temporaryRepository } from "../../../../../../store/tests/fixtures/submit.js";
 
 /** The after-gate claim notes on one item's thread. */
 function claimNotes(board, id) {
