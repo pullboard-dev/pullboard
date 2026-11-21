@@ -82,6 +82,8 @@ function project(disableRefresh) {
   const armed = join(box.dir, 'landing-gate-armed');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.gate = 'node --test --test-reporter=tap web/docs.test.js';
+  // No inherited cell plan: the config key goes with the plan file.
+  if (config.cells) delete config.cells.plan;
   config.lanes.web.owns.push('apps/cli/src/io/command-docs/');
   config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
   config.flakes = { rerun: false, quarantine: false };

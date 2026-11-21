@@ -26,7 +26,7 @@ import {
 } from 'node:test';
 import {
   testsNeedBrowser,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   copyPackageFiles,
 } from '../../../../../packages/runners/index.js';
