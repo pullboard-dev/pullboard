@@ -27,6 +27,18 @@ export function queuesAccept(config, check) {
 }
 
 /**
+ * Whether verify accept should skip every test tier for an item with no frozen check: the setting is on, so a proof-only
+ * item's accept records its verdict at once instead of selecting affected tests, taking a gate slot or pulling a runner [C7,V4,#11908].
+ *
+ * @param {{ verify?: { queueAccept?: boolean } }} config
+ * @param {string | null | undefined} check - The item's frozen check, or none.
+ * @returns {boolean}
+ */
+export function noCheckAccept(config, check) {
+  return config?.verify?.queueAccept === true && !check;
+}
+
+/**
  * Offer the frozen check as a runner job and reserve the item's review to the accepting seat.
  *
  * @param {object} ctx
