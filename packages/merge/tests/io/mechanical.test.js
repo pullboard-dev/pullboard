@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { resolveMechanicalIndex, formatJson } from '../../index.js';
-import { fixture, git } from '../../../landing/tests/fixtures/plan.js';
+import { resolveMechanicalIndex } from '../../index.js';
+import { formatJson } from '../../index.js';
+import { fixture } from '../../../landing/tests/fixtures/plan.js';
+import { git } from '../../../landing/tests/fixtures/plan.js';
 
 const FILE = 'packages/codemap/data/plan/14-state.json';
 const row = (name, target = `packages/state/src/${name}.js`) => [`src/${name}.js`, target, 'rule'];
