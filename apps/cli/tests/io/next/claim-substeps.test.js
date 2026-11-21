@@ -30,7 +30,7 @@ async function take(t, profile) {
   }
 }
 
-test('cli.io-next-claim-substeps.profiled-claimOrdered: clause 1: PULLBOARD_NEXT_PROFILE reports each ordered claim sub-step with milliseconds [C7,N2,#12589]', async t => {
+test('cli.io-next-claim-substeps.profiled-claim-ordered: clause 1: PULLBOARD_NEXT_PROFILE reports each ordered claim sub-step with milliseconds [C7,N2,#12589]', async t => {
   const { taken } = await take(t, true);
   assert.equal(taken.code, 0, taken.out + taken.err);
   const rows = taken.err.split('\n').filter(line => line.startsWith('next profile: '));

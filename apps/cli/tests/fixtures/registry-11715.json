@@ -1,5 +1,5 @@
 {
-  "cli.io-next-claim-substeps.profiled-claimOrdered": {
+  "cli.io-next-claim-substeps.profiled-claim-ordered": {
     "proves": { "specs": ["C7", "N2"], "claim": "with PULLBOARD_NEXT_PROFILE set, next --take reports each ordered claim sub-step and the inclusive claim write total." },
     "why": "Without named rows, a slow claim write gives no evidence about which guard, snapshot, admission, move or checkpoint takes the time.",
     "kind": "cell unit",
