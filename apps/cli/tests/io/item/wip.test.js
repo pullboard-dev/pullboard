@@ -33,8 +33,11 @@ function dirtyFolder(t) {
 
 /** What the builder sees of the folder: index bytes and mtime, HEAD and status. */
 function builderState(folder, git) {
+  // Status refreshes the index's stat cache, so it runs first and the index is read after it settles.
+  const status = git('status', '--porcelain=v1');
+  const head = git('rev-parse', 'HEAD');
   const index = join(folder, '.git', 'index');
-  return { bytes: readFileSync(index).toString('hex'), mtime: statSync(index).mtimeMs, head: git('rev-parse', 'HEAD'), status: git('status', '--porcelain=v1') };
+  return { bytes: readFileSync(index).toString('hex'), mtime: statSync(index).mtimeMs, head, status };
 }
 
 test('cli.io-item-wip.snapshot-keeps-builder-state: clause 1: snapshotWip saves staged, unstaged and untracked work to refs/pullboard/wip/<item> and leaves index, HEAD and status unchanged [C7,#12568]', t => {
