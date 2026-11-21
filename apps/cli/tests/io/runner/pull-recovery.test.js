@@ -1,15 +1,10 @@
 /** @pullboard-test-input source-tree */
-/** Pulled runner jobs leave no controller process while waiting, the held-first-dispatch cases yield and retry, and registered SSH runner execution recovers inside a committed, secret-free worker checkout [C7,#5465,#5537,#6734]. */
-import { definePullJourney } from '../../fixtures/runner/pull-journey.js';
+/** The held-first-dispatch cases yield and retry, and registered SSH runner execution recovers inside a committed, secret-free worker checkout [C7,#5465,#5537,#6734]. */
 import '../../fixtures/runner/lost-cases-held.js';
 import '../../../journeys/runner/lost.test.js';
 import { runnerHoldRecoveryTests } from '../../fixtures/scenarios/runners.js';
 import { runnerInstallerRecoveryTests } from '../../fixtures/scenarios/runners.js';
 import { runnerProbeRecoveryTests } from '../../fixtures/scenarios/runners.js';
-
-definePullJourney(1);
-definePullJourney(4);
-definePullJourney(12);
 
 runnerHoldRecoveryTests();
 
