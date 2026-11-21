@@ -1214,6 +1214,10 @@
       "kind": "sqlite",
       "owner": "apps/relay/src/io/quota.js"
     },
+    "board-writers.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/board-writers.js"
+    },
     "store-homes.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/stores.js"
