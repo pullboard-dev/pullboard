@@ -1,5 +1,6 @@
 /** Fixtures that put a project's machine settings in the state the thin read doors serve under [C7]. */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
