@@ -149,3 +149,27 @@ test('moves.withdraw.table-inputs: generated: the withdraw engine refuses WITHDR
   const narrow = withdrawEngine({ from: ['open'] });
   assert.equal(runTable(narrow.table, narrow.rules, { actor: { id: 'coordinator' }, item: { id: ID, status: 'claimed' } }, { id: ID, actor: 'coordinator', reason: 'r' }).refused?.code, 'CLOSED');
 });
+
+/** The system actor's withdraw as met: the sentinel actor, a sentinel cause key and a cited main commit [C7,#12551]. */
+const asMet = (move = {}, snapshot = {}) => runTable(TABLE, RULES, { actor: { id: 'sentinel', joined: true }, item: { id: ID, status: 'open' }, ...snapshot },
+  { id: ID, actor: 'sentinel', reason: 'met on main', cause: 'sentinel:met-on-main', metCommit: HEX40, ...move });
+
+test('moves.withdraw.system-actor-as-met: clause 1: the system actor withdraws as met through the sentinel cause path with a cited main commit and refuses without one [C7,#12551]', () => {
+  const done = asMet();
+  assert.equal(done.refused, undefined);
+  assert.deepEqual([done.patch.status, done.events.map(e => [e.kind, e.by])], ['withdrawn', [['withdraw', 'sentinel']]]);
+  for (const metCommit of [undefined, null, '', 'HEAD', HEX40.slice(1), HEX40.toUpperCase(), 9]) assert.equal(asMet({ metCommit }).refused?.code, 'COORDINATOR_ONLY', String(metCommit));
+  for (const cause of [undefined, 'conflict:x', 'sentinel']) assert.equal(asMet({ cause }).refused?.code, 'COORDINATOR_ONLY', String(cause));
+  assert.equal(asMet({}, { engine: 1 }).refused?.code, 'COORDINATOR_ONLY', 'older than WITHDRAW_AS_MET_ENGINE');
+  assert.equal(asMet({ reason: ' ' }).refused?.code, 'NOTE_REQUIRED');
+  assert.equal(asMet({}, { item: { id: ID, status: 'merged' } }).refused?.code, 'CLOSED');
+});
+
+test('moves.withdraw.seat-refusals-unchanged: clause 1: every seat withdraw refusal stays as it was, a cited commit never admits a seat [C7,#12551]', () => {
+  for (const actor of ['core-1', 'seat-9', 'agent']) {
+    assert.equal(asMet({ actor }).refused?.code, 'COORDINATOR_ONLY', actor);
+    assert.equal(asMet({ actor, cause: undefined }).refused?.code, 'COORDINATOR_ONLY', actor);
+  }
+  const plain = withdrawEngine({ from: FROM });
+  assert.equal(runTable(plain.table, plain.rules, { actor: { id: 'sentinel' }, item: { id: ID, status: 'open' } }, { id: ID, actor: 'sentinel', reason: 'r', cause: 'sentinel:x', metCommit: HEX40 }).refused?.code, 'COORDINATOR_ONLY', 'no engine handed in');
+});
