@@ -139,8 +139,12 @@ test('cli.io-commands-next.no-wait-finished-exit-3: clause 2: next --no-wait ret
   const second = box.add('The second item', { brief: 'Files: web/second.js\nTest: the real board selects the eligible item.' });
   // The board lets a status change only inside a move; the fixture opens that window around its one direct write.
   const verify = id => {
+    const head = box.git(box.root, 'rev-parse', 'HEAD'), digest = 'd'.repeat(64), stamp = '2026-10-25T10:00:00.000Z';
+    box.board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+      VALUES (?, ?, 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, ?)`).run(id, box.seats.sibling.id, head, digest, head, stamp);
     box.board.db.exec('INSERT INTO temp.moving VALUES (1)');
-    box.board.db.prepare("UPDATE item SET item_status='verified', item_verified_by=?, item_commit=? WHERE item_id=?").run(box.seats.sibling.id, box.git(box.root, 'rev-parse', 'HEAD'), id);
+    box.board.db.prepare("UPDATE item SET item_status='verified', item_commit=?, item_frozen_digest=?, item_built_by=?, item_verified_by=?, item_verdict='ACCEPT' WHERE item_id=?")
+      .run(head, digest, box.seats.builder.id, box.seats.sibling.id, id);
     box.board.db.exec('DELETE FROM temp.moving');
   };
   verify(first);
