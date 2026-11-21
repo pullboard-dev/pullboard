@@ -362,6 +362,7 @@ function element(id) {
     querySelectorAll: () => [],
     querySelector: () => null,
     prepend() {},
+    after() {},
     // The notch preview appends its veil and panel to the body and listens on the element and its document [#6651].
     append() {},
     contains: () => false,
