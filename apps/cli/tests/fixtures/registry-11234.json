@@ -1,0 +1,34 @@
+{
+ "cli.io-generated-docs.static-view-renders-whole": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "generatedDocs returns docs/formats/static-view.md rendered whole from the declarations, on a root that has no such file."
+  },
+  "why": "Without it, a regression where the generator needs the committed static view page to render would pass unnoticed.",
+  "kind": "journey",
+  "inputs": [
+   "apps/cli/src/io/generated/docs.js",
+   "apps/cli/tests/io/generated/docs.test.js",
+   "docs/tools/update-docs.js",
+   "docs/formats/static-view.md"
+  ]
+ },
+ "cli.io-generated-docs.static-view-written": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "update-docs writes the whole static view page where none exists and --check then passes."
+  },
+  "why": "Without it, a regression where the static view page is not part of the generated outputs would pass unnoticed.",
+  "kind": "journey",
+  "inputs": [
+   "apps/cli/src/io/generated/docs.js",
+   "apps/cli/tests/io/generated/docs.test.js",
+   "docs/tools/update-docs.js",
+   "docs/formats/static-view.md"
+  ]
+ }
+}
