@@ -1,7 +1,7 @@
 /** The row-age worker starts even when the view runs under node --input-type=module -e [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { projectState } from '../../../src/io/serve.js';
 
