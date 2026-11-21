@@ -81,10 +81,28 @@ test('view.item.timeline-strip-route: clause 2: the read-only route on a real fi
   assert.deepEqual(served, { version: 1, item: id, rows: direct.rows, summary: direct.summary, unmapped: direct.unmapped }, 'the route answers the timeline document');
   assert.deepEqual(served.rows.map(row => row.stage), ['filed', 'claimed']);
   assert.ok(served.summary.total_ms >= 450_000, 'the item has its stretch');
-  const empty = await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id + 900}`, { headers: { 'x-pullboard-key': secret } });
-  assert.equal(empty.status, 200, 'an item with no events answers 200, so the page logs no 404');
-  assert.deepEqual(await empty.json(), { version: 1, item: id + 900, rows: [], summary: null, unmapped: [] }, 'with no rows and no summary, so the panel draws no strip');
+  assert.equal((await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id + 900}`, { headers: { 'x-pullboard-key': secret } })).status, 404, 'an item that does not exist is 404');
   assert.equal((await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id}`)).status, 403, 'the route needs the key');
+});
+
+test('view.item.timeline-strip-empty: clause 4: an item that exists with no events answers 200 with an empty timeline, a missing item and a failed command stay 404 [C7,#12710]', async t => {
+  const project = cellProject(t, { real: true, gate: 'true' });
+  const clock = { now: () => new Date(Date.parse('2026-11-20T10:00:00Z')) };
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
+  const bare = cellItem(board, { lane: 'view', title: 'Item with no events', route: 'mid', criterion: '1. It draws [test].', brief: 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n', check: 'true' }).item_id;
+  const logged = cellItem(board, { lane: 'view', title: 'Item with events', route: 'mid', criterion: '1. It draws [test].', brief: 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n', check: 'true' }).item_id;
+  board.db.prepare('DELETE FROM event WHERE item_id = ?').run(bare);
+  const runCommand = async () => 1; // the command refuses for all three items
+  const secret = ['strip', 'empty', 'key', '0123456789'].join('-');
+  const unused = () => { throw new Error('not used by the timeline route'); };
+  const view = await serveView({ secret, projectRoot: project.repo, projects: () => [{ root: project.repo, name: 'Strip fixture' }], clock, runCommand, renderPage: () => '', refusalDocument: () => '', boardOpeners: { openBoard: unused, openBoardForRead: unused } });
+  t.after(() => view.close());
+  const ask = id => fetch(`http://127.0.0.1:${view.port}/item-timeline/${id}`, { headers: { 'x-pullboard-key': secret } });
+  const empty = await ask(bare);
+  assert.equal(empty.status, 200, 'an existing item with no events answers 200');
+  assert.deepEqual(await empty.json(), { version: 1, item: bare, rows: [], summary: null, unmapped: [] });
+  assert.equal((await ask(bare + 900)).status, 404, 'a missing item is 404');
+  assert.equal((await ask(logged)).status, 404, 'an item with events whose command failed keeps its error status');
 });
 
 test('view.item.timeline-strip-hover: clause 3: each segment carries its stage, length and reason as title text, and the strip rules use only colour tokens the view already defines [C7,#12162]', () => {
