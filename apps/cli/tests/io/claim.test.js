@@ -116,3 +116,18 @@ test('cli.io-claim.check-shape-claims-when-off: clause 3: with the setting off o
     assert.notEqual(getItem(fx.board, fx.id).item_status, 'open', `setting ${setting}`);
   }
 });
+test('cli.io-claim.check-strict-refuses-unsound: clause 1: with claim.checkCeiling on, a strict baseline that is pending or has no seconds is refused CHECK_UNSOUND and the item stays open [C7,#1273]', t => {
+  for (const baseline of [() => ({ result: 'pending', strict: true }), () => ({ result: 'green', strict: true })]) {
+    const fx = baselined(t, true, baseline);
+    assert.throws(() => fx.claimIt(), error => error.code === 'CHECK_UNSOUND');
+    const item = getItem(fx.board, fx.id);
+    assert.equal(item.item_status, 'open');
+    assert.equal(item.item_claimed_by ?? null, null);
+  }
+});
+
+test('cli.io-claim.check-strict-claims-non-strict: clause 2: an item whose baseline has no strict field is still claimed while its remeasure is pending [C7,#1273]', t => {
+  const fx = baselined(t, true, ceiling => ({ result: 'pending', seconds: ceiling + 1 }));
+  fx.claimIt();
+  assert.notEqual(getItem(fx.board, fx.id).item_status, 'open');
+});
