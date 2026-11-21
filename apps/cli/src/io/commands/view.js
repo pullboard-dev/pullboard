@@ -47,6 +47,7 @@ import {
   resolve,
 } from 'node:path';
 import { cockpitPage } from '../cockpit/renderer.js';
+import { flowReader } from './why.js';
 import { nativeBoardOpeners } from '../context.js';
 import * as nativeBoard from '../../../../lib/index.js';
 import { refusalDocument } from '../../logic/step/words.js';
@@ -142,7 +143,7 @@ export async function viewHere(io, values) {
   let view;
   try {
     // The adapter override is carried only by the in-process command streams, for private CLI fixtures.
-    view = await (io.serveView ?? serveView)({ port, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument, isMain: codeIsFromMain(), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
+    view = await (io.serveView ?? serveView)({ port, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument, isMain: codeIsFromMain(), ...(projectRoot ? { readFlow: flowReader(io) } : {}), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
     const sentinel = startServeSentinel({ projectRoot, cli: fileURLToPath(new URL('../../../pullboard.js', import.meta.url)) });
     const boundAt = new Date().toISOString();
     const closeServer = view.close;
