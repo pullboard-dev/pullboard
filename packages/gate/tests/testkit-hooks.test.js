@@ -43,7 +43,7 @@ test('gate.testkit-hooks.environment-off: clause 1: PULLBOARD_FIXTURE_INPROCESS_
   assert.equal(loaded.test?.inProcessHooks, undefined);
 });
 
-test('gate.testkit-hooks.explicit-values: clause 1: explicit false and true fixture values both win over the default [C7]', (t) => {
+test('gate.testkit-hooks.explicit-values: clause 3: explicit false and true fixture values both win over the default [C7]', (t) => {
   assert.equal(settingsWith(t, undefined, { test: { inProcessHooks: false } }).loaded.test.inProcessHooks, false);
   assert.equal(settingsWith(t, '0', { test: { inProcessHooks: true } }).loaded.test.inProcessHooks, true);
 });
