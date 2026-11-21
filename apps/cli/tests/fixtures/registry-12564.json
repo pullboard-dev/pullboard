@@ -3,12 +3,12 @@
     "proves": { "specs": ["C7"], "claim": "With itemBuildBudgetMinutes set, add of an over-budget checked item files a parent and one in-budget child per clause, each inheriting the check." },
     "why": "Without it, an over-budget item would be filed whole and could never be claimed.",
     "kind": "journey",
-    "inputs": ["apps/cli/journeys/add/item-size.test.js"]
+    "inputs": ["apps/cli/tests/io/commands/add/budget.test.js"]
   },
   "cli.journeys-add-item-size.default-budget-unchanged": {
     "proves": { "specs": ["C7"], "claim": "A board that does not set itemBuildBudgetMinutes cuts at the default of 30 minutes and files in-budget items whole." },
     "why": "Without it, the default budget could change silently for boards that never set it.",
     "kind": "journey",
-    "inputs": ["apps/cli/journeys/add/item-size.test.js"]
+    "inputs": ["apps/cli/tests/io/commands/add/budget.test.js"]
   }
 }
