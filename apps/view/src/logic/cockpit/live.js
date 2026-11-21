@@ -168,6 +168,7 @@ const connected = () => Boolean(stream) && stream.status !== 'down';
 /** Say nothing while the page's stream is up, and why the page is not live while it is down. */
 function liveLine() {
   if (!stream || stream.status !== 'down') return stateWorkerStopped ? 'the state worker stopped: serving from the request thread' : '';
+  if (stream.refused) return 'this view refused the page: open the link pullboard view printed again';
   if (stream.offline) return 'offline: is pullboard view still running?';
   return (canStream() ? 'reconnecting' : 'no live stream in this browser') + ': refreshing every ' + FALLBACK_MS / 1000 + 's';
 }
@@ -271,6 +272,14 @@ async function listen(entry) {
     });
     // This machine's view refused the hosted page's secret, as after a restart with a new one: go round again (#513).
     if ((res.status === 401 || res.status === 403) && localSession && localReadBase === localSession.origin) { localExpired(); return; }
+    // The plain local view refused this page's link, as after a restart with a new secret: retrying cannot help, so say what does.
+    if (res.status === 401 || res.status === 403) {
+      entry.refused = true;
+      entry.status = 'down';
+      entry.offline = false;
+      $('live').textContent = liveLine();
+      return;
+    }
     if (!res.ok || !res.body) throw new Error('the board stream answered ' + res.status);
     entry.status = 'up';
     entry.offline = false;
