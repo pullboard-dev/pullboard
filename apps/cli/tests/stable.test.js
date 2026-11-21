@@ -202,7 +202,6 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
     join(DIR, 'io', 'init', 'boundary.test.js'),
     join(DIR, 'io', 'init', 'codex-automation.test.js'),
     join(DIR, 'io', 'init', 'defaults.test.js'),
-    join(DIR, 'io', 'init', 'docs-regenerate.test.js'),
     join(DIR, 'io', 'init', 'gate-set.test.js'),
     join(DIR, 'io', 'init', 'ignore-rules.test.js'),
     join(DIR, 'io', 'init', 'ignore.test.js'),
