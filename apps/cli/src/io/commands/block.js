@@ -39,7 +39,7 @@ export async function run(io, { first, second, rest, values }) {
       const folders = {};
       for (const id of ids) {
         try {
-          folders[id] = await openItemFolder(ctx, me, id, { board, renewed: false, onConflict: (files, line) => io.say(`warning: ${line}`) });
+          folders[id] = await openItemFolder(ctx, me, id, { board, renewed: false, onBehind: line => io.say(line) });
         } catch (error) {
           // The claims are already recorded, so a folder refusal is reported beside them, never as the command's refusal (#5766).
           if (!(error instanceof Refused)) throw error;
