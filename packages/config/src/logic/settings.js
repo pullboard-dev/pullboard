@@ -755,6 +755,16 @@ export function submitClauseMarks() {
   return loadMachineSettings().submit?.clauseMarks === true;
 }
 
+/** Whether next puts returned work ahead of untouched work (#11241): off by default; only an exact `true` turns it on. */
+export function nextReturnedFirst() {
+  return loadMachineSettings().next?.returnedFirst === true;
+}
+
+/** Whether route reservations are on (#9177, #11306): on by default; only an exact `false` turns it off. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations !== false;
+}
+
 /** Whether a submit composes main as a throwaway object under refs/pullboard/compose, never a branch commit (U159): off by default; only an exact `true` turns it on. */
 export function submitComposeAsObject() {
   return loadMachineSettings().submit?.composeAsObject === true;
