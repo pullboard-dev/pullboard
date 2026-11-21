@@ -56,7 +56,6 @@
     "apps/cli/journeys/lifecycle/merge.test.js": 1,
     "apps/cli/journeys/mcp/main.test.js": 1,
     "apps/cli/journeys/move/registry.test.js": 1,
-    "apps/cli/journeys/next/order.test.js": 1,
     "apps/cli/journeys/next/steps.test.js": 1,
     "apps/cli/journeys/next/take.test.js": 1,
     "apps/cli/journeys/next/verify.test.js": 1,
@@ -128,7 +127,6 @@
     "apps/cli/journeys/relay/upload.test.js": 1,
     "apps/cli/journeys/relay/upload/pause.test.js": 1,
     "apps/cli/journeys/relay/upload/status.test.js": 1,
-    "apps/cli/journeys/release/speed.test.js": 1,
     "apps/cli/journeys/reopen/cause.test.js": 1,
     "apps/cli/journeys/reopen/conflict.test.js": 1,
     "apps/cli/journeys/request/receipts.test.js": 1,
@@ -397,6 +395,8 @@
     "test/runner-custody.test.js": 1,
     "test/runner-fixture-state.test.js": 1,
     "test/runner-leak-scan.test.js": 1,
-    "test/runner-pid.test.js": 1
+    "test/runner-pid.test.js": 1,
+    "apps/cli/tests/io/commands/release/speed.test.js": 1,
+    "apps/cli/tests/io/commands/next/order.test.js": 1
   }
 }

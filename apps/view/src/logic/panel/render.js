@@ -34,6 +34,22 @@ export function agentsPanelHtml(panel, { now, dashboardHref }) {
 }
 
 /**
+ * The Flow panel as HTML [N26,C7]: one one-line row per unlanded item with its id and cause, in input order, then the idle
+ * seats on one line, or a single quiet empty line when there is nothing to show. Pure: it writes only what the model gives it.
+ *
+ * @param {{ rows: { id: number, cause: string }[], idle: { seat: string, reason: string }[] }} model - What flowPanelModel returns (apps/view/src/logic/panel/flow.js).
+ * @returns {string}
+ */
+export function flowPanelHtml(model) {
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  const rows = model.rows.map((row) => '<div class="sx-fl"><code>#' + esc(row.id) + '</code><span class="sx-it">' + esc(row.cause) + '</span></div>').join('');
+  const idle = model.idle.length ? '<div class="sx-fl sx-flidle"><span class="sx-it">Idle: '
+    + model.idle.map((entry) => '<code>' + esc(entry.seat) + '</code> ' + esc(entry.reason)).join(' · ') + '</span></div>' : '';
+  const body = rows || idle ? rows + idle : '<p class="sx-empty">Nothing is waiting to land.</p>';
+  return '<section class="sx-sec"><div class="shd"><p class="hd1">Flow<span class="sx-count">' + model.rows.length + '</span></p></div><div class="sx-card sx-flow">' + body + '</div></section>';
+}
+
+/**
  * The Shouts page as HTML [N26]: the since-you-left line, the asks waiting on the person, the threads as one-line rows that
  * open in place, and the Earlier fold. Pure: it writes only what the model and the caller's clock formatters give it. The page
  * embeds this function's source, so it reads nothing outside itself, its own escaping and markup helpers included.

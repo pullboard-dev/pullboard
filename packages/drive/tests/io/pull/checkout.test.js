@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
+import { checkoutCandidate } from '../../../index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
@@ -118,7 +119,13 @@ test('drive.checkout.c-6681-a-warm-slot-starts: #6681: a warm slot starts its co
     const starts = receipts.map(receipt => receipt.startup);
     assert.deepEqual(starts.map(start => start?.version), [1, 1, 1, 1, 1], 'every receipt carries its startup phases');
     assert.deepEqual(starts.map(start => start.reused), [false, true, true, true, true], 'only the first job builds the folder; every later one reuses the warm one');
-    for (const start of starts) assert.ok(start.fetchMs + start.checkoutMs + start.requestMs <= start.totalMs + 3, `phases fit inside the whole: ${JSON.stringify(start)}`);
+    for (const start of starts) {
+      assert.ok(start.fetchMs + start.checkoutMs + start.requestMs <= start.totalMs + 3, `phases fit inside the whole: ${JSON.stringify(start)}`);
+      assert.ok(Number.isFinite(start.fetchWaitMs) && Number.isFinite(start.fetchWorkMs), 'the serialized receipt carries both fetch phases');
+      assert.ok(start.fetchWaitMs + start.fetchWorkMs <= start.fetchMs + 2, 'fetch phases fit inside the existing total');
+    }
+    assert.equal(starts[4].fetchWaitMs, 0, 'a cached commit waits for no fetch turn');
+    assert.equal(starts[4].fetchWorkMs, 0, 'a cached commit does no fetch work');
     const warm = starts.slice(1).map(start => start.totalMs).sort((a, b) => a - b);
     assert.ok(warm[Math.ceil(warm.length * 0.9) - 1] < 10_000, `warm starts took ${warm.join(', ')} ms`);
     assert.equal(JSON.parse(field(receipts[4], 'STATUS')), '', 'a warm start is still exactly the commit\'s tree');
@@ -180,3 +187,22 @@ test('drive.checkout.a-second-live-serve-on: clause 2: a second live serve on on
 function slotLocks(cache) {
   try { return readdirSync(join(cache, 'slots')); } catch { return []; }
 }
+
+
+test('drive.checkout.fetch-turn-and-work: clause 1: checkout separates time waiting for a fetch turn from actual fetch work [C7]', { timeout: 60_000 }, async t => {
+  const { cache, trunk, first } = trunkRepo(t);
+  let clock = 0;
+  const waitStep = 60, workStep = 80;
+  const now = () => clock;
+  const git = { ...pullGit, fetchTrunk: async (...args) => { clock += workStep; return pullGit.fetchTrunk(...args); } };
+  const fetchTurn = async work => { clock += waitStep; return work(); };
+  const cold = await checkoutCandidate(cache, trunk, first, 'measure', [], { git, fetchTurn, now });
+  assert.equal(cold.ok, true, cold.reason);
+  assert.equal(cold.phases.fetchWaitMs, waitStep);
+  assert.equal(cold.phases.fetchWorkMs, workStep);
+  assert.ok(cold.phases.fetchMs >= cold.phases.fetchWaitMs + cold.phases.fetchWorkMs - 2, 'existing total retains both phases');
+  const warm = await checkoutCandidate(cache, trunk, first, 'measure', [], { git, fetchTurn, now });
+  assert.equal(warm.ok, true, warm.reason);
+  assert.equal(warm.phases.fetchWaitMs, 0);
+  assert.equal(warm.phases.fetchWorkMs, 0);
+});
