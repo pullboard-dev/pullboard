@@ -12,18 +12,21 @@ import { fixtureJoin } from '../../fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 /**
- * End the fixture's local runner at once. Why: it ignores SIGTERM for the whole 10 s stopFixtureLocalRunner allows before it kills it, and this case needs the runner only until its gate settles.
+ * End the fixture's local runner at once and assert it has exited. Why: it ignores SIGTERM for the whole 10 s stopFixtureLocalRunner allows before it kills it, and this case needs the runner only until its gate is done.
+ * The runner records its pid in a state file and a starting marker, each keyed to PULLBOARD_HOME by a short hash (`state-<hash>.json`, `starting-<hash>.json`), so every such file under local-runner is read.
  *
  * @param {string} machineHome - The fixture's PULLBOARD_MACHINE_HOME.
  */
 function killLocalRunner(machineHome) {
-  let pid = 0;
-  try { pid = Number(JSON.parse(fs.readFileSync(join(machineHome, 'local-runner', 'state.json'), 'utf8')).pid); } catch { return; }
-  try { process.kill(pid, 'SIGKILL'); } catch { return; }
-  for (const until = Date.now() + 2000; Date.now() < until;) {
-    try { process.kill(pid, 0); } catch { return; }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
-  }
+  const folder = join(machineHome, 'local-runner');
+  const files = fs.existsSync(folder) ? fs.readdirSync(folder).filter((name) => /^(?:state|starting)(?:-[0-9a-f]{12})?\.json$/u.test(name)) : [];
+  const pids = files.map((name) => {
+    try { return Number(JSON.parse(fs.readFileSync(join(folder, name), 'utf8')).pid); } catch { return 0; }
+  }).filter((pid) => Number.isSafeInteger(pid) && pid > 1);
+  const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; } };
+  for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
+  for (const until = Date.now() + 5000; Date.now() < until && pids.some(alive);) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+  assert.deepEqual(pids.filter(alive), [], 'the fixture local runner has exited before its home is removed');
 }
 
 test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', async (t) => {
@@ -116,8 +119,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const accepted = await run(holder, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello');
     assert.equal(accepted.status, 0, accepted.stderr);
   } finally {
-    killLocalRunner(join(dir, 'home'));
-    fs.rmSync(dir, { recursive: true, force: true });
+    try { killLocalRunner(join(dir, 'home')); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
 });
 
