@@ -31,7 +31,7 @@ async function addSized(t, budget, minutes) {
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Sized item', '--criterion', CRITERION, '--check', CHECK, '--expected-minutes', String(minutes), '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
-  return onBoard(box, board => ({ parent: store.getItem(board, id), children: store.listItems(board, { all: true }).filter(item => item.item_parent_id === id) }));
+  return onBoard(box, board => ({ parent: store.getItem(board, id), children: store.listItems(board, { all: true }).filter(item => item.item_parent_id === id).sort((a, b) => a.item_id - b.item_id) }));
 }
 
 test('cli.journeys-add-item-size.over-budget-add-files-cut-children: clause 1: with itemBuildBudgetMinutes set to 6, add of a 3-clause item at 18 minutes files a parent and three 6-minute children inheriting the check [C7,#2539]', async t => {
