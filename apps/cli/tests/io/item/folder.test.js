@@ -22,6 +22,8 @@ import { repoInfo } from '../../../../../packages/git/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { policyRepository } from '../../../../../packages/store/tests/fixtures/submit.js';
+import { fixture } from '../../fixtures/next/take.js';
+import { runCliInProcess } from '../../fixtures/process.js';
 
 const ME = { id: 'core-1', lane: 'core' };
 const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exec'];
@@ -327,4 +329,45 @@ test('cli.item-folder.reoffer-without-wip: clause 2: with no snapshot, or one no
   assert.equal(await openItemFolder(old.ctx, ME, 43), old.path);
   assert.equal(runFixtureGit(['status', '--porcelain'], { cwd: old.path }), '');
   assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: old.path }), old.head);
+});
+
+test('cli.item-folder.release-removes-same-folders: clause 1: a release removes the same idle item folders as before (a clean one goes; one holding only an ignored file, a dirty one and one with unlanded commits stay), and launches no worktree list and no worktree status snapshot [C7,#12391]', async t => {
+  const box = await fixture(t, { projectConfig: { laneMode: 'off' } });
+  const seat = box.seats.actor;
+  const ids = { clean: box.add('Clean folder item'), ignored: box.add('Ignored file item'), dirty: box.add('Dirty folder item'), unlanded: box.add('Unlanded commits item') };
+  const run = (...args) => runCliInProcess(args, { cwd: seat.path, env: box.env });
+  const folder = id => itemFolderPath(seat.path, id);
+  for (const id of Object.values(ids)) {
+    const claimed = await run('claim', String(id), '--no-next');
+    assert.equal(claimed.status, 0, claimed.stdout + claimed.stderr);
+    assert.ok(existsSync(folder(id)), `claim #${id} made its item folder`);
+  }
+  const common = runFixtureGit(['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: seat.path });
+  appendFileSync(join(common, 'info', 'exclude'), 'ignored-only.log\n');
+  writeFileSync(join(folder(ids.ignored), 'ignored-only.log'), 'kept\n');
+  writeFileSync(join(folder(ids.dirty), 'scratch.txt'), 'uncommitted\n');
+  writeFileSync(join(folder(ids.unlanded), 'landed-never.txt'), 'x\n');
+  runFixtureGit(['add', 'landed-never.txt'], { cwd: folder(ids.unlanded) });
+  runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '--no-verify', '-m', 'feat: unlanded work [G1]'], { cwd: folder(ids.unlanded) });
+  const launched = [];
+  const { launches } = await countingGit(async () => {
+    const real = childProcess.spawnSync, realFile = childProcess.execFileSync;
+    const note = (file, args) => { if (/(^|\/)git$/u.test(String(file))) launched.push((Array.isArray(args) ? args : []).join(' ')); };
+    childProcess.spawnSync = function noted(file, args, ...rest) { note(file, args); return real.call(this, file, args, ...rest); };
+    childProcess.execFileSync = function noted(file, args, ...rest) { note(file, args); return realFile.call(this, file, args, ...rest); };
+    syncBuiltinESMExports();
+    try {
+      for (const id of Object.values(ids)) {
+        const released = await run('release', String(id), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next');
+        assert.equal(released.status, 0, released.stdout + released.stderr);
+      }
+    } finally { childProcess.spawnSync = real; childProcess.execFileSync = realFile; syncBuiltinESMExports(); }
+  });
+  console.log(`# git launches over four releases: ${launches}; worktree list: ${launched.filter(argv => argv.startsWith('worktree list')).length}`);
+  assert.equal(existsSync(folder(ids.clean)), false, 'the clean idle folder goes');
+  assert.equal(existsSync(folder(ids.ignored)), true, 'a folder holding only an ignored file stays');
+  assert.equal(existsSync(folder(ids.dirty)), true, 'a dirty folder stays');
+  assert.equal(existsSync(folder(ids.unlanded)), true, 'a folder with unlanded commits stays');
+  assert.deepEqual(launched.filter(argv => argv.startsWith('worktree list')), [], 'no worktree list runs');
+  assert.deepEqual(launched.filter(argv => argv.includes('--no-optional-locks')), [], 'no worktree status snapshot runs when no claim snapshot exists');
 });
