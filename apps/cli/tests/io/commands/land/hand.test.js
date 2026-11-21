@@ -16,7 +16,8 @@ const { boardFixture, accepted } = makeMergeBoard(e2e);
 test('cli.journeys-land-hand.with-landing-byhand-on-land-item: clause 1: with landing.byHand on, land --item N lands one accepted item while a trunk hold is set, prints the reason and the bypassed hold, and status counts it as landed [C7,#3775]', async t => {
   t.after(e2e.cleanup);
   const box = boardFixture();
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { landing: { byHand: true } });
+  // The fixture builder commits synchronously, so this case runs the real hooks rather than the in-process promise path.
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { landing: { byHand: true }, test: { inProcessHooks: false } });
   // A committed test whose recorded defect holds the trunk: its repair item is open and no run clears it.
   writeFileSync(join(box.repo, 'test/held.test.js'), "import { test } from 'node:test';\ntest('held case', () => {});\n");
   box.git(box.repo, 'add', '-A');
