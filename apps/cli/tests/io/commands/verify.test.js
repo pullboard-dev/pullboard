@@ -158,7 +158,7 @@ function frozenLowItem() {
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/index.html'), 'fixture');
-  box.historicalCheckSubmission(box, box.attackCommit(box, box.web));
+  e2e.historicalCheckSubmission(box, e2e.attackCommit(box, box.web));
   const current = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...current, verify: { ...current.verify, soloLowStakes: true } });
   return { box, commitSpec };
