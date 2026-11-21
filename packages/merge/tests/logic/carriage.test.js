@@ -6,8 +6,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { mainMovedWarnings } from '../../index.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../git/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../git/tests/fixtures/child.js';
 
 /**
  * Build a seat checkout on its own conflicting branch, two per-item folders on item branches, and a moved main.
