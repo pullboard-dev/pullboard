@@ -103,7 +103,8 @@ export function verifySnapshot(board, item, call, facts, deps) {
  * @returns {{ events: object[] } | null}
  */
 export function verifyDecision(board, item, call, deps, prepared) {
-  const at = board.executionEngineVersion;
+  // A live board carries no executionEngineVersion of its own; a solo low-stakes call reads the engine the writer ran at, so the table can write its solo event [#966].
+  const at = board.executionEngineVersion ?? (call.soloLowStakes === true ? call.engine : undefined);
   if (at === undefined || at < deps.from || at < board.enginePorts.pipelineCauseEngines().pipeline) return null;
   const id = item.item_id;
   const review = call.review;
