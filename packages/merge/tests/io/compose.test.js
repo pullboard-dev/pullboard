@@ -30,10 +30,7 @@ test('merge.compose.custody-unknown-keeps-cause: clause 1: a source composition 
   const { root, heads } = twoBranches(t);
   const thrown = new Error('gate threw after start');
   let directory;
-  t.after(() => {
-    git(root, 'worktree', 'remove', '--force', directory);
-    rmSync(dirname(directory), { recursive: true, force: true });
-  });
+  t.after(() => rmSync(dirname(directory), { recursive: true, force: true }));
   await assert.rejects(withSourceComposition(root, heads[0], heads[1], async (composition, controller) => {
     directory = composition.directory;
     controller.started();
