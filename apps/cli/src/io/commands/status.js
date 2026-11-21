@@ -140,6 +140,8 @@ export async function run(io, { values }) {
   summary.runnerDeadlines = runnerDeadlineRuns();
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root, retainedReceipts);
   summary.longestHolds = store.longestRecentHolds();
+  // A bounded tail read of the write log, never the whole history; the count may be partial when the tail is shorter than the hour [C7,#12616].
+  summary.writeHoldAlarm = store.boardWriteHoldAlarm('WRITE_HOLD_OVER_1S', ctx.clock.now().getTime(), 3_600_000);
   summary.disk = refusingBadPolicy(() => cachedDiskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
   if (values.json) {
     io.result(summary);
