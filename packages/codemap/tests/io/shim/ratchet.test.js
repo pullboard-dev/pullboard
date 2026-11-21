@@ -2,7 +2,8 @@
 /** @pullboard-test-input source-cell packages/codemap */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { shimImportProblems, stagedShimImportProblems } from '../../../src/io/shim/ratchet.js';
+import { shimImportProblems } from '../../../src/io/shim/ratchet.js';
+import { stagedShimImportProblems } from '../../../src/io/shim/ratchet.js';
 
 const importer = 'packages/state/src/caller.js';
 const shim = 'packages/state/src/legacy.js';
