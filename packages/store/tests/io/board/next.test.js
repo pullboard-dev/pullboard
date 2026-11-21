@@ -7,6 +7,7 @@ import { nextFor } from '../../../index.js';
 import { reviewOffer } from '../../../index.js';
 import { register } from '../../../index.js';
 import { saveAgentAbilities } from '../../../src/io/needs.js';
+import { saveExpectedBuildMinutes } from '../../../src/io/expected.js';
 import { claim } from '../../../index.js';
 import { largestDisjointWave } from '../../../../items/index.js';
 import { submitFixture } from '../../fixtures/submit.js';
@@ -412,7 +413,7 @@ function eligibilityBoard(t) {
   const head = getItem(board, ids.gate).item_commit;
   place(ids.gate, { item_status: 'open', item_owner: null });
   recordSubmitHandoff(board.db, ids.gate, { id: `fixture-${ids.gate}`, commit: head, agentId: box.seats.builder.id, state: 'queued' });
-  place(ids.scope, { item_expected_build_minutes: 90 });
+  saveExpectedBuildMinutes(board, ids.scope, 90);
   board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`claim_waiting:${ids.waitingOn}`, JSON.stringify([ids.blocker]));
   const codes = { held: 'ITEM_HELD', route: 'ROUTE_FILTER', gate: 'GATE_AT_HEAD', scope: 'ITEM_BUILD_BUDGET', waitingOn: 'WAITING_ON', dependency: 'DEPENDENCY' };
   return { box, board, ids, codes };
