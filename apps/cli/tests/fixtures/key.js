@@ -6,6 +6,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { openBoardForRead } from '../../../lib/index.js';
+import * as store from '../../../../packages/store/index.js';
 import { runMarksWorker } from '../../src/io/inbox-marks-worker.js';
 
 /** Observe only the private fixture's canonical delivery projection. */
@@ -58,6 +59,10 @@ export async function readKeylessInbox(box, state, code = 'RELAY_KEY_MISSING') {
   const interrupt = read.document.activity.interrupts.find(entry => entry.shout === state.answer);
   assert.ok(interrupt, 'the answered decision remains visible despite the missing key');
   state.interrupt = interrupt.id;
+  // A refused read hands no delivery to the marks spool, so draining it finds no delivery record to write.
+  const spooled = [];
+  store.drainInboxMarks(join(box.root, '.git', 'pullboard', 'board.sqlite'), { enqueue() {}, flush() {}, recordDelivery: (agent, delivery) => spooled.push({ agent, delivery }) });
+  assert.deepEqual(spooled, [], 'a keyless read spools no delivery');
   assert.equal(cursor(box), beforeCursor, 'unrecorded delivery never advances the local cursor');
   assert.deepEqual(receipts(box), beforeReceipts, 'the read cannot forge a canonical delivery');
   assert.deepEqual(shoutCursors(box), beforeShouts, 'an unrecorded read cannot consume its answer through the unread projection');
