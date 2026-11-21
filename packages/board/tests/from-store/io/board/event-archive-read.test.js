@@ -4,15 +4,15 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { archiveOldEvents } from '../../../index.js';
-import { closeBoard } from '../../../index.js';
-import { events } from '../../../index.js';
-import { exportBoard } from '../../../index.js';
-import { importBoard } from '../../../index.js';
-import { itemThreads } from '../../../src/io/board.js';
-import { itemThread } from '../../../index.js';
-import { openKitBoard } from '../../fixtures/cell.js';
-import { temporaryDirectory } from '../../fixtures/tmp.js';
+import { archiveOldEvents } from '../../../../../store/index.js';
+import { closeBoard } from '../../../../../store/index.js';
+import { events } from '../../../../../store/index.js';
+import { exportBoard } from '../../../../../store/index.js';
+import { importBoard } from '../../../../../store/index.js';
+import { itemThreads } from '../../../../../store/index.js';
+import { itemThread } from '../../../../../store/index.js';
+import { openKitBoard } from '../../../fixtures/cell-board.js';
+import { temporaryDirectory } from '../../../../../store/tests/fixtures/tmp.js';
 
 const NOW = new Date('2026-11-16T12:00:00.000Z');
 const DAY = 86_400_000;
@@ -70,7 +70,7 @@ test('store.io-board-event-archive-read.show-log-and-export-read-the: clause 2: 
   assert.deepEqual(itemThread(board, ids.open), untouched, 'an item that did not archive reads as before');
 });
 
-test('clause 3: the log reader returns an archived item\'s events with its kind, since and last filters, as before archiving [C7,#9335]', t => {
+test('store.io-board-event-archive-read.the-log-reader-returns-an-archived: clause 3: the log reader returns an archived item\'s events with its kind, since and last filters, as before archiving [C7,#9335]', t => {
   const { board, ids } = seededBoard(t);
   const before = events(board, { itemId: ids.old });
   const filters = [{ kinds: ['add', 'accept'] }, { last: 1 }, { since: before[2].event_at }, { kinds: ['note'], last: 1 }];
@@ -80,7 +80,7 @@ test('clause 3: the log reader returns an archived item\'s events with its kind,
   assert.deepEqual(events(board, { itemId: ids.open }).map(row => row.event_kind), ['add', 'note', 'accept'], 'the open item still reads from the hot table');
 });
 
-test('clause 4: a state build\'s threads (itemThreads, cut from the hot history) match itemThread for an archived item [C7,#9335]', t => {
+test('store.io-board-event-archive-read.a-state-build-threads-match-itemthread: clause 4: a state build\'s threads (itemThreads, cut from the hot history) match itemThread for an archived item [C7,#9335]', t => {
   const { board, ids } = seededBoard(t);
   const before = itemThread(board, ids.old);
   archiveOldEvents(board, NOW, { enabled: true });
@@ -92,7 +92,7 @@ test('clause 4: a state build\'s threads (itemThreads, cut from the hot history)
   assert.deepEqual(itemThreads(board, [ids.old], [...hot, ...events(board, { itemId: ids.old })]).get(ids.old), before, 'a history that still holds the events does not list them twice');
 });
 
-test('clause 5: an export of an archived board imports as a board whose archived item reads the same thread and events [C7,#9335]', t => {
+test('store.io-board-event-archive-read.an-export-of-an-archived-board-imports: clause 5: an export of an archived board imports as a board whose archived item reads the same thread and events [C7,#9335]', t => {
   const { board, ids } = seededBoard(t);
   const eventsBefore = events(board, { itemId: ids.old });
   const threadBefore = itemThread(board, ids.old);

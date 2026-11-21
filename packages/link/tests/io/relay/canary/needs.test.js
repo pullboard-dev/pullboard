@@ -15,7 +15,7 @@ import { outboxFile } from '../../../../index.js';
 import { outboxSummaryFile } from '../../../../index.js';
 import { readOutboxCount } from '../../../../index.js';
 import { readRelayLink } from '../../../../index.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../git/tests/fixtures/child.js';
 
 /** A real private Git repository with a persisted two-probe alert and no transport or native board. */
 function fixture(t) {

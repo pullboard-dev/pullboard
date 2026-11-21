@@ -143,7 +143,7 @@ export {
 
 export { boardWriteLog, boardWriteHoldAlarm } from './src/io/board/write/lock.js';
 export { objectItemPatch } from './src/io/board.js';
-export { expeditedItems } from './src/io/board.js';
+export { expediteItem, expeditedItems } from './src/io/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/io/board/wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/logic/board/reland.js";
