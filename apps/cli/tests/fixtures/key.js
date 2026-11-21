@@ -6,6 +6,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { openBoardForRead } from '../../../lib/index.js';
+import { runMarksWorker } from '../../src/io/inbox-marks-worker.js';
 
 /** Observe only the private fixture's canonical delivery projection. */
 function receipts(box) {
@@ -73,7 +74,10 @@ export async function finishKeylessInbox(box, state) {
   assert.notEqual(delivered.document.activity.receipt?.recorded, false, 'delivery is recorded rather than silently skipped');
   assert.ok(delivered.document.activity.interrupts.some(entry => entry.id === state.interrupt), 'the unrecorded obligation survives key recovery');
   assert.notEqual(cursor(box), null, 'only successful delivery advances the local cursor');
-  assert.ok(receipts(box).some(row => row.meta_key.endsWith(`pending:${state.interrupt}`)), 'the native board retains the delivered obligation');
+  // The delivery record leaves through the marks worker's spool, so drain it here before asserting what the board retains.
+  await runMarksWorker(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const retained = () => receipts(box).some(row => row.meta_key.endsWith(`pending:${state.interrupt}`));
+  assert.ok(retained(), 'the native board retains the delivered obligation');
   const acted = await box.cli('inbox', '--acted-on', state.interrupt);
   assert.equal(acted.code, 0, 'the recipient can acknowledge after credentials return');
   assert.equal(acted.document.activity.interrupts.some(entry => entry.id === state.interrupt), false, 'explicit acknowledgement retires only the delivered obligation');
