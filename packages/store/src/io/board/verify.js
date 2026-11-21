@@ -59,7 +59,7 @@ import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../../state/light.js';
 import { gateReceiptProblem } from '../board.js';
 import { reservedRelaxation } from './review/family.js';
 import { relaxationRecordLine } from './review/family.js';
-import { itemReviewPolicy } from '../../../../verify/index.js';
+import { verdictRelaxableTier } from './review/family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { holdItem } from "./hold/item.js";
 import { persistShout } from "./shout.js";
@@ -188,7 +188,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const reviewHeartbeats = new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
   return atomic(board, () => {
     const relaxedItem = engine >= REVIEW_FAMILY_RELAX_ENGINE ? getItem(board, id) : null;
-    const relaxation = measureBoardWritePhase(board.db, 'verify-relaxation', () => relaxedItem && itemReviewPolicy(board, id).tier === 'standard' ? reservedRelaxation(board, relaxedItem, agentId) : null);
+    const relaxation = measureBoardWritePhase(board.db, 'verify-relaxation', () => relaxedItem && verdictRelaxableTier(board, relaxedItem) ? reservedRelaxation(board, relaxedItem, agentId) : null);
     const relaxationLine = relaxation ? relaxationRecordLine(board, relaxedItem, agentId, relaxation) : null;
     if (relaxation) note += `\n${relaxationLine}`;
     const proofKnown = verdictEvidence(board, id, { agentId, isAccept, engine, review, knownMainFailures, quarantineProofId, enforce: !prechecked });
