@@ -22,10 +22,10 @@ function reader(files = {}) {
 /** A committed shim, moved implementation, and valid bounded exception. */
 function files(overrides = {}) {
   return {
-    [`before:${shim}`]: `export { request } from './request.js';\n`,
-    [`after:${shim}`]: `export { request } from './request.js';\n`,
-    [`before:${moved}`]: 'export const request = true;\n',
-    [`after:${moved}`]: 'export const request = true;\n',
+    [`HEAD:${shim}`]: `export { request } from './request.js';\n`,
+    [`:index:${shim}`]: `export { request } from './request.js';\n`,
+    [`HEAD:${moved}`]: 'export const request = true;\n',
+    [`:index:${moved}`]: 'export const request = true;\n',
     'packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [
       { importer, target: shim, contractItem: 12797, expires: '2099-12-31' },
     ] }),
@@ -81,6 +81,6 @@ test('codemap.io-shim-ratchet.parser-required: an added import requires the cano
 
 test('codemap.io-shim-ratchet.malformed-plan-refuses: malformed plan rows retain their explicit refusal [C7]: malformed plan refusal remains', () => {
   const malformed = reader({ 'HEAD:packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ file: '../outside.json' }] }) });
-  assert.throws(() => check({ after: `import '${specifier}';`, read: malformed.read }),
+  assert.throws(() => check({ after: `import '${specifier}';`, read: malformed.read, planRows: [null] }),
     { code: 'SHIM_IMPORT_PLAN' });
 });
