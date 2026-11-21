@@ -163,6 +163,8 @@ export function withoutPullboardEnv(source) {
 const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit', 'run']);
 /** Budget: how long a fixture command waits for the loopback local runner to finish the jobs it offered. */
 const SETTLE_MS = 180_000;
+/** How long a done gate job may wait for its gate_settled event after the queue holds no unfinished job (gates that settle to no event never get one). */
+const GRACE_MS = 3000;
 
 /**
  * Wait until the fixture board's runner job queue holds no unfinished job, so a journey reads a settled gate or landing.
@@ -183,12 +185,18 @@ export function settlePulledJobs(cwd, args, env) {
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
   if (!existsSync(file)) return;
   const deadline = Date.now() + SETTLE_MS;
+  const unsettledUntil = Date.now() + GRACE_MS;
   for (;;) {
     let open = false;
     // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
     try {
       const db = new DatabaseSync(file, { readOnly: true });
-      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
+      try {
+        open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get());
+        // A done gate job's receipt is applied just after the runner marks the job done, and the gate_settled event lands in that apply, so a
+        // show right after would see the thread with or without it. A gate with no event yet is waited for, for at most GRACE_MS.
+        if (!open && Date.now() < unsettledUntil) open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_step = 'done' AND NOT EXISTS (SELECT 1 FROM event WHERE event_kind = 'gate_settled' AND json_extract(event_detail, '$.job') = job_id) LIMIT 1").get());
+      } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
     if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env, { entry: CLI_ENTRY }); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
@@ -229,12 +237,18 @@ export async function settlePulledJobsAsync(cwd, args, env) {
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
   if (!existsSync(file)) return;
   const deadline = Date.now() + SETTLE_MS;
+  const unsettledUntil = Date.now() + GRACE_MS;
   for (;;) {
     let open = false;
     // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
     try {
       const db = new DatabaseSync(file, { readOnly: true });
-      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
+      try {
+        open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get());
+        // A done gate job's receipt is applied just after the runner marks the job done, and the gate_settled event lands in that apply, so a
+        // show right after would see the thread with or without it. A gate with no event yet is waited for, for at most GRACE_MS.
+        if (!open && Date.now() < unsettledUntil) open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_step = 'done' AND NOT EXISTS (SELECT 1 FROM event WHERE event_kind = 'gate_settled' AND json_extract(event_detail, '$.job') = job_id) LIMIT 1").get());
+      } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
     if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env, { entry: CLI_ENTRY }); // A gate switch stopped it (runnerSwitchedEnv).
     await runnerFolderChange(env);
