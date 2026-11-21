@@ -113,19 +113,17 @@ function cachedPolicySource(heads, commit) {
   if (!heads) return null;
   try {
     const record = JSON.parse(fs.readFile(join(heads.commonDir, POLICY_CACHE_FILE)));
-    return record.main === commit && record.head === heads.head && typeof record.source === 'string' ? record.source : null;
+    const whole = typeof record.source === 'string' && record.sha256 === createHash('sha256').update(record.source).digest('hex');
+    return whole && record.main === commit && record.head === heads.head ? record.source : null;
   } catch { return null; }
 }
 
-/** Keep the policy bytes for this main tip and HEAD, replacing any older pair; a failed write only loses the cache. */
+/** Keep the policy bytes for this main tip and HEAD, replacing any older pair; the digest makes a torn or mixed write read as a miss. */
 function keepPolicySource(heads, commit, source) {
   if (!heads) return;
-  const file = join(heads.commonDir, POLICY_CACHE_FILE);
-  const temporary = `${file}.${process.pid}.tmp`;
-  try {
-    fs.writeFile(temporary, JSON.stringify({ main: commit, head: heads.head, source }));
-    fs.rename(temporary, file);
-  } catch { try { fs.rm(temporary, { force: true }); } catch { /* the cache is optional */ } }
+  const sha256 = createHash('sha256').update(source).digest('hex');
+  try { fs.writeFile(join(heads.commonDir, POLICY_CACHE_FILE), JSON.stringify({ main: commit, head: heads.head, sha256, source })); }
+  catch { /* the cache is optional: a failed write only costs the next read a Git child */ }
 }
 
 /** Re-read coordinator settings from a pinned Git object; never from the candidate filesystem. */
