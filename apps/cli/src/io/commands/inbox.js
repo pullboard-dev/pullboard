@@ -40,7 +40,9 @@ export async function run(io, { values = {} } = {}) {
     // inbox.batchedMarks: queued marks go to a background worker that writes them in one batch (#9117).
     handOffMarks: (c, entries) => { if (!entries.length) return; spoolInboxMarks(c.file, entries); startMarksWorker(MARKS_WORKER, c.file); },
     // The delivery record leaves the same way: the spool holds it and the worker writes it, so the read opens no write board (#10879).
-    handOffDelivery: (c, agentId, group) => {
+    // A relay-linked board still needs its key to record canonical delivery, so a keyless read is refused here, not spooled.
+    handOffDelivery: async (c, agentId, group) => {
+      (await import('../sync.js')).requireDeliveryKey(c);
       const delivery = { ...group };
       delete delivery.agentId;
       spoolInboxMarks(c.file, [{ agent: agentId, delivery }]);

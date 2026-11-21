@@ -2,7 +2,7 @@
  * The thin read door for `pullboard show`: a plain item's facts (the item, the seats and its history), read through the
  * light store and verdict reader alone, never the board barrel. Any item whose show also reads a receipt, a refusal, the
  * thread, typed fields, related links, an after-gate list, a submit or a foreign wait steps aside for the full path,
- * which keeps those heavy sections [C7,#12412].
+ * which keeps those heavy sections; the proof receipts and a reject's refusal it serves with the item's facts [C7,#12412,#10767].
  * `reads` lets the show command hand in readers for the progress, machine, independence and cost facts, so this door imports
  * no cell for them; #12413 wires it.
  */
@@ -14,8 +14,8 @@ import { repoInfo } from '../../../../../packages/git/light.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/light.js';
 import { derivedStateEnabled } from '../../../../../packages/config/light.js';
 
-/** The event kinds whose presence makes the full show print a refusal, a thread entry, a submit or a proof receipt. */
-const HEAVY_KINDS = new Set(['fact', 'note', 'comment', 'reject', 'reopen', 'release', 'reject_returned', 'submit_handoff_returned', 'submit', 'proof-run']);
+/** The event kinds whose presence makes the full show print a thread entry or a submit; a proof receipt and a reject's refusal the door serves itself [C7,#10767]. */
+const HEAVY_KINDS = new Set(['fact', 'note', 'comment', 'reopen', 'release', 'reject_returned', 'submit_handoff_returned', 'submit']);
 
 /** Whether `table` has any row for the item under `column`; a board without the table has none. */
 function hasRows(board, table, column, id) {
@@ -43,7 +43,10 @@ export async function thinShowFacts({ cwd, id, clock = store.systemClock, confli
     try { stored = store.getItem(board, id); } catch (error) { if (error?.code === 'NO_ITEM') return null; throw error; }
     if (!stored || stored.item_merged_commit) return null;
     const history = store.events(board, { itemId: id });
-    if (history.some(event => HEAVY_KINDS.has(event.event_kind)) || store.proofReceipts(board, id).length > 0) return null;
+    if (history.some(event => HEAVY_KINDS.has(event.event_kind))) return null;
+    // Receipts read from the light store; a board that keeps its runs in a runs file needs the full store's runs reader, so the door steps aside for it [C7,#10767].
+    const receipts = store.proofReceipts(board, id);
+    if (receipts.length > 0 && board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('runs_store')?.meta_value === '1') return null;
     if (hasRows(board, 'item_field', 'item_id', id) || hasRows(board, 'item_related', 'item_low', id) || hasRows(board, 'item_related', 'item_high', id)) return null;
     if (board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get(`after_gate:${id}`)) return null;
     if (stored.item_after && dependencyReferences(stored).some(ref => ref.kind !== 'local')) return null;
@@ -57,7 +60,7 @@ export async function thinShowFacts({ cwd, id, clock = store.systemClock, confli
     if (meta('item_check_timing')?.meta_value === 'true') item.item_check_timing = true;
     const landingPhases = meta('landing_phases');
     if (landingPhases) item.landing_phases = JSON.parse(landingPhases.meta_value);
-    const facts = { item, agents: store.listAgents(board), history };
+    const facts = { item, agents: store.listAgents(board), history, ...(receipts.length ? { receipts } : {}) };
     // The caller's readers run on the open board and the projected item, inside this try, so a refusal steps aside like any other.
     if (reads) for (const key of ['progress', 'machine', 'independence', 'cost']) facts[key] = reads[key](board, item);
     return facts;
