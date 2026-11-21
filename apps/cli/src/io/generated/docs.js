@@ -10,7 +10,8 @@ import { commandHelpModule } from '../docs.js';
 import { shapeTable } from '../../logic/generated/doc/blocks.js';
 import { schemaDocBlocks } from '../../logic/generated/doc/schema.js';
 import { declarationDocBlocks } from './declarations.js';
-import { API_NOTES, HTTP_PATHS } from './api-notes.js';
+import { API_NOTES } from './api-notes.js';
+import { HTTP_PATHS } from './api-notes.js';
 
 const files = fileSystemAdapter();
 
