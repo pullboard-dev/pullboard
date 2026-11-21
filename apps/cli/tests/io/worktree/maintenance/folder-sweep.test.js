@@ -1,6 +1,7 @@
 /** @pullboard-test-loads apps/cli/src/io/worktree/maintenance.js apps/cli/src/io/worktree/maintenance/folder-sweep.js */
 /** One maintenance sweep removes clean folders of landed, withdrawn and dead-seat items inside the grace; dirty ones keep their diff at a keep ref [C7,#12537]. */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -178,9 +179,10 @@ test('cli.io-worktree-maintenance-folder-sweep.releases-and-reclaims: clause 2: 
   assert.equal(row(clean).action, 'swept');
   assert.equal(fx.git(fx.repo, 'rev-parse', `core/item-${clean.id}`).trim(), clean.commit);
   assert.equal(row(dirty).keepRef, `refs/pullboard/keep/${dirty.id}`);
-  assert.equal(fx.git(fx.repo, 'rev-parse', `${row(dirty).keepRef}:unfinished.bin`).trim(),
-    fx.git(fx.repo, 'hash-object', join(dirty.path, 'unfinished.bin')).trim());
-  for (const work of [dirty, refused, raced]) assert.deepEqual(readFileSync(join(work.path, 'unfinished.bin')), bytes);
+  assert.deepEqual(execFileSync('git', ['-C', fx.repo, 'cat-file', 'blob', `${row(dirty).keepRef}:unfinished.bin`]), bytes);
+  // The released claim's dirty folder is removed once its diff is kept (#12530); the other two folders keep their work.
+  assert.equal(existsSync(dirty.path), false, row(dirty).reason);
+  for (const work of [refused, raced]) assert.deepEqual(readFileSync(join(work.path, 'unfinished.bin')), bytes);
   for (const work of [refused, held, raced]) assert.equal(store.getItem(board, work.id).item_status, 'claimed');
   assert.deepEqual(readFileSync(join(ignored.path, 'ignored.bin')), bytes);
   assert.match(row(ignored).reason, /outside folder sweep custody/u);
