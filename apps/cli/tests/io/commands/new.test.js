@@ -1,7 +1,6 @@
 /** @pullboard-test-input apps/cli/src/io/commands/new.js apps/cli/src/logic/new-package.js apps/cli/src/logic/new-package.json apps/cli/tests/fixtures/e2e.js */
 /** pullboard new package writes the files newPackageFiles returns under packages/<name>, and refuses an existing folder or a bad first word [C7,#11426]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -9,6 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { after } from 'node:test';
+import { run } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { newPackageFiles } from '../../../src/logic/new-package.js';
@@ -88,6 +88,12 @@ test('cli.io-commands-new.lints-generated-tests-pass: clause 2: the registry and
   assert.equal(made.code, 0, made.err || made.out);
   const tests = Object.keys(newPackageFiles('tidy-cell', 'x')).filter(path => /\/tests\/[^/]+\.test\.js$/u.test(path));
   assert.ok(tests.some(path => path.endsWith('inputs.test.js')) && tests.some(path => path.endsWith('registry.test.js')), tests.join());
-  const run = spawnSync(process.execPath, ['--test', ...tests], { cwd: box.repo, encoding: 'utf8' });
-  assert.equal(run.status, 0, run.stdout + run.stderr);
+  // node:test's own runner loads the generated files in its isolated children, so this test spawns nothing itself.
+  const passed = [], failed = [];
+  for await (const event of run({ files: tests.map(path => join(box.repo, path)), cwd: box.repo })) {
+    if (event.type === 'test:pass') passed.push(event.data.name);
+    if (event.type === 'test:fail') failed.push(`${event.data.name}: ${event.data.details?.error?.message ?? ''}`);
+  }
+  assert.deepEqual(failed, []);
+  assert.ok(passed.length >= tests.length, `ran ${passed.length} cases for ${tests.length} files`);
 });
