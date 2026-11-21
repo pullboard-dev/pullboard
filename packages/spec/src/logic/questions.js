@@ -1,4 +1,4 @@
-import { Refused } from '../../../kernel/light.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Shared bounded answer grammar used by blueprint questions and signed row decisions. */
 export const CHOICES = '. Choices: ';

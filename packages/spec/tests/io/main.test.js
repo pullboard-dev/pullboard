@@ -11,7 +11,6 @@ import { answerQuestion } from '../../light.js';
 import { CHOICES } from '../../light.js';
 import { MOST_CHOICE_PARTS } from '../../light.js';
 import { positions } from '../../light.js';
-import { Refused } from '../../../kernel/light.js';
 
 const ITEM = { item_title: 'Load twice', item_criterion: 'second load adds nothing', item_spec_ids: 'G1' };
 const specWith = stakes => parseSpec(`# Spec
@@ -52,6 +51,6 @@ test('spec.io-main.show-question-boundary: clause 1: answerQuestion and its pure
   });
   assert.equal(answerFromText(pending, 'Which color: Blue. Choices: Blue, Green.'), 'Blue');
   assert.equal(answerFromText(pending, 'Which color: Purple. Choices: Blue, Green, Purple.'), 'Purple');
-  assert.throws(() => answerQuestion('not a question', 'Blue', 'Q1'), error => error instanceof Refused && error.code === 'SPEC_ANSWER');
-  assert.throws(() => answerQuestion(`Q: A. Choices: ${Array.from({ length: 13 }, (_, index) => `C${index}`).join(', ')}.`, 'A', 'Q1'), error => error instanceof Refused && error.code === 'SPEC_ANSWER_CHOICES');
+  assert.throws(() => answerQuestion('not a question', 'Blue', 'Q1'), error => error.code === 'SPEC_ANSWER' && error.message.startsWith('[SPEC_ANSWER]'));
+  assert.throws(() => answerQuestion(`Q: A. Choices: ${Array.from({ length: 13 }, (_, index) => `C${index}`).join(', ')}.`, 'A', 'Q1'), error => error.code === 'SPEC_ANSWER_CHOICES' && error.message.startsWith('[SPEC_ANSWER_CHOICES]'));
 });
