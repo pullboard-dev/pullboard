@@ -12,6 +12,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { hostCapabilities } from '../../../../../../packages/drive/index.js';
 import { localLoadAdmits } from '../../../../../../packages/drive/index.js';
 import { localLoadShare } from '../../../../../../packages/config/index.js';
+import { gateRunnerAdmission } from '../../../../../../packages/config/index.js';
 import { asyncFetchEnabled } from '../../../../../../packages/config/index.js';
 import { localBoards } from '../../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../../packages/drive/index.js';
@@ -39,6 +40,16 @@ function land(claim, { cache, renew, env }) {
   return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed, asyncFetch: asyncFetchEnabled() });
 }
 
+/** Job kinds that run a gate or a test suite: with gate.runnersOnly on, this machine's local runner never claims them [C7,V4]. */
+const RUNNERS_ONLY_KINDS = ['gate', 'gate-shard', 'test'];
+
+/** Add the suite kinds to an admission answer's except list while gate.runnersOnly is on; a local runner started before the setting still honors it. */
+function withheldUnderRunnersOnly(admitted) {
+  if (!admitted || !gateRunnerAdmission().runnerOnly) return admitted;
+  const except = [...new Set([...(admitted === true ? [] : admitted.except ?? []), ...RUNNERS_ONLY_KINDS])];
+  return { except };
+}
+
 /** Run the local runner until SIGINT or SIGTERM; refuses LOCAL_RUNNER_RUNNING, a non-zero exit, when a runner of this home already runs. */
 async function serveLocal(io) {
   const folder = localRunnerFolder();
@@ -56,7 +67,7 @@ async function serveLocal(io) {
     const projects = () => localBoards(folder).map(root => ({ root, name: basename(root), project: basename(root), added: '' }));
     const served = await serveLocalRunner({ folder, open: () => loopbackBoardApi(io, { projects, secret: randomBytes(18).toString('base64url') }),
       wakeOnOffer: runnerSettingOn(machineSettingsFile(), 'runners.localWake'), wakeMark: mark, wakeIdle: idle, home: localRunnerHome(), capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
-      admit: ({ running, held }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running, held }) });
+      admit: ({ running, held }) => withheldUnderRunnersOnly(localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running, held })) });
     if (!served.served) throw new Refused(served.code, `a local runner of this home already runs${served.pid === null ? '' : ` (pid ${served.pid})`}`, served.next);
     return 0;
   } finally {
