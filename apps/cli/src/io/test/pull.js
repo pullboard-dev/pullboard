@@ -56,14 +56,22 @@ export function authenticatedPullCompletion(envelope, expected, runners) {
   try {
     if (!envelope || envelope.version !== 1 || envelope.job !== expected.job || envelope.nonce !== expected.nonce
       || envelope.source !== expected.source || envelope.tree !== expected.tree || envelope.outputSha256 !== expected.outputSha256
-      || envelope.status !== expected.status || envelope.signal !== expected.signal
-      || envelope.requestSha256 !== expected.requestSha256 || envelope.packetSha256 !== expected.packetSha256
+      || envelope.status !== expected.status || envelope.signal !== expected.signal) return false;
+    const matches = (runners ?? []).filter(row => row.host === envelope.host && typeof row.publicKey === 'string');
+    return matches.length === 1 && verifyRunnerReceipt(envelope, matches[0].publicKey);
+  } catch { return false; }
+}
+
+/** A completion that also binds the exact request, packet, runtime and tooling, so its packet may be retained [C7,#12643]. */
+export function authenticatedPullPacket(envelope, expected, runners) {
+  try {
+    if (!authenticatedPullCompletion(envelope, expected, runners)) return false;
+    if (envelope.requestSha256 !== expected.requestSha256 || envelope.packetSha256 !== expected.packetSha256
       || envelope.runtimeSha256 !== expected.runtimeSha256 || envelope.toolingSha256 !== expected.toolingSha256
       || envelope.context?.runtime !== expected.runtimeSha256 || envelope.context?.tooling !== expected.toolingSha256) return false;
-    const matches = (runners ?? []).filter(row => row.host === envelope.host && typeof row.publicKey === 'string');
-    return matches.length === 1 && matches[0].runtimeSha256 === expected.runtimeSha256
-      && /^[a-f0-9]{64}$/u.test(expected.runtimeSha256 ?? '') && /^[a-f0-9]{64}$/u.test(expected.toolingSha256 ?? '')
-      && verifyRunnerReceipt(envelope, matches[0].publicKey);
+    const pinned = (runners ?? []).find(row => row.host === envelope.host);
+    return pinned?.runtimeSha256 === expected.runtimeSha256 && typeof expected.packetSha256 === 'string'
+      && /^[a-f0-9]{64}$/u.test(expected.runtimeSha256 ?? '') && /^[a-f0-9]{64}$/u.test(expected.toolingSha256 ?? '');
   } catch { return false; }
 }
 
@@ -111,7 +119,6 @@ if (hits && Array.isArray(hits.files)) { const hitsFile = join(tools, 'pullboard
 // A review comparison names its run id, so the test runner frames each case's outcome under it [V4,C7].
 const runId = typeof input.runId === 'string' && /^[a-f0-9-]{36}$/u.test(input.runId) ? input.runId : null;
 if (runId) env.${TIMING_RUN_ID_ENV} = runId;
-if (runId) env.PULLBOARD_TEST_RESULT_REQUEST = runId;
 const ran = spawnSync(input.command, { shell: true, cwd: root, env, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] });
 const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
 const text = output.toString('utf8') + (ran.error ? String(ran.error.message) : '');
@@ -452,16 +459,18 @@ async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) 
     let toolingSha256 = null;
     try { const archiveTree = git(ctx.info.root, ['rev-parse', `${fields.main}^{tree}`]).trim(); toolingSha256 = createHash('sha256').update(JSON.stringify({ version: 1, archiveTree, bootstrap: offered.run.slice(1), entry: offered.entry })).digest('hex'); } catch { /* no independent pin */ }
     const runtimeSha256 = pinned.length === 1 ? pinned[0].runtimeSha256 : null;
-    const authenticated = authenticatedPullCompletion(receipt.signedCompletion, { job: offered.job, nonce: offered.completionNonce, source: fields.commit, tree,
-      outputSha256: receipt.outputSha256, status: receipt.status, signal: receipt.signal, requestSha256: offered.requestSha256, packetSha256, runtimeSha256, toolingSha256 }, enrolled);
-    if (authenticated && typeof packet === 'string' && packet.length <= Math.ceil(PACKET_RECEIPT_BYTES / 3) * 4) {
+    const identity = { job: offered.job, nonce: offered.completionNonce, source: fields.commit, tree,
+      outputSha256: receipt.outputSha256, status: receipt.status, signal: receipt.signal };
+    const authenticated = authenticatedPullCompletion(receipt.signedCompletion, identity, enrolled);
+    const retainable = authenticatedPullPacket(receipt.signedCompletion, { ...identity, requestSha256: offered.requestSha256, packetSha256, runtimeSha256, toolingSha256 }, enrolled);
+    if (retainable && typeof packet === 'string' && packet.length <= Math.ceil(PACKET_RECEIPT_BYTES / 3) * 4) {
       try {
         const [{ importTestResults, retainTestResultCompletion, testResultStore, validTestResult }, { gunzipSync }] = await Promise.all([import('../../../../../packages/gate/index.js'), import('node:zlib')]);
         const entries = JSON.parse(gunzipSync(Buffer.from(packet, 'base64'), { maxOutputLength: 8 * 1024 * 1024 }).toString('utf8'));
         const keys = offered.inputKeys, outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : [];
         const sortRows = rows => [...rows].sort((a, b) => `${a.file}\0${a.name}`.localeCompare(`${b.file}\0${b.name}`));
         const complete = Array.isArray(entries) && entries.length > 0 && entries.every(entry => validTestResult(entry) && keys.includes(entry.inputKey)
-          && fields.files.includes(entry.file) && entry.status === 'pass' && entry.origin.request === offered.runId && Array.isArray(entry.tap?.testOutcomes)
+          && fields.files.includes(entry.file) && entry.status === 'pass' && Array.isArray(entry.tap?.testOutcomes)
           && JSON.stringify(sortRows(entry.tap.testOutcomes)) === JSON.stringify(sortRows(outcomes.filter(row => row.file === entry.file))))
           && keys.every(key => entries.some(entry => entry.inputKey === key));
         if (complete && outcomes.length) {

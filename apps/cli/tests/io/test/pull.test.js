@@ -23,6 +23,7 @@ import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
 import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
+import { authenticatedPullPacket } from '../../../src/io/test/pull.js';
 import { pullPacketDigest } from '../../../src/io/test/pull.js';
 import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
 import { generateKeyPairSync } from 'node:crypto';
@@ -67,11 +68,11 @@ test('cli.io-test-pull.authenticated-outcome-retention: clause 1: controller acc
   const row = { version: 1, ...expected, host: 'runner.example', context: { version: 1, runtime: runtimeSha256, tooling: toolingSha256 } };
   const signed = { ...row, signature: signRunnerReceipt(row, privateKey) };
   const enrolled = [{ host: row.host, runtimeSha256, publicKey: publicKey.export({ type: 'spki', format: 'der' }).toString('base64url') }];
-  assert.equal(authenticatedPullCompletion(signed, expected, enrolled), true);
+  assert.equal(authenticatedPullPacket(signed, expected, enrolled), true);
   for (const field of ['requestSha256', 'packetSha256', 'runtimeSha256', 'toolingSha256']) {
-    assert.equal(authenticatedPullCompletion(signed, { ...expected, [field]: '0'.repeat(64) }, enrolled), false, `mismatched ${field}`);
+    assert.equal(authenticatedPullPacket(signed, { ...expected, [field]: '0'.repeat(64) }, enrolled), false, `mismatched ${field}`);
   }
-  assert.equal(authenticatedPullCompletion(signed, expected, [{ ...enrolled[0], runtimeSha256: '0'.repeat(64) }]), false, 'runtime must match independent enrollment pin');
+  assert.equal(authenticatedPullPacket(signed, expected, [{ ...enrolled[0], runtimeSha256: '0'.repeat(64) }]), false, 'runtime must match independent enrollment pin');
   assert.match(testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''), /selectedTestResults\(store, keys\)/u);
 });
 
