@@ -12,6 +12,7 @@ function planFiles() {
   const shard = { order: 1, name: 'demo', kind: 'package', root: 'packages/demo', frontDoor: SOURCE, paths: [], reexports: [], imports: [], cuts: [] };
   return {
     [`${PLAN}/cells.json`]: JSON.stringify(index, null, 2) + '\n',
+    'pullboard.json': JSON.stringify({ cells: { cache: true, plan: `${PLAN}/cells.json` } }, null, 2) + '\n',
     [SHARD]: JSON.stringify(shard, null, 1) + '\n',
     [SOURCE]: "export const demo = 'demo';\n",
   };
