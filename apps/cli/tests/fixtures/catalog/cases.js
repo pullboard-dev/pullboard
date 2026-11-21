@@ -1162,10 +1162,10 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   source.env.PATH = `${sshBin}:${source.env.PATH}`;
   const runner = await json(source, source.repo, 'runner', ['add', HOST, '--slots', '2', '--browser', '1']);
   // Registration measures the host over the probe, so the record also carries what the probe observed.
-  const { cores, gui, measuredAt, memoryMB, node, publicKey, ...registered } = runner.runner;
+  const { cores, gui, measuredAt, memoryMB, node, publicKey, runtimeSha256, ...registered } = runner.runner;
   assert.deepEqual(registered, { host: HOST, slots: 2, browser: 1, fixed: true });
   assert.ok(typeof gui === 'boolean' || gui === null, 'gui is what the probe saw, or null when it saw no display');
-  assert.deepEqual([typeof cores, typeof (gui ?? false), typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey], ['number', 'boolean', 'string', 'number', 'string', 'string']);
+  assert.deepEqual([typeof cores, typeof (gui ?? false), typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey, typeof runtimeSha256], ['number', 'boolean', 'string', 'number', 'string', 'string', 'string']);
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
   assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
