@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli packages/gate */
 /** A test job request carries the caller's fixture switches and nothing else from its shell [C7,#10849]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -12,7 +12,7 @@ import { finishLedgerRows } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { runPulledEntry } from '../../fixtures/test/pulled-entry.js';
 import { runFixtureGit } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { mkdirSync } from 'node:fs';
@@ -22,7 +22,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { storeTestResult } from '../../../../../packages/gate/src/io/test/store.js';
+import { storeTestResult } from '../../../../../packages/gate/index.js';
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
   const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
@@ -38,7 +38,7 @@ test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled che
   const tests = fileURLToPath(new URL('../../../../../packages/gate/src/io/run/tests.js', import.meta.url));
   const data = { main: commit, source: commit, files: ['test/proof.test.js'], command: `${process.execPath} ${tests} ./test/proof.test.js`, runId: '11111111-2222-3333-4444-555555555555' };
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PULLBOARD_(TEST_|LEDGER_HITS|TIMING_RUN_ID)/u.test(key)));
-  const run = (root, extra = {}) => runFixtureChild(process.execPath, [entry, root], { input: JSON.stringify(data), encoding: 'utf8', env: { ...env, ...extra }, timeout: 120_000 });
+  const run = (root, extra = {}) => runPulledEntry(entry, root, data, { ...env, ...extra });
   assert.equal(run(one).status, 0);
   const second = run(two);
   assert.equal(second.status, 0);
