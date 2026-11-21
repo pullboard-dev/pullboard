@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../git/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../gate/tests/fixtures/testkit.js';
 import { runContributionClauses } from '../index.js';
 
