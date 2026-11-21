@@ -9,6 +9,9 @@ import { cleanGitEnvironment } from '../../../../../../packages/git/index.js';
 import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 import { gitSpawnSync } from '../../../../../../packages/git/index.js';
 import { maintenanceGit } from './archive.js';
+import { goneMaintenanceSeat } from './classify.js';
+import { classifyMaintenanceTree } from './classify.js';
+import { registeredMaintenanceTrees } from './observation.js';
 import { itemObligation } from './classify.js';
 import { maintenanceAllocatedBytes } from './observation.js';
 import { takeMaintenanceCheckout } from './observation.js';
@@ -41,7 +44,7 @@ function quiet(path, args) {
 }
 
 /** Which rule lets this tree go, or null to keep it. */
-function sweepRule(path, { seats, items }, { now, branch, retiredIdle }) {
+function sweepRule(path, { seats, items, takeoverMs }, { now, branch, directories }) {
   const match = ITEM_FOLDER.exec(path) ?? ITEM_BRANCH.exec(branch ?? '');
   const own = match ? items.find(item => item.item_id === Number(match[1])) : null;
   // A live claim, review or unmerged submission of the folder's own item keeps it, whoever holds it.
@@ -57,7 +60,7 @@ function sweepRule(path, { seats, items }, { now, branch, retiredIdle }) {
   if (own && closed(own) && owners.length === 0) return { rule: 'item-closed', item: own.item_id };
   // A seat is gone once the classifier found it idle past the line's takeover window, the window claims use (#8199).
   // Presence alone never proves a seat left: a rejoined or hookless seat keeps an old heartbeat (#5969).
-  if (owners.length) return retiredIdle ? { rule: 'dead-seat', item: own?.item_id ?? null } : null;
+  if (owners.length) return owners.every(seat => goneMaintenanceSeat(seat, takeoverMs, now, directories) !== null) ? { rule: 'dead-seat', item: own?.item_id ?? null } : null;
   // No board row speaks for it: an item folder whose seat folder is gone.
   const seatPath = ITEM_FOLDER.test(path) ? path.replace(ITEM_FOLDER, '') : null;
   if (seatPath && !fs.exists(seatPath)) return { rule: 'dead-seat', item: own?.item_id ?? null };
@@ -87,9 +90,10 @@ function keepDiff(path, name) {
  * A clean tree goes with `git worktree remove` (never --force); a dirty one keeps its diff at refs/pullboard/keep/<id> and stays.
  * Each removal and each keep is logged through ports.recordSweep as a board event naming the rule.
  */
-export async function sweepFinishedFolders(root, entries, { mainRoot, now, observed, ports, report, dirtyPaths }) {
+export async function sweepFinishedFolders(root, entries, { mainRoot, now, config, observed, ports, report, dirtyPaths, readDirectories }) {
   const main = resolve(mainRoot), agents = resolve(main, '.claude', 'worktrees');
   const seatRoots = new Set(observed.seats.map(seat => seat.agent_path ?? seat.path).filter(Boolean).map(path => dirname(resolve(path))));
+  const directories = readDirectories();
   for (const entry of entries) {
     if (entry.action !== 'kept') continue;
     const path = resolve(entry.path);
@@ -101,8 +105,16 @@ export async function sweepFinishedFolders(root, entries, { mainRoot, now, obser
     let lease;
     try {
       const branch = quiet(path, ['symbolic-ref', '-q', 'HEAD']);
-      const retiredIdle = entry.retiredIdle === true;
-      const found = sweepRule(path, observed, { now, branch, retiredIdle });
+      if (!sweepRule(path, observed, { now, branch, directories })) continue;
+      lease = await takeMaintenanceCheckout(path, ports.agentId);
+      // Check fresh Git registration, processes and board custody under the checkout lease.
+      const current = registeredMaintenanceTrees(root).find(tree => resolve(tree.path) === path);
+      if (!current || current.locked || current.bare || branch !== quiet(path, ['symbolic-ref', '-q', 'HEAD'])) continue;
+      const fresh = await ports.readSnapshot(), currentDirectories = readDirectories();
+      const row = classifyMaintenanceTree(current, { mainRoot, currentRoot: root, config,
+        ...fresh, now, workingDirectories: currentDirectories });
+      if (!SWEEPABLE.has(row.reason) && !(agentTree && row.reason === 'recovery-checkout')) continue;
+      const found = sweepRule(path, fresh, { now, branch, directories: currentDirectories });
       if (!found) continue;
       const dirty = dirtyPaths(path);
       if (dirty.length) {
@@ -113,9 +125,11 @@ export async function sweepFinishedFolders(root, entries, { mainRoot, now, obser
         await ports.recordSweep?.({ action: 'kept', rule: found.rule, path, item: found.item, ref: kept.ref, commit: kept.commit });
         continue;
       }
-      lease = await takeMaintenanceCheckout(path, ports.agentId);
-      // Reread the board under the lease: a claim taken since the sweep began keeps the folder.
-      if (!sweepRule(path, await ports.readSnapshot(), { now, branch, retiredIdle }) || dirtyPaths(path).length) continue;
+      // Git's non-forced removal still drops ignored files. They are outside the keep ref's custody.
+      if (maintenanceGit(path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])) {
+        entry.reason = 'ignored data are outside folder sweep custody; worktree kept';
+        continue;
+      }
       // A detached head that main lacks keeps its commit at a keep ref before the folder goes.
       let ref = null;
       const head = quiet(path, ['rev-parse', 'HEAD']);
