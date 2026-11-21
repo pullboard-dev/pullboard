@@ -278,6 +278,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'release --reason': ['--reason <reason>', 'why you hand it back: INELIGIBLE, ROUTED_ELSEWHERE, BLOCKED, BUDGET, TAKEN_OVER or OTHER'],
   'verify --reason': ['--reason TEST_FAILURE', 'why you reject, one of TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD or OTHER'],
   'serve --address': 'the IPv4 address to listen on',
+  'serve install --address': 'the IPv4 address the installed service listens on; without it the serve settings apply',
   'test --diagnose': 'prioritizes the run so its failure is explained first',
   'test --cancel': 'cancels the queued or running test run with this id',
   'gate --static': 'runs only the gate static stage here and prints each finding with its rule code',
