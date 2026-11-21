@@ -45,7 +45,7 @@ test('cli.io-next-claim-substeps.default-claim-output-and-event: clause 2: witho
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.ok(!taken.err.includes('next profile:'), taken.err);
   const item = box.board.db.prepare("SELECT item_id FROM item WHERE item_title = 'Profile claim sub-steps'").get();
-  const event = box.board.db.prepare("SELECT event_kind, event_detail FROM event WHERE item_id = ? AND event_kind = 'claim' ORDER BY event_id DESC LIMIT 1").get(item.item_id);
+  const event = box.board.db.prepare("SELECT event_by, event_kind, event_detail FROM event WHERE item_id = ? AND event_kind = 'claim' ORDER BY event_id DESC LIMIT 1").get(item.item_id);
   assert.equal(event.event_kind, 'claim');
-  assert.equal(JSON.parse(event.event_detail).agentId, box.seats.actor.id);
+  assert.equal(event.event_by, box.seats.actor.id);
 });
