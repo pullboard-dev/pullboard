@@ -1,5 +1,5 @@
 /** Exact person row decisions and coordinator file application [B26,S18,S19]. */
-import { answerFromText } from '../main.js';
+import { answerFromText } from '../../logic/questions.js';
 import {
   dirname,
   join,
