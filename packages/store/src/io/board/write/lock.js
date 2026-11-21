@@ -152,6 +152,9 @@ export function beginBoardWrite(db, context = {}, marker = null) {
   return record;
 }
 
+/** Per connection, the time already spent in phases nested inside each open phase. */
+const nestedPhaseMs = new WeakMap();
+
 /**
  * Account a named synchronous part of the active writer without performing diagnostic I/O.
  * A call that passes `move` is the move body: the record names the move, and the slowest phase measured
@@ -165,6 +168,9 @@ export function beginBoardWrite(db, context = {}, marker = null) {
  */
 export function measureBoardWritePhase(db, name, work, move) {
   const started = performance.now();
+  // Phases nest (a slow statement inside logEvent inside an outer part); the step takes the part's own time, so the innermost slow part names the hold [C7,#12676].
+  const open = nestedPhaseMs.get(db) ?? nestedPhaseMs.set(db, []).get(db);
+  open.push(0);
   if (move) for (const record of pending.get(db) ?? []) {
     if (record.complete) continue;
     record.move = move;
@@ -172,10 +178,13 @@ export function measureBoardWritePhase(db, name, work, move) {
   }
   try { return work(); } finally {
     const elapsed = performance.now() - started;
+    const nested = open.pop() ?? 0;
+    const own = elapsed - nested;
+    if (open.length) open[open.length - 1] += elapsed;
     for (const record of pending.get(db) ?? []) {
       if (record.complete) continue;
       if (move) record.moveDepth = Math.max(0, (record.moveDepth ?? 1) - 1);
-      else if (record.moveDepth > 0 && elapsed > (record.stepMs ?? 0)) { record.step = name; record.stepMs = elapsed; }
+      else if (record.moveDepth > 0 && own > (record.stepMs ?? 0)) { record.step = name; record.stepMs = own; }
       record.workAccountedMs = (record.workAccountedMs ?? 0) + elapsed;
       if (elapsed > (record.phaseMs ?? 0)) { record.phase = name; record.phaseMs = elapsed; }
     }
