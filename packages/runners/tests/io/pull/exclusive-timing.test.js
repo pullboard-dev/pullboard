@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../../drive/index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
-import { privateFixtureFiles, runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const GATE = `process.stdin.resume(); process.stdin.on('end', () => console.log('PULLBOARD_GATE_RECEIPT ' + JSON.stringify({ version: 1, green: true })));`;
