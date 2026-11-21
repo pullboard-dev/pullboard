@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { requirePlannedSource } from '../../../index.js';
+import { requirePlannedSource, submitPreflight } from '../../../index.js';
 import { readTrunkEntry } from '../../../src/logic/submit/preflight.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
@@ -55,4 +55,15 @@ test('items.preflight.fetch-once: a runner clone lacking the newest main commit 
 test('items.preflight.infra-retry: a trunk commit no source can supply is an infrastructure retry, never a builder refusal [C7]', t => {
   const { job, newest } = fixture(t, { recordSource: false });
   assert.throws(() => readTrunkEntry(job, newest, PLAN), error => error.code === 'GIT_READ_INFRASTRUCTURE' && error.retryable === true && error.name !== 'Refused');
+});
+
+test('items.logic-submit-preflight.no-plan-placement: clause 3: the submit preflight passes a new unplaced source file, since placement no longer reads the plan index [C7]', t => {
+  const { main, job, older, newest } = fixture(t);
+  const unplaced = commit(main, 'packages/brand-new/src/unplaced.js', 'export const unplaced = true;\n');
+  assert.doesNotThrow(() => requirePlannedSource(job, unplaced, older, { deferUnplaced: false }), 'an unplaced source file is not refused');
+  assert.notEqual(newest, unplaced);
+  const board = { db: { prepare: () => ({ get: () => ({}) }) } };
+  const ran = [];
+  assert.doesNotThrow(() => submitPreflight(board, 1, { agentId: 'a', commit: unplaced, tree: 't'.repeat(40) },
+    { atomic: (_board, run) => run(), submit: () => ran.push('submit'), prepareSubmit: undefined }));
 });
