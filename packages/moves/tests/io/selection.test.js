@@ -175,7 +175,7 @@ function privateMachineHome(t, box) {
 }
 
 test('moves.selection.status-reused: clause 1: two nextSelection.pick calls on an unchanged seat checkout launch git status at most once between them, with the same warm files [N2,C7,#10859]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   privateMachineHome(t, box);
   box.add('Open work for the pick');
   const first = countingStatus(() => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports));
@@ -189,7 +189,7 @@ test('moves.selection.status-reused: clause 1: two nextSelection.pick calls on a
 });
 
 test('moves.selection.edit-named-file-warms: clause 2: a first edit to a clean tracked file an open item in the seat lane names is in the second pick warm files, and the pick selects the same item [N2,C7,#10859]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   privateMachineHome(t, box);
   const root = box.project.repo, target = join(root, 'web', 'target.js');
   mkdirSync(join(root, 'web'), { recursive: true });
