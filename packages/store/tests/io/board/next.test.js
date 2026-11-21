@@ -416,7 +416,7 @@ function eligibilityBoard(t) {
   saveExpectedBuildMinutes(board, ids.scope, 90);
   board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`claim_waiting:${ids.waitingOn}`, JSON.stringify([ids.blocker]));
   const codes = { held: 'ITEM_HELD', route: 'ROUTE_FILTER', gate: 'GATE_AT_HEAD', scope: 'ITEM_BUILD_BUDGET', waitingOn: 'WAITING_ON', dependency: 'DEPENDENCY' };
-  return { box, board, ids, codes };
+  return { box, board, ids, codes, place };
 }
 
 test('store.io-board-next.eligible-matches-selection: clause 1: nextEligible returns null for the item next offers a mid seat and the skip code next applies to a held, strong, gate-queued, re-scoped, claim-waiting and after-chained item [C7,#12599]', t => {
@@ -430,18 +430,27 @@ test('store.io-board-next.eligible-matches-selection: clause 1: nextEligible ret
 });
 
 test('store.io-board-next.selection-unchanged: clause 2: on the same fixture nextFor offers each seat the item nextEligible clears and records, for every other item, the skip code and reason nextEligible names [C7,#12599]', t => {
-  const { box, board, ids, codes } = eligibilityBoard(t);
-  const all = Object.values(ids);
-  const alone = (agentId, id) => nextFor(board, { agentId, lane: 'web', omitIds: all.filter(other => other !== id), observeIdle: true });
-  for (const seat of [box.seats.actor, box.seats.builder]) {
-    const strong = seat === box.seats.builder;
-    for (const name of ['eligible', 'blocker', ...(strong ? ['route'] : [])]) assert.equal(alone(seat.id, ids[name]).item?.item_id, ids[name], `${seat.id} is offered ${name}`);
-    for (const [name, code] of Object.entries(codes)) {
+  const eligibilityCodes = eligibilityBoard(t).codes;
+  // nextFor records only its first three skipped items, so each case runs on a fresh board where only the item under test
+  // (plus the unfinished blocker, which the dependency cases need) is still open.
+  const alone = (key, name) => {
+    const fresh = eligibilityBoard(t);
+    for (const [other, id] of Object.entries(fresh.ids)) if (other !== name && other !== 'blocker') fresh.place(id, { item_status: 'withdrawn' });
+    const answer = nextFor(fresh.board, { agentId: fresh.box.seats[key].id, lane: 'web', omitIds: name === 'blocker' ? [] : [fresh.ids.blocker], observeIdle: true });
+    return { answer, ...fresh };
+  };
+  for (const key of ['actor', 'builder']) {
+    const strong = key === 'builder';
+    for (const name of ['eligible', 'blocker', ...(strong ? ['route'] : [])]) {
+      const run = alone(key, name);
+      assert.equal(run.answer.item?.item_id, run.ids[name], `${key} is offered ${name}`);
+    }
+    for (const [name, code] of Object.entries(eligibilityCodes)) {
       if (strong && name === 'route') continue;
-      const answer = alone(seat.id, ids[name]);
-      assert.equal(answer.item, null, `${seat.id} is not offered ${name}: ${answer.reasons.join(' | ')}`);
-      if (code !== 'ROUTE_FILTER') assert.ok(answer.reasons.includes(nextEligible(board, getItem(board, ids[name]), null).reason), `${name}: ${answer.reasons.join(' | ')}`);
-      assert.deepEqual(answer.skips?.filter(row => row.item === ids[name]), [{ item: ids[name], code }], `${seat.id} skips ${name}`);
+      const run = alone(key, name);
+      assert.equal(run.answer.item, null, `${key} is not offered ${name}: ${run.answer.reasons.join(' | ')}`);
+      if (code !== 'ROUTE_FILTER') assert.ok(run.answer.reasons.includes(nextEligible(run.board, getItem(run.board, run.ids[name]), null).reason), `${name}: ${run.answer.reasons.join(' | ')}`);
+      assert.deepEqual(run.answer.skips?.filter(row => row.item === run.ids[name]), [{ item: run.ids[name], code }], `${key} skips ${name}`);
     }
   }
 });
