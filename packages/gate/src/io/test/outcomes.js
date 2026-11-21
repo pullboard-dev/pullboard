@@ -34,13 +34,15 @@ export function testOutcomeCollector(root) {
       }
       const passed = event.type === 'test:pass', skipped = skip !== undefined || todo !== undefined;
       const failure = details?.error?.cause?.code === 'ERR_ASSERTION' ? 'assertion' : 'error';
-      rows.push({ file: portable(root, file), name, passed, skipped, ...passed || skipped ? {} : { failure } });
-      owners.push(testFile ? portable(root, resolve(root, testFile)) : null);
+      const owner = testFile ? portable(root, resolve(root, testFile)) : null;
+      rows.push({ file: portable(root, file), name, ...owner ? { owner } : {}, passed, skipped, ...passed || skipped ? {} : { failure } });
+      owners.push(owner);
     },
     /**
      * Publish only after every selected file worker and reporter has drained. A case from a fixture shared by two test
      * files reaches Node under the fixture's path both times; those rows take the file that ran each, so the run keeps
-     * every case instead of failing closed on the duplicate (#3253's receipts kept none) [C7,V4].
+     * every case instead of failing closed on the duplicate (#3253's receipts kept none). Every row also names the
+     * wrapper that ran it as `owner`, so a wrapper whose cases run from a shared fixture still has an account [C7,V4].
      */
     finish(complete, tests) {
       if (!complete || invalid || tests !== rows.length) return null;

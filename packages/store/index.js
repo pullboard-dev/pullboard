@@ -141,7 +141,7 @@ export {
   sealClauseInspection,
 } from './src/io/board/repository.js';
 
-export { boardWriteLog } from './src/io/board/write/lock.js';
+export { boardWriteLog, boardWriteHoldAlarm } from './src/io/board/write/lock.js';
 export { objectItemPatch } from './src/io/board.js';
 export { expeditedItems } from './src/io/board.js';
 
