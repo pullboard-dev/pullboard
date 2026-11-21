@@ -87,6 +87,12 @@ export function handoffText(handoff) {
   return `work kept at ${handoff.pin} (${handoff.changedCount} file(s): ${shown.join(', ')}${more > 0 ? `, +${more} more` : ''})`;
 }
 
+/** One line naming where a released claim's work was saved: its keep branch and dirty ref, or why nothing was saved [C7,#12116]. */
+function keptText(kept) {
+  if (!kept.branch) return `no work could be kept: ${kept.unsaved ?? 'unknown'}`;
+  return `work kept on ${kept.branch}${kept.dirtyRef ? ` and ${kept.dirtyRef}` : ''}`;
+}
+
 /** The lane's lead seat, or the coordinator when the lane has none. */
 function laneLead(board, lane) {
   let leads = {};
@@ -314,7 +320,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         const reason = row.idle === 'dependency'
           ? `Stale dependency: no commit, test run or fact since ${row.workActivity}, past health.dependencyIdle; ${handoffText(row.handoff)}.`
           : row.idle === 'seat-gone'
-          ? `Seat ${row.actor} has no heartbeat for two minutes or its worktree is gone; claim returned to the queue.`
+          ? `Seat ${row.actor} has no heartbeat for two minutes or its worktree is gone; claim returned to the queue${row.kept ? `; ${keptText(row.kept)}` : ''}.`
           : row.idle === 'progress'
           ? `Returned after ${row.progress.trigger}; holder ${row.actor}'s notes: ${row.progress.notes.join(', ') || 'none recorded'} (pullboard show ${row.id} --detail); ${handoffText(row.handoff)}.`
           : row.idle === 'waiting'
@@ -333,7 +339,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
             observedAt: snapshot.observedAt } } : {}),
           ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: idleBoardCodes ? (row.idle === 'seat-gone' ? 'SEAT_GONE' : row.idle === 'waiting' ? 'BLOCKED' : row.idle === 'progress' ? 'NO_PROGRESS' : 'BUILDER_SILENT') : row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
           idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
-            ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });
+            ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : row.idle === 'seat-gone' ? (row.kept ? { kept: row.kept } : {}) : { handoff: row.handoff }) } });
         }
         compare(row.id, idleFrom, facts, idleMove);
         deleteBoardMeta(board.db, `claim_stalled:${row.id}`);
