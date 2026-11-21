@@ -6,6 +6,7 @@ import { lintBar } from '../../../../../packages/state/index.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { onBoard } from '../../fixtures/land/board.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
 const GOOD = '1. the handler returns the canonical result [test]';
 
@@ -70,4 +71,40 @@ test('cli.journeys-add-bar-lint.edit-refuses-the-same-faults-through: clause 3: 
   assert.equal(onBoard(box, board => store.getItem(board, id).item_criterion), GOOD);
   const fine = (await edit(id, '--criterion', '1. it returns the total quickly enough in under 50 ms [measurement]'));
   assert.equal(fine.code, 0, fine.out + fine.err);
+});
+
+/** project() with freeze.refuseEmptyBar set in the box machine settings when on. */
+function projectWithEmptyBarRule(t, on) {
+  const made = project(t);
+  if (on) fixtureMachineSettings(made.box.env.PULLBOARD_MACHINE_HOME, { freeze: { refuseEmptyBar: true } });
+  return made;
+}
+
+test('cli.journeys-add-bar-lint.add-refuses-empty-bar: clause 1: with freeze.refuseEmptyBar on, add with no criterion or no numbered clause is refused BAR_EMPTY and adds nothing [C7]', async t => {
+  const { box, refusal, add } = projectWithEmptyBarRule(t, true);
+  const none = refusal(await fixtureAdd(box.runIn, box.repo, 'web', 'No bar', '--json'));
+  assert.equal(none.code, 'BAR_EMPTY');
+  const unnumbered = refusal(await add('Unnumbered', 'the page prints OK [test]'));
+  assert.equal(unnumbered.code, 'BAR_EMPTY');
+  assert.match(unnumbered.next, /edit <id> --criterion/u);
+  assert.equal(onBoard(box, board => store.listItems(board).length), 0);
+});
+
+test('cli.journeys-add-bar-lint.edit-refuses-empty-bar: clause 2: with freeze.refuseEmptyBar on, edit --criterion "" is refused BAR_EMPTY and leaves the bar as it was [C7]', async t => {
+  const { box, refusal, add, edit } = projectWithEmptyBarRule(t, false);
+  const id = JSON.parse((await add('Editable', GOOD)).out).item.item_id;
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { freeze: { refuseEmptyBar: true } });
+  assert.equal(refusal(await edit(id, '--criterion', '')).code, 'BAR_EMPTY');
+  assert.equal(onBoard(box, board => store.getItem(board, id).item_criterion), GOOD);
+  const other = await edit(id, '--title', 'Renamed');
+  assert.equal(other.code, 0, other.out + other.err);
+});
+
+test('cli.journeys-add-bar-lint.empty-bar-setting-off: clause 3: with freeze.refuseEmptyBar off (the default), add and edit pass the real path as before [C7]', async t => {
+  const { box, add, edit } = projectWithEmptyBarRule(t, false);
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'No bar', '--json');
+  assert.notEqual(JSON.parse(added.out || '{}').error?.code, 'BAR_EMPTY', added.out + added.err);
+  const id = JSON.parse((await add('Editable', GOOD)).out).item.item_id;
+  const edited = await edit(id, '--criterion', '');
+  assert.notEqual(JSON.parse(edited.out || '{}').error?.code, 'BAR_EMPTY', edited.out + edited.err);
 });
