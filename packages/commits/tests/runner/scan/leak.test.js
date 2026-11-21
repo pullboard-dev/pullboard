@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { secretsIn } from '../../../index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../git/tests/fixtures/child.js';
 import { HOST } from '../../../../gate/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../gate/tests/fixtures/runner/ssh.js';
 import { shellQuote } from '../../../../gate/tests/fixtures/runner/ssh.js';
