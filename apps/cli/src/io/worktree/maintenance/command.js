@@ -85,12 +85,24 @@ export function maintenanceCommandPorts(ctx, agentId) {
   };
 }
 
+/** Keep diagnostic detail useful without echoing credential-like values or structured payloads. */
+function cleanupFailure(error) {
+  const code = String(error?.code ?? error?.name ?? 'Error').replace(/[\r\n\t]/gu, ' ').slice(0, 80);
+  let detail = String(error?.message ?? '').replace(/[\r\n\t]/gu, ' ').trim();
+  if (/^[{[]/u.test(detail)) detail = '[structured details omitted]';
+  detail = detail.replace(/\b(Bearer\s+)\S+/giu, '$1[redacted]')
+    .replace(/\b(password|passwd|token|secret|authorization|api[_-]?key)(\s*[:=]\s*)[^\s,;]+/giu, '$1$2[redacted]')
+    .replace(/(https?:\/\/)[^/@\s]+:[^/@\s]+@/giu, '$1[redacted]@')
+    .slice(0, 240);
+  return `maintenance kept the worktree; cleanup failed: ${code}${detail ? `: ${detail}` : ''}`;
+}
+
 /** Optional housekeeping cannot turn an already-recorded lifecycle move into a false command failure. */
-export async function cleanupMaintenanceLifecycle(ctx, agentId, details) {
+export async function cleanupMaintenanceLifecycle(ctx, agentId, details, { clean = cleanMaintenanceSeat } = {}) {
   if (ctx.config.worktreeMaintenance?.enabled !== true) return null;
   try {
     const accepted = mainPolicy(ctx.info.root).config;
-    const result = await cleanMaintenanceSeat(ctx.info.root, accepted,
+    const result = await clean(ctx.info.root, accepted,
       { ...maintenanceCommandPorts(ctx, agentId), completedTakeover: details.completedTakeover === true,
         completedWithdrawal: details.completedWithdrawal === true && ctx.info.isMain && agentId === 'coordinator' }, details);
     if ((details.withdrawn || result?.clean) && accepted.worktreeMaintenance?.enabled === true) {
@@ -99,8 +111,8 @@ export async function cleanupMaintenanceLifecycle(ctx, agentId, details) {
     }
     if (!result) ctx.io.err('maintenance kept the worktree because it is protected, busy or still holds another obligation');
     return result;
-  } catch {
-    ctx.io.err('maintenance kept the worktree because its archive or custody could not be confirmed');
+  } catch (error) {
+    ctx.io.err(cleanupFailure(error));
     return null;
   }
 }
