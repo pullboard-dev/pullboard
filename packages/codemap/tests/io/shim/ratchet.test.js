@@ -45,7 +45,8 @@ function check({ before = '', after, accepted = '', planRows = [plan], read = re
 /** Read the same immutable HEAD and index snapshots the staged hook evaluates. */
 function staged(after, overrides = {}) {
   const snapshot = reader(files({ [`HEAD:${importer}`]: '', [`:index:${importer}`]: after, ...overrides }));
-  return stagedShimImportProblems({ paths: [importer], read: snapshot.read, parseImports: parser, criterion });
+  const problems = stagedShimImportProblems({ paths: [importer], read: snapshot.read, parseImports: parser, criterion });
+  return { problems, reads: snapshot.reads };
 }
 
 test('codemap.io-shim-ratchet.added-import-refuses: new static, re-export and literal dynamic imports through a shim refuse [C7]: clause 1: added import through shim is refused', () => {
@@ -54,9 +55,9 @@ test('codemap.io-shim-ratchet.added-import-refuses: new static, re-export and li
     `export { request } from '${specifier}';`,
     `await import('${specifier}');`,
   ]) {
-    const problems = staged(declaration);
-    assert.equal(problems.length, 1, declaration);
-    assert.match(problems[0], new RegExp(`added import through compatibility shim ${shim.replaceAll('/', '\\/')}`));
+    const result = staged(declaration);
+    assert.equal(result.problems.length, 1, `${declaration}; reads ${JSON.stringify(result.reads)}`);
+    assert.match(result.problems[0], new RegExp(`added import through compatibility shim ${shim.replaceAll('/', '\\/')}`));
   }
 });
 
@@ -66,7 +67,7 @@ test('codemap.io-shim-ratchet.unchanged-multiset-passes: before and accepted dup
 });
 
 test('codemap.io-shim-ratchet.temporary-edge-is-bounded: exact criterion edge and valid metadata admit only the contracted import [C7]: clause 3: temporary edge is bounded', () => {
-  assert.deepEqual(staged(`import '${specifier}';`), []);
+  assert.deepEqual(staged(`import '${specifier}';`).problems, []);
   const wrongCriterion = reader(files({ [`HEAD:${importer}`]: '', [`:index:${importer}`]: `import '${specifier}';` }));
   assert.equal(stagedShimImportProblems({ paths: [importer], read: wrongCriterion.read, parseImports: parser,
     criterion: `${importer} -> ${frontDoor}` }).length, 1);
