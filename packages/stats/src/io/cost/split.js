@@ -1,6 +1,6 @@
 /** A shared native session's counters are split across its items by each item's claimed time, never by guesswork [N2]. */
 import { COUNTS } from './usage.js';
-import { sharedSessionTotals } from './shared.js';
+import { sharedSessionTotals } from './shared/read.js';
 
 /** A lease deadline from a claim or renew event's detail, or Infinity when it names none. */
 function leaseEnd(detail) {
