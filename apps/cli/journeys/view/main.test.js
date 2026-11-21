@@ -321,7 +321,7 @@ test('cli.journeys-view-main.scoped-api-answers-and-its-cache: scoped API answer
 
   const add = async (project, title, notDuplicateOf) => {
     const result = await fixtureAdd(box.runLocal, project.repo, 'app', title, '--criterion', 'fixture item', '--specs', 'G1', '--route', 'strong',
-      '--brief', 'Files: app/fixture.js\nChange: create fixture work\nTest: inspect the local API', '--check', 'true', '--json', ...(notDuplicateOf ? ['--not-duplicate-of', notDuplicateOf] : []));
+      '--brief', 'Files: app/fixture.js\nChange: create fixture work\nTest: inspect the local API', '--check', 'true', '--accept-green', 'fixture check is a guard that always passes by design', '--json', ...(notDuplicateOf ? ['--not-duplicate-of', notDuplicateOf] : []));
     assert.equal(result.status, 0, `${result.failure ?? ''}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`);
     return JSON.parse(result.stdout).item;
   };
