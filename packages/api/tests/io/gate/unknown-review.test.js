@@ -137,7 +137,8 @@ test('api.gate-unknown-review.bounded-recovery: clause 2: one bounded maintenanc
   // Fill the first page, then put one more matching unknown gate past its cursor.
   for (let index = 0; index < 6; index++) {
     const item = cellItem(match.board, { lane: 'web', title: `Work without a gate ${index}` });
-    cellClaim(match.board, item.item_id, match.seat, { root: match.repo.root });
+    const seat = cellSeat(match.board, { lane: 'web', path: `${match.repo.root}/seat-${item.item_id}` });
+    cellClaim(match.board, item.item_id, seat, { root: match.repo.root });
   }
   const later = unknownGate(t, { repo: match.repo, board: match.board });
   mainReceipt(match.board, { id: 'main-test:match', main: match.head });
