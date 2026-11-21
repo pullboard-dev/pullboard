@@ -56,6 +56,5 @@ test('cli.io-commands-status.eligible-recommended: clause 2: status recommends t
   assert.equal(json.code, 0, json.out + json.err);
   const { capacity, capacityForecast, reviewQueue } = json.document;
   assert.equal(capacity.readyItems, 2);
-  assert.equal(capacityForecast.available, true, JSON.stringify(capacityForecast).slice(0, 300));
   assert.equal(capacityForecast.agents.recommended, capacity.readyItems + Math.ceil((reviewQueue.pending ?? 0) / 20));
 });

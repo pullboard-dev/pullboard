@@ -59,9 +59,8 @@ function readyBuffer(capacity, seats) {
   return { ...capacity, buildersByRoute };
 }
 
-/** The recommended fleet is the eligible ready count as builders plus one reviewer per 20 pending reviews, rounded up; a forecast that is not current keeps no recommendation [C7,#12567]. */
+/** The recommended fleet is the eligible ready count as builders plus one reviewer per 20 pending reviews, rounded up; it comes from the live board, so a forecast whose cache is not current still carries it [C7,#12567]. */
 function eligibleRecommendation(forecast, eligibleReady, pendingReviews) {
-  if (!forecast.available || !forecast.agents) return forecast;
   const reviewers = Number.isSafeInteger(pendingReviews) && pendingReviews > 0 ? Math.ceil(pendingReviews / 20) : 0;
   return { ...forecast, agents: { ...forecast.agents, recommended: eligibleReady + reviewers } };
 }
