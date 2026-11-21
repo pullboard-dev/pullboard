@@ -27,9 +27,12 @@ import {
   sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { environmentAdapter } from '../../../env/index.js';
 import { Refused } from '../../../kernel/browser.js';
 import { removeGitRepositorySelectors } from '../logic/selectors.js';
 import { localEnvVars } from './env.js';
+
+const environment = environmentAdapter();
 
 // gc.auto=0: a landing's own commits never start a background repack in its worktree (minutes under the batch) [C7].
 const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0'];
@@ -238,7 +241,8 @@ function repositorySignature(cwd, info = null, includeHead = false, { attributio
     }
   }
   if (attribution) {
-    const index = process.env.GIT_INDEX_FILE ? resolve(cwd, process.env.GIT_INDEX_FILE) : join(gitDir, 'index');
+    const indexFile = environment.get('GIT_INDEX_FILE');
+    const index = indexFile ? resolve(cwd, indexFile) : join(gitDir, 'index');
     markers.push([index, fileSignature(index, false)]);
     for (const path of [join(commonDir, 'shallow'), join(commonDir, 'info', 'grafts'), join(commonDir, 'info', 'attributes')]) {
       markers.push([path, fileSignature(path)]);
@@ -263,7 +267,7 @@ function safeConfigOverrides(env, count) {
  * Whether Git run with this process's environment sees the same repository and refs as with a clean one: nothing
  * selects another repository, object store or configuration, and config overrides are housekeeping only.
  */
-function plainRepositoryEnvironment(env = process.env) {
+function plainRepositoryEnvironment(env = environment.all()) {
   if (INHERITED_SELECTORS.some((key) => !['GIT_CONFIG_COUNT', 'GIT_INDEX_FILE', 'GIT_PREFIX'].includes(key) && env[key] !== undefined)) return false;
   const count = env.GIT_CONFIG_COUNT === undefined ? 0 : Number(env.GIT_CONFIG_COUNT);
   return Number.isSafeInteger(count) && count >= 0 && count <= 16 && safeConfigOverrides(env, count);
@@ -271,7 +275,7 @@ function plainRepositoryEnvironment(env = process.env) {
 
 /** Describe relevant Git environment/config so harmless process settings can still share read facts. */
 function readCacheContext({ attribution = false } = {}) {
-  const env = process.env;
+  const env = environment.all();
   if (attribution && (env.GIT_NAMESPACE || Object.keys(env).some(name => name.startsWith('GIT_ATTR_')))) return null;
   const discoverySelectors = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_CEILING_DIRECTORIES',
     'GIT_DISCOVERY_ACROSS_FILESYSTEM', 'GIT_IMPLICIT_WORK_TREE', 'GIT_OBJECT_DIRECTORY',
@@ -415,7 +419,7 @@ export function gitConfig(root, key, { local = false, clean = false, flags = tru
   const args = [...(noReplace ? ['--no-replace-objects'] : []), ...(flags ? GIT_FLAGS : []), 'config', ...(local ? ['--local'] : []), '--get', key];
   const cacheKey = JSON.stringify(['config', resolve(root), args, clean]);
   return fact(cacheKey, () => {
-    const result = gitSpawnSync(args, { cwd: root, env: clean ? cleanGitEnvironment() : process.env, encoding: 'utf8' });
+    const result = gitSpawnSync(args, { cwd: root, env: clean ? cleanGitEnvironment() : environment.all(), encoding: 'utf8' });
     return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim() };
   });
 }
@@ -437,7 +441,7 @@ function changesGitFacts(args) {
  * @returns {NodeJS.ProcessEnv}
  */
 export function cleanGitEnvironment() {
-  const env = { ...process.env };
+  const env = environment.all();
   for (const key of INHERITED_SELECTORS) delete env[key];
   delete env.GIT_NO_REPLACE_OBJECTS;
   for (const key of Object.keys(env)) if (/^GIT_CONFIG_(?:KEY|VALUE)_/.test(key)) delete env[key];
@@ -566,7 +570,7 @@ export function checkoutBranch(root) {
  * @param {{ env?: NodeJS.ProcessEnv }} [options]
  * @returns {string | null}
  */
-export function checkoutCommonDir(root, { env = process.env } = {}) {
+export function checkoutCommonDir(root, { env } = {}) {
   const location = fileLocation(root);
   if (location) return location.commonDir;
   const result = tryGit(root, ['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { env });
@@ -648,7 +652,7 @@ const CODE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'
  * @returns {NodeJS.ProcessEnv}
  */
 export function gitChildEnv(root, { env: extra = {}, report = null } = {}) {
-  const env = { ...process.env, ...extra };
+  const env = { ...environment.all(), ...extra };
   removeGitRepositorySelectors(env, report);
   const discoveryEnv = { ...env };
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR']) delete discoveryEnv[name];
@@ -688,7 +692,7 @@ function memoKey(kind, cwd, args, maxBuffer, env) {
   const [command] = words;
   // The worktree list is asked from many modules and environments; one answer serves all of them [C7].
   const listing = command === 'worktree' && words[1] === 'list';
-  if (commandMemo === null || (env !== process.env && !listing)) return null;
+  if (commandMemo === null || (env !== undefined && !listing)) return null;
   const reads = listing || ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
     || (command === 'diff' && !args.includes('--output'))
     || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
@@ -774,7 +778,7 @@ function rememberObjectRead(key, value, size) {
  * @param {{ maxBuffer?: number, env?: NodeJS.ProcessEnv }} [options] - Bound output captures for callers parsing larger diffs.
  * @returns {string}
  */
-export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
+export function git(cwd, args, { maxBuffer, env } = {}) {
   // A worktree list is one memoized answer for every caller, trimmed here as this function does [C7].
   if (commandMemo !== null && memoKey('git', cwd, args, maxBuffer, env)?.startsWith('["wt-')) {
     const listed = rawGit(cwd, args, env);
@@ -783,12 +787,12 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
   const key = memoKey('git', cwd, args, maxBuffer, env);
   if (key !== null && commandMemo.has(key)) return commandMemo.get(key);
   noteMemoCall(key, args);
-  const objectKey = objectReadKey('git', cwd, args, env);
+  const objectKey = objectReadKey('git', cwd, args, env ?? environment.all());
   if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
   try {
     const output = gitExecFileSync([...GIT_FLAGS, ...args], {
       cwd,
-      env,
+      env: env ?? environment.all(),
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       ...(maxBuffer === undefined ? {} : { maxBuffer }),
@@ -808,7 +812,7 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
  * @param {string[]} args
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
-export function tryGit(cwd, args, { env = process.env } = {}) {
+export function tryGit(cwd, args, { env } = {}) {
   const raw = rawGit(cwd, args, env);
   return { status: raw.status, stdout: raw.stdout.trim(), stderr: raw.stderr.trim() };
 }
@@ -825,9 +829,9 @@ function rawGit(cwd, args, env) {
     commandMemo.set(key, outcome);
     return outcome;
   }
-  const objectKey = objectReadKey('raw', cwd, args, env);
+  const objectKey = objectReadKey('raw', cwd, args, env ?? environment.all());
   if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
-  const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
+  const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env: env ?? environment.all(), encoding: 'utf8' });
   if (changesGitFacts(args)) forgetAfterWrite();
   const outcome = { status: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
   if (key !== null) commandMemo.set(key, outcome);
@@ -868,7 +872,7 @@ export function pinnedSpecText(cwd, spec) {
 export function gitShowText(cwd, revision, file) {
   const same = pinnedWorkingText(cwd, revision, file);
   if (same !== null) return same;
-  const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
+  const raw = rawGit(cwd, ['show', `${revision}:${file}`]);
   return raw.status === 0 ? raw.stdout : null;
 }
 
@@ -1046,8 +1050,8 @@ function fileRepoInfo(cwd) {
  * @param {string} cwd
  * @returns {{ root: string, commonDir: string, gitDir: string, isMain: boolean }}
  */
-function readRepoInfo(cwd, env) {
-  const combined = !env && gitFacts.getStore()?.active && plainRepositoryEnvironment();
+function readRepoInfo(cwd, env, inherit = false) {
+  const combined = !env && !inherit && gitFacts.getStore()?.active && plainRepositoryEnvironment();
   if (combined && !gitFacts.getStore().resumeSources) {
     const files = fileRepoInfo(cwd);
     if (files) return files;
@@ -1064,7 +1068,7 @@ function readRepoInfo(cwd, env) {
     && oid(fields[3]) && oid(fields[4]) && isAbsolute(fields[5]);
   const missingOptional = resumeSources && info.status !== 0 && (fields.length === 7 && fields[6] === optional[0]
     || fields.length === 8 && oid(fields[6]) && fields[7] === optional[1]);
-  if (combined && info.stdout && (!baseValid || info.status !== 0 && !missingOptional)) return readRepoInfo(cwd, process.env);
+  if (combined && info.stdout && (!baseValid || info.status !== 0 && !missingOptional)) return readRepoInfo(cwd, undefined, true);
   if (combined && baseValid) {
     const [root, , , head, commit, hooks] = fields;
     const [config, doctrine] = resumeSources ? fields.slice(6, 8) : [];
@@ -1072,7 +1076,7 @@ function readRepoInfo(cwd, env) {
     const suffixValid = missingOptional || (resumeSources
       ? (fields.length === 8 || fields.length === 9) && oid(config) && oid(doctrine)
       : fields.length === 6 || fields.length === 7) && (branch === undefined || branch.startsWith('refs/'));
-    if (!suffixValid) return readRepoInfo(cwd, process.env);
+    if (!suffixValid) return readRepoInfo(cwd, undefined, true);
     const facts = scopedFacts();
     facts.set(`gitPath:${JSON.stringify([resolve(root), 'hooks', false])}`, resolve(root, hooks));
     facts.set(`headCommit:${resolve(root)}`, head);
