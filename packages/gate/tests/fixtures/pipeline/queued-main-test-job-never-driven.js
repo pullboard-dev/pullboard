@@ -8,7 +8,6 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { runFixtureGit } from '../child.js';
 import { from } from './kit.js';
@@ -20,6 +19,8 @@ import { reclaimLapsed } from '../../../../jobs/index.js';
 import { renewLease } from '../../../../jobs/index.js';
 import { takeJob } from '../../../../jobs/index.js';
 import { writeStep } from '../../../../jobs/index.js';
+
+const { cellBoard } = await from('packages/board/tests/fixtures/cell-board.js');
 
 // The offer pass is the board API's own; it is not on the api front door, so the harness loads it by path like the other pipeline harnesses.
 const { offerMainTests } = await from('packages/api/src/io/recheck.js');

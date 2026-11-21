@@ -7,12 +7,14 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { from } from './kit.js';
 import { hopCheck } from './kit.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { driveLanding } from '../../../../drive/index.js';
 import { jobView } from '../../../../jobs/index.js';
 import { leasedJobs } from '../../../../jobs/index.js';
 import { reclaimLapsed } from '../../../../jobs/index.js';
+
+const { cellBoard } = await from('packages/board/tests/fixtures/cell-board.js');
 
 const KIND = 'landing-run';
 /** Long enough after any lease that a still-held row would show as lapsed. */
