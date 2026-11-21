@@ -111,16 +111,24 @@ test('cli.io-pinned-tool-build.tip-moves-rereads: clause 2: after main or HEAD m
   const box = privateFixtureFiles('lookup-moves-').root;
   try {
     const fixture = loggedRepo(box, false);
+    /** Commit the toolBuild setting, moving HEAD and the main checkout's tip together. */
+    const settle = (enabled) => {
+      fixtureProjectPolicy(fixture.repo, { config: { toolBuild: { enabled } } });
+      run(fixture.repo, 'git', ['add', '.']);
+      run(fixture.repo, 'git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', String(enabled)]);
+      run(fixture.repo, 'git', ['update-ref', 'refs/main-worktree/HEAD', 'HEAD']);
+    };
     assert.equal(await ask(fixture), null);
-    const spent = fixture.calls();
-    fixtureProjectPolicy(fixture.repo, { config: { toolBuild: { enabled: true } } });
-    run(fixture.repo, 'git', ['add', '.']);
-    run(fixture.repo, 'git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'y']);
-    assert.equal(await ask(fixture), null, 'HEAD moved but the pinned main tip did not: the policy answer stands');
-    assert.ok(fixture.calls() > spent, 'the moved HEAD asked git again');
-    run(fixture.repo, 'git', ['update-ref', 'refs/main-worktree/HEAD', 'HEAD']);
-    const before = fixture.calls();
+    const first = fixture.calls();
+    settle(true);
     assert.equal(await ask(fixture), 'TOOL_BUILD_REQUIRED', 'the moved tip is read again and now requires a build');
-    assert.ok(fixture.calls() > before, 'the moved tip asked git again');
+    const second = fixture.calls();
+    assert.ok(second > first, 'the moved tip asked git again');
+    settle(false);
+    assert.equal(await ask(fixture), null, 'the next move is read again and picks the new answer');
+    const third = fixture.calls();
+    assert.ok(third > second, 'the second move asked git again');
+    assert.equal(await ask(fixture), null);
+    assert.equal(fixture.calls(), third, 'an unmoved start reuses the answer');
   } finally { rmSync(box, { recursive: true, force: true }); }
 });
