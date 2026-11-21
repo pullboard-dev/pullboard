@@ -1,10 +1,16 @@
 /** A census prints the seconds it spent from start to its first job, through pass 1, and in its reruns [C7,#10525], and per host the minutes its slots sat idle while jobs were queued [C7,#10526]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdirSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { mkdirSync, writeFileSync, readFileSync, watch } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { pullProject } from '../../fixtures/pull.js';
+import { openKitBoard } from '../../fixtures/board.js';
+import { closeBoard } from '../../../lib/index.js';
+import { jobQueueCall } from '../../../../../packages/api/index.js';
+import { jobView } from '../../../../../packages/jobs/index.js';
 import { fixtureCommitAll } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { runCensus } from '../../../src/io/test/census.js';
 import { censusPhases } from '../../../src/logic/census.js';
@@ -84,4 +90,53 @@ test('cli.io-test-census-idle-slots.a-recorded-two-host-census-prints-idle: clau
 test('cli.io-test-census-idle-slots.a-census-with-no-host-prints-nothing: clause 1: a census whose rows ran on no host prints no idle line [C7,#10526]', () => {
   assert.deepEqual(censusIdleSlots([job('none', '1/1', 0, 1)], START), {});
   assert.equal(censusIdleLine({}), null);
+});
+
+
+test('cli.io-test-census.sigterm-cancels-own-shards: clause 1: SIGTERM withdraws only its unfinished pulled shards and preserves a receipt [C7,#12628]', { timeout: 120_000 }, async t => {
+  const box = await pullProject(t, 1);
+  for (let i = 0; i < 81; i += 1) writeFileSync(join(box.repo, `census-${i}.test.js`), "import { test } from 'node:test'; test('fixture', () => {});\n");
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  writeFileSync(configPath, JSON.stringify({ ...config, affectedTests: 'node --test' }));
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: census fixture [C7]');
+  const board = openKitBoard(box.boardFile, undefined, { gitRoot: box.repo });
+  t.after(() => closeBoard(board));
+  const jobs = () => board.db.prepare("SELECT job_id FROM job WHERE job_kind = 'test' ORDER BY job_created, job_id").all().map(row => row.job_id);
+  const wait = async (predicate, description) => {
+    const until = Date.now() + 30_000;
+    while (Date.now() < until) { const value = predicate(); if (value) return value; await new Promise(resolve => { const watcher = watch(join(box.repo, '.git', 'pullboard'), () => { watcher.close(); resolve(); }); setTimeout(() => { watcher.close(); resolve(); }, 200).unref(); }); }
+    assert.fail(`timed out waiting for ${description}`);
+  };
+  const bin = join(import.meta.dirname, '../../pullboard.js');
+  const start = name => {
+    const child = spawn(process.execPath, [bin, 'test', '--census', '--out', join(box.dir, `${name}.jsonl`)], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = ''; child.stdout.on('data', data => { output += data; }); child.stderr.on('data', data => { output += data; });
+    child.closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal, output })));
+    t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await child.closed; });
+    return child;
+  };
+  const first = start('first');
+  const firstIds = await wait(() => { const ids = jobs(); return ids.length >= 3 && ids; }, 'first census offers');
+  const second = start('second');
+  const secondIds = await wait(() => { const ids = jobs().filter(id => !firstIds.includes(id)); return ids.length >= 3 && ids; }, 'second census offers');
+  const call = body => jobQueueCall(board.db, body, { mode: 'pull' });
+  const claim = call({ action: 'claim', runner: 'fixture-receipt', capabilities: ['node22'], jobs: [firstIds[0]] }).claim;
+  assert.equal(claim?.job, firstIds[0]);
+  const receipt = { status: 0, gate: { green: true, phases: [{ status: 0, tail: '' }] } };
+  assert.equal(call({ action: 'receipt', runner: 'fixture-receipt', job: claim.job, token: claim.token, receipt }).recorded, true);
+  first.kill('SIGTERM');
+  const ended = await first.closed;
+  assert.equal(ended.signal, null, ended.output);
+  for (const id of firstIds.slice(1)) {
+    assert.equal(jobView(board.db, id).step, 'done');
+    assert.equal(call({ action: 'claim', runner: `cancel-${id}`, capabilities: ['node22'], jobs: [id] }).claim, null);
+  }
+  assert.deepEqual(jobView(board.db, firstIds[0]).steps.find(step => step.name === 'receipt').payload.receipt, receipt);
+  for (const id of secondIds) {
+    const claimed = call({ action: 'claim', runner: `other-${id}`, capabilities: ['node22'], jobs: [id] }).claim;
+    assert.equal(claimed?.job, id, `second controller's ${id} remains dispatchable`);
+  }
+  assert.equal(second.exitCode, null, 'the second controller remains alive');
 });
