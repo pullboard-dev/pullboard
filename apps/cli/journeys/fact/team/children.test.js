@@ -22,7 +22,7 @@ const authority = {
   async verify() { return true; },
 };
 
-test("cli.journeys-fact-team-children.a-parent-shows-its-childrens-states: clause 1: a parent shows its children's states [E33,E32,B24]", async (t) => {
+test('cli.journeys-fact-team-children.a-parent-shows-its-childrens-states: clause 1: a parent shows its children\'s states [E33,E32,B24]', async (t) => {
   const folder = privateFixtureFiles('pullboard-children-').root;
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const clock = { now: () => new Date(AT) };
