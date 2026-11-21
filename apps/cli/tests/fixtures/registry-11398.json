@@ -37,5 +37,18 @@
     "inputs": [
       "apps/cli/src/io/claim.js"
     ]
+  },
+  "state.engines-claim-check-shape.leaf-numbered": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "CLAIM_CHECK_SHAPE_ENGINE is exported by the state door above CLAIM_CHECK_CEILING_ENGINE, and the claim move lists CHECK_UNSOUND."
+    },
+    "why": "Keeps the claim shape refusal declared and numbered so older replays never see it.",
+    "kind": "contract",
+    "inputs": [
+      "packages/state/src/logic/engines/claim-check-shape-engine.js"
+    ]
   }
 }
