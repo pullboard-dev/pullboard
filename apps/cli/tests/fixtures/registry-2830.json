@@ -1,0 +1,94 @@
+{
+  "cli.journeys-join-lanes-off.laneless-light-view-then-core": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#2830"
+      ],
+      "claim": "With laneMode off, a seat that joined with no lane on the light route claims, commits and submits a view item and then a core item."
+    },
+    "why": "Without it, a laneless light seat could be refused the second cell, or a commit outside its first lane folders, and lanes off would be unproven end to end.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "apps/cli/src/io/commands/claim.js",
+      "packages/commits/src/io/hooks.js"
+    ]
+  },
+  "cli.journeys-join-lanes-off.held-cell-claim-sequencer": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#2830"
+      ],
+      "claim": "With laneMode off, a second laneless seat's next is never handed an open item in a cell another seat holds."
+    },
+    "why": "Without it, two light seats could take work in one cell at once and write the same files.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "packages/store/src/io/eligibility.js"
+    ]
+  },
+  "cli.journeys-join-lanes-off.explicit-claim-held-cell-refused": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#2830"
+      ],
+      "claim": "With laneMode off, an explicit claim of an item in a cell another seat holds is refused with HELD naming the cell and the holder."
+    },
+    "why": "Without it, two seats could claim into one cell by naming the item, past the guard that next applies.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "packages/store/src/io/board/claim.js",
+      "packages/store/src/io/cells.js"
+    ]
+  },
+  "cli.journeys-join-lanes-off.lanes-on-claim-unchanged": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#2830"
+      ],
+      "claim": "With lanes on, a second seat's claim in a held cell is still allowed and keeps its warning."
+    },
+    "why": "Without it, the lanes-off refusal could leak into lanes-on claims and stop seats that today may share a cell.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "packages/store/src/io/board/claim.js"
+    ]
+  },
+  "cli.journeys-join-lanes-off.out-of-cell-commit-refused": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#2830"
+      ],
+      "claim": "With laneMode off, pre-commit lets a laneless seat commit its claimed item's cell and refuses a file in another cell, naming the path."
+    },
+    "why": "Without it, lanes off could check lane folders instead of the claimed item's cells and pass or refuse the wrong files.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "packages/commits/src/io/hooks.js"
+    ]
+  },
+  "cli.journeys-join-lanes-off.out-of-cell-submit-refused": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#2830"
+      ],
+      "claim": "With laneMode off, a commit made without the hook that holds a file in another cell than the claimed item's is refused at submit, naming the file."
+    },
+    "why": "Without it, a hook-skipped commit could carry another cell's file past submit when lanes are off.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "packages/commits/src/io/hooks.js"
+    ]
+  }
+}
