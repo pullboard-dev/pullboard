@@ -118,6 +118,34 @@ test('cli.io-static-stage.a-run-that-throws-gives-its-slot: clause 1: a run that
   } finally { restore(); }
 });
 
+test('cli.io-static-stage.lease-not-held-while-waiting-for-runner: clause 1: a remote attempt past 120000ms holds no local pool lease while a competing local fallback takes and releases one [C7,#12532]', async () => {
+  const restore = isolatedMachine({ gate: { staticSlots: 1 } });
+  const remoteStarted = deferred();
+  const remoteAnswer = deferred();
+  const localStarted = deferred();
+  let fallbackAttempted = false;
+  const remote = runStaticStageAdmitted({ say() {} }, process.cwd(), {
+    memo: () => false,
+    runner: async () => { remoteStarted.resolve(); return remoteAnswer.promise; },
+  });
+  try {
+    await remoteStarted.promise;
+    const fallback = runStaticStageAdmitted({ say() {} }, process.cwd(), {
+      memo: () => false,
+      runner: async () => { fallbackAttempted = true; return null; },
+      run: async () => { localStarted.resolve(); return 0; },
+    });
+    await Promise.resolve();
+    assert.equal(fallbackAttempted, true);
+    await localStarted.promise;
+    remoteAnswer.resolve(0);
+    assert.deepEqual(await Promise.all([remote, fallback]), [0, 0]);
+  } finally {
+    remoteAnswer.resolve(0);
+    restore();
+  }
+});
+
 test('cli.io-static-stage.the-static-slot-count-is-2-by: clause 2: the static slot count is 2 by default and comes from the gate.staticSlots machine setting [C7,#8501]', () => {
   let restore = isolatedMachine();
   try { assert.equal(staticCheckSlots(), 2); } finally { restore(); }
@@ -154,6 +182,25 @@ test('cli.io-static-stage.with-gate-staticmemo-on-a-rerun-on: clause 1: with gat
   const { runs, said } = await twice({ gate: { staticMemo: true } });
   assert.equal(runs, 1);
   assert.match(said, /static stage green: kept from a green run of this exact clean tree and main/u);
+});
+
+test('cli.io-static-stage.local-fallback-takes-lease: clause 2: a local fallback runs under the pool lease, releases it, completes within 120000ms without timer killing, and writes the exact-tree memo [C7,#12532]', async () => {
+  const restore = isolatedMachine({ gate: { staticSlots: 1, staticMemo: true } });
+  const { files, main } = committedItem();
+  try {
+    let runs = 0;
+    const options = {
+      command: 'true', main,
+      runner: async () => null,
+      run: async () => { runs += 1; return 0; },
+    };
+    assert.equal(await runStaticStageAdmitted({ say() {} }, files.root, options), 0);
+    assert.equal(await runStaticStageAdmitted({ say() {} }, files.root, options), 0);
+    assert.equal(runs, 1);
+  } finally {
+    restore();
+    rmSync(files.root, { recursive: true, force: true });
+  }
 });
 
 test('cli.io-static-stage.with-gate-staticmemo-at-its-default-off: clause 2: with gate.staticMemo at its default (off), the stage runs again on the same tree [C7]', async () => {
