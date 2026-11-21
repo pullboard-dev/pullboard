@@ -6,31 +6,25 @@
  */
 import { clockRow } from '../../logic/clock/table.js';
 import { clockDue } from '../../logic/clock/table.js';
+import { boardFacts } from './facts.js';
+import { timing } from './facts.js';
+import { CLOCK_MOVE_EVENT } from './facts.js';
+import { CLOCK_ACTOR } from './facts.js';
+import { clockHealth } from './health.js';
+import { CLOCK_HEALTH_KEY } from './health.js';
 /** The version of the result document `pullboard clock --json` prints. */
 export const CLOCK_SWEEP_VERSION = 1;
 
-/** The event kind each applied move is logged as, and the actor that logs it. */
-export const CLOCK_MOVE_EVENT = 'clock_move';
-const CLOCK_ACTOR = 'board';
+export { CLOCK_MOVE_EVENT };
 
 const MINUTE_MS = 60_000;
 /** The store moves clockSweep needs, passed as ports. */
-const PORTS = Object.freeze(['listItems', 'events', 'getItem', 'atomic', 'logEvent', 'insertShout']);
-/** Events that are the clock's own output, so they never count as the item's progress. */
-const CLOCK_OWN_KINDS = new Set([CLOCK_MOVE_EVENT, 'shout']);
-const CLOCK_OWN_ACTORS = new Set([CLOCK_ACTOR, 'sentinel']);
+const PORTS = Object.freeze(['listItems', 'events', 'getItem', 'atomic', 'logEvent', 'insertShout', 'readBoardMeta', 'writeBoardMeta']);
 
 /** Parse an event detail without letting one malformed legacy row stop the pass. */
 function detailOf(event) {
   try { return JSON.parse(event.event_detail ?? '{}') ?? {}; }
   catch { return {}; }
-}
-
-/** A board time (ISO text or ms) as ms, or null. */
-function ms(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const parsed = typeof value === 'number' ? value : Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /**
@@ -56,47 +50,32 @@ export const CLOCK_MOVES = new Map([
   ['existing', existing],
 ]);
 
-/**
- * One item's clock facts, read from the board: its status, hold, review and whether every after has landed.
- * Gate facts (deferred or unknown) come through ports.facts until their slice reads them from the job table.
- */
-function boardFacts(board, item, getItem) {
-  const afters = String(item.item_after ?? '').split(',').filter(Boolean).map(Number).filter(Number.isInteger);
-  const unlanded = afters.some(id => {
-    try { return !['verified', 'withdrawn'].includes(getItem(board, id).item_status); }
-    catch { return true; }
-  });
-  return {
-    status: item.item_status,
-    held: Boolean(item.item_hold_reason),
-    review: item.item_status === 'submitted' && Boolean(item.item_review_by),
-    after: unlanded ? 'unlanded' : 'landed',
-  };
-}
-
-/**
- * When the item's state (or its last progress) began, the evidence the board can see for it, and the deadline a row
- * inherits. Progress is any event on the item that is not the clock's own output; a claimed item counts only its holder's.
- */
-function timing(item, row, history) {
-  const progress = history.filter(event => !CLOCK_OWN_KINDS.has(event.event_kind) && !CLOCK_OWN_ACTORS.has(event.event_by)
-    && (item.item_status !== 'claimed' || event.event_by === item.item_owner || event.event_kind === 'claim'));
-  let since = ms(progress.at(-1)?.event_at) ?? ms(item.item_updated_at) ?? ms(item.item_created_at);
-  if (row.rule === 'hold') since = ms(item.item_hold_at) ?? since;
-  // Open and unclaimed is observed directly, so a ready item is idle; folder and seat activity is not visible here.
-  const evidence = row.rule === 'ready' ? 'idle' : 'unknown';
-  let deadlineMinutes;
-  if (row.rule === 'review') {
-    const until = ms(item.item_review_until);
-    if (until !== null && since !== null && until > since) deadlineMinutes = (until - since) / MINUTE_MS;
-  }
-  return { since, evidence, deadlineMinutes };
-}
-
 /** Whether a clock_move for this rule and state start is already on the item, which makes the pass idempotent. */
 function alreadyApplied(history, rule, since) {
   return history.some(event => event.event_kind === CLOCK_MOVE_EVENT && event.event_by === CLOCK_ACTOR
     && detailOf(event).rule === rule && detailOf(event).since === since);
+}
+
+/**
+ * Compute the clock health, and unless this is a dry run store it in board meta (key clock.health) and shout the
+ * coordinator once per item that newly lacks an owner or deadline: an id already in the stored document is not shouted again.
+ *
+ * @returns {object} The health document.
+ */
+function storeHealth(board, { at, dryRun, facts, ports }) {
+  const health = clockHealth(board, { now: at, facts, ports });
+  if (dryRun) return health;
+  let previous = [];
+  try { previous = JSON.parse(ports.readBoardMeta(board.db, CLOCK_HEALTH_KEY) ?? '{}').withoutOwnerDeadlineIds ?? []; }
+  catch { previous = []; }
+  ports.atomic(board, () => {
+    for (const id of health.withoutOwnerDeadlineIds.filter(each => !previous.includes(each))) {
+      ports.insertShout(board, { from: 'sentinel', to: ports.coordinator, lanes: [], item: id, detail: { kind: 'clock', rule: 'no-owner-deadline' },
+        text: `#${id} has no owner or deadline in the clock table; the clock cannot move it.` });
+    }
+    ports.writeBoardMeta(board.db, CLOCK_HEALTH_KEY, JSON.stringify(health));
+  });
+  return health;
 }
 
 /**
@@ -145,5 +124,6 @@ export function clockSweep(board, { now, dryRun = false, moves = CLOCK_MOVES, fa
     }
     result.applied.push(plan);
   }
+  result.health = storeHealth(board, { at, dryRun: result.dryRun, facts, ports });
   return result;
 }
