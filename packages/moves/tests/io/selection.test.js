@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import childProcessModule from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -158,7 +158,7 @@ test('moves.selection.warm-files-bounded: clause 1: with 50 closed items by othe
 
 /** Count the git status launches made while `work` runs, by wrapping the child_process entry points Git calls go through. */
 function countingStatus(work) {
-  const childProcess = createRequire(import.meta.url)('node:child_process');
+  const childProcess = childProcessModule;
   const wrapped = ['execFileSync', 'spawnSync', 'execFile', 'spawn'], original = Object.fromEntries(wrapped.map(name => [name, childProcess[name]]));
   let statuses = 0;
   for (const name of wrapped) childProcess[name] = (...args) => { if (Array.isArray(args[1]) && args[1].includes('status')) statuses++; return original[name](...args); };
