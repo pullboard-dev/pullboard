@@ -56,7 +56,7 @@ test('cli.io-claim.freezer-omits-family-relax-at-when-off: clause 2: with the se
 });
 
 /** A real repo with one open, unclaimed web item whose recorded check baseline is as given, and a machine home whose claim.checkCeiling is as given. */
-function baselined(t, ceilingOn, baseline) {
+function baselined(t, ceilingOn, baseline, check) {
   const { root: home } = privateFixtureFiles('pullboard-claim-ceiling-');
   fixtureMachineSettings(home, ceilingOn === undefined ? {} : { claim: { checkCeiling: ceilingOn } });
   const before = process.env.PULLBOARD_MACHINE_HOME;
@@ -65,7 +65,7 @@ function baselined(t, ceilingOn, baseline) {
   const repo = cellRepo(t, { real: true, config: CELL_CONFIG });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true });
   const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/a` });
-  const item = cellItem(board, { lane: 'web', title: 'Build the page', criterion: BAR, specIds: ['G1'] });
+  const item = cellItem(board, { lane: 'web', title: 'Build the page', criterion: BAR, specIds: ['G1'], ...(check ? { check } : {}) });
   const ctx = { info: { root: repo.root, isMain: true }, config: loadConfig(repo.root) };
   if (baseline) {
     const recorded = { command: getItem(board, item.item_id).item_check, main: 'abc', ...baseline(frozenCheckCeilingMs(ctx.config) / 1000) };
@@ -96,4 +96,23 @@ test('cli.io-claim.check-ceiling-claims-pending-or-off: clause 2: with the setti
   assert.notEqual(claimedStatus(off), 'open', 'setting off');
   const unset = baselined(t, undefined, ceiling => ({ result: 'green', seconds: ceiling + 1 }));
   assert.notEqual(claimedStatus(unset), 'open', 'setting unset');
+});
+
+const HIDDEN_CHECK = 'node --test apps/cli/tests/io/claim.test.js > /dev/null';
+
+test('cli.io-claim.check-shape-refuses-hidden: clause 2: with claim.checkCeiling on, the claim freezer refuses CHECK_UNSOUND at once for a check checkHidesResult flags, before any baseline is read, and the item stays open and unclaimed [C7,#1273]', t => {
+  const fx = baselined(t, true, undefined, HIDDEN_CHECK);
+  assert.equal(getItem(fx.board, fx.id).item_check, HIDDEN_CHECK, 'the fixture item carries the hiding check');
+  assert.throws(() => fx.claimIt(), error => error.code === 'CHECK_UNSOUND');
+  const item = getItem(fx.board, fx.id);
+  assert.equal(item.item_status, 'open');
+  assert.equal(item.item_claimed_by ?? null, null);
+});
+
+test('cli.io-claim.check-shape-claims-when-off: clause 3: with the setting off or unset, an item whose check hides its output is claimed as today [C7,#1273]', t => {
+  for (const setting of [false, undefined]) {
+    const fx = baselined(t, setting, undefined, HIDDEN_CHECK);
+    fx.claimIt();
+    assert.notEqual(getItem(fx.board, fx.id).item_status, 'open', `setting ${setting}`);
+  }
 });
