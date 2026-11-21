@@ -1,0 +1,27 @@
+{
+  "cli.journeys-join-lanes-off.laneless-light-view-then-core": {
+    "proves": {
+      "specs": ["C7", "#2830"],
+      "claim": "With laneMode off, a seat that joined with no lane on the light route claims, commits and submits a view item and then a core item."
+    },
+    "why": "Without it, a laneless light seat could be refused the second cell, or a commit outside its first lane folders, and lanes off would be unproven end to end.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "apps/cli/src/io/commands/claim.js",
+      "packages/commits/src/io/hooks.js"
+    ]
+  },
+  "cli.journeys-join-lanes-off.held-cell-claim-sequencer": {
+    "proves": {
+      "specs": ["C7", "#2830"],
+      "claim": "With laneMode off, a second laneless seat's next is never handed an open item in a cell another seat holds."
+    },
+    "why": "Without it, two light seats could take work in one cell at once and write the same files.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off.test.js",
+      "packages/store/src/io/eligibility.js"
+    ]
+  }
+}
