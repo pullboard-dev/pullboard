@@ -46,9 +46,11 @@ test('cli.io-commands-waits.own-runner-filed-in-own-lane: clause 2: waits record
   const before = box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
   const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
-  assert.ok(recorded.document.waits.rows.some(row => row.surface === 'runner-unavailable' && row.holder === 'owned-host'), 'the board-used host wait is in the snapshot');
+  const owned = recorded.document.waits.rows.find(row => row.surface === 'runner-unavailable' && row.holder === 'owned-host');
+  assert.ok(owned, JSON.stringify(recorded.document.waits.rows));
+  assert.equal(owned.machine, undefined, JSON.stringify(owned));
   const items = box.board.db.prepare('SELECT item_title, item_lane, item_criterion FROM item').all();
-  assert.equal(items.length, before + 1, 'the board-used host files one item');
+  assert.equal(items.length, before + 1, JSON.stringify(recorded.document.recorded));
   assert.equal(items.at(-1).item_lane, 'core');
   assert.match(items.at(-1).item_criterion, /C7/u);
 });
