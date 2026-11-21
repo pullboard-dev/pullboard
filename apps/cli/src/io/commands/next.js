@@ -615,7 +615,7 @@ async function nextWithProgress(io, values, progress) {
 async function answerNoWait(io, ctx, found, values, ordered) {
   const { seat, finished } = withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
-    return { seat: me, finished: laneFinished(store.listItems(board), me.lane) };
+    return { seat: me, finished: laneFinished(store.listItems(board, { lane: me.lane, all: true }), me.lane) };
   });
   const seconds = idleSeconds(nextIdleMinutes(ctx.config));
   const observation = finished ? { finished: true } : { timeout: { minutes: Math.floor(seconds / 60), awaited: 'work for this seat' } };
