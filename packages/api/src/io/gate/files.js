@@ -66,6 +66,14 @@ function focusedRunner(root, main) {
   return typeof config?.affectedTests === 'string' && config.affectedTests.trim() !== '';
 }
 
+/** True when the main-test job's keyed receipt records a run that only went over its file budget. */
+function budgetOnlyReceipt(db, receipt) {
+  const id = typeof receipt === 'string' ? receipt : receipt?.id;
+  if (typeof id !== 'string') return false;
+  const row = db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = 0").get(id);
+  try { return JSON.parse(row?.payload ?? 'null')?.budgetOnly === true; } catch { return false; }
+}
+
 /**
  * Compare the failed files of a red gate receipt with main's receipts, when its red phases name files (failedFiles,
  * read on the runner from the spec reporter's failure footer) and no cases. Each file comes back red or green on
@@ -98,7 +106,8 @@ export function compareFilesWithMain(board, receipt, main, lookup) {
   if (files.some(file => !rows.has(file))) return null;
   const compared = files.map(file => {
     const row = rows.get(file);
-    const result = ['red', 'green'].includes(row.result) ? row.result : null;
+    // A budget-only main run failed no case: main's file reads green here, so a file's own unnamed failure is never excused by a budget overrun [C7,#12692].
+    const result = row.result === 'red' && budgetOnlyReceipt(board.db, row.receipt) ? 'green' : ['red', 'green'].includes(row.result) ? row.result : null;
     return { file, result, receipt: row.receipt ?? null, job: row.job ?? null, absentOnMain: result === null && tryGit(board.gitRoot, ['cat-file', '-e', `${main}:${file}`]).status !== 0 };
   });
   return { main, files: compared, jobs: [...new Set(compared.map(row => row.job).filter(Boolean))] };
