@@ -214,6 +214,7 @@ export const MERGED_AT_ENGINE = engineNumber('MERGED_AT_ENGINE');
 export const CLAIM_CHECK_SHAPE_ENGINE = engineNumber('CLAIM_CHECK_SHAPE_ENGINE');
 export const REVIEWER_ALIVE_RESERVE_ENGINE = engineNumber('REVIEWER_ALIVE_RESERVE_ENGINE');
 export const BOARD_RELEASE_CODES_ENGINE = engineNumber('BOARD_RELEASE_CODES_ENGINE');
+export const CLEAR_REVIEW_RESERVATION_ENGINE = engineNumber('CLEAR_REVIEW_RESERVATION_ENGINE');
 export { CAUSE_ENGINE } from '../move/constants.js';
 export { IMPLIES_ENGINE } from '../move/constants.js';
 export { SUBMISSION_PROOF_ENGINE } from '../move/constants.js';
