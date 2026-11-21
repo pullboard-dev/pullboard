@@ -33,8 +33,8 @@ function dirtyFolder(t) {
 
 /** What the builder sees of the folder: index bytes and mtime, HEAD and status. */
 function builderState(folder, git) {
-  // Status refreshes the index's stat cache, so it runs first and the index is read after it settles.
-  const status = git('status', '--porcelain=v1');
+  // A plain status can rewrite the index's stat cache; --no-optional-locks never writes it, so the index bytes and mtime are the builder's own.
+  const status = git('--no-optional-locks', 'status', '--porcelain=v1');
   const head = git('rev-parse', 'HEAD');
   const index = join(folder, '.git', 'index');
   return { bytes: readFileSync(index).toString('hex'), mtime: statSync(index).mtimeMs, head, status };
