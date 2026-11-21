@@ -10,8 +10,10 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -86,7 +88,7 @@ function privateBox() {
   for (const key of ['PULLBOARD_RELAY_TOKEN', 'PULLBOARD_VIEW_FOREGROUND', 'AI_AGENT']) delete env[key];
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
-  PRIVATE_RUNNER_STOPS.push(() => runCliInProcess(['runner', 'local', '--off'], { cwd: dir, env }));
+  PRIVATE_RUNNER_STOPS.push({ dir, stop: () => runCliInProcess(['runner', 'local', '--off'], { cwd: dir, env }) });
   return { dir, env, git, runLocal };
 }
 
@@ -190,10 +192,28 @@ async function nextViewStreamEvent(reader, predicate) {
   } finally { clearTimeout(timer); }
 }
 
+/** The pids this box's local runner recorded under machine-home: its state file and its starting marker, each keyed to a home by a short hash. */
+function recordedRunnerPids(dir) {
+  const folder = join(dir, 'machine-home', 'local-runner');
+  if (!existsSync(folder)) return [];
+  return readdirSync(folder).filter(name => /^(state|starting)(-[0-9a-f]{12})?\.json$/.test(name))
+    .map(name => ({ name, pid: JSON.parse(readFileSync(join(folder, name), 'utf8')).pid }))
+    .filter(entry => Number.isSafeInteger(entry.pid));
+}
+
+/** True while a process with this pid exists. */
+function pidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
+}
+
 after(async () => {
   // Every add offers a baseline to the machine's local runner, a detached child that keeps writing under machine-home; stop it first.
-  for (const stop of PRIVATE_RUNNER_STOPS) await stop().catch(() => {});
-  for (const dir of PRIVATE_DIRS) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); });
+  const recorded = PRIVATE_RUNNER_STOPS.map(({ dir }) => ({ dir, pids: recordedRunnerPids(dir) }));
+  for (const { stop } of PRIVATE_RUNNER_STOPS) await stop().catch(() => {});
+  const alive = recorded.flatMap(({ dir, pids }) => pids.filter(({ pid }) => pidAlive(pid)).map(({ name, pid }) => `${name} pid ${pid} under ${dir}`));
+  try { for (const dir of PRIVATE_DIRS) rmSync(dir, { recursive: true, force: true }); }
+  finally { assert.deepEqual(alive, [], 'the local runner each fixture add started has exited before its folder is removed'); }
+});
 
 test('cli.journeys-view-main.public-export-refuses-an-exporter-without: public export refuses an exporter without declared filter support [N26]', async () => {
   let called = false;
