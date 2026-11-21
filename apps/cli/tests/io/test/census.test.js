@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { pullProject } from '../../fixtures/pull.js';
 import { openKitBoard } from '../../fixtures/board.js';
-import { closeBoard } from '../../../lib/index.js';
+import { closeBoard } from '../../../../lib/index.js';
 import { jobQueueCall } from '../../../../../packages/api/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { fixtureCommitAll } from '../../../../../packages/gate/tests/fixtures/testkit.js';
@@ -109,7 +109,7 @@ test('cli.io-test-census.sigterm-cancels-own-shards: clause 1: SIGTERM withdraws
     while (Date.now() < until) { const value = predicate(); if (value) return value; await new Promise(resolve => { const watcher = watch(join(box.repo, '.git', 'pullboard'), () => { watcher.close(); resolve(); }); setTimeout(() => { watcher.close(); resolve(); }, 200).unref(); }); }
     assert.fail(`timed out waiting for ${description}`);
   };
-  const bin = join(import.meta.dirname, '../../pullboard.js');
+  const bin = join(import.meta.dirname, '../../../pullboard.js');
   const start = name => {
     const child = spawn(process.execPath, [bin, 'test', '--census', '--out', join(box.dir, `${name}.jsonl`)], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = ''; child.stdout.on('data', data => { output += data; }); child.stderr.on('data', data => { output += data; });
