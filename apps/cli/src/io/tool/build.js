@@ -12,7 +12,6 @@ import { git } from '../../../../../packages/git/light.js';
 import { gitChildEnv } from '../../../../../packages/git/light.js';
 import { repoInfo } from '../../../../../packages/git/light.js';
 import { withGitFacts } from '../../../../../packages/git/light.js';
-import { timerFiles as auditTimerFiles } from '../../../../../packages/gate/heavy.js';
 import { mainPolicy } from '../../../../../packages/sandbox/light.js';
 import { withFileLock } from '../../../../../packages/outbox/light.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
@@ -64,7 +63,7 @@ async function canonical(ctx) {
 }
 
 /** Only private repository-owned directories and a native SQLite file lock may hold a timer. */
-export function timerFiles(common, create, { label, folder }) {
+export async function timerFiles(common, create, { label, folder }) {
   if (!Number.isInteger(NOFOLLOW)) throw new Error(`${label} needs no-follow file observation`);
   let directory = common;
   for (const name of ['pullboard', folder]) {
@@ -75,6 +74,8 @@ export function timerFiles(common, create, { label, folder }) {
     if (!state.isDirectory() || state.isSymbolicLink() || name === folder && (state.mode & 0o077))
       throw new Error(`${label} directory is not private`);
   }
+  // Loaded at call time: a static import put the whole gate cell into every command's after-command maintenance (#12595).
+  const { timerFiles: auditTimerFiles } = await import('../../../../../packages/gate/heavy.js');
   const { guard, timer } = auditTimerFiles(directory);
   if (create) {
     try { fs.close(fs.open(guard, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | NOFOLLOW, 0o600)); }
@@ -141,7 +142,7 @@ export async function scheduleToolBuildGate(ctx) {
     const current = await canonical(ctx);
     if (!current) return { scheduled: false, reason: 'disabled-on-main' };
     stage = 'register';
-    const files = timerFiles(current.common, true, TIMER);
+    const files = await timerFiles(current.common, true, TIMER);
     return await withFileLock(files.guard, async () => {
       stage = 'lookup';
       const old = readTimer(files.file, TIMER);
@@ -185,7 +186,7 @@ export async function runScheduledToolBuildGate(ctx, key) {
   if (!TOKEN.test(key ?? '')) return { ran: false, reason: 'unregistered' };
   const identity = processIdentity(process.pid);
   if (!identity || identity.zombie) throw new Error('tool build gate timer cannot observe its own identity');
-  const files = timerFiles(fs.realpath(ctx.info.commonDir), false, TIMER);
+  const files = await timerFiles(fs.realpath(ctx.info.commonDir), false, TIMER);
   let owner;
   // The parent records the spawned PID/start after spawn; never act before that exact registration arrives.
   const registrationDeadline = Date.now() + 5000;
