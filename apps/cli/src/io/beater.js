@@ -125,7 +125,7 @@ async function seatEventAt(board, seat) {
 async function claimedFolders(board, seat) {
   let opened, store;
   try {
-    store = await import('../../../../packages/store/index.js');
+    store = await import('../../../../packages/store/light.js');
     opened = store.openBoardForRead(board);
     const path = opened?.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(seat)?.agent_path;
     if (typeof path !== 'string') return [];
