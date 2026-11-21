@@ -46,11 +46,11 @@ test('gate.io-test-path-read-sealing.a-cell-read-by-path-by: clause 1: [C7] a fo
   for (const path of ['packages/gate/tests', 'packages/gate/src', 'packages/board/tests', 'packages/board/src']) mkdirSync(join(root, path), { recursive: true });
   writeFileSync(join(root, 'packages/gate/tests/cells.test.js'), "import { cellTestProblems } from '../src/cells.js';\n");
   writeFileSync(join(root, 'packages/gate/src/cells.js'), 'export const cells = true;\n');
-  writeFileSync(join(root, 'packages/board/tests/reader.test.js'), `${foreign}import { board } from '../../src/board.js';\n`);
+  writeFileSync(join(root, 'packages/board/tests/reader.test.js'), `${foreign}import { board } from '../src/board.js';\n`);
   writeFileSync(join(root, 'packages/board/src/board.js'), 'export const board = true;\n');
   const listing = { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 0, sealed: ['gate'], splits: {}, pathReaders: { gate: 0 } };
   assert.match(testCellsProblems(root, { listing }).find(problem => problem.path === 'packages/gate').text, /1 tests outside cell gate read its files by path, over the ratchet of 0/u);
   listing.pathReaders.gate = 1;
-  writeFileSync(join(root, 'packages/board/tests/reader.test.js'), `import { board } from '../../src/board.js';\n${foreign}`);
+  writeFileSync(join(root, 'packages/board/tests/reader.test.js'), `import { board } from '../src/board.js';\n${foreign}`);
   assert.deepEqual(testCellsProblems(root, { listing }), []);
 });
