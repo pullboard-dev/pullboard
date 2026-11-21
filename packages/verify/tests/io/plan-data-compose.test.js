@@ -1,57 +1,75 @@
-/** @pullboard-world-pin builds real git repositories in a private root; every conflict is a real merge of two branches. */
-/** Review admission composes plan shards and data-read files by entry [C7,D3]. */
+/** @pullboard-world-pin builds isolated real git repositories without importing another cell's test helpers. */
+/** Review retry composes the authoritative plan index and test tiers by their registered row identities [C7]. */
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { retryReviewCommit } from '../../index.js';
-import { formatJson } from '../../../codemap/index.js';
-import { fixture } from '../../../landing/tests/fixtures/plan.js';
-import { git } from '../../../landing/tests/fixtures/plan.js';
 
-const SHARD_FILE = 'packages/codemap/data/plan/14-state.json';
-const READS_FILE = 'packages/codemap/data/plan/data-reads/blueprints.json';
-const row = n => [`src/m-${n}.js`, `packages/state/src/m-${n}.js`, 'rule'];
-const read = (n, why = 'config') => ({ file: `apps/cli/tests/r${n}.test.js`, line: n, expression: `join(box.repo, 'f${n}')`, kind: 'config', why });
-const shard = paths => formatJson({ order: 8, name: 'state', paths }) + '\n';
-const reads = rows => JSON.stringify({ version: 1, reads: rows }, null, 2) + '\n';
+const INDEX = 'packages/codemap/data/plan/cells.json';
+const TIERS = 'packages/gate/data/tests/tiers.json';
+const cell = (name, order) => ({ order, name, file: `packages/${name}/index.js` });
+const tier = file => ({ file, tier: 'T1', packages: ['packages/verify'], reasons: [`verify: ${file}`] });
+const index = cells => JSON.stringify({ version: 1, item: 1473, rfc: 'docs/rfcs/0006-cells.md', cells }, null, 2) + '\n';
+const tiers = files => JSON.stringify({ version: 1, files }, null, 2) + '\n';
 
-/** One real repository whose two branches each change the same files differently from one base commit. */
+/** Run git in a fixture repository and fail immediately if fixture setup is invalid. */
+function fixtureGit(root, ...args) {
+  return runFixtureGit(args, { cwd: root });
+}
+
+/** Build two branches from one base; each side changes both manifests. */
 function twoBranches(t, files) {
-  const { root, put } = fixture(t);
-  git(root, 'config', 'user.name', 'Plan merge fixture');
-  git(root, 'config', 'user.email', 'plan@example.invalid');
-  for (const [file, [base]] of Object.entries(files)) put(file, base);
-  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'base');
-  const main = git(root, 'rev-parse', 'HEAD').trim();
+  const fixture = privateFixtureFiles('verify-review-retry-');
+  const root = join(fixture.root, 'repo');
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  for (const [path, [base]] of Object.entries(files)) {
+    fixture.write(`repo/${path}`, base);
+  }
+  fixtureGit(root, 'init', '-q');
+  fixtureGit(root, 'config', 'user.name', 'Verify retry fixture');
+  fixtureGit(root, 'config', 'user.email', 'verify@example.invalid');
+  fixtureGit(root, 'add', '-A'); fixtureGit(root, 'commit', '-q', '-m', 'base');
+  const base = fixtureGit(root, 'rev-parse', 'HEAD').trim();
   const heads = [0, 1].map(side => {
-    git(root, 'checkout', '-q', '-b', `side${side}`, main);
-    for (const [file, sources] of Object.entries(files)) put(file, sources[side + 1]);
-    git(root, 'commit', '-qam', `side${side}`);
-    return git(root, 'rev-parse', 'HEAD').trim();
+    fixtureGit(root, 'checkout', '-q', '-b', `side${side}`, base);
+    for (const [path, sources] of Object.entries(files)) fixture.write(`repo/${path}`, sources[side + 1]);
+    fixtureGit(root, 'add', '-A'); fixtureGit(root, 'commit', '-q', '-m', `side${side}`);
+    return fixtureGit(root, 'rev-parse', 'HEAD').trim();
   });
-  git(root, 'checkout', '-q', 'side0');
   return { root, heads };
 }
 
-test('verify.review.plan-compose: two branches that each add a plan shard row and a data-read row compose with both rows in both orders on review retry [C7,D3]', async t => {
-  const { root, heads } = twoBranches(t, {
-    [SHARD_FILE]: [shard([row(1)]), shard([row(1), row(2)]), shard([row(1), row(3)])],
-    [READS_FILE]: [reads([read(1)]), reads([read(1), read(2)]), reads([read(1), read(3)])],
-  });
-  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+test('verify.review.retry-manifests.compose: clause 1: both authoritative manifest schemas compose with stable bytes and each original row in either branch order [C7]', t => {
+  const files = {
+    [INDEX]: [index([cell('base', 1)]), index([cell('base', 1), cell('alpha', 2)]), index([cell('base', 1), cell('beta', 3)])],
+    [TIERS]: [tiers([tier('base.test.js')]), tiers([tier('base.test.js'), tier('alpha.test.js')]), tiers([tier('base.test.js'), tier('beta.test.js')])],
+  };
+  const { root, heads } = twoBranches(t, files);
+  const compositions = [heads, [...heads].reverse()].map(([ours, theirs]) => {
     const review = retryReviewCommit(root, ours, { commit: theirs });
-    assert.equal(JSON.parse(git(root, 'show', `${review}:${READS_FILE}`)).reads.length, 3, 'review admission merges the data-read rows too');
-    assert.equal(JSON.parse(git(root, 'show', `${review}:${SHARD_FILE}`)).paths.length, 3, 'and the shard rows');
-  }
+    return Object.fromEntries([INDEX, TIERS].map(path => [path, fixtureGit(root, 'show', `${review}:${path}`)]));
+  });
+  assert.deepEqual(compositions[0], compositions[1], 'the manifest bytes do not depend on branch order');
+  const composedIndex = JSON.parse(compositions[0][INDEX]);
+  assert.deepEqual(composedIndex.cells, [cell('base', 1), cell('alpha', 2), cell('beta', 3)]);
+  assert.equal(composedIndex.item, 1473, 'the plan index keeps its original top-level schema');
+  const composedTiers = JSON.parse(compositions[0][TIERS]);
+  assert.deepEqual(composedTiers.files, [tier('alpha.test.js'), tier('base.test.js'), tier('beta.test.js')]);
+  assert.equal(composedTiers.version, 1, 'the test tiers keep their original top-level schema');
 });
 
-test('verify.review.plan-conflict: a data-read row and a shard row edited differently on both sides still refuse MERGE_CONFLICT on review retry [C7,D3]', async t => {
-  for (const [file, base, left, right] of [
-    [SHARD_FILE, shard([row(1)]), shard([[...row(1).slice(0, 2), 'imports']]), shard([[...row(1).slice(0, 2), 'seed']])],
-    [READS_FILE, reads([read(1)]), reads([read(1, 'left')]), reads([read(1, 'right')])],
+test('verify.review.retry-manifests.shared-row: clause 1: competing edits to a shared index or test tier row refuse and name that row in either branch order [C7]', t => {
+  for (const [path, base, left, right, identity] of [
+    [INDEX, index([cell('shared', 1)]), index([{ ...cell('shared', 1), file: 'packages/left/index.js' }]), index([{ ...cell('shared', 1), file: 'packages/right/index.js' }]), 'cells:shared'],
+    [TIERS, tiers([tier('shared.test.js')]), tiers([{ ...tier('shared.test.js'), tier: 'T2' }]), tiers([{ ...tier('shared.test.js'), tier: 'T3' }]), 'files:shared.test.js'],
   ]) {
-    const { root, heads } = twoBranches(t, { [file]: [base, left, right] });
+    const { root, heads } = twoBranches(t, { [path]: [base, left, right] });
     for (const [ours, theirs] of [heads, [...heads].reverse()]) {
-      assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(file));
+      assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }), error =>
+        error.code === 'MERGE_CONFLICT' && error.message.includes(path) && error.message.includes(identity));
     }
   }
 });
