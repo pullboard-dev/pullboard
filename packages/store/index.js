@@ -9,6 +9,7 @@ export { recordCapacityWeek, capacityWeeks } from './src/io/board/capacity-week.
 export { writeBoardMeta, readBoardMeta, deleteBoardMeta, deleteBoardMetaWithPrefix, listBoardMetaWithPrefix } from './src/io/board/meta.js';
 export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { atomic, logEvent, writeOrigin } from './src/io/board/event/log.js';
+export { writeFileAtomic } from './src/io/atomic.js';
 export { applyHealthFindings } from './src/io/board/health.js';
 export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
 export { archiveOldEvents, ARCHIVE_AFTER_DAYS } from './src/io/board/event/archive.js';

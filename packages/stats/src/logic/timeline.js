@@ -57,7 +57,7 @@ function row(at, item, stage, edge, actor, reason, ref) {
  */
 function eventRows(events) {
   const rows = [], unmapped = new Map(), settled = new Map();
-  let released = false, offered = false;
+  let released = false, offered = false, reviewing = false;
   for (const event of events) {
     const detail = objectOf(event.detail), at = msOf(event.at);
     // A mark event names its own stage and edge and the time it marks; a stage outside TIMELINE_STAGES adds no row [C7,#12234].
@@ -79,6 +79,12 @@ function eventRows(events) {
     if (event.kind === 'submit_offered') offered = true;
     else if (event.kind === 'submit' && offered) { offered = false; continue; }
     else if (['claim', 'release', 'reject', 'reopen'].includes(event.kind)) offered = false;
+    // A review release while a reservation is open ends that reviewing stretch with the release's own code and puts the item back in the review queue [C7,#12161].
+    if (event.kind === 'release' && detail.review === true && reviewing) { reviewing = false; rows.push(row(at, event.item, 'reviewing', 'end', event.by, detail.reasonCode ?? null, null)); continue; }
+    // A reject after a reservation is the review's verdict; it opens rework until the next claim [C7,#12161].
+    if (event.kind === 'reject' && reviewing) { reviewing = false; released = true; rows.push(row(at, event.item, 'verdict', 'point', event.by, 'reject', detail.commit ?? null)); continue; }
+    if (event.kind === 'reserve') reviewing = true;
+    else if (['claim', 'submit', 'submit_offered', 'release', 'reopen', 'reject', 'accept', 'pass'].includes(event.kind)) reviewing = false;
     let [stage, edge] = mapped;
     if (event.kind === 'claim' && released) stage = 're-claimed';
     if (['release', 'reject', 'reopen'].includes(event.kind)) released = true;
@@ -133,10 +139,10 @@ function gateQueueReason(snapshot, previous, item) {
   return null;
 }
 
-function stretches(rows, end) {
+function stretches(rows, end, seatEvents = null) {
   const out = [];
   const gate = { queued: new Set(), running: new Set() }, land = { queued: new Set(), running: new Set() };
-  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false, settleWait = null, gateWait = null;
+  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false, settleWait = null, gateWait = null, builder = null, waitingSince = null;
   const bucketNow = () => {
     if (held) return { reason: 'HELD' };
     if (gateWait) return { reason: gateWait };
@@ -162,11 +168,13 @@ function stretches(rows, end) {
     if (current.stage === 'gate-queued') gateWait = current.reason ?? null;
     else gateWait = null;
     if (current.stage === 'filed') { phase = 'open'; }
-    else if (current.stage === 'claimed' || current.stage === 're-claimed') { phase = 'building'; wait = null; settleWait = null; }
+    else if (current.stage === 'claimed' || current.stage === 're-claimed') { phase = 'building'; wait = null; settleWait = null; builder = current.actor; }
     else if (current.stage === 'released') { phase = 'open'; wait = current.reason === 'BLOCKED' ? 'DEPENDENCY' : null; }
     else if (current.stage === 'rejected' || current.stage === 'reopened') { phase = 'open'; rework = true; outcome = null; }
     else if (current.stage === 'submitted') { phase = 'submitted'; rework = false; outcome = null; settleWait = null; gate.queued.clear(); gate.running.clear(); }
+    else if (current.stage === 'reviewing' && current.edge === 'end') { phase = 'submitted'; outcome = outcome ?? 'green'; }
     else if (current.stage === 'reviewing') phase = 'reviewing';
+    else if (current.stage === 'verdict' && current.reason === 'reject') { phase = 'open'; rework = true; outcome = null; }
     else if (current.stage === 'verdict') phase = 'verdict';
     else if (current.stage === 'held') held = current.edge === 'start';
     else if (current.stage === 'smoke') smoking = current.edge === 'start';
@@ -183,9 +191,43 @@ function stretches(rows, end) {
     }
     const next = rows[index + 1]?.at ?? end;
     if (next === undefined) continue;
-    out.push({ from: current.at, to: next, ms: next - current.at, ...bucketNow(), fromStage: current.stage, toStage: rows[index + 1]?.stage ?? 'now' });
+    const part = { from: current.at, to: next, ms: next - current.at, ...bucketNow(), fromStage: current.stage, toStage: rows[index + 1]?.stage ?? 'now' };
+    if (part.bucket !== 'waiting for review') waitingSince = null;
+    else if (seatEvents) {
+      // Waiting for review is NO_REVIEWER until a seat other than the builder records a next-idle, claim or reserve; the rest is plain waiting [C7,#12161].
+      waitingSince ??= current.at;
+      const seen = seatEvents.find(seat => seat.at >= waitingSince && seat.by !== builder)?.at;
+      if (seen === undefined || seen >= next) { out.push({ ...part, bucket: undefined, reason: 'NO_REVIEWER' }); continue; }
+      if (seen > current.at) {
+        out.push({ ...part, to: seen, ms: seen - current.at, bucket: undefined, reason: 'NO_REVIEWER', toStage: 'seat-seen' });
+        out.push({ ...part, from: seen, ms: next - seen, fromStage: 'seat-seen' });
+        continue;
+      }
+    }
+    out.push(part);
   }
   return out;
+}
+
+/**
+ * Adds a review-queued row where a review wait starts, for each wait a reservation ends: at the first green gate-settled of the submission, at the submission itself when it has no gate job, or at a review release.
+ * Why: the marker is only placed when a reservation follows, so an item merged with no review keeps the rows it had [C7,#12161].
+ */
+function withReviewQueued(rows, item) {
+  const after = new Map();
+  let submitted = null, green = null, gated = false, anchor = null;
+  for (const value of rows) {
+    if (value.stage === 'submitted') { submitted = value; green = null; gated = false; anchor = null; }
+    else if (value.stage === 'gate-queued') gated = true;
+    else if (value.stage === 'gate-settled' && green === null && value.reason === 'green') green = value;
+    else if (value.stage === 'reviewing' && value.edge === 'end') anchor = value;
+    else if (value.stage === 'reviewing') {
+      const queued = anchor ?? (gated ? green : submitted);
+      if (queued && !after.has(queued)) after.set(queued, row(queued.at, item, 'review-queued', 'start', null, null, null));
+      anchor = null;
+    } else if (['claimed', 're-claimed', 'released', 'rejected', 'reopened', 'verdict'].includes(value.stage)) { submitted = null; green = null; anchor = null; }
+  }
+  return after.size ? rows.flatMap(value => (after.has(value) ? [value, after.get(value)] : [value])) : rows;
 }
 
 /**
@@ -198,7 +240,7 @@ function stretches(rows, end) {
  * @param {{ item?: number, events: { id?: number, at: string|number, by?: string, kind: string, item: number, detail?: object|string }[], jobs?: { id: string, kind: string, created: number }[], steps?: { job: string, name: string, at: number, payload?: string|object }[], now?: number }} input
  * @returns {{ rows: object[], summary: object, unmapped: { kind: string, count: number }[] }}
  */
-export function timelineOf({ events = [], jobs = [], steps = [], gateQueue = [], now, item: given = null } = {}) {
+export function timelineOf({ events = [], jobs = [], steps = [], gateQueue = [], seatEvents = null, now, item: given = null } = {}) {
   const item = events.find(event => event.item != null)?.item ?? given;
   const fromEvents = eventRows(events);
   const sourceOrder = new Map();
@@ -218,13 +260,13 @@ export function timelineOf({ events = [], jobs = [], steps = [], gateQueue = [],
   }
   const all = [...fromEvents.rows, ...gateRows];
   all.forEach((value, index) => sourceOrder.set(value, index));
-  const rows = all.sort((a, b) => a.at - b.at || sourceOrder.get(a) - sourceOrder.get(b));
+  const rows = withReviewQueued(all.sort((a, b) => a.at - b.at || sourceOrder.get(a) - sourceOrder.get(b)), item);
   rows.forEach((value, index) => { value.delta = index === 0 ? null : value.at - rows[index - 1].at; });
   const buckets = Object.fromEntries(TIMELINE_BUCKETS.map(name => [name, 0]));
   const waits = Object.fromEntries(WAIT_REASONS.map(name => [name, 0]));
   const last = rows.length ? rows.at(-1) : null;
   const end = last && last.stage !== 'merged' && now !== undefined && now > last.at ? now : undefined;
-  const parts = rows.length ? stretches(rows, end) : [];
+  const parts = rows.length ? stretches(rows, end, seatEvents ? seatEvents.slice().sort((a, b) => a.at - b.at) : null) : [];
   let unaccounted = 0, longest = null;
   const unaccountedStretches = [];
   parts.forEach((part, index) => {

@@ -1,0 +1,16 @@
+{
+  "view.item.timeline-strip-empty": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "the view's item timeline route answers 200 with an empty timeline for an item that exists and has no events, and keeps 404 for a missing item or a failed command."
+    },
+    "why": "The page asks for every opened item's strip; a 404 for an item that exists is a console error, but a missing item or a real failure must still be told apart.",
+    "kind": "journey",
+    "inputs": [
+      "apps/view/src/io/serve.js",
+      "apps/view/tests/io/cockpit/page.test.js"
+    ]
+  }
+}

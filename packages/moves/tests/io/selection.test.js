@@ -1,6 +1,12 @@
+/** @pullboard-module-loads packages/git/src/io/main.js packages/moves/src/io/selection.js */
 /** next re-joins a seat to the lane with work only when the seat holds no live claim and its lane owns folders [N2,C7,#10691], and warms from the seat's three latest built items with one bounded read [N2,C7,#10692]. */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import childProcessModule from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { submitFixture } from '../../../store/tests/fixtures/submit.js';
@@ -15,6 +21,7 @@ import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { nextOnce } from '../../index.js';
 import { nextSelection } from '../../index.js';
+import { warmFiles } from '../../src/io/selection.js';
 import { actorClaims } from '../fixtures/next.js';
 import { fixture } from '../fixtures/next.js';
 import { next } from '../fixtures/next.js';
@@ -149,6 +156,76 @@ test('moves.selection.warm-files-bounded: clause 1: with 50 closed items by othe
   assert.deepEqual(read.rows.map(entry => entry.item_files), recent.map(entry => entry.file), 'the warm files are exactly those three items\' files');
   // The board holds 50 + 4 built items besides the open one; the warm read returned three rows, not the list.
   assert.equal(read.rows.length, 3);
+});
+
+/** Count the git status launches made while `work` runs, by wrapping the child_process entry points Git calls go through. */
+function countingStatus(work) {
+  const childProcess = childProcessModule;
+  const wrapped = ['execFileSync', 'spawnSync', 'execFile', 'spawn'], original = Object.fromEntries(wrapped.map(name => [name, childProcess[name]]));
+  let statuses = 0;
+  for (const name of wrapped) childProcess[name] = (...args) => { if (Array.isArray(args[1]) && args[1].includes('status')) statuses++; return original[name](...args); };
+  syncBuiltinESMExports();
+  try { return { value: work(), statuses: () => statuses }; } finally { Object.assign(childProcess, original); syncBuiltinESMExports(); }
+}
+
+/** Point the machine home at a folder inside the fixture project, so the status cache of a test never reaches the machine's own. */
+function privateMachineHome(t, box) {
+  const previous = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(box.project.dir, 'machine-home');
+  t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; });
+}
+
+test('moves.selection.status-reused: clause 1: two nextSelection.pick calls on an unchanged seat checkout launch git status at most once between them, with the same warm files [N2,C7,#10859]', t => {
+  const box = fixture(t, { boardFrom: cellBoard });
+  privateMachineHome(t, box);
+  box.add('Open work for the pick');
+  const first = countingStatus(() => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports));
+  const warmFirst = warmFiles(box.ctx, box.board, box.seats.actor, box.ports);
+  const second = countingStatus(() => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports));
+  const warmSecond = warmFiles(box.ctx, box.board, box.seats.actor, box.ports);
+  assert.equal(second.statuses() + 0, 0, 'the second pick on an unchanged checkout launches no git status');
+  assert.ok(first.statuses() <= 1, 'the first pick reads the status at most once');
+  assert.deepEqual(warmSecond, warmFirst, 'the warm files are the same as the status read gave');
+  assert.equal(second.value.item?.item_id, first.value.item?.item_id, 'the second pick selects the same item');
+});
+
+test('moves.selection.edit-named-file-warms: clause 2: a first edit to a clean tracked file an open item in the seat lane names is in the second pick warm files, and the pick selects the same item [N2,C7,#10859]', t => {
+  const box = fixture(t, { boardFrom: cellBoard });
+  privateMachineHome(t, box);
+  const root = box.project.repo, target = join(root, 'web', 'target.js');
+  mkdirSync(join(root, 'web'), { recursive: true });
+  writeFileSync(target, 'export const one = 1;\n');
+  const gitIn = (...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { cwd: root, stdio: 'pipe' });
+  gitIn('add', 'web/target.js');
+  gitIn('commit', '-m', 'track target');
+  const open = box.add('Open work naming the target', { brief: 'Files: web/target.js\nTest: the real board picks it.' });
+  const pick = () => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports);
+  const before = pick();
+  assert.ok(!warmFiles(box.ctx, box.board, box.seats.actor, box.ports).includes('web/target.js'), 'a clean file is not warm');
+  writeFileSync(target, 'export const one = 1;\nexport const two = 2;\n');
+  assert.ok(warmFiles(box.ctx, box.board, box.seats.actor, box.ports).includes('web/target.js'), 'the edited file the open item names is warm');
+  assert.equal(pick().item?.item_id, before.item?.item_id, 'the pick selects the same item');
+  assert.equal(before.item?.item_id, open);
+});
+
+test('moves.selection.status-cache-per-checkout: clause 3: two seat checkouts keep separate small caches beside their own indexes, each holding only its own paths [N2,C7,#10859]', t => {
+  const box = fixture(t, { boardFrom: cellBoard });
+  const first = box.project.repo, second = join(box.project.dir, 'second-checkout');
+  mkdirSync(second, { recursive: true });
+  const gitIn = (root, ...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { cwd: root, stdio: 'pipe' });
+  gitIn(second, 'init', '-q');
+  writeFileSync(join(second, 'base.txt'), 'base\n');
+  gitIn(second, 'add', 'base.txt');
+  gitIn(second, 'commit', '-q', '-m', 'base');
+  writeFileSync(join(first, 'first-only.js'), 'one\n');
+  writeFileSync(join(second, 'second-only.js'), 'two\n');
+  const warm = root => warmFiles({ ...box.ctx, info: { ...box.ctx.info, root } }, box.board, box.seats.actor, box.ports);
+  assert.ok(warm(first).includes('first-only.js') && !warm(first).includes('second-only.js'));
+  assert.ok(warm(second).includes('second-only.js') && !warm(second).includes('first-only.js'));
+  const kept = root => JSON.parse(readFileSync(join(root, '.git', 'pullboard-warm-status.json'), 'utf8'));
+  assert.deepEqual(Object.keys(kept(first)).sort(), ['fingerprint', 'paths'], 'a cache holds only its fingerprint and paths');
+  assert.ok(kept(first).paths.includes('first-only.js') && !kept(first).paths.includes('second-only.js'), 'the first cache holds the first checkout only');
+  assert.ok(kept(second).paths.includes('second-only.js') && !kept(second).paths.includes('first-only.js'), 'the second cache holds the second checkout only');
 });
 
 test('moves.selection.derived-gate-port: clause 1: with ports.derivedGateAtHead returning a reader, pick passes it to nextFor, so an item the reader names as gated is not picked and the next free item is [C7,#10881]', t => {
