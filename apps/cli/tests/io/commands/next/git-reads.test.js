@@ -85,3 +85,18 @@ test('cli.journeys-speed-next-git-reads.with-next-onegitread-off-next-reads: cla
   assert.equal(off.item, unset.item);
   assert.equal(off.printed, unset.printed);
 });
+
+test('cli.journeys-speed-next-git-reads.warm-second-next-no-status: clause 3: a warm second next on the 2,500-item board launches no git status [C7,#10859]', async (t) => {
+  const box = largeBoard(t, { scale: { items: 2_500, events: 5_000, shouts: 1_000, seats: 100 } });
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Warm status sample', diagnose: false, args: ['--specs', 'G1'] });
+  const statusReads = async () => {
+    let result;
+    const reads = await recordingReads(async () => { result = await box.runIn(box.web, 'next', '--json'); });
+    assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
+    return reads.filter((read) => read.split(' ')[0] === 'status').length;
+  };
+  const first = await statusReads();
+  const second = await statusReads();
+  console.log(`# next git status reads, first: ${first}; second: ${second}`);
+  assert.equal(second, 0, `a warm second next launches no git status (saw ${second})`);
+});
