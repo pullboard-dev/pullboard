@@ -45,7 +45,7 @@ import {
   sha256,
   signRows,
 } from '../packages/spec/index.js';
-import { block, documentedEvents } from '../apps/lib/tests/fixtures/formats-guide.js';
+import { block, documentedEvents } from '../apps/cli/tests/fixtures/formats-guide.js';
 
 /** The generated pages are rendered from the declarations; no committed copy is read. */
 const generated = generatedDocs(fileURLToPath(new URL('../', import.meta.url)), { openBoard });
