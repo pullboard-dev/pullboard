@@ -27,6 +27,7 @@ import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
 import { loadConfig } from '../../../../../../packages/config/index.js';
 import { Refused } from '../../../../../../packages/kernel/light.js';
+import { lex } from '../../../../../../packages/kernel/light.js';
 import { runnerControllerCallees } from '../../../fixtures/runner/machine.js';
 import { assertRunnerControllerReachability } from '../../../fixtures/runner/machine.js';
 
@@ -41,7 +42,8 @@ const ENTRY_POINTS = [
   // submitHere loads the pulled gate offer lazily, which the walk does not follow, so the offer is its own submit entry [#6807].
   { verbs: ['submit'], at: ['../packages/store/src/io/board.js#submit', '../apps/cli/src/io/commands/submit.js#submitHere', '../apps/cli/src/io/submit/pull.js#offerSubmitGate'] },
   { verbs: ['reserve'], at: ['../packages/store/src/io/board.js#reserveReview', '../packages/store/src/io/board.js#reserveNextReview'] },
-  { verbs: ['accept', 'reject'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
+  { verbs: ['accept'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
+  { verbs: ['reject'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
   { verbs: ['escalate'], at: ['../packages/store/src/logic/board/escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['../packages/store/src/io/board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['../packages/store/src/io/board.js#refreeze'] },
@@ -237,6 +239,43 @@ function factsOf(source, sourceFile) {
   return facts;
 }
 
+/** Remove only the opposite decision's explicitly guarded consequent; unknown guards remain visible. */
+function verdictArm(body, decision) {
+  if (!decision) return body;
+  const code = lex(body).code;
+  const spans = [];
+  /** Find a matching delimiter in the lexed code, leaving strings and comments inert. */
+  const endOf = (start, open, close) => {
+    let depth = 0;
+    for (let at = start; at < code.length; at++) {
+      if (code[at] === open) depth++;
+      if (code[at] === close && --depth === 0) return at;
+    }
+    return -1;
+  };
+  for (const found of code.matchAll(/\bif\s*\(/gu)) {
+    const start = code.indexOf('(', found.index), end = endOf(start, '(', ')');
+    if (end < 0) continue;
+    const condition = body.slice(start + 1, end).trim();
+    const match = /^decision\s*===\s*(['"])(ACCEPT|REJECT)\1(?:\s*&&[\s\S]+)?$/u.exec(condition);
+    if (!match || match[2] === decision || lex(condition).code.includes('||')) continue;
+    let first = end + 1;
+    while (/\s/u.test(code[first] ?? '')) first++;
+    let last;
+    if (code[first] === '{') last = endOf(first, '{', '}');
+    else {
+      let nesting = 0; last = -1;
+      for (let at = first; at < code.length; at++) {
+        if ('([{'.includes(code[at])) nesting++;
+        else if (')]}'.includes(code[at])) nesting--;
+        else if (code[at] === ';' && nesting === 0) { last = at; break; }
+      }
+    }
+    if (last >= first) spans.push([first, last + 1]);
+  }
+  return body.split('').map((ch, at) => spans.some(([first, last]) => at >= first && at < last) && ch !== '\n' ? ' ' : ch).join('');
+}
+
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
  * functions it calls, followed across imports and into the functions the CLI hands the board.
@@ -245,7 +284,7 @@ function factsOf(source, sourceFile) {
  * @param {{ caught?: boolean }} [options] Honor explicit caller/callee catch boundaries for escaping codes.
  * @returns {{ functions: (file: string) => string[], refusalsOf: (key: string, skip?: Set<string>) => Set<string> }}
  */
-function codeWalk(read, { caught = false } = {}) {
+function codeWalk(read, { caught = false, decision = null } = {}) {
   const files = new Map();
   const localFacts = new Map();
   const load = (file) => {
@@ -274,11 +313,12 @@ function codeWalk(read, { caught = false } = {}) {
     }
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
     // The same source parsed once yields the same local facts in any walk of the same mode, except for the one file that reads another file's injection.
-    const shared = file !== INJECTED_TABLES.file;
+    const specific = decision && file === '../apps/cli/src/io/commands/verify.js' && name === 'verifyHere';
+    const shared = file !== INJECTED_TABLES.file && !specific;
     const kept = shared ? LOCAL_FACTS[caught].get(parsed) : undefined;
     let facts = localFacts.get(key) ?? kept?.get(key);
     if (!facts) {
-      const body = bodies.get(name) ?? '';
+      const body = specific ? verdictArm(bodies.get(name) ?? '', decision) : bodies.get(name) ?? '';
       const callbacks = CALLBACKS[file];
       const codes = new Set([...[...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]), ...(body ? tableDataCodes(file, source) : [])]);
       const callees = [
@@ -343,8 +383,10 @@ function codeProblems(machine, read = fromDisk) {
   const problems = new Set();
   for (const { verbs, at } of ENTRY_POINTS) {
     const declared = declaredCodes(machine, verbs);
+    const verdictWalk = verbs.length === 1 && ['accept', 'reject'].includes(verbs[0])
+      ? codeWalk(read, { caught: true, decision: verbs[0].toUpperCase() }) : walk;
     for (const entry of at) {
-      for (const code of walk.refusalsOf(entry)) {
+      for (const code of verdictWalk.refusalsOf(entry)) {
         if (!declared.has(code) && !(code in NOT_MOVES)) problems.add(`${code} is raised by ${verbs.join(' and ')} but not declared there`);
       }
     }
@@ -381,6 +423,20 @@ function editedSource(file, line, replacement) {
     return source.replace(line, replacement);
   };
 }
+
+test('cli.journeys-verify-machine-walk.verdict-decision-arms: clause 1: accept and reject attribute guarded refusals to the correct verdict [C7,M1]', () => {
+  const entry = '../apps/cli/src/io/commands/verify.js#verifyHere';
+  const accept = codeWalk(fromDisk, { caught: true, decision: 'ACCEPT' });
+  const reject = codeWalk(fromDisk, { caught: true, decision: 'REJECT' });
+  assert.ok(accept.refusalsOf(entry).has('PENDING_REFREEZE'));
+  assert.ok(!reject.refusalsOf(entry).has('PENDING_REFREEZE'));
+  assert.ok(declaredCodes(machineRules.MACHINE, ['accept']).has('PENDING_REFREEZE'));
+  assert.ok(!declaredCodes(machineRules.MACHINE, ['reject']).has('PENDING_REFREEZE'));
+  const changed = editedSource('apps/cli/src/io/commands/verify.js', /if \(decision === 'ACCEPT' && soloLowStakesEnabled\(\)/u,
+    "if (decision === 'REJECT') { throw new Refused('REJECT_ARM_PROBE', 'probe'); }\n    if (decision === 'ACCEPT' && soloLowStakesEnabled(");
+  assert.ok(codeWalk(changed, { caught: true, decision: 'REJECT' }).refusalsOf(entry).has('REJECT_ARM_PROBE'));
+  assert.ok(!codeWalk(changed, { caught: true, decision: 'ACCEPT' }).refusalsOf(entry).has('REJECT_ARM_PROBE'));
+});
 
 /**
  * A deep copy of the declaration to break, so the real one stays whole.

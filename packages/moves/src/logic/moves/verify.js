@@ -64,6 +64,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "PENDING_REFREEZE": "run pullboard refreeze <id> before self-accepting the changed row",
   ...VERIFY_NEXT,
   "TEST_SELECTION_SOURCE": "restore Git history and retry the selected test run",
   "TEST_TIER_MANIFEST": "regenerate and commit the testing tier manifest",
