@@ -33,8 +33,9 @@ import { watchSpecFilter } from '../../../tests/fixtures/cockpit/spec-watch.js';
 test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 1: doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for shared-row checks.');
-  let phaseMark = performance.now();
-  const phase = (name) => { const now = performance.now(); console.log(`# phase ${name} ${Math.round(now - phaseMark)}`); phaseMark = now; };
+  /** Each browser session times its own phases, since the sessions run side by side. */
+  const phaseTimer = (label) => { let mark = performance.now(); return (name) => { const now = performance.now(); console.log(`# phase ${label}${name} ${Math.round(now - mark)}`); mark = now; }; };
+  const phase = phaseTimer('');
 
   const standard = standardDoctrine();
   const [inherited, overridden, declined] = standard.rows;
@@ -58,9 +59,8 @@ test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 
   phase('setup and board seeding');
 
   const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-shared-rows-chrome-'));
-  let chrome;
-  let filterTrace;
+  /** Bind the proof and row readers to one browser session. */
+  const helpersFor = (chrome) => {
   /** Save a full-page proof of the actual rendered tab when a proof folder is requested. */
   const shot = async (kind, width, theme) => {
     if (!process.env.PULLBOARD_ROWS_PROOF) return;
@@ -91,140 +91,164 @@ test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 
         currentRowIsLastRendered:currentRow === trace.lastRow, captureErrors:trace.captureErrors.slice(-4) } : null,
       overflow:document.documentElement.scrollWidth > document.documentElement.clientWidth, pageWidth:document.documentElement.clientWidth, pageScrollWidth:document.documentElement.scrollWidth};
   })())`));
+  return { shot, rowState };
+  };
 
-  try {
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor("data?.project?.spec?.some(row => row.id === 'G1') && data?.project?.practice?.some(row => row.id === 'R1')");
-    phase('Chrome start');
-    for (const theme of ['light', 'dark']) {
-      for (const width of [375, 1280]) {
-        await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-        await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] });
-        await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${theme})').matches`);
-        await pressTab(chrome, 'items');
-        const item = await rowState('#chain .row[data-item="1"]');
-        assert.ok(item?.dot, `${width}px ${theme}: the Items reference row has its status dot`);
-        assert.equal(item.overflow, false, `${width}px ${theme}: the Items row has no horizontal overflow`);
-
-        await pressTab(chrome, 'spec');
-        await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
-        const g1 = await rowState('#spec-list [data-row="spec:G1"]');
-        const g2 = await rowState('#spec-list [data-row="spec:G2"]');
-        assert.match(g1.className, /(?:^|\s)srow(?:\s|$)/u);
-        assert.match(g1.className, /(?:^|\s)row(?:\s|$)/u, `${width}px ${theme}: Spec uses the shared Items row component`);
-        assert.equal(g1.dot, true);
-        assert.equal(g1.overflow, false, `${width}px ${theme}: Spec has no horizontal overflow`);
-        assert.equal(g1.count, '1 item', `${width}px ${theme}: G1 shows its exact citation count below the tier`);
-        assert.ok(g1.countBox.y >= g1.statusBox.bottom && Math.abs(g1.countBox.right - g1.statusBox.right) < 2, `${width}px ${theme}: the citation count is right-aligned below the tier`);
-        assert.equal(g1.status, 'must', `${width}px ${theme}: All rows keeps the tier in its slot`);
-        assert.equal(g1.stateIcon, '✎', `${width}px ${theme}: the state circle identifies a draft`);
-        assert.equal(g2.count, '0 items', `${width}px ${theme}: an uncited Spec row has an explicit citation count`);
-        assert.equal(g2.status, 'aim', `${width}px ${theme}: a pending question retains its declared aim tier`);
-        assert.equal(g1.rowStyle.gridTemplateAreas, '"dot main side"', `${width}px ${theme}: Spec uses the approved state, text and side-column grid`);
-        assert.equal(g1.rowStyle.fontFamily, item.rowStyle.fontFamily, `${width}px ${theme}: Spec retains the shared row font`);
-        assert.equal(g1.titleStyle.overflow, 'ellipsis');
-        assert.equal(g1.titleStyle.whiteSpace, 'nowrap');
-        assert.equal(g1.titleStyle.lines, 1);
-        assert.ok(g1.titleFull.includes(longGoal.slice(0, 40)), `${width}px ${theme}: the full title remains available on the row`);
-
-        const header = JSON.parse(await chrome.stable(`JSON.stringify((() => { const e=document.querySelector('#spec-list .spec-section-head'); return {text:e?.innerText??'', count:e?.querySelector('.section-count')?.textContent.trim()??null, approve:e?.querySelector('[data-section-approve]')?.innerText??null}; })())`));
-        assert.match(header.text, /Goals/u);
-        assert.equal(header.count, '3', `${width}px ${theme}: the section header shows its three rows`);
-        assert.equal(header.approve, null, `${width}px ${theme}: Spec group headers carry no Approve all`);
-
-        filterTrace = await watchSpecFilter(chrome);
-        let assertionError;
-        try {
-          await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
-          const draft = await rowState('#spec-list [data-row="spec:G1"]');
-          const pending = await rowState('#spec-list [data-row="spec:G2"]');
-          const capture = JSON.stringify({ row: draft, currentFilter: draft.renderProvenance?.currentFilter,
-            sourceDataStatus: draft.renderProvenance?.sourceDataStatus, rowStatus: draft.status,
-            renderAttemptCount: draft.renderProvenance?.renderAttemptCount, renderCount: draft.renderProvenance?.renderCount,
-            currentRowRenderId: draft.renderProvenance?.currentRowRenderId,
-            events: draft.renderProvenance?.events, attempts: draft.renderProvenance?.attempts, renders: draft.renderProvenance?.renders,
-            captureErrors: draft.renderProvenance?.captureErrors });
-          assert.equal(draft.status, 'must', `${width}px ${theme}: the filter-implied draft status gives way to its tier; row/render capture ${capture}; ROOT-CAUSE STATUS: NOT PROVEN`);
-          assert.equal(pending.status, 'aim', `${width}px ${theme}: the pending question keeps its declared tier; row/render capture ${JSON.stringify({ row: pending, rootCauseStatus: 'NOT PROVEN' })}; ROOT-CAUSE STATUS: NOT PROVEN`);
-        } catch (error) {
-          assertionError = error;
-          throw error;
-        } finally {
-          const disposeError = await filterTrace.dispose();
-          if (disposeError) {
-            if (assertionError) assertionError.message += `; filter-observer cleanup also failed: ${disposeError}`;
-            else throw new Error(`filter-observer cleanup failed: ${disposeError}`);
-          }
-          filterTrace = null;
-        }
-        await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:approved\"]')");
-        const approved = await rowState('#spec-list [data-row="spec:G3"]');
-        assert.equal(approved.status, 'must', `${width}px ${theme}: an approved requirement keeps its tier`);
-        assert.equal(approved.stateIcon, '✓', `${width}px ${theme}: the state circle identifies approval`);
-        await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
-        await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
-        await chrome.waitFor("document.querySelector('#spec-detail h2 span')?.textContent === 'G1'");
-        let detail = await chrome.stable("document.querySelector('#spec-detail').innerText");
-        assert.ok(detail.includes(longGoal.trim()) && detail.includes('browser check') && detail.includes('G3') && detail.includes('#1 A real item citing G1'), `${width}px ${theme}: clicking Spec opens full text, gate, served area and citing item`);
-        let actions = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#spec-detail [data-row-decision]')].map(e=>({action:e.dataset.rowDecision,text:e.innerText,key:e.querySelector('kbd')?.innerText??null,height:e.getBoundingClientRect().height,background:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderTopWidth})))`));
-        assert.deepEqual(actions.map(e=>e.action), ['approve','decline']);
-        assert.equal(actions[0].key, 'A'); assert.equal(actions[1].key, 'D');
-        assert.notEqual(actions[0].background, 'rgba(0, 0, 0, 0)', 'Approve is filled');
-        assert.equal(actions[1].background, 'rgba(0, 0, 0, 0)', 'Decline is outlined');
-        assert.ok(actions.every(e=>e.height >= tapTarget(width) && e.border === '1px'), `${width}px ${theme}: detail actions meet #371 targets`);
-
-        await shot('spec', width, theme);
-        await pressTab(chrome, 'doctrine');
-        await press(chrome, "document.querySelector('#doctrine-chips [data-rows=\"doctrine:all\"]')");
-        const pb1 = await rowState(`#doctrine-list [data-row="doctrine:${inherited.id}"]`);
-        const pb2 = await rowState(`#doctrine-list [data-row="doctrine:${overridden.id}"]`);
-        const pb3 = await rowState(`#doctrine-list [data-row="doctrine:${declined.id}"]`);
-        const local = await rowState('#doctrine-list [data-row="doctrine:R1"]');
-        assert.equal(pb1.source, 'Standard', `${width}px ${theme}: an inherited row uses the concise Standard chip`);
-        assert.equal(pb1.sourceTitle, `Pullboard v${standard.version}`, `${width}px ${theme}: its packaged version stays available on hover`);
-        assert.equal(pb2.source, 'This repo');
-        assert.equal(pb3.source, 'This repo');
-        assert.equal(local.source, 'This repo');
-        for (const row of [pb1,pb2,pb3,local]) {
-          assert.match(row.className, /(?:^|\s)srow(?:\s|$)/u);
-          assert.match(row.className, /(?:^|\s)row(?:\s|$)/u);
-          assert.deepEqual(row.rowStyle, g1.rowStyle, `${width}px ${theme}: every doctrine record shares the Spec record geometry and type`);
-          assert.equal(row.rowStyle.fontFamily, item.rowStyle.fontFamily, `${width}px ${theme}: and the Items row font`);
-          assert.ok(row.dot && !row.count && !row.overflow, `${width}px ${theme}: uncited rules have a dot, no zero-count marker, and no horizontal overflow`);
-        }
-        assert.ok(pb2.sourceBox.y > pb2.titleBox.y && Math.abs(pb2.sourceBox.x - pb2.titleBox.x) < 1);
-        assert.ok(Math.abs(pb2.sourceBox.y - pb2.gateBox.y) < 2, `${width}px ${theme}: source and gate share the second line`);
-        assert.ok(pb3.reason && Math.abs(pb3.reasonBox.y - pb3.sourceBox.y) < 2 && pb3.reasonBox.x > pb3.sourceBox.x, `${width}px ${theme}: a declined reason follows its source on the metadata line`);
-        assert.equal(pb2.titleStyle.overflow, 'ellipsis');
-        assert.equal(pb2.titleStyle.lines, 1);
-        assert.ok(pb2.titleBox.width > 0, `${width}px ${theme}: the full-width detail rule still has a visible title line`);
-        const sectionCounts = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#doctrine-list .spec-section-head')].map(e=>({name:e.querySelector('h3')?.innerText??'', count:e.querySelector('.section-count')?.textContent.trim()??null, review:e.querySelector('.doctrine-review-count')?.textContent??null})))`));
-        assert.ok(sectionCounts.some(e => e.name.startsWith('PB · Pullboard rules') && e.count === String(standard.rows.length - 2) && e.review === '1 to review'), `${width}px ${theme}: the inherited section excludes the two repository overrides and counts its one awaiting review`);
-        assert.equal(sectionCounts.reduce((n, e) => n + Number(e.count), 0), standard.rows.length + 2, `${width}px ${theme}: separated source sections retain every merged rule exactly once`);
-        assert.ok(sectionCounts.some(e => e.count === '2'), `${width}px ${theme}: the repo-only section keeps its own row count`);
-        const citedRule = await rowState('#doctrine-list [data-row="doctrine:G1"]');
-        assert.equal(citedRule.count, '1 item', `${width}px ${theme}: Doctrine counts its actual citing item on line one`);
-        await press(chrome, "document.querySelector('#doctrine-list [data-row=\"doctrine:G1\"]')");
-        const citedDetail = await chrome.stable("document.querySelector('#doctrine-detail').innerText");
-        assert.ok(citedDetail.includes('This doctrine rule shares the citing item.') && citedDetail.includes('Checked in review') && citedDetail.includes('#1 A real item citing G1'), `${width}px ${theme}: Doctrine detail lists the actual item that cites it`);
-        const allText = await chrome.stable('document.body.innerText.toLowerCase()');
-        assert.equal(allText.includes('standard 1'), false, `${width}px ${theme}: the old label is absent`);
-
-        await press(chrome, `document.querySelector('#doctrine-list [data-row="doctrine:${overridden.id}"]')`);
-        await chrome.waitFor(`document.querySelector('#doctrine-detail h2 span')?.textContent === ${JSON.stringify(overridden.id)}`);
-        await chrome.stable('window.scrollTo(0, 0)');
-        await chrome.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter' });
-        await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter' });
-        const visibleDetail = JSON.parse(await chrome.stable("JSON.stringify((() => {const r=document.querySelector('#doctrine-detail h2').getBoundingClientRect(); return {top:r.top,bottom:r.bottom};})())"));
-        assert.ok(visibleDetail.top >= -1 && visibleDetail.top < 900, `${width}px ${theme}: native Enter opens the picked detail in the viewport: ${JSON.stringify(visibleDetail)}`);
-        detail = await chrome.stable("document.querySelector('#doctrine-detail').innerText");
-        assert.ok(detail.includes(longOverride.trim()) && detail.includes('Checked in review') && detail.includes(inherited.id) && detail.includes('Cited by') && detail.includes('No items yet'), `${width}px ${theme}: Enter on the picked rule opens full detail: ${detail}`);
-        assert.ok(!await chrome.stable('document.documentElement.scrollWidth > document.documentElement.clientWidth'), `${width}px ${theme}: no horizontal overflow`);
-        await shot('doctrine', width, theme);
-        phase(`layout ${theme} ${width}`);
-      }
+  /** Open one Chrome on the view, run a pass in it and always close it; passes run in parallel so the case costs its slowest pass. */
+  const session = async (label, pass) => {
+    const profile = mkdtempSync(join(tmpdir(), 'pullboard-shared-rows-chrome-'));
+    let chrome;
+    try {
+      chrome = await openSnapshotChrome(executable, view.link.href, profile);
+      await chrome.waitFor("data?.project?.spec?.some(row => row.id === 'G1') && data?.project?.practice?.some(row => row.id === 'R1')");
+      const sessionPhase = phaseTimer(label);
+      sessionPhase('Chrome start');
+      await pass(chrome, sessionPhase);
+    } finally {
+      try { if (chrome) await closeSnapshotChrome(chrome); }
+      finally { rmSync(profile, { recursive: true, force: true }); }
     }
-    // The same wide layout becomes touch-sized when its primary pointer is coarse.
+  };
+  /** Compare the layouts of the given themes at both widths. */
+  const layouts = async (chrome, phase, themes) => {
+    const { shot, rowState } = helpersFor(chrome);
+    let filterTrace;
+    try {
+      for (const theme of themes) {
+        for (const width of [375, 1280]) {
+          await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+          await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] });
+          await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${theme})').matches`);
+          await pressTab(chrome, 'items');
+          const item = await rowState('#chain .row[data-item="1"]');
+          assert.ok(item?.dot, `${width}px ${theme}: the Items reference row has its status dot`);
+          assert.equal(item.overflow, false, `${width}px ${theme}: the Items row has no horizontal overflow`);
+
+          await pressTab(chrome, 'spec');
+          await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
+          const g1 = await rowState('#spec-list [data-row="spec:G1"]');
+          const g2 = await rowState('#spec-list [data-row="spec:G2"]');
+          assert.match(g1.className, /(?:^|\s)srow(?:\s|$)/u);
+          assert.match(g1.className, /(?:^|\s)row(?:\s|$)/u, `${width}px ${theme}: Spec uses the shared Items row component`);
+          assert.equal(g1.dot, true);
+          assert.equal(g1.overflow, false, `${width}px ${theme}: Spec has no horizontal overflow`);
+          assert.equal(g1.count, '1 item', `${width}px ${theme}: G1 shows its exact citation count below the tier`);
+          assert.ok(g1.countBox.y >= g1.statusBox.bottom && Math.abs(g1.countBox.right - g1.statusBox.right) < 2, `${width}px ${theme}: the citation count is right-aligned below the tier`);
+          assert.equal(g1.status, 'must', `${width}px ${theme}: All rows keeps the tier in its slot`);
+          assert.equal(g1.stateIcon, '✎', `${width}px ${theme}: the state circle identifies a draft`);
+          assert.equal(g2.count, '0 items', `${width}px ${theme}: an uncited Spec row has an explicit citation count`);
+          assert.equal(g2.status, 'aim', `${width}px ${theme}: a pending question retains its declared aim tier`);
+          assert.equal(g1.rowStyle.gridTemplateAreas, '"dot main side"', `${width}px ${theme}: Spec uses the approved state, text and side-column grid`);
+          assert.equal(g1.rowStyle.fontFamily, item.rowStyle.fontFamily, `${width}px ${theme}: Spec retains the shared row font`);
+          assert.equal(g1.titleStyle.overflow, 'ellipsis');
+          assert.equal(g1.titleStyle.whiteSpace, 'nowrap');
+          assert.equal(g1.titleStyle.lines, 1);
+          assert.ok(g1.titleFull.includes(longGoal.slice(0, 40)), `${width}px ${theme}: the full title remains available on the row`);
+
+          const header = JSON.parse(await chrome.stable(`JSON.stringify((() => { const e=document.querySelector('#spec-list .spec-section-head'); return {text:e?.innerText??'', count:e?.querySelector('.section-count')?.textContent.trim()??null, approve:e?.querySelector('[data-section-approve]')?.innerText??null}; })())`));
+          assert.match(header.text, /Goals/u);
+          assert.equal(header.count, '3', `${width}px ${theme}: the section header shows its three rows`);
+          assert.equal(header.approve, null, `${width}px ${theme}: Spec group headers carry no Approve all`);
+
+          filterTrace = await watchSpecFilter(chrome);
+          let assertionError;
+          try {
+            await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
+            const draft = await rowState('#spec-list [data-row="spec:G1"]');
+            const pending = await rowState('#spec-list [data-row="spec:G2"]');
+            const capture = JSON.stringify({ row: draft, currentFilter: draft.renderProvenance?.currentFilter,
+              sourceDataStatus: draft.renderProvenance?.sourceDataStatus, rowStatus: draft.status,
+              renderAttemptCount: draft.renderProvenance?.renderAttemptCount, renderCount: draft.renderProvenance?.renderCount,
+              currentRowRenderId: draft.renderProvenance?.currentRowRenderId,
+              events: draft.renderProvenance?.events, attempts: draft.renderProvenance?.attempts, renders: draft.renderProvenance?.renders,
+              captureErrors: draft.renderProvenance?.captureErrors });
+            assert.equal(draft.status, 'must', `${width}px ${theme}: the filter-implied draft status gives way to its tier; row/render capture ${capture}; ROOT-CAUSE STATUS: NOT PROVEN`);
+            assert.equal(pending.status, 'aim', `${width}px ${theme}: the pending question keeps its declared tier; row/render capture ${JSON.stringify({ row: pending, rootCauseStatus: 'NOT PROVEN' })}; ROOT-CAUSE STATUS: NOT PROVEN`);
+          } catch (error) {
+            assertionError = error;
+            throw error;
+          } finally {
+            const disposeError = await filterTrace.dispose();
+            if (disposeError) {
+              if (assertionError) assertionError.message += `; filter-observer cleanup also failed: ${disposeError}`;
+              else throw new Error(`filter-observer cleanup failed: ${disposeError}`);
+            }
+            filterTrace = null;
+          }
+          await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:approved\"]')");
+          const approved = await rowState('#spec-list [data-row="spec:G3"]');
+          assert.equal(approved.status, 'must', `${width}px ${theme}: an approved requirement keeps its tier`);
+          assert.equal(approved.stateIcon, '✓', `${width}px ${theme}: the state circle identifies approval`);
+          await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
+          await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
+          await chrome.waitFor("document.querySelector('#spec-detail h2 span')?.textContent === 'G1'");
+          let detail = await chrome.stable("document.querySelector('#spec-detail').innerText");
+          assert.ok(detail.includes(longGoal.trim()) && detail.includes('browser check') && detail.includes('G3') && detail.includes('#1 A real item citing G1'), `${width}px ${theme}: clicking Spec opens full text, gate, served area and citing item`);
+          let actions = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#spec-detail [data-row-decision]')].map(e=>({action:e.dataset.rowDecision,text:e.innerText,key:e.querySelector('kbd')?.innerText??null,height:e.getBoundingClientRect().height,background:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderTopWidth})))`));
+          assert.deepEqual(actions.map(e=>e.action), ['approve','decline']);
+          assert.equal(actions[0].key, 'A'); assert.equal(actions[1].key, 'D');
+          assert.notEqual(actions[0].background, 'rgba(0, 0, 0, 0)', 'Approve is filled');
+          assert.equal(actions[1].background, 'rgba(0, 0, 0, 0)', 'Decline is outlined');
+          assert.ok(actions.every(e=>e.height >= tapTarget(width) && e.border === '1px'), `${width}px ${theme}: detail actions meet #371 targets`);
+
+          await shot('spec', width, theme);
+          await pressTab(chrome, 'doctrine');
+          await press(chrome, "document.querySelector('#doctrine-chips [data-rows=\"doctrine:all\"]')");
+          const pb1 = await rowState(`#doctrine-list [data-row="doctrine:${inherited.id}"]`);
+          const pb2 = await rowState(`#doctrine-list [data-row="doctrine:${overridden.id}"]`);
+          const pb3 = await rowState(`#doctrine-list [data-row="doctrine:${declined.id}"]`);
+          const local = await rowState('#doctrine-list [data-row="doctrine:R1"]');
+          assert.equal(pb1.source, 'Standard', `${width}px ${theme}: an inherited row uses the concise Standard chip`);
+          assert.equal(pb1.sourceTitle, `Pullboard v${standard.version}`, `${width}px ${theme}: its packaged version stays available on hover`);
+          assert.equal(pb2.source, 'This repo');
+          assert.equal(pb3.source, 'This repo');
+          assert.equal(local.source, 'This repo');
+          for (const row of [pb1,pb2,pb3,local]) {
+            assert.match(row.className, /(?:^|\s)srow(?:\s|$)/u);
+            assert.match(row.className, /(?:^|\s)row(?:\s|$)/u);
+            assert.deepEqual(row.rowStyle, g1.rowStyle, `${width}px ${theme}: every doctrine record shares the Spec record geometry and type`);
+            assert.equal(row.rowStyle.fontFamily, item.rowStyle.fontFamily, `${width}px ${theme}: and the Items row font`);
+            assert.ok(row.dot && !row.count && !row.overflow, `${width}px ${theme}: uncited rules have a dot, no zero-count marker, and no horizontal overflow`);
+          }
+          assert.ok(pb2.sourceBox.y > pb2.titleBox.y && Math.abs(pb2.sourceBox.x - pb2.titleBox.x) < 1);
+          assert.ok(Math.abs(pb2.sourceBox.y - pb2.gateBox.y) < 2, `${width}px ${theme}: source and gate share the second line`);
+          assert.ok(pb3.reason && Math.abs(pb3.reasonBox.y - pb3.sourceBox.y) < 2 && pb3.reasonBox.x > pb3.sourceBox.x, `${width}px ${theme}: a declined reason follows its source on the metadata line`);
+          assert.equal(pb2.titleStyle.overflow, 'ellipsis');
+          assert.equal(pb2.titleStyle.lines, 1);
+          assert.ok(pb2.titleBox.width > 0, `${width}px ${theme}: the full-width detail rule still has a visible title line`);
+          const sectionCounts = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#doctrine-list .spec-section-head')].map(e=>({name:e.querySelector('h3')?.innerText??'', count:e.querySelector('.section-count')?.textContent.trim()??null, review:e.querySelector('.doctrine-review-count')?.textContent??null})))`));
+          assert.ok(sectionCounts.some(e => e.name.startsWith('PB · Pullboard rules') && e.count === String(standard.rows.length - 2) && e.review === '1 to review'), `${width}px ${theme}: the inherited section excludes the two repository overrides and counts its one awaiting review`);
+          assert.equal(sectionCounts.reduce((n, e) => n + Number(e.count), 0), standard.rows.length + 2, `${width}px ${theme}: separated source sections retain every merged rule exactly once`);
+          assert.ok(sectionCounts.some(e => e.count === '2'), `${width}px ${theme}: the repo-only section keeps its own row count`);
+          const citedRule = await rowState('#doctrine-list [data-row="doctrine:G1"]');
+          assert.equal(citedRule.count, '1 item', `${width}px ${theme}: Doctrine counts its actual citing item on line one`);
+          await press(chrome, "document.querySelector('#doctrine-list [data-row=\"doctrine:G1\"]')");
+          const citedDetail = await chrome.stable("document.querySelector('#doctrine-detail').innerText");
+          assert.ok(citedDetail.includes('This doctrine rule shares the citing item.') && citedDetail.includes('Checked in review') && citedDetail.includes('#1 A real item citing G1'), `${width}px ${theme}: Doctrine detail lists the actual item that cites it`);
+          const allText = await chrome.stable('document.body.innerText.toLowerCase()');
+          assert.equal(allText.includes('standard 1'), false, `${width}px ${theme}: the old label is absent`);
+
+          await press(chrome, `document.querySelector('#doctrine-list [data-row="doctrine:${overridden.id}"]')`);
+          await chrome.waitFor(`document.querySelector('#doctrine-detail h2 span')?.textContent === ${JSON.stringify(overridden.id)}`);
+          await chrome.stable('window.scrollTo(0, 0)');
+          await chrome.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter' });
+          await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter' });
+          const visibleDetail = JSON.parse(await chrome.stable("JSON.stringify((() => {const r=document.querySelector('#doctrine-detail h2').getBoundingClientRect(); return {top:r.top,bottom:r.bottom};})())"));
+          assert.ok(visibleDetail.top >= -1 && visibleDetail.top < 900, `${width}px ${theme}: native Enter opens the picked detail in the viewport: ${JSON.stringify(visibleDetail)}`);
+          detail = await chrome.stable("document.querySelector('#doctrine-detail').innerText");
+          assert.ok(detail.includes(longOverride.trim()) && detail.includes('Checked in review') && detail.includes(inherited.id) && detail.includes('Cited by') && detail.includes('No items yet'), `${width}px ${theme}: Enter on the picked rule opens full detail: ${detail}`);
+          assert.ok(!await chrome.stable('document.documentElement.scrollWidth > document.documentElement.clientWidth'), `${width}px ${theme}: no horizontal overflow`);
+          await shot('doctrine', width, theme);
+          phase(`layout ${theme} ${width}`);
+        }
+      }
+    } finally {
+      await filterTrace?.dispose();
+    }
+  };
+  /** The same wide layout becomes touch-sized when its primary pointer is coarse. */
+  const coarsePass = async (chrome, phase) => {
+    const { rowState } = helpersFor(chrome);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
     await chrome.waitFor("matchMedia('(pointer: coarse)').matches");
@@ -243,14 +267,17 @@ test('cli.journeys-spec-cockpit-shared.doctrine-and-spec-rows-share-the: clause 
       assert.ok(targets.heights.length > 2 && targets.heights.every(target => target.height >= 44), kind + ': rows and both detail decisions meet the touch target: ' + JSON.stringify(targets));
     }
     phase('coarse-pointer pass');
+  };
+
+  try {
+    const results = await Promise.allSettled([
+      session('light ', (chrome, phase) => layouts(chrome, phase, ['light'])),
+      session('dark ', (chrome, phase) => layouts(chrome, phase, ['dark'])),
+      session('coarse ', coarsePass),
+    ]);
+    const failed = results.filter(result => result.status === 'rejected');
+    if (failed.length) throw failed[0].reason;
   } finally {
-    try { await filterTrace?.dispose(); }
-    finally {
-      try { if (chrome) await closeSnapshotChrome(chrome); }
-      finally {
-        rmSync(profile, { recursive: true, force: true });
-        await view.stop();
-      }
-    }
+    await view.stop();
   }
 });
