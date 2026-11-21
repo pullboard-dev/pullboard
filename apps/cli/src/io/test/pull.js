@@ -71,6 +71,11 @@ const startedAt = new Date().toISOString(), loadAtStart = loadavg()[0];
 // The job's main names the base the candidate's import graph forks from, so its key analysis parses only what changed [C7,#6672].
 const env = { ...process.env, ${JSON.stringify(PULLED_JOB_ENV)}: '1', PULLBOARD_TEST_PRIOR: input.main };
 delete env.NODE_TEST_CONTEXT;
+// Named selections owe an account, so share this runner's complete proof store across pull checkouts.
+// An explicit store or reuse policy remains authoritative; the test runner validates keys and outcomes.
+const pullParts = String(root).split('/'), pullAt = pullParts.lastIndexOf('pull');
+if (Array.isArray(input.files) && input.files.length && pullAt > 0 && !env.PULLBOARD_TEST_RESULT_STORE)
+  env.PULLBOARD_TEST_RESULT_STORE = pullParts.slice(0, pullAt).join('/') + '/test-results/pull-gate';
 // A job that names a file budget (pullboard test --no-file-limit) runs under it; any other job's limits are the runner's own [C7].
 ${fileLimitEnv.toString()}
 Object.assign(env, fileLimitEnv(input));

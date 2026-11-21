@@ -1,4 +1,4 @@
-/** health.derivedState is a machine setting, off by default, listed with a description, and read by nothing yet [C7,#8974]. */
+/** health.derivedState is a machine setting, on by default, listed with a description, and a machine can turn it off [C7,#8974,#11391]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,18 +25,22 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'health.derivedState'));
 }
 
-test('config.io-derived-state-setting.clause-1-health-derivedstate-defaults-to: clause 1: health.derivedState defaults to false in the inventory, reads on only for an exact true, and a non-boolean is refused [C7,#8974]', () => {
+test('config.io-derived-state-setting.clause-1-health-derivedstate-defaults-to: clause 1: health.derivedState defaults to true in the inventory, so a machine with no setting reads it on, and a non-boolean is refused [C7,#8974,#11391]', () => {
   const unset = row({});
-  assert.equal(unset.default, false);
-  assert.equal(unset.value, false);
+  assert.equal(unset.default, true);
+  assert.equal(unset.value, true);
   assert.equal(unset.origin, 'default');
-  assert.equal(withSettings({}, derivedStateEnabled), false);
+  assert.equal(withSettings({}, derivedStateEnabled), true);
   assert.equal(withSettings({ health: { derivedState: true } }, derivedStateEnabled), true);
   assert.throws(() => withSettings({ health: { derivedState: 'yes' } }, derivedStateEnabled), /health\.derivedState/u);
 });
 
-test('config.io-derived-state-setting.clause-2-health-derivedstate-has-a: clause 2: health.derivedState has a described row that pullboard settings prints [C7,#8974]', () => {
+test('config.io-derived-state-setting.clause-2-health-derivedstate-has-a: clause 2: health.derivedState false still turns it off, and its described row says on by default [C7,#8974,#11391]', () => {
+  assert.equal(withSettings({ health: { derivedState: false } }, derivedStateEnabled), false);
+  const off = row({ health: { derivedState: false } });
+  assert.equal(off.value, false);
+  assert.equal(off.origin, 'configured');
   const described = row({});
   assert.ok(described.label, 'the row carries a plain label');
-  assert.match(described.description ?? JSON.stringify(described), /item state/u);
+  assert.match(described.description ?? JSON.stringify(described), /on by default/u);
 });

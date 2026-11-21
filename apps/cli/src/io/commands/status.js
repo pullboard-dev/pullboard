@@ -18,6 +18,8 @@ import { relayMachineDirectory } from '../../../../../packages/store/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { withBoardRead } from '../board/read.js';
 import { fallbackReclaim } from '../reclaim.js';
+import { statusClock } from '../status/clock.js';
+import { statusClockLine } from '../status/clock.js';
 import { diskLines } from '../disk/use.js';
 import { cachedDiskUse } from '../disk/use.js';
 import { refusingBadPolicy } from '../disk/use.js';
@@ -82,6 +84,7 @@ export async function run(io, { values }) {
   const reclaim = await fallbackReclaim(ctx, 'status');
   let landing = null;
   let batchLine = null;
+  let clock = null;
   // Loaded only when landing.adaptiveBatch is on: off, the landing batch module stays out of status, which pays for render.js [C7].
   const { adaptiveBatchEnabled } = await import('../../../../../packages/config/index.js');
   const adaptiveBatch = adaptiveBatchEnabled();
@@ -108,6 +111,7 @@ export async function run(io, { values }) {
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };
     landing = landWhy(board, ctx.clock.now());
+    clock = statusClock(board, store.readBoardMeta);
     batchLine = adaptiveBatchLine?.(board, adaptiveBatch) ?? null;
     return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: readyBuffer(routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), store.withLocalSeatPresence(board, agents)), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
@@ -119,6 +123,7 @@ export async function run(io, { values }) {
   summary.reclaim = reclaim;
   summary.staffing = staffingSeats({ ready: summary.capacity.readyItems, maxUseful: summary.usefulBuilders?.max ?? null });
   summary.landingBatch = batchLine;
+  summary.clock = clock;
   summary.memoryHeld = store.memoryHeldRuns();
   // These status readers load here, not through the packages' light doors: those doors are the runner worker's, and a status reader in them widens the worker bundle [C7].
   const { retainedReceipts } = await import('../../../../../packages/gate/index.js');
@@ -135,6 +140,7 @@ export async function run(io, { values }) {
   const originHint = !summary.relay.linked && !originRepository(ctx.info.root, { optional: true });
   const format = { capacityLines, usefulBuilderLines, staffingLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
   for (const line of statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format })) io.say(line);
+  io.say(statusClockLine(clock, ctx.clock.now().getTime()));
   if (Object.keys(ctx.config.products).length) {
     const { loadSpec, productLine, productSummaries } = await import('../../../../../packages/spec/index.js');
     const all = await withBoardRead(ctx, (board) => store.listItems(board, { all: true }));

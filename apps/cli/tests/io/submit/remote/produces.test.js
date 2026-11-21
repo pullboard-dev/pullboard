@@ -17,6 +17,8 @@ test('cli.io-submit-remote-produces.the-real-remotesubmitcells-path-with-a-cold:
     // The plan reaches the commit as a Git object, so main has a cells plan and no inventory is warm on the coordinator.
     const plan = runFixtureGit(['hash-object', '-w', '--stdin'], { cwd: root, env, input: '{}\\n' });
     git('update-index', '--add', '--cacheinfo', `100644,${plan},packages/codemap/data/plan/cells.json`);
+    const config = runFixtureGit(['hash-object', '-w', '--stdin'], { cwd: root, env, input: '{"cells":{"plan":"packages/codemap/data/plan/cells.json"}}\n' });
+    git('update-index', '--add', '--cacheinfo', `100644,${config},pullboard.json`);
     git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'plan');
     const main = git('rev-parse', 'HEAD'), tree = git('rev-parse', 'HEAD^{tree}');
     const stdout = Buffer.from('PULLBOARD_CELLS_RESULT ' + JSON.stringify({ acceptedMain: main, source: main, cells: [], existingCuts: [], problems: [], warnings: [], reorg: null }) + '\n');

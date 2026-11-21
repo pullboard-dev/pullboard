@@ -14,6 +14,7 @@ import { withBoard } from '../../entry.js';
 import { withBoardRead } from '../../entry.js';
 import { withLocalSeatPresence } from '../../../../../../packages/store/index.js';
 import { cleanMaintenanceSeat } from '../maintenance.js';
+import { claimEndedFact } from './claim-ended.js';
 import { recordMaintenanceRetention } from './retention.js';
 
 /** Imported heartbeat rows never grant permission to delete a local checkout. */
@@ -73,6 +74,10 @@ export function maintenanceCommandPorts(ctx, agentId) {
     recordSweep: record => withBoard(ctx, async board => {
       logEvent(board, agentId, 'folder_swept', record.item ?? null, { action: record.action, rule: record.rule, path: record.path,
         ...(record.ref ? { ref: record.ref } : {}), ...(record.commit ? { commit: record.commit } : {}) });
+      // A claim-ended folder is removed after its diff is kept: the item names the kept commit [#12530].
+      if (record.rule === 'claim-ended' && record.action === 'kept' && record.item && record.commit) {
+        await ordered(ctx, board, 'appendFact', [record.item, { agentId, kind: 'note', text: claimEndedFact(record) }]);
+      }
     }),
     /** Name the kept folder and its dirty paths on every linked item, so the owner can find the unfinished work. */
     recordDirty: record => withBoard(ctx, async board => {

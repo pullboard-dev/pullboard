@@ -170,6 +170,14 @@ test('cli.journeys-imports-closure-budget.cold-status-trimmed-modules: a cold pu
   assert.deepEqual(loadedDrops, [], `a cold status loaded ${loadedDrops.join(', ')}: the fallback reclaim loads the drive step machinery only when a gate job has lapsed`);
 });
 
+test('cli.journeys-imports-closure-budget.cold-list-maintenance-no-gate: clause 2: a cold pullboard list, whose after-command worktree maintenance imports the scheduler and tool/build.js, loads no module of the gate package [C7,#12595]', () => {
+  const run = commandLoads('list');
+  const gate = new URL('packages/gate/', `file://${ROOT}`).href;
+  const loadedGate = [...run.urls].filter(url => url.startsWith(gate));
+  assert.ok(run.urls.size > 0, run.stderr);
+  assert.deepEqual(loadedGate.slice(0, 5), [], `a cold list loaded ${loadedGate.length} gate modules: apps/cli/src/io/tool/build.js must not import the gate package`);
+});
+
 test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a cold claim never loads apps/cli/src/io/spec.js: claim imports coordinatorFile from its own file [C7]', () => {
   const run = commandLoads('claim 1');
   const spec = new URL('apps/cli/src/io/spec.js', `file://${ROOT}`).href;

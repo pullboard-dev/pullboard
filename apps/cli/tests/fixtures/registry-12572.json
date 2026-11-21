@@ -1,0 +1,3 @@
+{
+  "cli.io-static-stage.the-normal-gate-entry-runs-a-real-static-stage": {"proves":{"specs":["C7"],"claim":"The normal gate entry, pullboard gate --static, reaches the configured real static command and reports green."},"why":"Without it, a regression where the normal gate entry stops reaching the real static stage, or reports a wrong result, would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/static/stage.test.js"]}
+}
