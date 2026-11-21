@@ -10,7 +10,7 @@ import { clockSweep } from '../../../index.js';
 const MINUTE = 60_000;
 /** The store moves the clock pass takes as ports, as the pullboard clock command passes them. */
 const PORTS = { listItems: store.listItems, events: store.events, getItem: store.getItem, atomic: store.atomic, logEvent: store.logEvent,
-  insertShout: store.insertShout, coordinator: 'coordinator' };
+  insertShout: store.insertShout, readBoardMeta: store.readBoardMeta, writeBoardMeta: store.writeBoardMeta, coordinator: 'coordinator' };
 const T0 = Date.UTC(2026, 10, 20, 12, 0, 0);
 
 /** A board at T0 with a ready open item, an idle claim and an item waiting on that claim. */
