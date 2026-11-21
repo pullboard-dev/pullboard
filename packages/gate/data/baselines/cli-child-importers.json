@@ -17,8 +17,6 @@
   "seats/tests/registry.test.js",
   "sentinels/tests/io/serve-cli.test.js",
   "sentinels/tests/io/waits.test.js",
-  "spec/tests/io/draft-writes.test.js",
-  "spec/tests/io/signature.test.js",
   "stats/tests/allowance.test.js",
   "stats/tests/io/cost/session.test.js",
   "stats/tests/logic/pipeline/ledger.test.js",
