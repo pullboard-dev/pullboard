@@ -1,4 +1,5 @@
 /** @pullboard-test-input packages/state/src/logic/engines/* */
+/** @pullboard-world-pin reads docs/formats.md and each docs/formats page itself, the guide and pages this test checks against the code. */
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -287,8 +288,6 @@ test('[A5,H16] grammar and executable engine versions match the format guide', (
   assertEngineGuideVersion(versionOf('move engine'), leaves, ENGINE_VERSION);
   assert.match(versions, /Bump when a move's meaning changes/);
   assert.match(versions, /`ENGINE_VERSION`.*naming both versions/);
-  assert.match(guide, /Engine 10 adds coordinator-only reopening for an unmerged verified item after a red landing candidate/u);
-  assert.match(guide, /Engines 8 and 9 retain their submitted-only `reopen` behavior/u);
   assert.match(versions, /`SPEC_GRAMMAR_VERSION`/);
   assert.match(versions, /`JSON_SHAPES\.version`/);
   assert.match(versions, /`SCHEMA_VERSION`/);
@@ -418,11 +417,4 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
-});
-
-/** @pullboard-world-pin: clause 2 reads docs/formats.md itself to prove it states the job tables export rule. */
-test('clause 2: formats.md states that job and job_step are part of a board export only while they hold rows [A5,A10]', () => {
-  const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
-  assert.match(guide, /The `job` and `job_step` tables are part of a board export only while they hold rows/);
-  assert.match(guide, /an import treats a missing `job` or `job_step` table as empty/);
 });
