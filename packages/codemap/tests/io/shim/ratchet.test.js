@@ -22,11 +22,13 @@ function reader(files = {}) {
 /** A committed shim, moved implementation, and valid bounded exception. */
 function files(overrides = {}) {
   return {
-    [`before:${shim}`]: `export { request } from './request.js';\n`,
-    [`after:${shim}`]: `export { request } from './request.js';\n`,
-    [`before:${moved}`]: 'export const request = true;\n',
-    [`after:${moved}`]: 'export const request = true;\n',
-    'packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [
+    [`HEAD:${shim}`]: `export { request } from './request.js';\n`,
+    [`:index:${shim}`]: `export { request } from './request.js';\n`,
+    [`HEAD:${moved}`]: 'export const request = true;\n',
+    [`:index:${moved}`]: 'export const request = true;\n',
+    'HEAD:packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ paths: [[shim, moved]], frontDoor }] }),
+    ':index:packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ paths: [[shim, moved]], frontDoor }] }),
+    ':index:packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [
       { importer, target: shim, contractItem: 12797, expires: '2099-12-31' },
     ] }),
     ...overrides,
@@ -40,13 +42,19 @@ function check({ before = '', after, accepted = '', planRows = [plan], read = re
     read, parseImports: imports, criterion: exception, now });
 }
 
+/** Read the same immutable HEAD and index snapshots the staged hook evaluates. */
+function staged(after, overrides = {}) {
+  const snapshot = reader(files({ [`HEAD:${importer}`]: '', [`:index:${importer}`]: after, ...overrides }));
+  return stagedShimImportProblems({ paths: [importer], read: snapshot.read, parseImports: parser, criterion });
+}
+
 test('codemap.io-shim-ratchet.added-import-refuses: new static, re-export and literal dynamic imports through a shim refuse [C7]: clause 1: added import through shim is refused', () => {
   for (const declaration of [
     `import '${specifier}';`,
     `export { request } from '${specifier}';`,
     `await import('${specifier}');`,
   ]) {
-    const problems = check({ after: declaration });
+    const problems = staged(declaration);
     assert.equal(problems.length, 1, declaration);
     assert.match(problems[0], new RegExp(`added import through compatibility shim ${shim.replaceAll('/', '\\/')}`));
   }
@@ -58,12 +66,14 @@ test('codemap.io-shim-ratchet.unchanged-multiset-passes: before and accepted dup
 });
 
 test('codemap.io-shim-ratchet.temporary-edge-is-bounded: exact criterion edge and valid metadata admit only the contracted import [C7]: clause 3: temporary edge is bounded', () => {
-  assert.deepEqual(check({ after: `import '${specifier}';` }), []);
-  assert.equal(check({ after: `import '${specifier}';`, exception: `${importer} -> ${frontDoor}` }).length, 1);
-  const expired = reader(files({ 'packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [
+  assert.deepEqual(staged(`import '${specifier}';`), []);
+  const wrongCriterion = reader(files({ [`HEAD:${importer}`]: '', [`:index:${importer}`]: `import '${specifier}';` }));
+  assert.equal(stagedShimImportProblems({ paths: [importer], read: wrongCriterion.read, parseImports: parser,
+    criterion: `${importer} -> ${frontDoor}` }).length, 1);
+  const expired = reader(files({ ':index:packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [
     { importer, target: shim, contractItem: 12797, expires: '2026-11-20' },
   ] }) }));
-  assert.equal(check({ after: `import '${specifier}';`, read: expired.read }).length, 1);
+  assert.equal(stagedShimImportProblems({ paths: [importer], read: expired.read, parseImports: parser, criterion }).length, 1);
 });
 
 test('codemap.io-shim-ratchet.no-added-import-no-plan-read: unchanged declarations never consult the plan [C7]: clause 4: no added import means no plan read', () => {
