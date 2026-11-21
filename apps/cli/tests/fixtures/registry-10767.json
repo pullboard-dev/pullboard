@@ -1,0 +1,28 @@
+{
+  "cli.io-show-thin.receipt-bar-refusal-equal": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With read.thinCommands on, show of an item with a receipt, a frozen bar and a last refusal prints the same lines and exit code as with it off."
+    },
+    "why": "Without it, a regression where with read.thinCommands on, show of an item with a receipt, a frozen bar and a last refusal printed other lines than with it off would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/show/thin.test.js"
+    ]
+  },
+  "cli.io-show-thin.thread-entry-steps-aside": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The thin show door returns null for an item with a thread entry."
+    },
+    "why": "Without it, a regression where the thin show door served an item with a thread entry would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/show/thin.test.js"
+    ]
+  }
+}

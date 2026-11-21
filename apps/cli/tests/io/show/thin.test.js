@@ -11,6 +11,7 @@ import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { openKitBoard } from '../../fixtures/board.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
 import { pinDerivedStateOff } from '../../fixtures/thin-door.js';
+import { setReadThin } from '../../fixtures/thin-door.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { declareItemField } from '../../../../../packages/store/index.js';
 import { events } from '../../../../../packages/store/index.js';
@@ -89,7 +90,7 @@ async function stepsAsideFor(box, name, id, add) {
   assert.equal(await thinShowFacts({ cwd: box.repo, id }), null, `${name}: the door steps aside`);
 }
 
-test('cli.io-show-thin.steps-aside: clause 2: thinShowFacts returns null for no readable board, a drifted board, a receipt, a refusal, a thread entry, a typed field, an after-gate list, a submit, a foreign wait, and a ReadNeedsWrite or schemaMissing error [C7]', async (t) => {
+test('cli.io-show-thin.steps-aside: clause 2: thinShowFacts returns null for no readable board, a drifted board, a thread entry, a typed field, an after-gate list, a submit, a foreign wait, and a ReadNeedsWrite or schemaMissing error [C7]', async (t) => {
   const box = await plainProject(t, 9);
   const bare = join(box.dir, 'bare');
   mkdirSync(bare);
@@ -97,8 +98,6 @@ test('cli.io-show-thin.steps-aside: clause 2: thinShowFacts returns null for no 
   assert.equal(await thinShowFacts({ cwd: bare, id: 1 }), null, 'no readable board');
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 99 }), null, 'no such item');
   const event = (kind, detail = '{}') => (db, id) => db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run(NOW, 'fixture', kind, id, detail);
-  await stepsAsideFor(box, 'a receipt', 1, event('proof-run', JSON.stringify({ receipt: { run: 'fixture-run' } })));
-  await stepsAsideFor(box, 'a refusal', 2, event('reject'));
   await stepsAsideFor(box, 'a thread entry', 3, event('fact', JSON.stringify({ text: 'a fixture fact' })));
   await stepsAsideFor(box, 'a submit', 4, event('submit'));
   await stepsAsideFor(box, 'an after-gate list', 5, (db, id) => db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`after_gate:${id}`, '[2]'));
@@ -147,4 +146,43 @@ test('cli.io-show-thin.loads-no-barrel: clause 3: a worker that imports only the
   const seen = files.read('seen.txt').toString('utf8').split('\n').filter(Boolean).map(url => fileURLToPath(url).slice(ROOT.length));
   assert.ok(seen.some(path => path.endsWith('apps/cli/src/io/show/thin.js')), 'the door itself loaded');
   assert.deepEqual(seen.filter(path => BARREL.includes(path) || path.startsWith('packages/board/')), []);
+});
+
+/** The receipt the full show prints as `receipt <id>: ...`, as the board records it in a proof-run event. */
+const RECEIPT = { id: 'fixture-run', kind: 'test', item: 1, commit: 'a'.repeat(40), tree: 'b'.repeat(40), frozenDigest: 'c'.repeat(64), runner: 'fixture-runner', seat: 'fixture-seat',
+  exitCode: 0, counts: { passed: 2, failed: 0, skipped: 0 }, durationMs: 12, sourceClean: true };
+
+/** The text and exit code of `pullboard show <id>` with read.thinCommands on or off. */
+async function shown(box, id, on) {
+  setReadThin(box, on);
+  const result = await box.runLocal(box.repo, 'show', String(id));
+  return { out: result.out, code: result.code, err: result.err };
+}
+
+test('cli.io-show-thin.receipt-bar-refusal-equal: clause 1: with read.thinCommands on, show of a fixture item with a check receipt, a frozen bar and a last refusal prints the same lines and exit code as with it off [C7,#10767]', async (t) => {
+  const box = await plainProject(t);
+  const frozen = JSON.stringify({ check: 'node fixture-check.js', criterion: '1. A fixture clause [test]', rows: [{ id: '1', text: 'A fixture clause [test]' }], testHashes: {} });
+  onBoard(box, board => {
+    board.db.prepare('UPDATE item SET item_frozen = ?, item_frozen_digest = ? WHERE item_id = 1').run(frozen, 'd'.repeat(64));
+    board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run(NOW, 'fixture', 'proof-run', 1, JSON.stringify({ receipt: RECEIPT }));
+    board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run(NOW, 'fixture', 'reject', 1, JSON.stringify({ reason: 'FIXTURE_REFUSAL', note: 'a fixture refusal' }));
+  });
+  const thin = await thinShowFacts({ cwd: box.repo, id: 1 });
+  assert.ok(thin, 'the door serves an item with a receipt and a refusal');
+  assert.deepEqual(thin.receipts.map(receipt => receipt.id), ['fixture-run']);
+  const off = await shown(box, 1, false);
+  const on = await shown(box, 1, true);
+  assert.equal(off.code, 0, off.err);
+  assert.equal(on.code, off.code, on.err);
+  assert.equal(on.out, off.out);
+  assert.match(off.out, /receipt fixture-run: test, item #1/u);
+  assert.match(off.out, /frozen at claim \(d{12}\):/u);
+  assert.match(off.out, /FIXTURE_REFUSAL|a fixture refusal/u);
+});
+
+test('cli.io-show-thin.thread-entry-steps-aside: clause 2: for a fixture item with a thread entry the thin door still returns null [C7,#10767]', async (t) => {
+  const box = await plainProject(t);
+  const noted = await box.runLocal(box.repo, 'fact', '1', 'note', 'a thread entry for the thin door');
+  assert.equal(noted.code, 0, noted.err);
+  assert.equal(await thinShowFacts({ cwd: box.repo, id: 1 }), null);
 });

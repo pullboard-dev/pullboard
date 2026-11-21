@@ -22,3 +22,9 @@ export function pinDerivedStateOff(box) {
   process.env.PULLBOARD_MACHINE_HOME = home;
   return () => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; };
 }
+
+/** Turn read.thinCommands on or off in a fixture project's machine settings file, keeping its other settings [C7,#10767]. */
+export function setReadThin(box, on) {
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), read: { thinCommands: on } }));
+}
