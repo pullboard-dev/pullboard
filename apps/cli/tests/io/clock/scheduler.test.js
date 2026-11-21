@@ -60,7 +60,7 @@ test('cli.io-clock-scheduler.single-flight: clause 2: a pass still running when 
   assert.equal(passes, 1, 'no second pass starts while the first runs');
   assert.equal(timer.stats.skipped, 2, 'the two due moments are counted as skipped');
   release();
-  await clock.advance(1);
+  await new Promise(resolve => setImmediate(resolve));
   await clock.advance(MINUTE);
   assert.equal(passes, 2, 'the next pass starts once the first has finished');
   assert.equal(peak, 1, 'never two passes at once');
