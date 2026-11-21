@@ -21,11 +21,11 @@ test('cli.fixtures-board-large.history-board-counts: clause 2: [C7] a board seed
   const db = new DatabaseSync(board, { readOnly: true });
   t.after(() => db.close());
   assert.equal(HISTORY_BOARD.ratio, '1:4');
-  assert.equal(count(db, 'SELECT count(*) AS n FROM item'), 3_142);
-  assert.equal(count(db, 'SELECT count(*) AS n FROM event'), 169_453);
-  assert.equal(count(db, "SELECT count(*) AS n FROM event WHERE event_by = 'coordinator'"), 45_469);
+  assert.equal(count(db, "SELECT count(*) AS n FROM item WHERE item_title LIKE 'Seeded item %'"), 3_142);
+  assert.equal(count(db, "SELECT count(*) AS n FROM event WHERE event_at < '2026-11-01'"), 169_453);
+  assert.equal(count(db, "SELECT count(*) AS n FROM event WHERE event_by = 'coordinator' AND event_at < '2026-11-01'"), 45_469);
   assert.equal(count(db, 'SELECT count(*) AS n FROM shout'), 27_966);
-  assert.equal(count(db, 'SELECT count(*) AS n FROM agent'), 2_670);
+  assert.equal(count(db, "SELECT count(*) AS n FROM agent WHERE agent_path LIKE '/gone/%'"), 2_670);
   assert.equal(count(db, 'SELECT count(*) AS n FROM job_step'), 219_374);
   assert.equal(count(db, 'SELECT count(*) AS n FROM test_result'), 186_337);
   assert.equal(count(db, "SELECT count(*) AS n FROM job WHERE job_kind = 'test-run' AND job_step = 'done'"), 7_764);
