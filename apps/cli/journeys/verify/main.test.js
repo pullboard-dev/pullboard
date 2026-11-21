@@ -1,12 +1,16 @@
 /** Historical item authors cannot judge their own work after another seat takes over [V1,B3,C7]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { describe } from 'node:test';
 import { test } from 'node:test';
 import * as store from "../../../../packages/store/src/io/board.js";
@@ -18,6 +22,9 @@ import { createE2eHelpers } from "../../tests/fixtures/e2e.js";
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { document } from '../../tests/fixtures/verify/unsealed.js';
 import { submitUnsealed } from '../../tests/fixtures/verify/unsealed.js';
+import { reviewFolder } from "../../../../packages/git/src/io/review-folder.js";
+import { lockfileHash } from "../../../runner/src/io/worker/checkout.js";
+import { receipt } from "../../../runner/src/io/worker/receipt.js";
 
 /** A refusal leaves the submitted item and event stream untouched. */
 async function refused(box, board, cwd, args, expected) {
@@ -183,5 +190,93 @@ describe('verify journeys [V4,C7]', { concurrency: true }, () => {
     assert.equal(runs.length, 2, 'there is no third frozen check');
     assert.equal(after.item_status, 'submitted');
     assert.deepEqual(after.verdicts, []);
+  });
+
+  const LOCKFILE = '{"lockfileVersion":3}\n';
+
+  /** A submitted item whose frozen check records where it ran, and a reviewer checkout that holds an untracked file so the review leaves it alone [C7,#1112]. */
+  async function submittedForReview(t) {
+    const helpers = createE2eHelpers();
+    t.after(helpers.cleanup);
+    const box = helpers.project('true');
+    box.git(box.repo, 'config', 'user.name', 'Review fixture');
+    box.git(box.repo, 'config', 'user.email', 'review@example.invalid');
+    mkdirSync(join(box.repo, 'web'), { recursive: true });
+    writeFileSync(join(box.repo, 'web/feature.js'), 'original\n');
+    writeFileSync(join(box.repo, 'package-lock.json'), LOCKFILE);
+    box.git(box.repo, 'add', '-A');
+    box.git(box.repo, 'commit', '-q', '-m', 'test: initial feature [G1]');
+    box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+    const ranIn = join(box.dir, 'ran-in.json');
+    const script = join(box.dir, 'check.cjs');
+    writeFileSync(script, `const fs = require('node:fs');
+  fs.writeFileSync(${JSON.stringify(ranIn)}, JSON.stringify({ cwd: fs.realpathSync(process.cwd()), seatFile: fs.existsSync('seat-only.txt'), feature: fs.readFileSync('web/feature.js', 'utf8') }));
+  `);
+    document(await fixtureAdd(box.runIn, box.repo, 'web', 'Review in a board tree', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+    document(await box.runIn(box.web, 'claim', '1', '--json'));
+    assert.equal((await helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]')).status, 0);
+    await submitUnsealed(box);
+    const submitted = document(await box.runIn(box.repo, 'show', '1', '--json'));
+    const reviewer = join(box.dir, 'reviewer');
+    box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted.item_commit);
+    writeFileSync(join(reviewer, 'seat-only.txt'), 'only in the reviewer checkout\n');
+    document(joinFixtureSeat(box, reviewer, 'api'));
+    rmSync(ranIn, { force: true }); // the claim and submit steps may run the check once; only the review's own run is observed
+    const parent = join(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'), 'pullboard-review-folders');
+    return { box, submitted, reviewer, ranIn, folder: join(parent, submitted.item_commit), parent };
+  }
+
+  test('cli.journeys-verify-main.review-in-board-tree: clause 1: a review of a submitted item runs its frozen check in the board-made review folder at the submitted commit and records verdict_isolated true [C7,#1112]', async t => {
+    const { box, submitted, reviewer, ranIn, folder } = await submittedForReview(t);
+    assert.equal(existsSync(folder), false, 'no review folder exists before the review');
+    document(await box.runIn(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check at the exact submitted commit.', '--json'));
+    assert.equal(box.git(folder, 'rev-parse', 'HEAD'), submitted.item_commit, 'the board made a review folder at the submitted commit');
+    const ran = JSON.parse(readFileSync(ranIn, 'utf8'));
+    assert.notEqual(ran.cwd, box.git(reviewer, 'rev-parse', '--show-toplevel'), 'the frozen check ran outside the reviewer checkout');
+    assert.equal(ran.feature, 'built\n', 'the check read the submitted commit');
+    assert.equal(ran.seatFile, false, 'the check never saw the reviewer checkout');
+    assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), submitted.item_commit, 'the reviewer checkout is left alone');
+    // @pullboard-board-file journey: a read-only look at the verdict row and the board_meta row the real verify command wrote.
+    const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+    try {
+      const verdict = db.prepare('SELECT MAX(verdict_id) AS id FROM verdict WHERE item_id=1').get().id;
+      assert.ok(verdict, 'the review recorded a verdict');
+      assert.equal(db.prepare('SELECT meta_value AS value FROM board_meta WHERE meta_key = ?').get(`verdict_isolated:${verdict}`)?.value, 'true');
+    } finally { db.close(); }
+  });
+
+  test('cli.journeys-verify-main.linked-deps-refused: clause 2: a review folder whose node_modules links to another checkout is refused DEPS_OUTSIDE_TREE by name [C7,#1112]', async t => {
+    const { box, submitted, reviewer, ranIn, folder } = await submittedForReview(t);
+    box.git(box.repo, 'worktree', 'add', '-q', '--detach', folder, submitted.item_commit);
+    const elsewhere = join(box.dir, 'another-checkout');
+    mkdirSync(elsewhere);
+    mkdirSync(join(folder, 'node_modules'), { recursive: true });
+    symlinkSync(elsewhere, join(folder, 'node_modules', 'left-pad'));
+    const result = await box.runIn(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check at the exact submitted commit.', '--json');
+    assert.equal(result.code, 1, result.err || result.out);
+    const error = JSON.parse(result.out).error;
+    assert.equal(error.code, 'DEPS_OUTSIDE_TREE', result.out);
+    assert.match(error.message, /left-pad/u, 'the refusal names the linked package');
+    assert.equal(existsSync(ranIn), false, 'the frozen check never ran in the linked tree');
+    const after = document(await box.runIn(box.repo, 'show', '1', '--json'));
+    assert.equal(after.item_status, 'submitted');
+    assert.deepEqual(after.verdicts, []);
+  });
+
+  test('cli.journeys-verify-main.receipt-tree-and-deps: clause 3: the runner receipt for the review tree carries the tree and the sha256 of its lockfile [C7,#1112]', async t => {
+    const { box, submitted, parent } = await submittedForReview(t);
+    const { folder } = reviewFolder(box.repo, submitted.item_commit, parent);
+    const tree = box.git(folder, 'rev-parse', 'HEAD^{tree}');
+    assert.equal(tree, box.git(box.web, 'rev-parse', 'HEAD^{tree}'), 'the review folder holds the submitted tree');
+    const spec = { id: 'review-1', commit: submitted.item_commit, tree, runtime: { sha256: 'r' }, tooling: { sha256: 'u' } };
+    const sink = { hash: createHash('sha256'), wallStart: Date.now() };
+    const original = process.stderr.write;
+    let line = '';
+    process.stderr.write = (chunk, ...rest) => { line += String(chunk); const done = rest.find(arg => typeof arg === 'function'); if (done) done(); return true; };
+    try { await receipt(spec, { code: 0, signal: null, executionPhases: {}, dependencies: lockfileHash(folder) }, sink); } finally { process.stderr.write = original; }
+    const body = JSON.parse(Buffer.from(line.trim().split(' ')[2], 'base64').toString('utf8'));
+    assert.equal(body.commit, submitted.item_commit);
+    assert.equal(body.tree, tree);
+    assert.equal(body.dependencies, createHash('sha256').update(LOCKFILE).digest('hex'));
   });
 });

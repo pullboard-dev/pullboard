@@ -157,7 +157,7 @@ function translatedKey(metric, key, map) {
   return mappedPath(map, key);
 }
 /** Copy the accepted baseline with every allowance key translated; a collision keeps the larger count. */
-function translatedBase(base, map) {
+export function translatedBase(base, map) {
   return { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => {
     const allowances = Object.create(null);
     for (const [key, count] of Object.entries(base.metrics[metric].allowances)) {

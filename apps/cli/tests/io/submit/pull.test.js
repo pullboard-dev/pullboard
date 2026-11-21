@@ -1,15 +1,10 @@
 /** The runner gate job entry copies the analysis's static known-main rows into the receipt's analysis [C7,#10567]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chmodSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { gateJobRequest } from '../../../src/io/submit/pull.js';
 import { proofRunnerNote } from '../../../src/io/submit/pull.js';
+import { submitAckLines } from '../../../src/io/submit/pull.js';
 import { proofShardPlan } from '../../../src/io/submit/pull.js';
-import { fileFixtureItem } from '../../fixtures/testkit.js';
-import { fixtureSettledMachine } from '../../fixtures/testkit.js';
-import { fixture } from '../../fixtures/init/calls.js';
 
 const START = 'receipt.analysis = {';
 const END = 'admission: analysis.admission ?? null };';
@@ -81,22 +76,14 @@ test('cli.io-submit-pull.runner-note-item-policy: clause 2: the note names the i
   assert.equal(proofRunnerNote({}, { commit: MAIN_SHA, config: {} }, ITEM_SHA), 'test runner: none set (named .js files run under node --test)');
 });
 
-test('cli.io-submit-pull.ack-prints-runner-note: clause 3: a real submit says the runner note right after the in-the-gate line [C7,#11753]', { skip: 'main-red stopgap #12134: runs a real worker run that hangs past the 180 s file budget; #12050 is the real fix and must remove this skip' }, async t => {
-  const box = await fixture(t);
-  fileFixtureItem(box, box.repo, { lane: 'core', title: 'Print the proof runner', route: 'mid',
-    criterion: 'the runner reads the commit it just made', check: 'test -f src/result.txt',
-    brief: 'Files: src/result.txt\nChange: create the runner result file.\nTest: the runner reads the commit it just made.',
-    diagnosis: 'Files: src/result.txt\nChange: create the runner result file.\nTest case: the runner reads the commit it just made.',
-    args: ['--specs', 'C7'] });
-  const agent = join(box.dir, 'agent.sh');
-  writeFileSync(agent, '#!/bin/sh\nmkdir -p src\nprintf result > src/result.txt\n');
-  chmodSync(agent, 0o700);
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { mainComparison: 'off' } });
-  const run = box.ok(box.worker, 'run', '--agent-light', `sh ${agent}`, '--items', '1', '--attempts', '1', '--minutes', '1');
-  const lines = run.stdout.split('\n');
-  const gate = lines.findIndex(line => /^#1 is in the gate as job /u.test(line));
-  assert.ok(gate >= 0, 'the submit says it is in the gate');
-  assert.match(lines[gate + 1], /^test runner: /u, 'the runner note follows at once');
+test('cli.io-submit-pull.ack-prints-runner-note: clause 2: the submit acknowledgment says the runner note right after the in-the-gate line [C7,#11753]', () => {
+  const main = { commit: MAIN_SHA, config: { affectedTests: 'npx jest' } };
+  const lines = submitAckLines({ id: 1, jobId: `gate:1:${'d'.repeat(12)}:abc`, local: { started: true, pid: 4242 }, config: { affectedTests: 'npx jest' }, main, source: ITEM_SHA });
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /^#1 is in the gate as job gate:1:d{12}:abc: a runner pulls the whole gate.*Started this machine's local runner \(pid 4242\)/u, 'the submit says it is in the gate');
+  assert.match(lines[1], /^test runner: /u, 'the runner note follows at once');
+  assert.equal(lines[1], proofRunnerNote({ affectedTests: 'npx jest' }, main, ITEM_SHA));
+  assert.doesNotMatch(submitAckLines({ id: 1, jobId: 'j', local: { started: false }, config: {}, main, source: ITEM_SHA })[0], /local runner/u);
 });
 
 test('cli.submit-pull.item-needs-in-request: clause 1: the gate request carries the held item needs in its analysis data, and a request without needs is built as before [U136,#11479]', () => {

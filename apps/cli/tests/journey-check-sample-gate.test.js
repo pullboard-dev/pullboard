@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/tests/journey-check-sample.test.js */
 /** The 9-minute journey-check sample stays out of a census and a plain test run, and runs when asked [C7]. */
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';

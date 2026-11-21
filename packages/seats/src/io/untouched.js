@@ -11,8 +11,14 @@ const fs = fileSystemAdapter();
 /**
  * Freeze a Git worktree's content; failure is unknown, never evidence of no work. The status is the command's shared
  * one, and its untracked entries are the same set ls-files --others --exclude-standard lists, so the digest is unchanged.
+ * A caller that already knows the claim's own snapshot passes it as options.claimSnapshot: with none (null, or no digest)
+ * there is nothing to compare against, so the answer is null at once and no Git child runs. With no options it is unchanged.
+ *
+ * @param {string} root
+ * @param {{ claimSnapshot?: { digest?: string } | null }} [options]
  */
-export function claimWorktreeSnapshot(root) {
+export function claimWorktreeSnapshot(root, options) {
+  if (options && 'claimSnapshot' in options && !options.claimSnapshot?.digest) return null;
   try {
     const git = args => gitExecFileSync(args, { cwd: root, timeout: 5000 });
     const head = checkoutHead(root) ?? git(['rev-parse', '--verify', 'HEAD']).toString().trim();

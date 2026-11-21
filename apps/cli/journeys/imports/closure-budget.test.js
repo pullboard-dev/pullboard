@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/journeys/imports/count.js */
 /** Each hot command loads no more modules than its recorded budget plus headroom; budgets only ratchet down [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -14,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
+import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { fixtureCommittedGraph } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
@@ -173,6 +175,28 @@ test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a co
   const spec = new URL('apps/cli/src/io/spec.js', `file://${ROOT}`).href;
   assert.ok(run.urls.size > 0, run.stderr);
   assert.equal(run.urls.has(spec), false, 'pullboard claim 1 loaded apps/cli/src/io/spec.js: import coordinatorFile from apps/cli/src/io/coordinator-file.js');
+});
+
+test('cli.journeys-imports-closure-budget.cold-show-trimmed-modules: a cold pullboard show 1 loads none of the review-retry modules and at most 525 modules in all [C7,#11943]', () => {
+  const run = commandLoads('show 1');
+  const dropped = ['packages/verify/src/logic/verdict/retry.js', 'packages/merge/index.js', 'packages/merge/src/io/trunk.js', 'packages/merge/src/io/compose.js'];
+  const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^#1 +claimed /u, "a cold show 1 still prints the item line");
+  assert.deepEqual(loadedDrops, [], `a cold show loaded ${loadedDrops.join(', ')}: the comparison loads the review-retry composition only when its base run fails`);
+  assert.ok(run.urls.size <= 525, `a cold show 1 loaded ${run.urls.size} modules, over the 525 the env adapter slices need: keep the retry composition out of the cold path`);
+});
+
+test('cli.journeys-imports-closure-budget.derived-state-on-show-and-list-within-rows: with health.derivedState on, a cold pullboard show 1 and a cold pullboard list each load no more modules than their rows plus headroom [C7,#12608]', () => {
+  const home = seat.env.PULLBOARD_MACHINE_HOME;
+  fixtureSettledMachine(home, { health: { derivedState: true } });
+  try {
+    for (const command of ['show 1', 'list']) {
+      const run = commandLoads(command);
+      assert.equal(run.status, 0, run.stderr);
+      assert.ok(run.urls.size <= budgets[command] + headroom(budgets[command]), `a cold pullboard ${command} with health.derivedState on loaded ${run.urls.size} modules, over its row ${budgets[command]} plus ${headroom(budgets[command])} headroom: read derived state through the health light door and verdictTrunk through the verify read door`);
+    }
+  } finally { fixtureSettledMachine(home); }
 });
 
 test('cli.journeys-imports-closure-budget.headroom-is-five-or-five-percent: clause 1: headroom(ceiling) = max(5, ceil(5% of ceiling)), and the over-ceiling message names each module the change added, capped at 40 [C7]', () => {

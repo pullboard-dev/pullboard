@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-cell apps/cli packages/kernel packages/store packages/state packages/queue packages/seats packages/items packages/spec packages/git packages/verify packages/merge packages/config packages/stats packages/resources packages/transport packages/jobs packages/sandbox packages/doctrine packages/codemap packages/commits packages/person packages/roadmap */
+/** @pullboard-test-input apps/cli/journeys/list/startup-heavy.json apps/cli/journeys/list/startup-budget.json */
 /**
  * A read command pays only for its own modules: list and show load no gate, relay or landing module beyond the audited row each keeps
  * in startup-heavy.json, and every command keeps a startup ceiling row in startup-budget.json that only ever shrinks [C7].

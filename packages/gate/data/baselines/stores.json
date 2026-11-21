@@ -906,6 +906,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
     },
+    "moved-journeys.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/manifest.js"
+    },
     "guards.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"

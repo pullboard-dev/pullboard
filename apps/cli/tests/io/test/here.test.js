@@ -58,3 +58,13 @@ test('cli.io-test-here.run-ticks-no-check-clauses: clause 1: runHere hands the q
   assert.equal(notes.length, 1);
   assert.match(notes[0], new RegExp(`^clause 1 \\[test\\]: .*run ${run}.*cli\\.io-test-here\\.x`, 'u'));
 });
+
+test('cli.test-here.screenshots-line: clause 1: runHere prints screenshots: <path> after the green or red line and adds screenshotsPath to its payload when the run result carries one, and prints and returns exactly as today when it does not [C7,#11506]', () => {
+  const source = readFileSync(new URL('../../../src/io/test/here.js', import.meta.url), 'utf8');
+  const lines = source.split('\n');
+  const verdict = lines.findIndex(line => line.includes("io.err(`pullboard test: ${result.green ? 'green' : 'red'}"));
+  const shots = lines.findIndex(line => line.includes('io.err(`screenshots: ${result.screenshotsPath}`)'));
+  assert.ok(verdict >= 0 && shots === verdict + 1, 'the screenshots line follows the green or red line');
+  assert.match(lines[shots], /^\s*if \(result\.screenshotsPath\) /u, 'printed only when the result carries a path');
+  assert.match(source, /\.\.\.\(result\.screenshotsPath \? \{ screenshotsPath: result\.screenshotsPath \} : \{\}\)/u, 'the payload key is absent when unset');
+});
