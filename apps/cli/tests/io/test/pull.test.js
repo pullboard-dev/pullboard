@@ -16,6 +16,10 @@ import { pullTestWanted } from '../../../src/io/test/pull.js';
 import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
+import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
+import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
+import { generateKeyPairSync } from 'node:crypto';
+import { signRunnerReceipt } from '../../../../../packages/runners/index.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { focusedRunnerPath } from '../../fixtures/test/pulled-entry.js';
 import { runPulledEntry } from '../../fixtures/test/pulled-entry.js';
@@ -28,6 +32,25 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { storeTestResult } from '../../../../../packages/gate/index.js';
+
+test('cli.io-test-pull.signed-completion: clause 1: a real pulled completion verifies only for its enrolled runner and exact fresh request [C7,#12647]', { timeout: 120_000 }, async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pinned = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  const signed = body => { const row = { ...body, host: 'runner.example' }; return { ...row, signature: signRunnerReceipt(row, privateKey) }; };
+  const { receipt, job, nonce, source, tree } = await signedPullFixture(signed);
+  assert.ok(receipt?.signedCompletion, 'the pull runner posts its signed envelope');
+  const expected = { job, nonce, source, tree, status: receipt.status, signal: receipt.signal, outputSha256: receipt.outputSha256 };
+  const runners = [{ host: 'runner.example', publicKey: pinned }];
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, runners), true);
+  assert.equal(authenticatedPullCompletion(null, expected, runners), false, 'unsigned remains unauthenticated');
+  const other = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, [{ host: 'runner.example', publicKey: other }]), false, 'wrong enrolled key');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, { ...expected, nonce: 'cd'.repeat(24) }, runners), false, 'replayed request');
+  for (const field of ['source', 'tree', 'outputSha256']) assert.equal(authenticatedPullCompletion({ ...receipt.signedCompletion, [field]: '0'.repeat(receipt.signedCompletion[field].length) }, expected, runners), false, `tampered ${field}`);
+  const unsigned = await signedPullFixture(null);
+  assert.equal(unsigned.receipt.status, 0, 'ordinary unsigned execution still returns');
+  assert.equal(unsigned.receipt.signedCompletion, undefined);
+});
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
   const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
