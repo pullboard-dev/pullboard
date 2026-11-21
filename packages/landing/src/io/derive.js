@@ -7,9 +7,6 @@ import { git } from '../../../git/index.js';
 import { gitSpawn } from '../../../git/index.js';
 import { CLOSURE_CEILINGS } from '../../../gate/index.js';
 import { assignEngineNumbers } from '../../../state/index.js';
-import { writeFormatTable } from '../../../state/index.js';
-import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
-import { refreshLandingDocs } from './docs.js';
 import { measureHeldRules } from './doctrine.js';
 import { stageTestRegistries } from './registries.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
@@ -47,18 +44,13 @@ async function tightenClosureCeilings(root) {
 }
 
 /**
- * Derive and stage everything a landing writes after an item merge: engine numbers and their history, the format table, generated docs.
+ * Derive and stage everything a landing writes after an item merge: engine numbers and their history and the closure ceilings; generated docs are never staged (#11181).
  * Why: one function builds the files whether the coordinator or a runner runs it, so the two can never differ.
  * @param {string} root A checkout of the merged tree.
  * @returns {{ engines: { files: string[], assigned: { name: string, number: number }[] } }} What was staged.
  */
 export async function stageLandingDerived(root) {
   const engines = assignEngineNumbers(root);
-  if (fs.exists(join(root, 'packages/state/src/io/formats')) && fs.exists(join(root, 'docs', 'formats.md'))
-    && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
-  refreshLandingDocs(root);
-  const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
-  for (const file of generatedChanges) if (!engines.files.includes(file)) engines.files.push(file);
   for (const file of await tightenClosureCeilings(root)) if (!engines.files.includes(file)) engines.files.push(file);
   if (engines.files.length) git(root, ['add', '--', ...engines.files]);
   return { engines };
