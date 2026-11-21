@@ -29,6 +29,8 @@ import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { runResident } from '../../../src/io/resident/client.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { withFixtureBoard } from '../../fixtures/board.js';
+import { cli } from '../../fixtures/next/take.js';
+import { fixture } from '../../fixtures/next/take.js';
 
 test('cli.io-commands-test.tests-run-without-inherited-git-identity-or: tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
@@ -160,4 +162,35 @@ test('cli.io-commands-test.pullboard-test-given-a-folder-expands-it: pullboard t
   for (const file of ['dir/b.test.js', 'dir/sub/a.test.js', 'dir/helper.js', 'empty/readme.txt']) box.write(file, 'export {};\n');
   assert.deepEqual(expandTestFolders(root, ['dir/', 'x.test.js']), ['dir/b.test.js', 'dir/sub/a.test.js', 'x.test.js']);
   assert.throws(() => expandTestFolders(root, ['empty']), (error) => error.code === 'NO_TEST_FILE' && /empty/u.test(error.message));
+});
+
+test('cli.test.finish-marks: clause 2: pullboard test by the seat holding the claim appends finish start and finish end with the exit code, a seat without the claim appends none, and the timeline shows claimed, seat-ready, finish start, finish end in order with the finish span as testing [C7,#12159]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Tested item');
+  box.claim(id);
+  box.advance(60_000);
+  assert.equal((await cli(box, box.seats.builder.path, ['mark', String(id), 'seat-ready', '--point'])).code, 0);
+  box.advance(60_000);
+  const idle = await cli(box, box.seats.actor.path, ['test', 'apps/none/missing.test.js']);
+  assert.notEqual(idle.code, 0, 'the run is refused');
+  const finishes = () => box.board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='mark'").all(id).map(row => JSON.parse(row.event_detail)).filter(mark => mark.stage === 'finish');
+  assert.equal(finishes().length, 0, 'a seat without the claim marks nothing');
+  const started = box.clock.now().getTime();
+  // The run takes time: every read of the fixture clock during it is a second later than the one before.
+  const realNow = box.clock.now.bind(box.clock);
+  let reads = 0;
+  box.clock.now = () => new Date(realNow().getTime() + (reads++) * 1000);
+  const ran = await cli(box, box.seats.builder.path, ['test', 'apps/none/missing.test.js']);
+  box.clock.now = realNow;
+  assert.notEqual(ran.code, 0, 'the run is refused');
+  const marks = finishes();
+  assert.deepEqual(marks.map(mark => mark.edge), ['start', 'end'], 'finish start, then finish end');
+  assert.match(marks[1].ref, /^exit=[1-9]\d*$/u, 'finish end carries the exit code');
+  assert.ok(marks[0].at >= started && marks[1].at > marks[0].at, 'the finish span has a length');
+  box.advance(60_000);
+  const timeline = await cli(box, box.seats.builder.path, ['timeline', String(id)]);
+  assert.equal(timeline.code, 0, timeline.out + timeline.err);
+  const stages = timeline.document.rows.map(row => row.edge === 'point' || row.stage === 'claimed' ? row.stage : `${row.stage} ${row.edge}`);
+  assert.deepEqual(stages.filter(stage => ['claimed', 'seat-ready', 'finish start', 'finish end'].includes(stage)), ['claimed', 'seat-ready', 'finish start', 'finish end'], 'the stages read in order');
+  assert.ok(timeline.document.summary.buckets.testing > 0, 'the finish span counts as testing');
 });
