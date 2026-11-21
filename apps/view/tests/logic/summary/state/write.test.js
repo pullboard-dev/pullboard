@@ -4,11 +4,11 @@ import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
 import { projectState } from '../../../../src/io/serve.js';
 import { viewProofSummary } from "../../../../src/logic/summary/state.js";
-import { cellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
+import { closeCellBoard } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../../packages/store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
 
 /**
  * Writes covered, each followed by a read on the same open board: a new item filed from another

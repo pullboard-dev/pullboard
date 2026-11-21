@@ -50,19 +50,6 @@ if (process.argv.length === 3 && process.argv[2] === '--version') {
   process.exit(0);
 }
 
-// Compiled module code is kept per machine, so a short command re-reads it instead of compiling ~450 ms of small modules again [C7].
-// Only a directory this account owns and nobody else can write is used: cached code runs. Any failure leaves the command uncached.
-try {
-  const { processMachineHome } = await import('../../packages/kernel/light.js');
-  const { mkdirSync, statSync } = process.getBuiltinModule('node:fs');
-  const directory = `${processMachineHome()}/compile-cache`;
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const seen = statSync(directory);
-  if (seen.isDirectory() && (process.getuid === undefined || seen.uid === process.getuid()) && (seen.mode & 0o022) === 0) {
-    process.getBuiltinModule('node:module').enableCompileCache?.(directory);
-  }
-} catch { /* An unwritable or missing machine home just compiles as before. */ }
-
 const emitWarning = process.emitWarning;
 process.emitWarning = (warning, ...rest) => {
   if (String(warning).includes('SQLite is an experimental feature')) return;
@@ -89,6 +76,20 @@ if (process.argv[2] === 'hook') {
     process.exit(await shim.runHookShim(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env, stderr: process.stderr }));
   }
 }
+
+// The compile cache is enabled after the hook shim above: a shimmed commit hook only spawns its child, which enables the cache itself, so the parent never loads the kernel light door for the cache directory [C7].
+// Compiled module code is kept per machine, so a short command re-reads it instead of compiling ~450 ms of small modules again [C7].
+// Only a directory this account owns and nobody else can write is used: cached code runs. Any failure leaves the command uncached.
+try {
+  const { processMachineHome } = await import('../../packages/kernel/light.js');
+  const { mkdirSync, statSync } = process.getBuiltinModule('node:fs');
+  const directory = `${processMachineHome()}/compile-cache`;
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const seen = statSync(directory);
+  if (seen.isDirectory() && (process.getuid === undefined || seen.uid === process.getuid()) && (seen.mode & 0o022) === 0) {
+    process.getBuiltinModule('node:module').enableCompileCache?.(directory);
+  }
+} catch { /* An unwritable or missing machine home just compiles as before. */ }
 
 // A self-hosted pre-commit runs from the staged index with the item's companions applied, never the working tree (#2593).
 if (process.argv[2] === 'hook') {
