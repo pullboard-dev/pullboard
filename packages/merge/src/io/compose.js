@@ -55,6 +55,7 @@ async function compose(root, inputHead, trunk, work) {
   let added = false;
   let controllerStarted = false;
   let controllerTerminal = false;
+  let thrown;
   try {
     git(root, ['worktree', 'add', '--detach', directory, inputHead]); added = true;
     let conflicts = [];
@@ -94,13 +95,14 @@ async function compose(root, inputHead, trunk, work) {
       /** Only the trusted caller may confirm its actual admitted controller returned without unknown custody. */
       terminal() { controllerTerminal = true; },
     }));
-  } finally {
+  } catch (error) { thrown = { error }; throw error; }
+  finally {
     // A source conflict has no child/controller custody; clear only this private tracked merge before normal removal.
     if (added && (!controllerStarted || controllerTerminal)) {
       git(directory, ['reset', '--hard', inputHead]);
       git(directory, ['clean', '-ffdx']);
     }
-    if (added && controllerStarted && !controllerTerminal) throw new Error(`source-advance controller custody is unknown; retain owned source ${directory}`);
+    if (added && controllerStarted && !controllerTerminal) throw new Error(`source-advance controller custody is unknown; retain owned source ${directory}`, thrown ? { cause: thrown.error } : undefined);
     if (added) git(root, ['worktree', 'remove', directory]);
     fs.rm(outer, { recursive: true, force: true });
   }
