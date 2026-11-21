@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { serveApi } from '../../../../../packages/api/index.js';
+import { openCellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
+import { openBoardForRead } from '../../../../../packages/store/index.js';
 
 const SECRET = 'fixture-secret';
 
@@ -9,11 +11,14 @@ const SECRET = 'fixture-secret';
 const BROKEN_PORTS = 'data:text/javascript,' + encodeURIComponent("throw new Error('ENOENT: uv_cwd');");
 /** Handler ports that give no handlers, so each worker starts and stays up. */
 const HEALTHY_PORTS = 'data:text/javascript,' + encodeURIComponent('export function boardHandlerPorts() { return { handlers: {} }; }');
+/** View projections the handler requires at construction; these tests never project state. */
+const VIEW_PORTS = Object.freeze(Object.fromEntries(['projectState', 'activeViewAgents', 'viewProofSummary', 'compactItemSummaries', 'viewFlowSummary']
+  .map((name) => [name, () => { throw new Error(`these tests do not project ${name}`); }])));
 const refusalDocument = (error) => ({ error: { code: error.code ?? 'INTERNAL', message: String(error.message) } });
 
 /** Serve the API with the given handler ports and no boards. */
 async function served(t, handlerPorts) {
-  const api = await serveApi({ projects: () => [], secret: SECRET, runCommand: async () => 0, isMain: false, refusalDocument, boardOpeners: {}, viewPorts: {}, handlerPorts });
+  const api = await serveApi({ projects: () => [], secret: SECRET, runCommand: async () => 0, isMain: false, refusalDocument, boardOpeners: { openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb] }, viewPorts: VIEW_PORTS, handlerPorts });
   t.after(() => api.close());
   return api;
 }
