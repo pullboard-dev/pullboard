@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-status-closure.release-check-asked-once": {"proves":{"specs":["C7"],"claim":"A cold status on a home that never answered prints the release-check question once, records the person's answer through the config door, and prints nothing on the next status."},"why":"Without it, status could ask every run, answer for the person, or pull the ask path into the cold status closure.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/status-closure.test.js"]}
+}
