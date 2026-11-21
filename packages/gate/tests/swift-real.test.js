@@ -15,11 +15,19 @@ import { privateFixtureFiles } from './fixtures/child.js';
 
 const FIXTURE = new URL('./fixtures/swift-pkg/', import.meta.url);
 const RUN_LIMIT_MS = 120_000;
+const XCODE = '/Applications/Xcode.app/Contents/Developer';
 const FILES = ['Package.swift', 'Sources/Calc/Calc.swift', 'Tests/CalcTests/CalcTests.swift'];
+
+/** Select full Xcode for this subprocess if macOS defaults to Command Line Tools without a test framework. */
+function swiftEnvironment() {
+  return process.platform === 'darwin' && !process.env.DEVELOPER_DIR && existsSync(join(XCODE, 'usr', 'bin', 'xcodebuild'))
+    ? { ...process.env, DEVELOPER_DIR: XCODE }
+    : process.env;
+}
 
 /** True when swift answers --version on this machine. */
 function swiftAnswers() {
-  const probe = spawnSync('swift', ['--version'], { encoding: 'utf8' });
+  const probe = spawnSync('swift', ['--version'], { encoding: 'utf8', env: swiftEnvironment() });
   return !probe.error && probe.status === 0;
 }
 
@@ -36,8 +44,14 @@ function sharedRun() {
   const row = junitCommand('swift');
   // SwiftPM nests its own sandbox-exec, which hangs inside the runner sandbox; --disable-sandbox and a scratch path in the copy avoid it.
   // The failing test makes swift test exit non-zero, as a red gate does; the report is still written.
-  const run = spawnSync('sh', ['-c', `${row.command} --disable-sandbox --scratch-path ${join(root, '.build')}`], { cwd: root, encoding: 'utf8', timeout: RUN_LIMIT_MS });
-  shared = { root, reportFile: join(root, row.report), run };
+  const start = performance.now();
+  const run = spawnSync('sh', ['-c', `${row.command} --disable-sandbox --scratch-path "$1"`, 'swift-fixture', join(root, '.build')], {
+    cwd: root, encoding: 'utf8', timeout: RUN_LIMIT_MS, env: swiftEnvironment(),
+  });
+  const requestedReport = join(root, row.report);
+  // New SwiftPM writes Swift Testing's genuine XML beside the requested report, with a framework suffix.
+  const reportFile = existsSync(requestedReport) ? requestedReport : requestedReport.replace(/\.xml$/u, '-swift-testing.xml');
+  shared = { root, reportFile, run, elapsedMs: Math.round(performance.now() - start) };
   return shared;
 }
 
@@ -48,7 +62,8 @@ function buildReason(run) {
 
 test('gate.swift-real.report-names-one-pass-one-fail: clause 1: the swift row runs on a one-pass one-fail fixture and junitCases reads one pass and one fail from its report [C7]', (t) => {
   if (!swiftAnswers()) return t.skip('swift unavailable on this machine: swift --version did not answer');
-  const { run, reportFile } = sharedRun();
+  const { run, reportFile, elapsedMs } = sharedRun();
+  t.diagnostic(`swift test row: ${elapsedMs} ms; exit ${run.status ?? run.error?.code}; report ${existsSync(reportFile) ? 'written' : 'missing'}`);
   if (!existsSync(reportFile)) return t.skip(`swift unavailable: it could not build the fixture, ${buildReason(run)}`);
   const { cases, reason } = junitCases(readFileSync(reportFile, 'utf8'));
   assert.equal(reason, null);
