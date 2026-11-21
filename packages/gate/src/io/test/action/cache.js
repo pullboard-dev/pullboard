@@ -476,7 +476,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
     const entry = recordOnly ? null : reusableResult(store, file.key);
     const outcomes = entry && testResultOutcomes(entry);
     if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
-      || env[TEST_RESULT_REQUEST_ENV] && env.PULLBOARD_TEST_RESULT_REUSE_UNCOMPLETED !== '1' && !completedTestResult(entry)) { run.push(file); account.push(ranAccount(store, file)); continue; }
+      || env[TEST_RESULT_REQUEST_ENV] && !completedTestResult(entry)) { run.push(file); account.push(ranAccount(store, file)); continue; }
     account.push(reusedAccount(store, file));
     reusedTestOutcomes.push(...outcomes);
     results.set(file.path, { status: 'pass', source: 'reused', key: entry.key, currentKey: file.key });
