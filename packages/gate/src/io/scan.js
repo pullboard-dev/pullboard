@@ -27,7 +27,7 @@ export function mappedWorkingSources(root, identities) {
   const head = tryGit(root, ['rev-parse', '--verify', 'HEAD^{commit}']);
   if (head.status !== 0) throw new Error('working source needs an exact committed map');
   const commit = head.stdout.trim();
-  const mapPaths = ['path-map.json', 'packages/codemap/data/plan/path-map'];
+  const mapPaths = ['path-map.json'];
   /** A dirty or untracked mapping cannot silently describe another working implementation. */
   function cleanMap() {
     const status = tryGit(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', ...mapPaths]);
