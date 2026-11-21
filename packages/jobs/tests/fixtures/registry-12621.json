@@ -1,0 +1,3 @@
+{
+  "jobs.io-store.prepared-commit-port": {"proves":{"specs":["C7"],"claim":"setPreparedCommit and commitJobStatements pass board, move and statements through a set port and return its result; with no port set commitJobStatements refuses PREPARED_COMMIT_UNSET, and store.js adds no import beyond node, the jobs cell and the kernel front door."},"why":"Without the port a later slice could not commit prepared job statements from the api or drive without a jobs to store edge that closes a cycle.","kind":"cell unit","inputs":["packages/jobs/src/io/store.js"]}
+}

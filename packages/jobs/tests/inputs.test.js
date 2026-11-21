@@ -13,6 +13,7 @@ const ROOT = join(DIR, '..', '..', '..');
 const SELF = 'packages/jobs/tests/inputs.test.js';
 /** Test files that read committed repo files, not temporary ones, so they must declare what they read. */
 const REPO_READERS = [
+  "packages/jobs/tests/io/store.test.js",
   "packages/jobs/tests/registry.test.js"
 ];
 /** Existing whole-tree declarations that stay as they are; no other jobs test declares the whole tree. */
