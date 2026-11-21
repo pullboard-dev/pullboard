@@ -817,7 +817,11 @@
     "keys.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/test/action/cache.js"
+    },    "lookup-cache.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/pinned/tool/build.js"
     },
+
     "landing-file-times.json": {
       "kind": "json",
       "owner": "apps/view/src/io/live/read.js"
