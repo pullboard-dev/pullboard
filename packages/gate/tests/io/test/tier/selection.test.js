@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-cell gate */
 /** @pullboard-test-loads packages/gate/src/io/test/tier/selection.js */
 /** @pullboard-test-loads packages/gate/src/io/test/tier/narrow.js */
+/** @pullboard-test-loads packages/gate/src/io/test/outcomes.js */
 /** Tier selection keeps every test for a global change, runs a new tooling test at submit, ignores a project without a path map, and runs the canary at every gate [C7,#4015,#10874]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -11,6 +12,10 @@ import { DEFAULT_CANARY } from '../../../../src/io/test/tier/selection.js';
 import { submitGatePlan } from '../../../../heavy.js';
 import { selectTestTiers } from '../../../../heavy.js';
 import { requireSealedSkips } from '../../../../heavy.js';
+import { requireTestTierAccount } from '../../../../heavy.js';
+import { formatTestOutcomes } from '../../../../src/io/test/outcomes.js';
+import { readTestOutcomes } from '../../../../src/io/test/outcomes.js';
+import { testOutcomeCollector } from '../../../../src/io/test/outcomes.js';
 import { narrowConfinedTiers } from '../../../../src/io/test/tier/narrow.js';
 import { fixture as repository } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
@@ -261,3 +266,45 @@ test('gate.io-test-tier-selection.test-only-change-keeps-undeclared-readers: cla
   }
 });
 
+
+const WRAPPER = 'apps/cli/tests/io/init/audit.test.js';
+const OTHER_WRAPPER = 'apps/cli/tests/io/init/other.test.js';
+const FIXTURE = 'apps/cli/tests/journeys/shared.js';
+const FRAME_ID = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+
+/** Observe passing cases that Node reports under the shared fixture path while `wrapper` runs them. */
+function collected(cases) {
+  const root = '/repo';
+  const collector = testOutcomeCollector(root);
+  for (const [wrapper, name] of cases) collector.observe({ type: 'test:pass', data: { file: `${root}/${FIXTURE}`, name, details: {} } }, wrapper);
+  return collector.finish(true, cases.length);
+}
+
+test('gate.io-test-tier-selection.wrapper-owned-rows-count: clause 1: a wrapper whose cases run from a shared fixture has an account, each row keeping the fixture path [C7,#12747]', () => {
+  const rows = collected([[WRAPPER, 'first journey'], [WRAPPER, 'second journey']]);
+  assert.deepEqual(rows.map(row => row.file), [FIXTURE, FIXTURE], 'each row keeps the fixture path');
+  assert.deepEqual(rows.map(row => row.owner), [WRAPPER, WRAPPER], 'each row names the wrapper that ran it');
+  assert.doesNotThrow(() => requireTestTierAccount({ green: true, testOutcomes: rows }, [WRAPPER]));
+  assert.doesNotThrow(() => requireTestTierAccount({ green: true, testOutcomes: rows }, [FIXTURE]), 'a row still counts for its own file');
+});
+
+test('gate.io-test-tier-selection.wrapper-without-rows-refused: clause 2: a selected wrapper with no row of its own, or rows owned only by another wrapper, is still refused [C7,#12747]', () => {
+  const rows = collected([[OTHER_WRAPPER, 'foreign journey']]);
+  for (const testOutcomes of [rows, [{ file: FIXTURE, name: 'no owner', passed: true, skipped: false }]]) {
+    assert.throws(() => requireTestTierAccount({ green: true, testOutcomes }, [WRAPPER]), { code: 'TEST_SELECTION_UNVERIFIED' });
+  }
+  assert.doesNotThrow(() => requireTestTierAccount({ green: false, testOutcomes: rows }, [WRAPPER]), 'a red run is judged elsewhere');
+});
+
+test('gate.io-test-tier-selection.owner-survives-the-frame: clause 3: the owner survives the frame round trip, file stays the fixture path, and malformed owners fail closed [C7,#12747]', () => {
+  const rows = collected([[WRAPPER, 'first journey'], [OTHER_WRAPPER, 'second journey']]);
+  const text = formatTestOutcomes(FRAME_ID, rows);
+  assert.deepEqual(readTestOutcomes(text, FRAME_ID), rows, 'the frame round trip keeps every row exactly');
+  assert.deepEqual(rows.map(row => [row.file, row.owner]), [[FIXTURE, WRAPPER], [FIXTURE, OTHER_WRAPPER]]);
+  for (const owner of ['/abs/wrapper.test.js', '../up.test.js', 'a\\b.test.js', '', 7, null]) {
+    const bad = [{ ...rows[0], owner }];
+    assert.equal(formatTestOutcomes(FRAME_ID, bad), '', `owner ${JSON.stringify(owner)} is refused`);
+  }
+  assert.equal(readTestOutcomes(text.replace('"owner":"' + WRAPPER + '"', '"owner":"/x"'), FRAME_ID), null, 'a malformed frame fails closed');
+  assert.equal(formatTestOutcomes(FRAME_ID, [{ ...rows[0], extra: 1 }]), '', 'an unknown field still fails closed');
+});
