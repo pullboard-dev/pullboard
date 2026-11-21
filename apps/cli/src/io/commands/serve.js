@@ -19,7 +19,14 @@ import {
 import { apiBoards } from '../../../../../packages/api/index.js';
 import { poolHandlers } from '../../../../../packages/api/index.js';
 import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
+import { claimTrial } from '../../../../../packages/drive/index.js';
+import { trialClaims } from '../../../../../packages/api/index.js';
+import { serveRestartTrial } from '../../../../../packages/config/index.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { servedModuleMoved } from '../../../../../packages/drive/index.js';
+import { startBeat } from '../../../../../packages/drive/index.js';
 import { startLoopWatchdog } from '../../../../../packages/drive/index.js';
 import { announceListening } from '../../../../../packages/drive/index.js';
 import { catchListeners } from '../../../../../packages/drive/index.js';
@@ -168,7 +175,7 @@ export async function serveHere(io, values) {
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
   const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument, pullRoute: pullRoute ?? undefined,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
-    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog }));
+    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog, gateMaintenanceBeat: startBeat }));
   const api = listening.value;
   if (inherited) announceListening();
   traceServeStartup('serve-listen-ready');
@@ -187,7 +194,9 @@ export async function serveHere(io, values) {
   // Where the socket can be handed on, the new process listens before this one stops accepting, so no request is refused (#6723).
   const log = join(pullboardHome(), 'serve.log');
   const socket = listening.socketFd(api.port);
-  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), handoff: socket !== null,
+  // With serve.restartTrial on, a move is first tried on the claim path: this process's own claims against the new code's (#12118).
+  const trial = serveRestartTrial() ? claimTrial({ claims: trialClaims, db: ctx.file, root: ctx.info.root, next: newCodeClaims }) : null;
+  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), handoff: socket !== null, trial,
     close: socket !== null ? () => listening.drain(api.port).then(api.close) : api.close,
     affects: servedModuleMoved({ root: CODE_ROOT, entries: [join(CODE_ROOT, 'apps/cli/pullboard.js'), fileURLToPath(import.meta.url)] }), log: (line) => process.stderr.write(`${line}; the new process logs to ${log}\n`),
     relaunch: () => socket !== null ? spawnOnSocket(process.execPath, sameServe(api.port), { fd: socket, cwd: process.cwd(), log }) : spawnReachable(process.execPath, sameServe(api.port), { cwd: process.cwd(), log }) });
@@ -201,6 +210,14 @@ export async function serveHere(io, values) {
   reconciler.stop();
   if (!restarted) await api.close();
   return 0;
+}
+
+/** The trial claims run by the code now in this checkout (the new commit), in a child process so this one's loaded code is not the one measured. */
+async function newCodeClaims(_to, { db, root, count }) {
+  const module = pathToFileURL(join(CODE_ROOT, 'packages/api/src/io/claim-replay.js')).href;
+  const script = `const m = await import(${JSON.stringify(module)}); process.stdout.write(JSON.stringify(m.trialClaims({ db: ${JSON.stringify(db)}, root: ${JSON.stringify(root)}, count: ${count} })))`;
+  const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', script], { cwd: CODE_ROOT, encoding: 'utf8', maxBuffer: 1024 * 1024 });
+  return JSON.parse(stdout);
 }
 
 /** The checkout this CLI's code runs from. */
@@ -290,7 +307,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
   providePostLandPullOut(startPostLandPullOut);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
-    refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
+    refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog, gateMaintenanceBeat: startBeat });
   const boards = () => {
     const unread = projects().filter(project => !ids.has(project.root));
     if (unread.length) for (const board of apiBoards(() => unread, ctx.allowSchemaUpgrade, openers)) ids.set(board.root, board.id);

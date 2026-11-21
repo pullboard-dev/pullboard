@@ -3,12 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { importParseScopes } from './cache.js';
 import { storedCompilations } from '../parsed.js';
 import { foreignNodeOptions } from '../../../../kernel/index.js';
-import {
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { lex } from '../../../../kernel/index.js';
 import { importsWithCompiler } from '../../../../kernel/index.js';
@@ -60,11 +56,11 @@ const PARSER_TIMEOUT_MS = 10_000;
 function compileFresh(sources, spawn = spawnSync) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
   const cacheDirectory = importParseScopes.getStore()?.directory;
-  if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
-  const directory = mkdtempSync(join(cacheDirectory ?? scratchBase(), 'pullboard-imports-'));
+  if (cacheDirectory) disk.mkdir(cacheDirectory, { recursive: true, mode: 0o700 });
+  const directory = disk.mkdtemp(join(cacheDirectory ?? scratchBase(), 'pullboard-imports-'));
   const input = join(directory, 'sources.json');
   try {
-    writeFileSync(input, JSON.stringify(sources), { mode: 0o600 });
+    disk.writeFile(input, JSON.stringify(sources), { mode: 0o600 });
     const child = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER, input], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 2 ** 26, timeout: PARSER_TIMEOUT_MS, killSignal: 'SIGKILL',
     });
@@ -74,7 +70,7 @@ function compileFresh(sources, spawn = spawnSync) {
     }
     if (child.status !== 0) throw new Error('V8 import parser failed: ' + (child.error?.message ?? child.stderr));
     return JSON.parse(child.stdout);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { disk.rm(directory, { recursive: true, force: true }); }
 }
 
 const MAX_COMPILED_SOURCE_BYTES = 64 * 1024 * 1024;

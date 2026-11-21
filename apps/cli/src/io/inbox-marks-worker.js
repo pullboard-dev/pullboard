@@ -5,12 +5,13 @@ import * as store from '../../../../packages/store/index.js';
 /** The script the inbox command launches. */
 export const MARKS_WORKER = fileURLToPath(import.meta.url);
 
-/** Open the board, write every spooled mark in one transaction, close it; returns how many agents' marks were written. */
+/** Open the board, write every spooled mark in one transaction, record every spooled delivery, close it; returns how many agents' marks were written. */
 export async function runMarksWorker(boardFile) {
   const { openBoard } = await import('../../../lib/index.js');
   const board = openBoard(boardFile);
   try {
-    return store.drainInboxMarks(boardFile, { enqueue: (agent, mark) => store.enqueueInboxMark(board, agent, mark), flush: () => store.flushInboxMarks(board) });
+    return store.drainInboxMarks(boardFile, { enqueue: (agent, mark) => store.enqueueInboxMark(board, agent, mark), flush: () => store.flushInboxMarks(board),
+      recordDelivery: (agent, delivery) => store.recordActivityDelivery(board, { agentId: agent, ...delivery }) });
   } finally { store.closeBoard(board); }
 }
 

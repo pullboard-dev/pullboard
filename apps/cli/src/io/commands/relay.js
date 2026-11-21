@@ -20,7 +20,7 @@ import { originRepository } from '../../../../../packages/link/index.js';
 import { relayPersonCoordinator } from '../../../../../packages/link/index.js';
 import { updateRelayMachine } from '../../../../../packages/link/index.js';
 import { prepareBoardMembers } from '../../../../../packages/link/index.js';
-import { githubKeys } from '../../../../../packages/link/index.js';
+import { githubKeys } from '../../../../../packages/github/index.js';
 import {
   relayJoin,
   relayPair,

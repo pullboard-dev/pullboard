@@ -20,8 +20,14 @@ import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { applyGateReceipt } from '../../src/io/gate.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { recordGateQueue } from '../../src/io/gate/queue-snapshot.js';
+import { QUEUED_GATES_SQL } from '../../src/io/gate/queue-snapshot.js';
+import { LEASED_GATES_SQL } from '../../src/io/gate/queue-snapshot.js';
+import { SHARD_JOBS_SQL } from '../../src/io/gate.js';
+import { shardJobs } from '../../index.js';
 import { WIDE_SEED_SQL } from '../../src/io/recheck.js';
 import { settleDoneShardGates } from '../../src/io/gate.js';
+import { jobQueueCall } from '../../src/io/jobs.js';
 import { settleWaitingGates } from '../../src/io/gate.js';
 import { ledgerMissReasons } from '../../../store/index.js';
 import { recordTestResults } from '../../../store/index.js';
@@ -270,6 +276,143 @@ test('api.io-gate.shard-offer-ledger-absent-without-rows: clause 1: with no ledg
   for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
 });
 
+/** A real fixture board with `count` gate jobs offered, each needing a capability only the runner 'r-gpu' has, so a runner with none holds the queue still. */
+function queueBoard(t, count) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  for (let index = 1; index <= count; index += 1) offerJob(board.db, { id: `gate:q${index}:head`, kind: 'gate', needs: ['gpu'], run: ['true'], now: index });
+  return board;
+}
+const queueEvents = board => board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'gate-queue' AND item_id IS NULL ORDER BY event_id").all().map(row => JSON.parse(row.event_detail));
+const pull = (board, runner, capabilities, now) => boardJobQueueCall(board, { action: 'claim', runner, capabilities }, { mode: 'pull', now });
+
+test('api.io-gate.queue-snapshot-on-change: clause 1: two runner claim calls with the same queue append exactly one gate-queue event with queued ids in offer order, leased count, runnersSeen and serveStartedAt [C7]', t => {
+  const board = queueBoard(t, 3);
+  pull(board, 'r-idle', [], 10);
+  pull(board, 'r-idle', [], 11);
+  const events = queueEvents(board);
+  assert.equal(events.length, 1, JSON.stringify(events));
+  const { queued, leased, runnersSeen, serveStartedAt } = events[0];
+  assert.deepEqual({ queued, leased, runnersSeen }, { queued: ['gate:q1:head', 'gate:q2:head', 'gate:q3:head'], leased: 0, runnersSeen: ['r-idle'] });
+  assert.equal(typeof serveStartedAt, 'number');
+});
+
+test('api.io-gate.queue-snapshot-next: clause 2: a call after one job is claimed appends a second gate-queue event without that job in queued, and a call with an unchanged queue after it appends none [C7]', t => {
+  const board = queueBoard(t, 3);
+  pull(board, 'r-idle', [], 10);
+  pull(board, 'r-gpu', ['gpu'], 11);
+  const claimed = board.db.prepare('SELECT job_id FROM job WHERE job_lease_owner IS NOT NULL').all().map(row => row.job_id);
+  assert.equal(claimed.length, 1, 'the capable runner took one job');
+  const second = queueEvents(board).at(-1);
+  assert.equal(queueEvents(board).length, 2);
+  assert.equal(second.queued.includes(claimed[0]), false, 'the claimed job left the queue');
+  assert.equal(second.queued.length, 2);
+  assert.equal(second.leased, 1);
+  assert.deepEqual(second.runnersSeen, ['r-gpu', 'r-idle']);
+  pull(board, 'r-idle', [], 12);
+  assert.equal(queueEvents(board).length, 2, 'an unchanged queue appends nothing');
+});
+
+test('api.io-gate.queue-snapshot-latency: clause 3: at 60000 gate-shard rows and 93 offered gate jobs, 50 pull claims each in a rolled-back transaction append at most one gate-queue event each, the snapshot adds a p95 printed on one line, and its queue reads SEARCH job with no SCAN [C7]', t => {
+  const board = queueBoard(t, 93);
+  board.db.exec('BEGIN');
+  const insert = board.db.prepare("INSERT INTO job (job_id, job_kind, job_step, job_created, job_updated) VALUES (?, 'gate-shard', 'done', 1, 1)");
+  for (let row = 0; row < 60000; row += 1) insert.run(`gate:q${(row % 300) + 1}:head:shard:${Math.floor(row / 300)}`);
+  board.db.exec('COMMIT');
+  const rollback = new Error('rolled back');
+  const timed = work => {
+    let ms = 0, appended = 0;
+    try {
+      store.atomic(board, () => {
+        const before = board.db.prepare("SELECT count(*) AS n FROM event WHERE event_kind = 'gate-queue'").get().n;
+        const start = performance.now();
+        work();
+        ms = performance.now() - start;
+        appended = board.db.prepare("SELECT count(*) AS n FROM event WHERE event_kind = 'gate-queue'").get().n - before;
+        throw rollback;
+      });
+    } catch (error) { if (error !== rollback) throw error; }
+    return { ms, appended };
+  };
+  const claims = [], snapshots = [];
+  for (let call = 0; call < 50; call += 1) {
+    const claim = timed(() => pull(board, `r-${call}`, [], 1000 + call));
+    assert.ok(claim.appended <= 1, `call ${call} appended ${claim.appended} gate-queue events`);
+    claims.push(claim.ms);
+    snapshots.push(timed(() => recordGateQueue(board, { runner: `s-${call}` }, 2000 + call)).ms);
+  }
+  const p95Of = list => list.sort((a, b) => a - b)[Math.ceil(list.length * 0.95) - 1];
+  const after = p95Of(claims), added = p95Of(snapshots);
+  console.log(`api.io-gate.queue-snapshot-latency: pull claim p95 ${after.toFixed(2)} ms after, ${Math.max(after - added, 0).toFixed(2)} ms before; the snapshot adds p95 ${added.toFixed(2)} ms`);
+  for (const sql of [QUEUED_GATES_SQL, LEASED_GATES_SQL]) {
+    const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...(sql === LEASED_GATES_SQL ? [1] : [])).map(step => step.detail).join(' | ');
+    assert.match(plan, /SEARCH job/u, plan);
+    assert.doesNotMatch(plan, /SCAN job/u, plan);
+  }
+});
+
+test('api.io-gate.shard-jobs-key-range: clause 1: shardJobs returns exactly a gate\'s own shard rows in order, not a sibling gate whose job id extends the same text, and its query plan searches job_id with no scan of job [C7]', t => {
+  const board = cellBoard(t, ':memory:');
+  for (const [id, kind, created] of [['gate:1:a:shard:2', 'gate-shard', 2], ['gate:1:a:shard:1', 'gate-shard', 1], ['gate:1:ab:shard:1', 'gate-shard', 1], ['gate:1:a', 'gate', 0], ['gate:1:a:shard:3', 'gate', 3]]) {
+    board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_created, job_updated) VALUES (?, ?, ?, ?, ?)').run(id, kind, 'offered', created, created);
+  }
+  assert.deepEqual(shardJobs(board.db, 'gate:1:a').map(shard => shard.job_id), ['gate:1:a:shard:1', 'gate:1:a:shard:2']);
+  assert.deepEqual(shardJobs(board.db, 'gate:1:ab').map(shard => shard.job_id), ['gate:1:ab:shard:1']);
+  const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${SHARD_JOBS_SQL}`).all('gate-shard', 'gate:1:a:shard:', shardKeyEnd('gate:1:a:shard:')).map(step => step.detail).join(' | ');
+  assert.match(plan, /SEARCH job/u, plan);
+  assert.doesNotMatch(plan, /SCAN job/u, plan);
+});
+
+/** The exclusive upper bound of the job ids that start with `prefix`, as shardJobs reads them. */
+const shardKeyEnd = prefix => `${prefix}\uFFFF`;
+
+/** A generated board of 500 gates and 20000 gate-shard rows (40 each), the first `done` gates done on a claimed item, so each is a settle candidate. In memory, so the pass times the board's queries alone, not a runs file. */
+function scaleBoard(t, { done = 30 } = {}) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, ':memory:', undefined, { gitRoot: repo.root });
+  const now = Date.now();
+  const ids = Array.from({ length: 500 }, () => cellItem(board, { lane: 'web', title: 'Build a page' }).item_id);
+  const insert = board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_item, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?)');
+  ids.slice(0, done).forEach((id, index) => cellClaim(board, id, cellSeat(board, { lane: 'web', path: `${repo.root}/seat-${index}` }), { root: repo.root }));
+  const gates = ids.map((id, index) => `gate:${id}:head${index}`);
+  board.db.exec('BEGIN');
+  ids.forEach((id, index) => {
+    insert.run(gates[index], 'gate', index < done ? 'done' : 'offered', id, now - 1000 + index, now);
+    for (let shard = 1; shard <= 40; shard += 1) insert.run(`${gates[index]}:shard:${shard}`, 'gate-shard', shard % 3 ? 'offered' : 'done', id, now - 1000 + index, now);
+  });
+  board.db.exec('COMMIT');
+  return { board, now, gates };
+}
+
+test('api.io-gate.shard-jobs-key-range-scale: clause 1: on 20000 shard rows across 500 gates shardJobs returns each gate\'s shards identical to the old substr query, and its plan searches the job primary-key index (sqlite_autoindex_job_1), not job_kind_created [C7]', t => {
+  const { board, gates } = scaleBoard(t);
+  assert.equal(board.db.prepare("SELECT count(*) AS n FROM job WHERE job_kind = 'gate-shard'").get().n, 20000);
+  const oldQuery = board.db.prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id');
+  for (const gate of gates) {
+    const prefix = `${gate}:shard:`;
+    const rows = shardJobs(board.db, gate).map(row => ({ ...row }));
+    assert.equal(rows.length, 40, gate);
+    assert.deepEqual(rows, oldQuery.all('gate-shard', prefix.length, prefix).map(row => ({ ...row })), gate);
+  }
+  const prefix = `${gates[7]}:shard:`;
+  const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${SHARD_JOBS_SQL}`).all('gate-shard', prefix, shardKeyEnd(prefix)).map(step => step.detail).join(' | ');
+  assert.match(plan, /SEARCH job USING INDEX sqlite_autoindex_job_1 \(job_id>\? AND job_id<\?\)/u, plan);
+  assert.doesNotMatch(plan, /job_kind_created/u, plan);
+});
+
+test('api.io-gate.shard-jobs-scale: clause 2: on that board of 20000 shard rows across 500 gates, a settleDoneShardGates pass over 30 candidate gates takes under 5 ms, its time printed [C7]', t => {
+  const { board, now } = scaleBoard(t, { done: 30 });
+  const candidates = board.db.prepare("SELECT count(*) AS n FROM item JOIN job ON job.job_item = item.item_id WHERE item.item_status = 'claimed' AND job.job_kind = 'gate' AND job.job_step = 'done'").get().n;
+  assert.equal(candidates, 30);
+  const pass = () => assert.deepEqual(settleDoneShardGates(board, {}, { now }), []);
+  for (let round = 0; round < 5; round += 1) pass();
+  const times = Array.from({ length: 21 }, () => { const start = performance.now(); pass(); return performance.now() - start; }).sort((a, b) => a - b);
+  const median = times[10];
+  t.diagnostic(`api.io-gate.shard-jobs-scale: settle pass over 30 candidate gates median ${median.toFixed(2)} ms, fastest ${times[0].toFixed(2)} ms, slowest ${times[20].toFixed(2)} ms`);
+  assert.ok(median < 5, `a settle pass over 30 candidates took ${median} ms, not under 5 ms`);
+});
+
 test('api.io-gate.seed-window-in-sql: clause 1: with gate.seedWideMainTests on, the 24 h window is inside the seeding SQL and its query plan searches job by an index and never scans job_step [C7,P7]', t => {
   const { db } = cellBoard(t, ':memory:');
   assert.match(WIDE_SEED_SQL, /job_created >= \?/u, 'the window bound is a parameter of the SQL, not a filter over rows read');
@@ -360,4 +503,79 @@ test('api.io-gate.settled-class-main-red-stale-infra: clause 1: receipts posted 
   const infra = oneGate(t);
   infra.post({ version: 1, status: 1, gate: { source: infra.head, green: false, analysis: { infra: 'the runner lost its checkout' }, phases: [{ role: 'proof', status: 1, failures: [], tail: 'not ok' }] } });
   assert.deepEqual(kinds(infra), [{ job: infra.parent, outcome: 'unknown', class: 'infra' }]);
+});
+
+/** On `board`, a new claimed item whose two-shard gate waits on its last shard; `lose` records that shard done with its apply lost, offered at `at`. */
+function lostApply(board, repo, name, at) {
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat-${name}` });
+  const item = cellItem(board, { lane: 'web', title: `Build ${name}` });
+  cellClaim(board, item.item_id, seat, { root: repo.root });
+  const held = store.getItem(board, item.item_id);
+  const head = repo.commit;
+  const parent = `gate:${item.item_id}:${name}`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: at,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files: [] } } });
+  const lease = claimJob(board.db, { runner: `r-${name}`, capabilities: [], now: at + 1 });
+  const gate = { version: 1, source: head, green: false, environment: { node: process.version, platform: process.platform, arch: process.arch }, phases: [{ role: 'check', status: 0 }],
+    analysis: { proofFiles: SHARD_FILES, proofCommand: 'node --test' }, proofPlan: { runner: 'node --test', cores: 1, files: SHARD_FILES } };
+  const sharded = boardJobQueueCall(board, { action: 'receipt', job: parent, runner: `r-${name}`, token: lease.token, receipt: { status: 0, gate } }, { mode: 'pull', now: at + 2 });
+  const lost = [];
+  sharded.applied.shards.forEach((shard, index) => {
+    const claimed = claimJob(board.db, { runner: `r-${name}-${index}`, capabilities: [], now: at + 3 + index });
+    const posted = { action: 'receipt', job: shard, runner: `r-${name}-${index}`, token: claimed.token, receipt: SHARD_GREEN(head) };
+    // The last shard's receipt records with no apply, as when the board restarted between the record and the apply.
+    // It is held back to `lose`, because a receipt posted through boardJobQueueCall would open the settle window.
+    if (index === sharded.applied.shards.length - 1) lost.push(() => jobQueueCall(board.db, posted, { mode: 'pull', now: at + 4 + index }));
+    else boardJobQueueCall(board, posted, { mode: 'pull', now: at + 4 + index });
+  });
+  return { id: item.item_id, lose: lost[0] };
+}
+
+/** One board with its repo, for gates whose settle the claims below time. */
+function settleBoard(t) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  return { repo, board };
+}
+const claimAt = (board, now) => boardJobQueueCall(board, { action: 'claim', runner: 'r-idle', capabilities: [] }, { mode: 'pull', now });
+const statusOf = (board, id) => store.getItem(board, id).item_status;
+
+test('api.io-gate.settle-throttle-window: clause 1: a done sharded gate with a lost apply settles on a claim at T, a second one made eligible after stays unsettled on a claim at T+4 s, and a claim at T+9 s settles it [C7,#12480]', t => {
+  const { repo, board } = settleBoard(t);
+  const T = Date.now();
+  const one = lostApply(board, repo, 'one', T);
+  const two = lostApply(board, repo, 'two', T + 200);
+  const [first, second] = [one.id, two.id];
+  one.lose();
+  assert.equal(statusOf(board, first), 'claimed', 'the lost apply leaves the item claimed');
+  claimAt(board, T + 1000);
+  assert.notEqual(statusOf(board, first), 'claimed', 'the first claim settles the first gate');
+  two.lose();
+  claimAt(board, T + 5000);
+  assert.equal(statusOf(board, second), 'claimed', 'a claim 4 s after the settle skips the walk');
+  claimAt(board, T + 10_000);
+  assert.notEqual(statusOf(board, second), 'claimed', 'a claim 9 s after the settle walks again');
+});
+
+test('api.io-gate.settle-on-receipt: clause 2: a receipt posted through boardJobQueueCall opens the window, so a claim 1 s after it settles a gate that became eligible inside the window of an earlier settle [C7,#12480]', t => {
+  const { repo, board } = settleBoard(t);
+  const T = Date.now() + 100_000;
+  const late = lostApply(board, repo, 'late', T - 1000);
+  const gated = late.id;
+  claimAt(board, T);
+  late.lose();
+  claimAt(board, T + 500);
+  assert.equal(statusOf(board, gated), 'claimed', 'inside the window the claim skips the walk');
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat-plain` });
+  const other = cellItem(board, { lane: 'web', title: 'Build plain' });
+  cellClaim(board, other.item_id, seat, { root: repo.root });
+  const head = repo.commit;
+  const parent = `gate:${other.item_id}:plain`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: other.item_id, candidate: head, base: head, now: T + 600,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: store.getItem(board, other.item_id).item_frozen_digest, tree: headTree(repo.root), files: [] } } });
+  const lease = claimJob(board.db, { runner: 'r-plain', capabilities: [], now: T + 601 });
+  boardJobQueueCall(board, { action: 'receipt', job: parent, runner: 'r-plain', token: lease.token, receipt: SHARD_GREEN(head) }, { mode: 'pull', now: T + 700 });
+  claimAt(board, T + 1700);
+  assert.notEqual(statusOf(board, gated), 'claimed', 'a claim 1 s after the receipt settles the gate');
 });

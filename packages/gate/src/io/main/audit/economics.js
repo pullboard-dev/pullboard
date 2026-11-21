@@ -2,9 +2,7 @@
 import {
   createHash,
 } from 'node:crypto';
-import {
-  readFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   join,
 } from 'node:path';
@@ -39,7 +37,7 @@ import {
 /** Include installed audit semantics in cache keys so a tooling change cannot reuse old audit behavior. */
 function semantics(config) {
   const files = ['economics.js', 'worker.js', '../../../logic/reporter/coverage.js', '../../test/placement.js', '../../main.js'];
-  return createHash('sha256').update(JSON.stringify([config.gate, ...files.map(file => readFileSync(new URL(file, import.meta.url), 'utf8'))])).digest('hex');
+  return createHash('sha256').update(JSON.stringify([config.gate, ...files.map(file => fileSystemAdapter().readFile(new URL(file, import.meta.url), 'utf8'))])).digest('hex');
 }
 
 /** Only a real stored complete green execution can anchor the advisory incremental cursor. */

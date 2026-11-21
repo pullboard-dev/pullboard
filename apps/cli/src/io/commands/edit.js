@@ -2,7 +2,11 @@ import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
 import { briefFilesAbsentFromMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireSpecGateRows } from '../item/bar.js';
+import { COORDINATOR } from '../item/bar.js';
 import { requireAfterNeeded } from '../item/bar.js';
+import { requireChainDepth } from '../item/bar.js';
+import { chainDepthOf } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { requireBarInLane } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
@@ -26,6 +30,8 @@ import {
 } from '../../../../../packages/person/index.js';
 import { barReadySetting } from '../../../../../packages/verify/index.js';
 import {
+  gateFiles,
+  parseSpec,
   referenceAuthors,
   referenceAuthority,
 } from '../../../../../packages/spec/index.js';
@@ -54,6 +60,7 @@ import {
   ordered,
   CHECKOUT_LEASES,
 } from '../entry.js';
+import { refuseWithdrawnAfter } from './add.js';
 
 const fs = fileSystemAdapter();
 
@@ -134,12 +141,16 @@ export async function run(io, args) {
     if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
+    await requireSpecGateRows(ctx, { criterion: change.criterion ?? before.item_criterion }, itemsBarRulesAtAdd(), asPerson || me.id === COORDINATOR, { parseSpec, gateFiles });
     requireAfterNeeded(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check },
       { on: itemsBarRulesAtAdd(), after: change.after ?? before.item_after, self: id, items: () => store.listItems(board, { all: true }) });
     requireBarInLane(ctx, me, { lane: before.item_lane, criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsBarRulesAtAdd());
     requireNonEmptyCheck(ctx, { check: change.check ?? before.item_check }, itemsBarRulesAtAdd(), values['accept-green']);
     await requireCellTestFixture(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check, brief: before.item_brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || Boolean(asPerson));
   }
+  refuseWithdrawnAfter(board, change.after);
+  // A changed --after list is measured on its own: the chain rule applies whether or not the bar changed.
+  if (itemsBarRulesAtAdd() && change.after !== undefined) requireChainDepth(change.after, chainDepthOf(store.listItems(board, { all: true })), id);
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;

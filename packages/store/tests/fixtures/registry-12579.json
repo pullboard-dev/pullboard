@@ -1,0 +1,34 @@
+{
+  "store.io-cooldown.seat-kind-reads-seek": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "ineligibleReleaseIds, parkedClaims and refusesFamilyRelaxation read a seat's events through the (event_by, event_kind, event_id) index, never scanning events or walking the seat's events by time."
+    },
+    "why": "Without this test next's cooldown reads walked every event of the seat and filtered by kind, over a second for the coordinator's 181,874 events at load (20 Nov).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/indexes.js",
+      "packages/store/src/io/cooldown.js",
+      "packages/store/src/io/board/next-refused-pairings.js",
+      "packages/store/tests/io/cooldown.test.js"
+    ]
+  },
+  "store.io-cooldown.cooldown-flat-with-history": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with 18,187 events of other kinds on a seat, each cooldown read stays under 20 ms and within 2x of a seat with 10."
+    },
+    "why": "Without this test the cooldown reads grew with each seat's history, so a speed budget on a fresh fixture proved nothing about long-lived seats.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/indexes.js",
+      "packages/store/src/io/cooldown.js",
+      "packages/store/src/io/board/next-refused-pairings.js",
+      "packages/store/tests/io/cooldown.test.js"
+    ]
+  }
+}

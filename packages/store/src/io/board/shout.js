@@ -111,6 +111,9 @@ export function persistShout(board, { from, to, text, decision = false, answers 
     )
     .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null, request ? 1 : 0, outcome);
   const id = Number(result.lastInsertRowid);
+  if (answers !== null) {
+    board.db.prepare('UPDATE shout SET shout_answered_at = ? WHERE shout_id = ? AND shout_answered_at IS NULL').run(now(board), answers);
+  }
   logEvent(board, from, answers === null ? (news ? 'shout_news' : 'shout') : decision ? 'pass' : 'answer', detail.item ?? null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}), ...(personAnswer ? { channel } : {}), ...detail });
   if (from === COORDINATOR && answers === null && (board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_INSTRUCTIONS_ENGINE) {
     if (rigorAutoDraftOn(board)) board.nativePorts.recordAutomaticRigorDrafts(board, board.lastEvent, persistShout);

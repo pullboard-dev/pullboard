@@ -11,7 +11,7 @@
     "packages/commits/src/io/hooks.js": 2,
     "packages/config/src/io/main.js": 2,
     "packages/gate/src/io/journal/source.js": 1,
-    "packages/gate/src/io/run-tests.js": 40,
+    "packages/gate/src/io/run-tests.js": 21,
     "packages/git/src/io/adapter.js": 2,
     "packages/git/src/io/check/definition.js": 2,
     "packages/git/src/io/enter.js": 1,

@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { onBoard } from './land/board.js';
 import { fileFixtureItem } from './testkit.js';
+import { fixtureSettledMachine } from './testkit.js';
 import { createE2eHelpers } from './e2e.js';
 import {
   gateJobCount,
@@ -32,6 +33,7 @@ async function claimedItem(box) {
 
 test('cli.tests-fixtures-submitted-seam.submitted-at-the-committed-head: clause 1: submittedWithoutGate(box, cwd, id) drives the board submit move with that receipt and leaves the claimed item submitted at its committed head, readable by pullboard show [C7,#9873]', async () => {
   const box = e2e.project();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const id = await claimedItem(box);
   const receiptId = submittedWithoutGate(box, box.web, id);
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
@@ -45,6 +47,7 @@ test('cli.tests-fixtures-submitted-seam.submitted-at-the-committed-head: clause 
 
 test('cli.tests-fixtures-submitted-seam.no-runner-gate-job: clause 2: the same submit leaves no runner gate job for the item [C7,#9873]', async () => {
   const box = e2e.project();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const id = await claimedItem(box);
   submittedWithoutGate(box, box.web, id);
   assert.equal(gateJobCount(box, id), 0, 'no runner gate job exists');

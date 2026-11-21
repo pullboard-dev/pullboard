@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { fileSystemAdapter } from '../../../fs/index.js';
+import { scratchBase } from '../../../kernel/light.js';
 import { boardJobQueueCall } from './gate.js';
 
 const fs = fileSystemAdapter();
@@ -33,6 +34,13 @@ function percentile(sorted, fraction) {
  * @returns {{ p50: number, p95: number, max: number }} Milliseconds per claim.
  */
 export function replayClaims({ db, root, count = 50, freeBytes = defaultFreeBytes }) {
+  const { took } = measureClaims({ db, root, count, freeBytes });
+  const sorted = took.toSorted((a, b) => a - b);
+  return { p50: percentile(sorted, 0.5), p95: percentile(sorted, 0.95), max: sorted.at(-1) };
+}
+
+/** Run the rolled-back claims on a copy of the board and return each claim's milliseconds and the process CPU the loop used. */
+function measureClaims({ db, root, count, freeBytes }) {
   const scratch = tmpdir();
   const sourceSize = fs.stat(db).size;
   const free = freeBytes(scratch);
@@ -43,6 +51,7 @@ export function replayClaims({ db, root, count = 50, freeBytes = defaultFreeByte
   const copy = new DatabaseSync(copyFile);
   const board = { db: copy, gitRoot: root, root };
   const took = [];
+  const cpuBefore = process.cpuUsage();
   try {
     for (let index = 0; index < count; index++) {
       copy.exec('BEGIN IMMEDIATE');
@@ -58,8 +67,25 @@ export function replayClaims({ db, root, count = 50, freeBytes = defaultFreeByte
     copy.close();
     fs.rm(copyFile, { force: true });
   }
-  const sorted = took.toSorted((a, b) => a - b);
-  return { p50: percentile(sorted, 0.5), p95: percentile(sorted, 0.95), max: sorted.at(-1) };
+  const cpu = process.cpuUsage(cpuBefore);
+  return { took, cpuMs: (cpu.user + cpu.system) / 1000 };
+}
+
+/**
+ * Run `count` rolled-back pull claims on a copy of the board database and report the p95 and the process CPU they used,
+ * with the same copy and free-space rules as replayClaims [C7,#12096].
+ *
+ * @param {{ db: string, root: string, count?: number, freeBytes?: (dir: string) => number }} options - as replayClaims.
+ * @returns {{ p95: number, cpuMs: number }} p95 in milliseconds per claim; cpuMs the user plus system CPU milliseconds of the claims.
+ */
+export function trialClaims({ db, root, count = 20, freeBytes = defaultFreeBytes }) {
+  const { took, cpuMs } = measureClaims({ db, root, count, freeBytes });
+  return { p95: percentile(took.toSorted((a, b) => a - b), 0.95), cpuMs };
+}
+
+/** The one line a trial prints: the p95 and CPU figures for the claims. */
+export function trialLine({ p95, cpuMs }, count) {
+  return `claim trial: ${count} claims p95 ${p95.toFixed(2)} ms, cpu ${cpuMs.toFixed(2)} ms`;
 }
 
 /** The one line the command prints: the three figures for a replay. */
@@ -67,9 +93,9 @@ export function replayLine({ p50, p95, max }, count) {
   return `claim replay: ${count} claims p50 ${p50.toFixed(2)} ms, p95 ${p95.toFixed(2)} ms, max ${max.toFixed(2)} ms`;
 }
 
-/** Export the tree of a git ref into a new temp folder with git archive; returns the folder. */
+/** Export the tree of a git ref into a new folder under the scratch root with git archive; returns the folder. */
 async function exportTree(root, ref) {
-  const folder = (await run('mktemp', ['-d', join(tmpdir(), 'pullboard-claim-compare-XXXXXX')], { encoding: 'utf8' })).stdout.trim();
+  const folder = (await run('mktemp', ['-d', join(scratchBase(), 'pullboard-claim-compare-XXXXXX')], { encoding: 'utf8' })).stdout.trim();
   const archive = join(folder, '.tree.tar');
   await run('git', ['-C', root, 'archive', '--format=tar', '-o', archive, ref]);
   await run('tar', ['-x', '-C', folder, '-f', archive]);
