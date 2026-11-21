@@ -26,6 +26,7 @@ const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exe
 async function recordingReads(work) {
   const real = Object.fromEntries(APIS.map(api => [api, childProcess[api]]));
   const reads = [];
+  reads.stacks = [];
   for (const api of APIS) {
     childProcess[api] = function recorded(...args) {
       const command = typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '';
@@ -33,7 +34,7 @@ async function recordingReads(work) {
       if (command.endsWith('git')) {
         const own = [...rest];
         while (own[0]?.startsWith('-')) own.splice(0, own[0] === '-c' || own[0] === '-C' ? 2 : 1);
-        if (READS.has(own[0])) reads.push(own.join(' '));
+        if (READS.has(own[0])) { reads.push(own.join(' ')); reads.stacks.push(new Error().stack.split('\n').slice(2, 14).map((line) => line.trim().replace(/^at /u, '').replace(/^.*\/pullboard[^/]*\//u, '')).join(' < ')); }
       }
       return real[api].apply(this, args);
     };
@@ -84,4 +85,20 @@ test('cli.journeys-speed-next-git-reads.with-next-onegitread-off-next-reads: cla
   assert.equal(off.reads.length, unset.reads.length);
   assert.equal(off.item, unset.item);
   assert.equal(off.printed, unset.printed);
+});
+
+test('cli.journeys-speed-next-git-reads.warm-second-next-live-status-only: clause 3: a warm second next on the 2,500-item board launches no git status from selection and at most the one live status of the activity read [C7,#10859]', async (t) => {
+  const box = largeBoard(t, { scale: { items: 2_500, events: 5_000, shouts: 1_000, seats: 100 } });
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Warm status sample', diagnose: false, args: ['--specs', 'G1'] });
+  const statusReads = async () => {
+    let result;
+    const reads = await recordingReads(async () => { result = await box.runIn(box.web, 'next', '--json'); });
+    assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
+    return reads.filter((read, at) => read.split(' ')[0] === 'status').map((read) => `${read} FROM ${reads.stacks[reads.indexOf(read)]}`);
+  };
+  const first = await statusReads();
+  const second = await statusReads();
+  console.log(`# next git status reads, first: ${JSON.stringify(first)}; second: ${JSON.stringify(second)}`);
+  assert.ok(second.length <= 1, `a warm second next launches at most one git status (saw ${JSON.stringify(second)})`);
+  assert.ok(second.every((read) => read.includes('activityWorkingFiles')), `the one status is the activity read's live one (saw ${JSON.stringify(second)})`);
 });

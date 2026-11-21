@@ -60,7 +60,7 @@ export function demoWidthTest(only, phase = 'both') {
       if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
         consoleErrors.push(message.params.args.map((arg) => arg.value ?? arg.description ?? '').join(' '));
       }
-      if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
+      if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.url ? `${message.params.entry.text} (${message.params.entry.url})` : message.params.entry.text);
     });
     await chrome.send('Log.enable');
 

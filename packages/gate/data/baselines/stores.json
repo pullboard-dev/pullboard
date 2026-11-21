@@ -1715,6 +1715,10 @@
       "kind": "json",
       "owner": "packages/moves/src/io/selection.js"
     },
+    "pullboard-warm-status.json": {
+      "kind": "json",
+      "owner": "packages/moves/src/io/selection.js"
+    },
     "push.sqlite": {
       "kind": "sqlite",
       "owner": "apps/relay/src/io/push/subscriptions.js"
