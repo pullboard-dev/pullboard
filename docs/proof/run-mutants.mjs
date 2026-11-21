@@ -9,7 +9,7 @@
  */
 import { audit } from './harness.mjs';
 
-const GUIDE = ['apps/cli/journeys/init/practice.test.js', 'the run guide takes one agent through the whole team'];
+const GUIDE = ['apps/cli/tests/io/init/practice.test.js', 'the run guide takes one agent through the whole team'];
 const STAGES = ['apps/cli/journeys/merged/e2e.test.js', "the coordinator's resume names its next step"];
 const FIRST_WORKTREE = ['apps/cli/journeys/spec/e2e.test.js', "a worktree starts only from a commit that holds pullboard's files"];
 const IGNORED_OR_DELETED = ['apps/cli/journeys/spec/e2e.test.js', 'a hook git ignores is committed by force before a worktree'];
