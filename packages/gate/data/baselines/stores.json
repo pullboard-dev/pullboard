@@ -1194,6 +1194,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/module/imports.js"
     },
+    "spec-row-origins.json": {
+      "kind": "json",
+      "owner": "packages/spec/src/io/approval.js"
+    },
     "starting.json": {
       "kind": "json",
       "owner": "packages/drive/src/io/local.js"

@@ -1,9 +1,11 @@
 /** Approval provenance: a status word is not a person's decision [S1,B26,P6]. */
 import { fileSystemAdapter } from '../../../fs/index.js';
 const disk = fileSystemAdapter();
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
+  boardFolderFile,
   gitReadSignature,
+  plainTrunkRef,
   tryGit,
 } from '../../../git/index.js';
 import { personNeeds } from '../logic/row/replacement.js';
@@ -19,12 +21,52 @@ import {
 
 const ORIGIN_CACHE_LIMIT = 32;
 const originCache = new Map();
+const ORIGIN_FILE = 'spec-row-origins.json';
+
+/** The main tip and HEAD commit ids that key the cross-process origins; null when either is unreadable. */
+function originTips(root) {
+  const trunk = plainTrunkRef(root) ?? 'main';
+  const result = tryGit(root, ['rev-parse', 'HEAD', `refs/heads/${trunk}`]);
+  const tips = result.status === 0 ? result.stdout.trim().split('\n') : [];
+  return tips.length === 2 && tips.every(tip => /^[0-9a-f]{40,64}$/u.test(tip)) ? tips : null;
+}
+
+/** Read the shared origins file; damage or a foreign shape is only a miss. */
+function readOriginFile(file) {
+  try {
+    const stored = JSON.parse(disk.readFile(file, 'utf8'));
+    return stored?.version === 1 && stored.entries && typeof stored.entries === 'object' ? stored.entries : {};
+  } catch { return {}; }
+}
+
+/** Save the origins beside the board's other caches under the git common dir, never in the work tree; failure is a miss. */
+function writeOriginFile(file, entries) {
+  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    disk.mkdir(dirname(file), { recursive: true, mode: 0o700 });
+    disk.writeFile(temporary, JSON.stringify({ version: 1, entries }), { mode: 0o600, flag: 'wx' });
+    disk.rename(temporary, file);
+  } catch { try { if (disk.exists(temporary)) disk.rm(temporary); } catch { /* A partial temp is never read. */ } }
+}
+
+/** Revive stored origins only when every row has the exact shape this module writes. */
+function reviveOrigins(rows) {
+  if (!Array.isArray(rows)) return null;
+  const origins = new Map();
+  for (const row of rows) {
+    const [line, origin] = Array.isArray(row) ? row : [];
+    if (!Number.isInteger(line) || typeof origin?.agent !== 'string' || typeof origin.attribution !== 'string'
+      || !(origin.commit === null || typeof origin.commit === 'string') || !(origin.approvedAt === null || typeof origin.approvedAt === 'string')) return null;
+    origins.set(line, { commit: origin.commit, approvedAt: origin.approvedAt, agent: origin.agent, attribution: origin.attribution });
+  }
+  return origins;
+}
 
 /**
  * Read each line's actual commit and Git author; neither identifies a person approval. Given lines, blame only
  * those lines: a whole-file blame of the spec took over a second on every show [C7].
  */
-function rowOrigins(root, file, lines = null) {
+export function rowOrigins(root, file, lines = null) {
   const signature = () => gitReadSignature(root, [file, '.mailmap'], { attribution: true });
   const before = signature();
   const key = before === null ? null : JSON.stringify([root, file, before, lines]);
@@ -33,6 +75,19 @@ function rowOrigins(root, file, lines = null) {
     originCache.delete(key);
     originCache.set(key, cached);
     return cached;
+  }
+  // A new process reuses the last process's blame when the file, .mailmap, main tip and HEAD are all unchanged.
+  const tips = key === null ? null : originTips(root);
+  const diskKey = tips === null ? null : JSON.stringify([key, tips]);
+  let store = null;
+  if (diskKey !== null) {
+    try { store = boardFolderFile(root, ORIGIN_FILE); } catch { store = null; }
+    const revived = store === null ? null : reviveOrigins(readOriginFile(store)[diskKey]);
+    if (revived !== null) {
+      originCache.set(key, revived);
+      while (originCache.size > ORIGIN_CACHE_LIMIT) originCache.delete(originCache.keys().next().value);
+      return revived;
+    }
   }
   const ranges = (lines ?? []).flatMap(line => ['-L', `${line},${line}`]);
   const result = tryGit(root, ['blame', '--line-porcelain', ...ranges, '--', file]);
@@ -55,6 +110,12 @@ function rowOrigins(root, file, lines = null) {
   if (key !== null && result.status === 0 && before === signature()) {
     originCache.set(key, origins);
     while (originCache.size > ORIGIN_CACHE_LIMIT) originCache.delete(originCache.keys().next().value);
+    if (store !== null && diskKey !== null && originTips(root)?.join() === tips.join()) {
+      const entries = readOriginFile(store);
+      delete entries[diskKey];
+      const kept = Object.entries(entries).slice(-(ORIGIN_CACHE_LIMIT - 1));
+      writeOriginFile(store, { ...Object.fromEntries(kept), [diskKey]: [...origins] });
+    }
   }
   return origins;
 }
