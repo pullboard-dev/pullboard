@@ -13,7 +13,7 @@ import { finishLedgerRows } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
-import { runPulledEntry } from '../../fixtures/test/pulled-entry.js';
+import { focusedRunnerPath, runPulledEntry } from '../../fixtures/test/pulled-entry.js';
 import { runFixtureGit } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { mkdirSync } from 'node:fs';
@@ -23,7 +23,6 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { storeTestResult } from '../../../../../packages/gate/index.js';
-import { focusedRunnerPath } from '../../../../../packages/gate/tests/fixtures/focused-runner.js';
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
   const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
