@@ -38,6 +38,8 @@ test('cli.io-next-claim-substeps.profiled-claimOrdered: clause 1: PULLBOARD_NEXT
     assert.ok(rows.some(line => line.startsWith(`next profile: ${phase} `) && /\d+ ms$/u.test(line)),
       `profile has a timed row for ${phase}: ${rows.join(' | ')}`);
   }
+  assert.ok(taken.err.split('\n').some(line => /^next profile: claim write total \d+ ms$/u.test(line)),
+    `profile retains the inclusive claim write total: ${taken.err}`);
 });
 
 test('cli.io-next-claim-substeps.default-claim-output-and-event: clause 2: without PULLBOARD_NEXT_PROFILE next --take omits profile output and records the normal claim event [C7,N2,#12589]', async t => {
