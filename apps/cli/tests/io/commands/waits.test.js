@@ -23,7 +23,10 @@ function unavailable(host) {
 }
 
 /** The fresh-board fixture exposes only C7 and a core lane for the item's filing checks. */
-const coreBoard = { projectConfig: { lanes: { core: { owns: ['apps/'] } } }, files: { 'SPEC.md': '# Fixture\n## C\n- C7 [approved, must] Work keeps its evidence. | gate: true\n' } };
+const coreBoard = { files: {
+  'pullboard.json': JSON.stringify({ gate: 'true', verify: { policy: 'any', family: 'off' }, review: { independence: 'session' }, lanes: { core: { owns: ['apps/'] }, web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } }),
+  'SPEC.md': '# Fixture\n## C\n- C7 [approved, must] Work keeps its evidence. | gate: true\n',
+} };
 
 test('cli.io-commands-waits.fresh-board-files-nothing: clause 1: pullboard waits record after init ignores a runner-unavailable host with no board job [test] [C7]', async t => {
   const box = await fixture(t, { ...coreBoard, seats: ['actor'] });
@@ -49,10 +52,10 @@ test('cli.io-commands-waits.own-runner-filed-in-own-lane: clause 2: waits record
   const owned = recorded.document.waits.rows.find(row => row.surface === 'runner-unavailable' && row.holder === 'owned-host');
   assert.ok(owned, JSON.stringify(recorded.document.waits.rows));
   assert.equal(owned.machine, undefined, JSON.stringify(owned));
-  const items = box.board.db.prepare('SELECT item_title, item_lane, item_criterion FROM item').all();
+  const items = box.board.db.prepare('SELECT item_title, item_lane, item_criterion, item_spec_ids FROM item').all();
   assert.equal(items.length, before + 1, JSON.stringify(recorded.document.recorded));
   assert.equal(items.at(-1).item_lane, 'core');
-  assert.match(items.at(-1).item_criterion, /C7/u);
+  assert.equal(items.at(-1).item_spec_ids, 'C7');
 });
 
 test('cli.io-commands-waits.record-reaches-record-waits: clause 3: waits record runs on the initialized fixture board and list shows no foreign-host item [test] [C7]', async t => {
