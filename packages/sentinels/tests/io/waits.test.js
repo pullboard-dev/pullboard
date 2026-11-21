@@ -550,3 +550,40 @@ test('sentinels.waits.snapshot-read-has-no-dead-writer: waitsSnapshot called as 
   assert.equal(snapshot.rows.some(row => row.surface === 'checkout-writer'), false, 'no checkout-writer row');
   assert.doesNotMatch(waitLines(snapshot).join('\n'), /DEAD\s+checkout-writer/u);
 });
+
+/** A machine-wide runner-unavailable row for one host, twenty minutes old. */
+function unavailableHost(m, host) {
+  const file = join(m.paths.machineHome, 'resources.sqlite');
+  resourceDatabase(file, [], []);
+  const db = new DatabaseSync(file);
+  db.prepare('INSERT INTO runner_unavailable (host, since, detail) VALUES (?, ?, ?)').run(host, new Date(Date.now() - 20 * MINUTE).toISOString(), 'CLEANUP_UNVERIFIED');
+  db.close();
+}
+
+test('sentinels.io-waits.foreign-runner-not-filed: clause 1: recordWaits files no item for a runner-unavailable row whose host the board has no gate job or item for, while waitLines still prints the row [test] [C7]', async t => {
+  const m = machine(t);
+  unavailableHost(m, 'other@10.0.0.77');
+  const snapshot = await m.snapshot({ hosts: [], boardUsedHost: host => host === 'mine@10.0.0.1' });
+  const row = snapshot.rows.find(entry => entry.surface === 'runner-unavailable');
+  assert.equal(row.breach, true, 'the row is still judged over budget');
+  assert.equal(row.machine, true, 'and marked machine-level');
+  assert.ok(waitLines(snapshot).some(line => line.includes('other@10.0.0.77')), 'the table still prints it');
+  const outcome = await recordWaits(snapshot, m.ports());
+  assert.deepEqual(outcome.filed, []);
+  assert.equal(m.items().length, 0);
+});
+
+test('sentinels.io-waits.no-missing-lane-or-row: clause 2: waitItemFields returns null on a board with no core lane and cites no spec row the board lacks, so recordWaits files none and notes why [test] [C7]', async t => {
+  const m = machine(t);
+  unavailableHost(m, 'mine@10.0.0.1');
+  const snapshot = await m.snapshot({ hosts: [], boardUsedHost: () => true });
+  assert.equal(snapshot.rows.find(entry => entry.surface === 'runner-unavailable').machine, undefined, 'a host the board used stays its wait');
+  const draft = { title: 't', criterion: 'c', brief: 'b', route: 'mid', check: 'true' };
+  assert.equal(waitItemFields(draft, 'coordinator', { hasLane: false, specIds: ['C7'] }), null);
+  assert.deepEqual(waitItemFields(draft, 'coordinator', { hasLane: true, specIds: [] }).specIds, []);
+  assert.deepEqual(waitItemFields(draft, 'coordinator', { hasLane: true, specIds: ['C7'] }).specIds, ['C7']);
+  const outcome = await recordWaits(snapshot, m.ports({ fileItem: draftItem => { const fields = waitItemFields(draftItem, 'coordinator', { hasLane: false, specIds: [] }); return fields ? addItem(m.board, fields) : null; } }));
+  assert.deepEqual(outcome.filed, []);
+  assert.match(outcome.notes.join('\n'), /no core lane/u);
+  assert.equal(m.items().length, 0);
+});
