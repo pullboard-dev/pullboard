@@ -1,6 +1,7 @@
 /** Completed board writes over one second add named machine telemetry and a keyed status counter [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -116,5 +117,22 @@ test('store.io-board-write-lock.merged-slow-step-held: clause 2: a merged move o
   board.liftSettledHolds = true;
   store.writeBoardCommand(board, 'merged', [mover, { agentId: 'coordinator', commit: 'a'.repeat(40), forced: 'landed by hand', waiveProof: 'test fixture' }], 'coordinator');
   const row = readFileSync(join(home, 'board-holds.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(each => each.move === 'merged').at(-1);
+  t.diagnostic(`merged hold heldMs=${row.heldMs} step=${row.step} stepMs=${row.stepMs}`);
   assert.ok(row.heldMs < 2_000, `the merged move held the board ${row.heldMs} ms, slowest step ${row.step}`);
+});
+
+test('store.io-board-write-lock.parent-index-build-time: clause 2: item_parent_status built on 12,750 items of about 600 characters of text answers the children lookup from the index alone, and its build time is reported as a diagnostic [C7,#12751]', t => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec('CREATE TABLE item (item_id INTEGER PRIMARY KEY, item_parent_id INTEGER, item_status TEXT, item_merged_commit TEXT, item_brief TEXT)');
+  const insert = db.prepare('INSERT INTO item (item_parent_id, item_status, item_merged_commit, item_brief) VALUES (?, ?, ?, ?)');
+  db.exec('BEGIN');
+  for (let i = 0; i < 12_750; i += 1) insert.run(i % 6 === 0 ? i / 6 + 1 : null, 'verified', i % 2 ? 'a'.repeat(40) : null, 'x'.repeat(600));
+  db.exec('COMMIT');
+  const started = performance.now();
+  db.exec('CREATE INDEX IF NOT EXISTS item_parent_status ON item (item_parent_id, item_status, item_merged_commit)');
+  const ms = performance.now() - started;
+  t.diagnostic(`item_parent_status build ms=${ms.toFixed(1)} on 12750 items`);
+  const plan = db.prepare('EXPLAIN QUERY PLAN SELECT item_status,item_merged_commit FROM item WHERE item_parent_id=?').all(1);
+  assert.ok(plan.some(step => /USING COVERING INDEX item_parent_status/u.test(step.detail)), 'the children lookup is answered from the index alone');
 });
