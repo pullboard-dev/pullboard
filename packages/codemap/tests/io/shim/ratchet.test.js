@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { shimImportProblems, stagedShimImportProblems } from '../../../src/io/shim/ratchet.js';
 
-const importer = 'packages/cli/src/request.js';
+const importer = 'packages/state/src/caller.js';
 const shim = 'packages/state/src/legacy.js';
 const moved = 'packages/state/src/request.js';
 const frontDoor = 'packages/state/index.js';
-const specifier = '../../state/src/legacy.js';
+const specifier = './legacy.js';
 const criterion = `${importer} -> ${shim}`;
 const plan = { cells: [{ paths: [[shim, moved]], frontDoor }] };
 const parser = sources => sources.map(source => [source.match(/import\s+(['"])(.*?)\1/u)?.[2]]);
