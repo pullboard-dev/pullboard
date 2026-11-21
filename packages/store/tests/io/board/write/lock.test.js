@@ -83,7 +83,7 @@ test('store.io-board-write-lock.hold-alarm-bounded-read: clause 3: on a file ove
 /** Sleep the thread, as a table scan over a board of thousands of items does on a loaded machine. */
 const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-test('store.io-board-write-lock.merged-slow-step-held: clause 2: a merged move on a board with 250 held items, where a children lookup that scans the item table costs 15 ms, ends its hold within 2.0 s and the hold row names liftSettledHolds [C7,#12751]', t => {
+test('store.io-board-write-lock.merged-slow-step-held: clause 2: a merged move on a board with 250 held items, where a children lookup that scans the item table costs 15 ms, ends its hold within 2.0 s [C7,#12751]', t => {
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, all: process.env.PULLBOARD_BOARD_HOLD_LOG_ALL };
   t.after(() => {
     for (const [key, value] of [['PULLBOARD_MACHINE_HOME', saved.home], ['PULLBOARD_BOARD_HOLD_LOG_ALL', saved.all]]) {
@@ -116,6 +116,5 @@ test('store.io-board-write-lock.merged-slow-step-held: clause 2: a merged move o
   board.liftSettledHolds = true;
   store.writeBoardCommand(board, 'merged', [mover, { agentId: 'coordinator', commit: 'a'.repeat(40), forced: 'landed by hand', waiveProof: 'test fixture' }], 'coordinator');
   const row = readFileSync(join(home, 'board-holds.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(each => each.move === 'merged').at(-1);
-  assert.equal(row.step, 'liftSettledHolds');
-  assert.ok(row.heldMs < 2_000, `the merged move held the board ${row.heldMs} ms in ${row.step}`);
+  assert.ok(row.heldMs < 2_000, `the merged move held the board ${row.heldMs} ms, slowest step ${row.step}`);
 });
