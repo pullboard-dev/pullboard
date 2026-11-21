@@ -4,7 +4,6 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { FIXTURE_MODEL } from '../../fixtures/testkit.js';
 import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
 
@@ -24,21 +23,17 @@ function unavailable(box, host) {
 const coreBoard = { projectConfig: { lanes: { core: { owns: ['apps/'] } } }, files: { 'SPEC.md': '# Fixture\n## C\n- C7 [approved, must] Work keeps its evidence. | gate: true\n' } };
 
 test('cli.io-commands-waits.fresh-board-files-nothing: clause 1: pullboard waits record after init ignores a runner-unavailable host with no board job [test] [C7]', async t => {
-  const box = await fixture(t, coreBoard);
-  const joined = await cli(box, box.root, ['join', 'core', '--model', FIXTURE_MODEL]);
-  assert.equal(joined.code, 0, joined.out + joined.err);
+  const box = await fixture(t, { ...coreBoard, seats: ['actor'] });
   unavailable(box, 'other-board-host');
   const itemCount = () => box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
   const before = itemCount();
-  const recorded = await cli(box, box.root, ['waits', 'record']);
+  const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
   assert.equal(itemCount(), before, 'a runner row of another board host files no item');
 });
 
 test('cli.io-commands-waits.own-runner-filed-in-own-lane: clause 2: waits record files a used runner wait in this board core lane with its C7 row [test] [C7]', async t => {
-  const box = await fixture(t, coreBoard);
-  const joined = await cli(box, box.root, ['join', 'core', '--model', FIXTURE_MODEL]);
-  assert.equal(joined.code, 0, joined.out + joined.err);
+  const box = await fixture(t, { ...coreBoard, seats: ['actor'] });
   const now = box.clock.now().getTime();
   box.board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_step, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?)')
     .run('gate-owned-host', 'gate', null, 'done', now, now);
@@ -46,10 +41,21 @@ test('cli.io-commands-waits.own-runner-filed-in-own-lane: clause 2: waits record
     .run('gate-owned-host', 'result', JSON.stringify({ runner: 'owned-host' }), now);
   unavailable(box, 'owned-host');
   const before = box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
-  const recorded = await cli(box, box.root, ['waits', 'record']);
+  const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
   const items = box.board.db.prepare('SELECT item_title, item_lane, item_criterion FROM item').all();
   assert.equal(items.length, before + 1, 'the board-used host files one item');
   assert.equal(items.at(-1).item_lane, 'core');
   assert.match(items.at(-1).item_criterion, /C7/u);
+});
+
+test('cli.io-commands-waits.record-reaches-record-waits: clause 3: waits record runs on the initialized fixture board and list shows no foreign-host item [test] [C7]', async t => {
+  const box = await fixture(t, { ...coreBoard, seats: ['actor'] });
+  unavailable(box, 'other-board-host');
+  const recorded = await cli(box, box.seats.actor.path, ['waits', 'record'], { remoteAgent: 'coordinator' });
+  assert.equal(recorded.code, 0, recorded.out + recorded.err);
+  assert.match(recorded.out, /filed 0/u);
+  const listed = await cli(box, box.seats.actor.path, ['list']);
+  assert.equal(listed.code, 0, listed.out + listed.err);
+  assert.equal(box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n, 0, 'the initialized board has no filed item');
 });
