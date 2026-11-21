@@ -74,8 +74,8 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
   const { board: store }=await import(pathToFileURL(join(installed,'apps/lib/index.js')));
   const native = await import(pathToFileURL(join(installed,'apps/lib/index.js')));
-  const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
-  const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
+  const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'packages/gate/heavy.js')));
+  const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'packages/gate/heavy.js')));
   const boardFile=join(repo,'.git/pullboard/board.sqlite');
   /** Close board ownership before any process execution or native admission. */
   function board(action){const db=native.openBoard(boardFile,undefined,{isMain:true,gitRoot:repo});try{return action(db);}finally{store.closeBoard(db);}}
@@ -133,7 +133,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   /** Hold both private production gate slots, releasing only this owned child's actions by IPC. */
   async function holdBoth(){
     const module=pathToFileURL(join(installed,'packages/gate/index.js')).href;
-    const code=`import {withGateSlot} from ${JSON.stringify(module)};
+    const code=`import {withGateSlot} from ${JSON.stringify(module.replace(/index\.js$/u,"heavy.js"))};
 ${executionServicesSource(module)}await Promise.all([0,1].map(i=>withGateSlot(${JSON.stringify(repo)},async()=>{process.send({held:i});await new Promise(r=>process.once('message',r));},{ executionServices,remote:false,browser:false,agent:'fixture-slot-'+i})));process.disconnect();`;
     const child=spawn(process.execPath,['--input-type=module','-e',code],{cwd:repo,env,detached:true,stdio:['ignore','pipe','pipe','ipc']});children.push(child);child.stdout.resume();child.stderr.resume();const closed=once(child,'close');const held=new Set();child.on('message',m=>held.add(m.held));
     await observed(()=>held.size===2,'both production gate slots held');
