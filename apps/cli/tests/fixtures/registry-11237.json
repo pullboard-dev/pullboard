@@ -1,0 +1,36 @@
+{
+ "cli.io-generated-docs.api-renders-whole": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "generatedDocs returns docs/api.md rendered whole from the declarations plus headings held in docs.js, on a root that has no such file."
+  },
+  "why": "Without it, a regression where the API guide needs its committed copy to render would pass unnoticed.",
+  "kind": "journey",
+  "inputs": [
+   "apps/cli/src/io/generated/docs.js",
+   "apps/cli/src/io/generated/api-notes.js",
+   "apps/cli/tests/io/generated/docs.test.js",
+   "docs/tools/update-docs.js",
+   "docs/api.md"
+  ]
+ },
+ "cli.io-generated-docs.api-written": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "update-docs writes the whole API guide where none exists and --check then passes."
+  },
+  "why": "Without it, a regression where the API guide needs its committed copy to render would pass unnoticed.",
+  "kind": "journey",
+  "inputs": [
+   "apps/cli/src/io/generated/docs.js",
+   "apps/cli/src/io/generated/api-notes.js",
+   "apps/cli/tests/io/generated/docs.test.js",
+   "docs/tools/update-docs.js",
+   "docs/api.md"
+  ]
+ }
+}
