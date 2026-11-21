@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { viewApiPorts } from '../../../src/io/ports.js';
 import { projectState } from '../../../src/io/serve.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 
 test('view.x-io-live-api-state-later.clause-1-the-api-state-read-through: clause 1: the API state read through viewApiPorts keeps no row ages on a first read, where plain projectState walks history [C7]', t => {

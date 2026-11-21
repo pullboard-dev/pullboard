@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../packages/store/index.js';
 import { FINISHED_JOBS_SQL } from '../../src/io/serve.js';
 import { finishedRuns } from '../../src/io/serve.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
 
 /** A real private board file with the runs_store split off, so finishedRuns takes the job-table path. */

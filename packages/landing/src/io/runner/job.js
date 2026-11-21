@@ -441,6 +441,16 @@ function firstMerges(root, base, tip, pending, squash = false) {
 }
 
 /**
+ * Each landed item's merge commit committer time in ms, by item id, read once per item with git on the runner. Why: the board
+ * records a merged event at the merge's own time, and its API request path may not run git [C7,#12156].
+ */
+function mergedAtTimes(root, merges) {
+  const times = {};
+  for (const [id, merge] of Object.entries(merges)) times[id] = Number(must(root, ['show', '-s', '--format=%ct', merge]).trim()) * 1000;
+  return times;
+}
+
+/**
  * Land one job's accepted items on the trunk remote, from a runner. Each attempt fetches trunk, skips items trunk
  * already holds, merges the rest on that tip with --no-ff, numbers new engines into the last merge, runs the check on the merged tree, and pushes with
  * --force-with-lease=<trunk>:<the tip it merged on>: git's compare-and-swap, so the push lands only if trunk is still
@@ -576,7 +586,10 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions(), fence });
     fence?.requireHeld(pushed);
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
-    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending, squash), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
+    if (pushed.status === 0) {
+      const merges = firstMerges(root, base, tip, pending, squash);
+      return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges, mergedAt: mergedAtTimes(root, merges), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
+    }
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (await fetchTip(root, remote, trunk) === base) {
       // A trunk hook's refusal gives every pending item back with the hook's words, as a red does [C7,P7].

@@ -16,7 +16,7 @@ import { splitReady } from '../../../src/logic/counts.js';
 import { withReadySplit } from '../../../src/logic/counts.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 

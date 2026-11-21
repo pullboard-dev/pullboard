@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { loadConfig } from '../../../../../../packages/config/index.js';
-import { cellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../../../../packages/store/tests/fixtures/cell.js';
 import { personNeedsSummary } from '../../../../index.js';
 import { resumeNeeds } from '../../../../index.js';
