@@ -14,6 +14,8 @@ const MINUTE = 60_000;
 function unavailable(host) {
   mkdirSync(machineHome(), { recursive: true });
   const db = new DatabaseSync(join(machineHome(), 'resources.sqlite'));
+  db.exec('CREATE TABLE IF NOT EXISTS holder (name TEXT, pid INTEGER, agent TEXT, since TEXT, item TEXT, kind TEXT)');
+  db.exec('CREATE TABLE IF NOT EXISTS waiter (ticket INTEGER PRIMARY KEY, name TEXT, pid INTEGER, agent TEXT, since TEXT, item TEXT, kind TEXT)');
   db.exec("CREATE TABLE IF NOT EXISTS runner_unavailable (host TEXT PRIMARY KEY, since TEXT, detail TEXT DEFAULT '')");
   db.prepare('INSERT OR REPLACE INTO runner_unavailable (host, since, detail) VALUES (?, ?, ?)')
     .run(host, new Date(Date.now() - 20 * MINUTE).toISOString(), 'CLEANUP_UNVERIFIED');
