@@ -63,6 +63,7 @@ Pre-orders for four shops.
 `;
 
 const PRIVATE_DIRS = [];
+const PRIVATE_RUNNER_STOPS = [];
 const API_SPEC = '# View fixture\n\n## G · Goals\n- G1 [approved, must] Keep the local view scoped. | gate: true\n';
 
 /** Create an isolated, disposable project registry and Git environment for view/API contract tests. */
@@ -85,6 +86,7 @@ function privateBox() {
   for (const key of ['PULLBOARD_RELAY_TOKEN', 'PULLBOARD_VIEW_FOREGROUND', 'AI_AGENT']) delete env[key];
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
+  PRIVATE_RUNNER_STOPS.push(() => runCliInProcess(['runner', 'local', '--off'], { cwd: dir, env }));
   return { dir, env, git, runLocal };
 }
 
@@ -188,7 +190,10 @@ async function nextViewStreamEvent(reader, predicate) {
   } finally { clearTimeout(timer); }
 }
 
-after(() => { for (const dir of PRIVATE_DIRS) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); });
+after(async () => {
+  // Every add offers a baseline to the machine's local runner, a detached child that keeps writing under machine-home; stop it first.
+  for (const stop of PRIVATE_RUNNER_STOPS) await stop().catch(() => {});
+  for (const dir of PRIVATE_DIRS) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); });
 
 test('cli.journeys-view-main.public-export-refuses-an-exporter-without: public export refuses an exporter without declared filter support [N26]', async () => {
   let called = false;
