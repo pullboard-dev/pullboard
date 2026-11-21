@@ -1,6 +1,7 @@
 /** The withdraw and reopen tables wired to the board's own move declarations and cause check, so callers and replays share one source [C7,#8258]. */
 import { causeProblem } from '../../../../store/index.js';
-import { MOVES, WITHDRAW_AS_MET_ENGINE } from '../../../../state/index.js';
+import { MOVES } from '../../../../state/index.js';
+import { WITHDRAW_AS_MET_ENGINE } from '../../../../state/index.js';
 import { reopenEngine } from '../../logic/table/reopen.table.js';
 import { withdrawEngine } from '../../logic/table/withdraw.table.js';
 
