@@ -12,6 +12,7 @@ import { claim } from '../../../../packages/store/index.js';
 import { headCommit } from '../../../../packages/git/index.js';
 import { frozenCheckCeilingMs } from '../../../../packages/config/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
+import { CLAIM_CHECK_CEILING_ENGINE } from '../../../../packages/state/index.js';
 import { freezer } from '../../src/io/claim.js';
 import { claimFreezer } from '../../src/io/claim.js';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
@@ -84,6 +85,9 @@ test('cli.io-claim.check-ceiling-refuses-over: clause 1: with claim.checkCeiling
 
 test('cli.io-claim.check-ceiling-claims-pending-or-off: clause 2: with the setting on, an item whose baseline is pending or has no seconds is claimed, and with the setting off the over-ceiling item is claimed as today [C7,#1273]', t => {
   const claimedStatus = fx => { fx.claimIt(); return getItem(fx.board, fx.id).item_status; };
+  const older = baselined(t, true, ceiling => ({ result: 'green', seconds: ceiling + 1 }));
+  older.board.executionEngineVersion = CLAIM_CHECK_CEILING_ENGINE - 1;
+  assert.notEqual(claimedStatus(older), 'open', 'older engine preserves historical claim');
   const pending = baselined(t, true, ceiling => ({ result: 'pending', seconds: ceiling + 1 }));
   assert.notEqual(claimedStatus(pending), 'open', 'pending baseline');
   const unmeasured = baselined(t, true, () => ({ result: 'green' }));

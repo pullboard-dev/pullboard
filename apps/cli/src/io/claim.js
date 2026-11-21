@@ -16,6 +16,7 @@ import { sessionSeatReaders } from './ports/seat.js';
 import { agentSessionDigest } from '../../../../packages/person/index.js';
 import { requireHandoffActive } from '../../../../packages/state/light.js';
 import { requestedCommandMove } from '../../../../packages/state/index.js';
+import { CLAIM_CHECK_CEILING_ENGINE, ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { gitSyncLinked } from '../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../packages/config/index.js';
 import { relaxRequiredFamilyEnabled } from '../../../../packages/config/index.js';
@@ -371,7 +372,7 @@ export class MainSpecMerged extends Error {
 export function claimFreezer(ctx, board) {
   return (item) => {
     // With claim.checkCeiling on, an item whose recorded check measured over its ceiling is refused here; a pending or unmeasured baseline claims as before [C7,#1273].
-    if (claimCheckCeilingEnabled()) {
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_CHECK_CEILING_ENGINE && claimCheckCeilingEnabled()) {
       const baseline = itemCheckBaseline(board, item);
       if (baseline) checkVerdict({ measuredMs: typeof baseline.seconds === 'number' ? baseline.seconds * 1000 : undefined, ceilingMs: frozenCheckCeilingMs(ctx.config), remeasurePending: baseline.result === 'pending', strict: false });
     }
