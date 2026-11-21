@@ -96,7 +96,7 @@ test('cli.io-commands-new.lints-generated-tests-pass: clause 2: the registry and
   try {
     for await (const event of run({ files: tests.map(path => join(box.repo, path)), cwd: box.repo })) {
       if (event.type === 'test:pass') passed.push(event.data.name);
-      if (event.type === 'test:fail') failed.push(`${event.data.name}: ${event.data.details?.error?.message ?? ''}`);
+      if (event.type === 'test:fail') failed.push(`${event.data.name}: ${event.data.details?.error?.message ?? ''} ${event.data.details?.error?.cause?.message ?? ''} ${event.data.details?.error?.cause?.stack ?? ''}`);
     }
   } finally {
     if (marker !== undefined) process.env.NODE_TEST_CONTEXT = marker;
