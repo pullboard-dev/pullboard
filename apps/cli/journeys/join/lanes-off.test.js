@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
@@ -32,11 +33,16 @@ const CORE = 'Files:\n- packages/core/src/thing.js\nChange:\n- add the export\nT
  * checks a brief against the lane folders; then its committed settings turn laneMode off and the lanes back as they were.
  */
 function lanesOffProject(...briefs) {
+  return cellProject('off', ...briefs);
+}
+
+/** The same project with laneMode as given; with lanes on, the web lane keeps owning the apps and packages folders so its seats may claim the items. */
+function cellProject(laneMode, ...briefs) {
   const box = project('true');
   const lanes = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes;
   fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'apps/', 'packages/'] } } });
   briefs.forEach((brief, index) => fileFixtureItem(box, box.repo, { lane: 'web', title: `Cell item ${index + 1}`, brief, route: 'mid', args: ['--specs', 'G1'] }));
-  fixturePolicy(box, { laneMode: 'off', lanes });
+  if (laneMode === 'off') fixturePolicy(box, { laneMode, lanes });
   return box;
 }
 
@@ -92,4 +98,47 @@ test('cli.journeys-join-lanes-off.held-cell-claim-sequencer: clause 2: a second 
   const taken = await box.inProcess(second, 'next', '--take', '--json');
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.equal(JSON.parse(taken.out).item.item_id, 3, 'the core item in the free cell, never the view item beside the held claim');
+});
+
+test('cli.journeys-join-lanes-off.explicit-claim-held-cell-refused: clause 2: with laneMode off, an explicit claim of an item in a cell another seat holds is refused naming the cell and the holder [C7,#2830]', async () => {
+  const box = lanesOffProject(VIEW, VIEW_SIBLING, CORE);
+  const first = lanelessLightSeat(box, 'light-1');
+  const claimed = await box.inProcess(first, 'claim', '1');
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  const second = lanelessLightSeat(box, 'light-2');
+  const refused = await box.inProcess(second, 'claim', '2');
+  assert.notEqual(refused.code, 0, 'the second writer in the apps/view cell is refused');
+  assert.match(refused.out + refused.err, /HELD[\s\S]*apps\/view cell[\s\S]*holds through #1/u);
+  const free = await box.inProcess(second, 'claim', '3');
+  assert.equal(free.code, 0, free.out + free.err);
+});
+
+test('cli.journeys-join-lanes-off.lanes-on-claim-unchanged: clause 2: with lanes on, a second seat\'s claim in a held cell is still allowed with its warning [C7,#2830]', async () => {
+  const box = cellProject('on', VIEW, VIEW);
+  const first = join(box.dir, 'web-first');
+  const second = join(box.dir, 'web-second');
+  for (const path of [first, second]) {
+    box.git(box.repo, 'worktree', 'add', '-q', path, '-b', `web/${path.split('-').pop()}`);
+    assert.equal(fixtureJoin(box.run, path, 'web').code, 0);
+  }
+  assert.equal((await box.inProcess(first, 'claim', '1')).code, 0);
+  const again = await box.inProcess(second, 'claim', '2');
+  assert.equal(again.code, 0, again.out + again.err);
+  assert.doesNotMatch(again.out + again.err, /apps\/view cell/u);
+  assert.match(again.out + again.err, /waits for #1/u);
+});
+
+test('cli.journeys-join-lanes-off.out-of-cell-commit-refused: clause 2: with laneMode off, pre-commit checks the claimed item\'s cells, so its own cell passes and a file in another cell is refused naming the path [C7,#2830]', async () => {
+  const box = lanesOffProject(VIEW, CORE);
+  const seat = lanelessLightSeat(box, 'light-1');
+  assert.equal((await box.inProcess(seat, 'claim', '1')).code, 0);
+  const folder = `${seat}-item-1`;
+  write(folder, 'apps/view/src/page.js');
+  write(folder, 'packages/core/src/thing.js');
+  const refused = commit(box, folder, 'feat(cell): view and core change [G1]');
+  assert.notEqual(refused.status, 0, 'pre-commit refuses the core cell for a view item');
+  assert.match(refused.stdout + refused.stderr, /packages\/core\/src\/thing\.js/u);
+  rmSync(join(folder, 'packages/core/src/thing.js'));
+  const own = commit(box, folder, 'feat(cell): view change [G1]');
+  assert.equal(own.status, 0, own.stdout + own.stderr);
 });
