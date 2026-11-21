@@ -34,7 +34,7 @@ import { checkpointPublisher } from '../../../../packages/outbox/index.js';
 import { relayOrdering } from '../../../../packages/outbox/index.js';
 
 /** The fixture board lives in packages/board/tests/fixtures; the app keeps it reachable by its old path, through the lib app's door [C7]. */
-export { fixtureBoard, fixtureOpenBoard, openKitBoard, withFixtureBoard } from '../../../lib/tests/fixtures/board.js';
+export { fixtureBoard, fixtureOpenBoard, openKitBoard, openFixtureComposition, withFixtureBoard } from '../../../lib/tests/fixtures/board.js';
 export { openBoard };
 export { board as store } from '../../../lib/index.js';
 export { temporaryDirectory } from '../../../../packages/store/tests/fixtures/tmp.js';
