@@ -7,7 +7,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { requirePlannedSource, submitPreflight } from '../../../index.js';
+import { requirePlannedSource } from '../../../index.js';
+import { submitPreflight } from '../../../index.js';
 import { readTrunkEntry } from '../../../src/logic/submit/preflight.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
