@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { configFromSource } from '../../src/io/main.js';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../git/tests/fixtures/child.js';
 
 test('config.io-compat.an-older-validator-ignores-a-future: an older validator ignores a future boolean setting and warns once per command with its key and path [N26]', () => {
   const source = `import {configFromSource} from ${JSON.stringify(new URL('../../src/io/main.js', import.meta.url).href)};
