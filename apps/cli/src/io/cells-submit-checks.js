@@ -221,10 +221,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   if (!existsSync(join(mainRoot, 'packages/codemap/data/plan/cells.json'))) return { cells: [], problems: [], warnings: [], reorg: null };
   const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
   const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
-  const added = changed.filter(file => !existsSync(join(mainRoot, file)));
-  const deleted = changed.filter(file => existsSync(join(mainRoot, file)) && !existsSync(join(candidateRoot, file)));
-  const reorg = cellsReorgReason({ title, criterion, changed, added, deleted, beforeMap: mainMap, afterMap: candidateMap,
-    readData: file => ({ before: shimSnapshotFile(mainRoot, file), after: shimSnapshotFile(candidateRoot, file) }) });
+  const reorg = cellsReorgReason({ title, criterion, changed, beforeMap: mainMap, afterMap: candidateMap });
   const warnings = [];
   const policy = policyProblems(mainMap, candidateMap, candidateRoot);
   const oldInventory = inventories ? inventories.base(mainRoot, acceptedMain) : cellInventory(mainRoot, parsers);
