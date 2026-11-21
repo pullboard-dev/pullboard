@@ -26,6 +26,7 @@ import { cellGit as git } from '../../../../packages/codemap/index.js';
 import { cellTryGit as tryGit } from '../../../../packages/codemap/index.js';
 import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { CONFIG_FILE } from '../../../../packages/config/light.js';
 import { environmentAdapter } from '../../../../packages/env/index.js';
 import { cellInventory } from '../../../../packages/codemap/index.js';
 import { cellLintReport } from '../../../../packages/codemap/index.js';
@@ -215,10 +216,29 @@ function shimSnapshotFile(root, file) {
   return lstatSync(path).isFile() ? readFileSync(path, 'utf8') : undefined;
 }
 
+/** The cells plan path a pullboard.json text names under cells.plan; null when absent, so the project is generic. */
+function planFromConfig(text) {
+  try {
+    const value = JSON.parse(text)?.cells?.plan;
+    return typeof value === 'string' && value.trim() ? value : null;
+  } catch { return null; }
+}
+
+/** The cells plan an accepted snapshot folder's pullboard.json names, or null for a generic project. */
+function snapshotCellsPlan(mainRoot) {
+  return planFromConfig(shimSnapshotFile(mainRoot, CONFIG_FILE) ?? 'null');
+}
+
+/** The cells plan the accepted commit's pullboard.json names, or null for a generic project. */
+function acceptedCellsPlan(root, commit) {
+  const shown = tryGit(root, ['show', `${commit}:${CONFIG_FILE}`]);
+  return shown.status === 0 ? planFromConfig(shown.stdout) : null;
+}
+
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
 function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', title = '', files, parsers, inventories, collectMachinery = false, onAllCells = () => {} } = {}) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
-  if (!existsSync(join(mainRoot, 'packages/codemap/data/plan/cells.json'))) return { cells: [], problems: [], warnings: [], reorg: null };
+  if (!snapshotCellsPlan(mainRoot)) return { cells: [], problems: [], warnings: [], reorg: null };
   const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
   const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
   const reorg = cellsReorgReason({ title, criterion, changed, beforeMap: mainMap, afterMap: candidateMap });
@@ -310,7 +330,7 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const source = commit;
   // Generic repositories have no cells contract to analyze; determine that from accepted Git metadata before
   // consulting or provisioning any inventory. Planned repositories still require their completed artifact below.
-  if (!git(root, ['ls-tree', '--name-only', acceptedMain, '--', 'packages/codemap/data/plan/cells.json']).trim()) {
+  if (!acceptedCellsPlan(root, acceptedMain)) {
     return { acceptedMain, source, cells: [], existingCuts: [], problems: [], warnings: [], reorg: null,
       ...(services.collectMachinery ? { machinery: [] } : {}) };
   }

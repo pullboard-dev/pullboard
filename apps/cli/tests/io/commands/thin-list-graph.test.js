@@ -30,6 +30,7 @@ before(async () => {
   const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const settings = JSON.parse(readFileSync(file, 'utf8'));
   settings.list = { thinRead: true };
+  settings.health = { derivedState: false };
   writeFileSync(file, JSON.stringify(settings));
 });
 

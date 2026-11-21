@@ -24,6 +24,7 @@ import { childEnvironment } from '../../../kernel/light.js';
 import { environmentAdapter } from '../../../env/index.js';
 import { PROGRESS_ENV } from './progress.js';
 import { keepGateProfiles } from './pull/profiles.js';
+import { measureExecutionContext } from './pull/execution-context.js';
 import { watchProgress } from './progress.js';
 import { pathProcesses } from './leftovers.js';
 import { reapLeftovers } from './leftovers.js';
@@ -779,7 +780,7 @@ const PER_JOB_REFUSALS = new Set(['JOB_RECEIPT', 'JOB_WRITE_TIMEOUT', 'HOP_FENCE
  * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
-export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
+export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'), signCompletion = null,
   once = false, jobs: jobsSetting = environmentAdapter().get('PULLBOARD_RUNNER_JOBS'), cores = availableParallelism(), signal, admit = () => true, ledger = heldKinds(), runnerCode = null, peer = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, jobWorkerFactor = 2, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => disk.rm(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
@@ -982,7 +983,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now(), self = () => null, known = () => {}) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null, requestedEnv = null;
+    let run = claim.run ?? [], input = null, pulledInput = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null, requestedEnv = null, completionNonce = null;
     const requestStart = Date.now();
     if (!run.length) {
       let asked;
@@ -991,7 +992,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       const request = asked?.request;
       if (Array.isArray(request?.run) && request.run.length) {
         run = request.run;
-        input = JSON.stringify(request.input ?? null);
+        pulledInput = request.input ?? null;
+        input = JSON.stringify(pulledInput);
+        completionNonce = request.input?.data?.completionNonce ?? null;
         named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
         ref = typeof request.ref === 'string' ? request.ref : null;
@@ -1056,6 +1059,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
     // The gate bootstrap judges a project whose main is not Pullboard's tree with this runner's own install (#6265).
     const env = { ...job.env, PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS, [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(jobWorkers(slots, cores, named, jobWorkerFactor)), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    const executionContext = claim.kind === 'test' ? await measureExecutionContext({ git, cwd: checkout.folder, argv: run, input: pulledInput }) : null;
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
       env, keep: kept ? join(kept, 'job.log') : null });
     // An unreachable board only skips a renewal; a moved lease stops the job.
@@ -1087,7 +1091,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const postedCase = outcome => { const named = postedLineNamesCase && outcome.status !== 0 ? firstFailingCase(outcome.tail) : ''; return named ? `; ${named}` : ''; };
     const receipt = { ...exclusiveEvidence, ...(gate ? { ...gateReceipt(result, claim.candidate, Date.now() - started), ...(keptGate ? { gate: keptGate } : {}) }
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
-        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
+        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(claim.kind === 'test' ? { executionContext } : {}), ...(kept ? { output: { runner: id, folder: kept } } : {}) };
+    if (claim.kind === 'test' && typeof signCompletion === 'function' && /^[a-f0-9]{48}$/u.test(completionNonce ?? '')) {
+      try {
+        const tree = await git.run(checkout.folder, ['rev-parse', 'HEAD^{tree}']);
+        const hash = tree.status === 0 ? tree.stdout.trim() : '';
+        if (/^[a-f0-9]{40,64}$/u.test(hash)) receipt.signedCompletion = signCompletion({ version: 1, job: claim.job, nonce: completionNonce, source: claim.candidate, tree: hash, status: result.status, signal: result.signal, outputSha256: result.outputSha256 });
+      } catch { /* Unsigned results remain ordinary execution results. */ }
+    }
     try {
       const answer = await postReceiptCalls(reliably, held, receipt);
       say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}${answer?.applied?.outcome ? `; board: ${answer.applied.outcome}${answer.applied.reason ? ` (${answer.applied.reason})` : ''}` : ''}${postedCase(result)}`);

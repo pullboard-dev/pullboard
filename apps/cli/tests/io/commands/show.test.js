@@ -8,6 +8,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { pinDerivedStateOff } from '../../fixtures/thin-door.js';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
@@ -72,8 +73,9 @@ async function shownThin(box, id, on) {
   return { out: shown.out, err: shown.err, code: shown.code };
 }
 
-test('cli.commands-show.thin-equal: clause 1: [C7,#12413] with read.thinCommands on, show of a fixture item with no receipt, refusal or thread prints the same lines and exit code as with it off', async () => {
+test('cli.commands-show.thin-equal: clause 1: [C7,#12413] with read.thinCommands on, show of a fixture item with no receipt, refusal or thread prints the same lines and exit code as with it off', async (t) => {
   const box = helpers.project();
+  t.after(pinDerivedStateOff(box));
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show plain item');
   assert.equal(added.code, 0, added.err);
   assert.ok(await thinShowFacts({ cwd: box.repo, id: 1 }), 'the thin door serves this plain item');
@@ -85,8 +87,9 @@ test('cli.commands-show.thin-equal: clause 1: [C7,#12413] with read.thinCommands
   assert.match(off.out, /Thin show plain item/u);
 });
 
-test('cli.commands-show.thin-null-falls-back: clause 2: [C7,#12413] with read.thinCommands on, show of an item with a receipt or a thread entry prints the full path lines, the thin door returning null', async () => {
+test('cli.commands-show.thin-null-falls-back: clause 2: [C7,#12413] with read.thinCommands on, show of an item with a receipt or a thread entry prints the full path lines, the thin door returning null', async (t) => {
   const box = helpers.project();
+  t.after(pinDerivedStateOff(box));
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show noted item');
   assert.equal(added.code, 0, added.err);
   const noted = await box.runLocal(box.repo, 'fact', '1', 'note', 'a thread entry the thin door leaves to the full path');

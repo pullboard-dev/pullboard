@@ -16,6 +16,9 @@ import { jobQueueCall } from '../../../../../packages/api/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { fixtureCommitAll } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { runCensus } from '../../../src/io/test/census.js';
+import { censusTimingInputs } from '../../../src/io/test/census.js';
+import { censusPlan } from '../../../src/logic/census.js';
+import { rowPackedJobs } from '../../../src/logic/census.js';
 import { censusPhases } from '../../../src/logic/census.js';
 import { censusPhaseLine } from '../../../src/logic/census.js';
 import { censusIdleLine } from '../../../src/logic/census.js';
@@ -95,6 +98,27 @@ test('cli.io-test-census-idle-slots.a-census-with-no-host-prints-nothing: clause
   assert.equal(censusIdleLine({}), null);
 });
 
+
+test('cli.io-test-census.explicit-report-history-times-drive-both-plans: clause 1: timed and count-packed plans use prior rows beside an explicit output, fall back to recorded file times, and exclude the current report [C7]', t => {
+  const repo = fixture(t), dir = join(repo, '..', 'explicit-census');
+  mkdirSync(dir);
+  const out = join(dir, 'current.jsonl');
+  const prior = [
+    { file: 'f00.test.js', status: 'green', secs: 150 },
+    { file: 'f01.test.js', status: 'green', secs: 140 },
+    { file: 'f02.test.js', status: 'green', secs: 60 },
+  ];
+  writeFileSync(join(dir, 'previous.jsonl'), `${prior.map(row => JSON.stringify(row)).join('\n')}\n`);
+  writeFileSync(out, `${JSON.stringify({ file: 'f00.test.js', status: 'green', secs: 1 })}\n`);
+  const files = prior.map(row => row.file).concat('f03.test.js');
+  const { rows, times } = censusTimingInputs(dir, out, { 'f03.test.js': 30_000 });
+  assert.equal(rows.length, 3);
+  assert.deepEqual(times, { 'f03.test.js': 30_000, 'f00.test.js': 150_000, 'f01.test.js': 140_000, 'f02.test.js': 60_000 });
+  const timed = censusPlan(files, 1, times, false, () => [], 3);
+  assert.deepEqual(timed.map(job => job.weight), [180_000, 140_000, 60_000], 'jobMinutes=3 sizes jobs using explicit report history plus recorded fallback');
+  const countPacked = rowPackedJobs(files, 2, [], times);
+  assert.deepEqual(countPacked.map(job => job.weight), [200_000, 180_000], 'the count fallback receives the same timing map');
+});
 
 test('cli.io-test-census.sigterm-cancels-own-shards: clause 1: SIGTERM withdraws only its unfinished pulled shards and preserves a receipt [C7,#12628]', { timeout: 120_000 }, async t => {
   const box = await pullProject(t, 1);

@@ -9,9 +9,17 @@ import { test } from 'node:test';
 import { ledgerHits } from '../../../../../packages/store/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
+import { fixtureBoard } from '../../../../../packages/board/tests/fixtures/board.js';
+import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
+import { pullTestWanted } from '../../../src/io/test/pull.js';
+import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
+import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
+import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
+import { generateKeyPairSync } from 'node:crypto';
+import { signRunnerReceipt } from '../../../../../packages/runners/index.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { focusedRunnerPath } from '../../fixtures/test/pulled-entry.js';
 import { runPulledEntry } from '../../fixtures/test/pulled-entry.js';
@@ -24,6 +32,25 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { storeTestResult } from '../../../../../packages/gate/index.js';
+
+test('cli.io-test-pull.signed-completion: clause 1: a real pulled completion verifies only for its enrolled runner and exact fresh request [C7,#12647]', { timeout: 120_000 }, async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pinned = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  const signed = body => { const row = { ...body, host: 'runner.example' }; return { ...row, signature: signRunnerReceipt(row, privateKey) }; };
+  const { receipt, job, nonce, source, tree } = await signedPullFixture(signed);
+  assert.ok(receipt?.signedCompletion, 'the pull runner posts its signed envelope');
+  const expected = { job, nonce, source, tree, status: receipt.status, signal: receipt.signal, outputSha256: receipt.outputSha256 };
+  const runners = [{ host: 'runner.example', publicKey: pinned }];
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, runners), true);
+  assert.equal(authenticatedPullCompletion(null, expected, runners), false, 'unsigned remains unauthenticated');
+  const other = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, [{ host: 'runner.example', publicKey: other }]), false, 'wrong enrolled key');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, { ...expected, nonce: 'cd'.repeat(24) }, runners), false, 'replayed request');
+  for (const field of ['source', 'tree', 'outputSha256']) assert.equal(authenticatedPullCompletion({ ...receipt.signedCompletion, [field]: '0'.repeat(receipt.signedCompletion[field].length) }, expected, runners), false, `tampered ${field}`);
+  const unsigned = await signedPullFixture(null);
+  assert.equal(unsigned.receipt.status, 0, 'ordinary unsigned execution still returns');
+  assert.equal(unsigned.receipt.signedCompletion, undefined);
+});
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
   const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
@@ -86,6 +113,37 @@ test('cli.io-test-pull.leaves-other-variables-out: clause 2: testJobRow leaves P
   for (const name of ['PATH', 'HOME', 'NODE_OPTIONS', 'PULLBOARD_FIXTUREX', 'MY_FIXTURE_A']) assert.equal(name in row.request.env, false, name);
   const bare = await rowFor(t, { PATH: '/usr/bin' });
   assert.equal('env' in bare.request, false, 'a shell with no fixture variable adds no env map');
+});
+
+test('cli.io-test-pull.runner-dispatch-keeps-affected-diagnose-and-focused-runs-on-runners: clause 1: pullTestWanted selects pull dispatch for --affected, focused --diagnose and ordinary focused runs [C7,P7]', () => {
+  assert.equal(pullTestWanted(1, { affected: true }), true);
+  assert.equal(pullTestWanted(1, { diagnose: true }), true);
+  assert.equal(pullTestWanted(1, {}), true);
+});
+
+test('cli.io-test-pull.runner-job-keeps-candidate-item-and-interactive-priority: clause 1: a pulled test job keeps the requested candidate and item with interactive priority [C7,P7]', async t => {
+  const { root, commit } = cellRepo(t, { real: true });
+  const { row } = await testJobRow({ info: { root } }, { item: 12573, commit, main: commit, command: 'true', files: [] });
+  assert.equal(row.candidate, commit);
+  assert.equal(row.item, 12573);
+  assert.equal(row.priority, 'interactive');
+});
+
+test('cli.io-test-pull.queued-diagnose-reaches-its-worker: clause 1: queueTestRun carries --diagnose through the worker command and records the focused diagnosis flag [C7,P7]', async t => {
+  const board = fixtureBoard(t);
+  const { root } = cellRepo(t, { real: true });
+  const launched = [];
+  queueTestRun({ info: { commonDir: join(root, '.git'), root } }, work => work(board),
+    { agent: 'seat', files: ['apps/cli/tests/io/test/pull.test.js'], diagnose: true },
+    { bin: '/pullboard.js', launch: (_node, args) => { launched.push(args); return { unref() {} }; } });
+  assert.ok(launched[0].includes('--diagnose'), JSON.stringify(launched[0]));
+  const queued = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'queued'").get();
+  assert.equal(JSON.parse(queued.payload).diagnose, true);
+});
+
+test('cli.io-test-pull.diagnose-labels-clipped-receipt-output: clause 1: pulled diagnose preserves red output and reports when the receipt clipped it [C7,P7]', () => {
+  assert.equal(pulledDiagnosisOutput('failure: details\n', 17), 'failure: details\n');
+  assert.equal(pulledDiagnosisOutput('tail\n', 50), '[runner output clipped: showing the last 5 of 50 bytes]\ntail\n');
 });
 
 const KEY_A = 'a'.repeat(64), KEY_B = 'b'.repeat(64), CONTEXT = 'c'.repeat(64);
