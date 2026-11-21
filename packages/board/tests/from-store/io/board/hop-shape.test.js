@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell store */
 /** A board that has the gate hop table opens current on every path: the fenced hop's table never reads as a change made outside pullboard [C7,#8465]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';

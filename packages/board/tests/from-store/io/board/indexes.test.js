@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell store */
 /** The claimed-by-owner index reaches every board on its next open without a shape-drift line: it is additive, never in SCHEMA [C7,#10876,#11000]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
