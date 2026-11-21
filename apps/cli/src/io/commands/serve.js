@@ -375,6 +375,7 @@ export async function boardHandlerPorts({ isMain } = {}) {
 }
 
 /** Run `pullboard serve` and return its exit code. */
-export async function run(io, { values }) {
+export async function run(io, { first, values }) {
+  if (first === 'install' || first === 'uninstall') return await (await import('../ports/serve-install.js')).runServeInstall(io, { remove: first === 'uninstall', values });
   return await serveHere(io, values);
 }

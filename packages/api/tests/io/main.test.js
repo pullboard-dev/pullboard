@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { createApiHandler } from '../../index.js';
+import { installBoardService } from '../../index.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -466,4 +467,61 @@ test('api.main.spec-approve-dirty-names-command: clause 2: on a dirty checkout t
   const refused = await servedFailing.move(APPROVE);
   assert.equal(refused.status, 409, JSON.stringify(refused.body));
   assert.deepEqual(failing.calls.map((call) => call.argv), [['spec-approve']], 'an approve that did not succeed runs no apply');
+});
+
+/** The ports installBoardService takes, recording every write, removal and launchctl call; no real supervisor or disk is touched. */
+function fakeServicePorts(launchctlResults = {}) {
+  const calls = { writes: [], removals: [], launchctl: [] };
+  return { calls, ports: {
+    write: (file, text) => calls.writes.push({ file, text }),
+    remove: (file) => calls.removals.push(file),
+    launchctl: async (args) => { calls.launchctl.push(args); return launchctlResults[args[0]] ?? true; },
+  } };
+}
+const SERVICE_PLAN = { uid: 501, home: '/home/fixture', node: '/opt/node/bin/node', cli: '/repo/apps/cli/pullboard.js', root: '/repo', port: 4891 };
+
+test('api.main.board-service-install-definition: clause 1: serve install writes one LaunchAgent that runs serve under KeepAlive and loads it with bootout then bootstrap, never kickstart [P7]', async () => {
+  const { calls, ports } = fakeServicePorts();
+  const result = await installBoardService({ ...SERVICE_PLAN, address: '10.1.2.3' }, ports);
+  assert.equal(calls.writes.length, 1);
+  const { file, text } = calls.writes[0];
+  assert.equal(file, '/home/fixture/Library/LaunchAgents/dev.pullboard.board-api.plist');
+  for (const line of ['<key>Label</key><string>dev.pullboard.board-api</string>', '<key>KeepAlive</key><true/>', '<key>RunAtLoad</key><true/>',
+    '<key>WorkingDirectory</key><string>/repo</string>', '<string>/opt/node/bin/node</string>', '<string>/repo/apps/cli/pullboard.js</string>',
+    '<string>serve</string>', '<string>--address</string>', '<string>10.1.2.3</string>', '<string>--port</string>', '<string>4891</string>']) {
+    assert.ok(text.includes(line), `definition lacks ${line}`);
+  }
+  assert.deepEqual(calls.launchctl, [['bootout', 'gui/501/dev.pullboard.board-api'], ['bootstrap', 'gui/501', file]]);
+  assert.ok(!calls.launchctl.some((args) => args.includes('kickstart')));
+  assert.deepEqual(result.commands, calls.launchctl);
+  assert.deepEqual(calls.removals, []);
+});
+
+test('api.main.board-service-install-settings-apply: clause 1: without --address or --port the definition passes none, so the serve settings apply [P7]', async () => {
+  const { calls, ports } = fakeServicePorts();
+  await installBoardService({ ...SERVICE_PLAN, port: undefined }, ports);
+  assert.ok(!calls.writes[0].text.includes('--address') && !calls.writes[0].text.includes('--port'));
+});
+
+test('api.main.board-service-install-bootout-not-loaded-ok: clause 1: a bootout of a service that is not loaded may fail, a failed bootstrap refuses [P7]', async () => {
+  const fresh = fakeServicePorts({ bootout: false });
+  await installBoardService(SERVICE_PLAN, fresh.ports);
+  assert.equal(fresh.calls.launchctl.length, 2);
+  const broken = fakeServicePorts({ bootstrap: false });
+  await assert.rejects(() => installBoardService(SERVICE_PLAN, broken.ports), (error) => error.code === 'SERVICE_NOT_LOADED');
+});
+
+test('api.main.board-service-uninstall: clause 1: serve uninstall boots the service out and deletes its definition, writing nothing [P7]', async () => {
+  const { calls, ports } = fakeServicePorts();
+  await installBoardService({ ...SERVICE_PLAN, remove: true }, ports);
+  assert.deepEqual(calls.launchctl, [['bootout', 'gui/501/dev.pullboard.board-api']]);
+  assert.deepEqual(calls.removals, ['/home/fixture/Library/LaunchAgents/dev.pullboard.board-api.plist']);
+  assert.deepEqual(calls.writes, []);
+});
+
+test('api.main.board-service-no-launchctl: clause 1: a machine without launchctl refuses from the first command and writes no definition [P7]', async () => {
+  const { calls, ports } = fakeServicePorts();
+  const refusal = Object.assign(new Error('no launchctl'), { code: 'USAGE' });
+  await assert.rejects(() => installBoardService(SERVICE_PLAN, { ...ports, launchctl: async () => { throw refusal; } }), (error) => error === refusal);
+  assert.deepEqual(calls.writes, []);
 });
