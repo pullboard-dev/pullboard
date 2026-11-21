@@ -1482,7 +1482,7 @@ function applyLandingOutcome(board, { job, receipt }, ports) {
   for (const { id, item } of candidates) {
     // Each item lands at its own first-containing merge when the receipt names one; trunk already held the rest [B3,R3,#7506].
     const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
-    store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });
+    store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}`, ...(Number.isSafeInteger(receipt.mergedAt?.[id]) ? { mergedAt: receipt.mergedAt[id] } : {}) }); // the receipt's committer time rides in; merged() never runs git [C7,#12225]
     merged.push(id); rows.set(id, item);
     if (phases.length) store.writeBoardMeta(board.db, `landing_phases:${id}`, JSON.stringify(phases));
     // With gate.endStaleJobs on, the landed item's open gate jobs end, so no runner spends time on them [C7,#8816].
