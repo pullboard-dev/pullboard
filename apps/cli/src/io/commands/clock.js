@@ -21,8 +21,8 @@ function line(verb, row) {
 
 /** The store moves and coordinator id the clock pass takes as ports. */
 function clockPorts() {
-  const { listItems, events, getItem, atomic, logEvent, insertShout, readBoardMeta, writeBoardMeta, setItem, itemHoldOwner, rememberHoldOwner } = store;
-  return { listItems, events, getItem, atomic, logEvent, insertShout, readBoardMeta, writeBoardMeta, setItem, itemHoldOwner, rememberHoldOwner, coordinator: COORDINATOR };
+  const { listItems, events, getItem, atomic, logEvent, insertShout, readBoardMeta, writeBoardMeta, setItem, itemHoldOwner, rememberHoldOwner, holdItem, allItemsNeedingRescope } = store;
+  return { listItems, events, getItem, atomic, logEvent, insertShout, readBoardMeta, writeBoardMeta, setItem, itemHoldOwner, rememberHoldOwner, holdItem, allItemsNeedingRescope, coordinator: COORDINATOR };
 }
 
 /** Run `pullboard clock [--dry-run] [--json]` and return its exit code. */

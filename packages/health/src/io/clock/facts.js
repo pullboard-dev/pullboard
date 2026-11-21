@@ -45,8 +45,8 @@ export function timing(item, row, history) {
     && (item.item_status !== 'claimed' || event.event_by === item.item_owner || event.event_kind === 'claim'));
   let since = ms(progress.at(-1)?.event_at) ?? ms(item.item_updated_at) ?? ms(item.item_created_at);
   if (row.rule === 'hold') since = ms(item.item_hold_at) ?? since;
-  // Open and unclaimed is observed directly, so a ready item is idle; folder and seat activity is not visible here.
-  const evidence = row.rule === 'ready' ? 'idle' : 'unknown';
+  // Open and unclaimed is observed directly, so a ready or re-scoped item is idle; folder and seat activity is not visible here.
+  const evidence = ['ready', 'rescope'].includes(row.rule) ? 'idle' : 'unknown';
   let deadlineMinutes;
   if (row.rule === 'review') {
     const until = ms(item.item_review_until);
