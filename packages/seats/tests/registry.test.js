@@ -1,9 +1,9 @@
 /** @pullboard-test-input source-cell seats */
 /** Registry metadata, refresh, pruning and forgetting (N33, N35, N36), and the seats cell's own test registry [C7,U148]. */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../../apps/cli/tests/fixtures/child.js';
-import { reportFixtureChildFailure } from '../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { startFixtureChild as spawn } from '../../git/tests/fixtures/child.js';
+import { reportFixtureChildFailure } from '../../git/tests/fixtures/child.js';
+import { runFixtureGit } from '../../git/tests/fixtures/child.js';
 import { performance } from 'node:perf_hooks';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
