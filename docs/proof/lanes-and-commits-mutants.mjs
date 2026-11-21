@@ -11,7 +11,7 @@ import { audit } from './harness.mjs';
 const BAD_LANE = ['packages/seats/tests/io/lanes.test.js', 'a config with a bad lane refuses and names the field'];
 const LANE_NAMES = ['packages/seats/tests/io/lanes.test.js', 'lane names list the coordinator first'];
 const LONGEST = ['packages/seats/tests/io/lanes.test.js', "the longest owned prefix decides a path's lane"];
-const IN_LANE = ['apps/cli/journeys/list/board.test.js', 'a lane commits only inside its folders'];
+const IN_LANE = ['apps/cli/tests/io/commands/list/board.test.js', 'a lane commits only inside its folders'];
 const HEADER = ['apps/cli/journeys/hooks/main.test.js', 'header format, length, case and period'];
 const CITES = ['apps/cli/journeys/hooks/main.test.js', 'feat and fix cite ids; cited ids exist'];
 const PRE_PUSH = ['apps/cli/journeys/spec/e2e/submit.test.js', 'pre-push runs the gate once per tree'];

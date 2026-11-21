@@ -369,12 +369,14 @@ export async function offerAcceptCheck(ctx, board, { item, commit, main, command
 
 /**
  * Wait on a job's row until a runner posts its receipt, keeping the seat alive. Refuses when no runner claims it within
- * gate.runnerWaitMs, as a runner-only test run waits today.
+ * gate.runnerWaitMs, as a runner-only test run waits today. A job a runner took whose lease then lapsed, with that same
+ * deadline past, has made no progress: the wait refuses too, so a detached waiter stops heartbeating the seat and renewing
+ * its run lease for a runner that died [C7,#12670].
  *
  * @returns {Promise<{ receipt: Record<string, any>, runner: string | null, enqueuedAt: string | null }>}
  */
-async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null, signal }) {
-  const deadline = Date.now() + gateRunnerWaitMs();
+export async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null, signal, waitMs = gateRunnerWaitMs(), beatSeat = null }) {
+  const deadline = Date.now() + waitMs;
   let beat = 0, claimed = null;
   for (;;) {
     if (signal?.aborted) throw signal.reason ?? new Error('test job stopped');
@@ -387,10 +389,13 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
     if (!claimed && Date.now() > deadline) {
       throw new Refused('TEST_JOB_UNCLAIMED', `no runner took test job ${job} within ${Math.round(gateRunnerWaitMs() / 1000)}s; start one with pullboard runner serve <board-url>, then run pullboard test again`);
     }
+    if (claimed && !holder && Date.now() > deadline) {
+      throw new Refused('TEST_JOB_STALLED', `runner ${claimed} took test job ${job} but its lease lapsed and no runner has renewed it within ${Math.round(waitMs / 1000)}s; run pullboard test again`);
+    }
     if (agent && Date.now() - beat >= BEAT_MS) {
       beat = Date.now();
       const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
-      try { withBoard(ctx, board => heartbeatSeat(board, agent)); } catch (error) { if (!error?.code) throw error; }
+      try { beatSeat ? beatSeat(agent) : withBoard(ctx, board => heartbeatSeat(board, agent)); } catch (error) { if (!error?.code) throw error; }
     }
     try { await wait(pollMs, null, signal ? { signal } : undefined); } catch (error) { if (signal?.aborted) throw signal.reason ?? error; throw error; }
   }
