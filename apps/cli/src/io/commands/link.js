@@ -34,7 +34,8 @@ export async function linkBoards(parent, child) {
 
 /** The git email of one checkout, the principal its signer file lists by default. */
 function principalOf(root) {
-  const email = tryGit(root, ['config', 'user.email'])?.trim();
+  const configured = tryGit(root, ['config', 'user.email']);
+  const email = configured.status === 0 ? configured.stdout : '';
   if (!email) throw new Refused('BAD_SIGNER', `set git user.email in ${root} so its signer can be named`, 'git config user.email <you>');
   return email;
 }
