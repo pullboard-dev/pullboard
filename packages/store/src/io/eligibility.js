@@ -2,12 +2,9 @@ import * as store from "./board.js";
 import { nextWithReleaseCooldown } from "./cooldown.js";
 import { heldClaim } from "./claim.js";
 import { submitHandoff } from "./submit/handoff/records.js";
+import { cellOfPath } from "./cells.js";
+import { heldCells } from "./cells.js";
 import { itemFiles } from "../../../items/index.js";
-
-/** A path's cell, the codemap cell rule kept here so selection loads no further module [C7,#8907]. */
-function cellOfPath(path) {
-  return /^(?:apps|packages)\/[^/]+(?=\/)/u.exec(path)?.[0] ?? null;
-}
 
 /**
  * The open items whose named files share a cell with an item another seat holds, so two writers never share a cell [C7,#8907].
@@ -18,12 +15,9 @@ function cellOfPath(path) {
  * @returns {number[]}
  */
 function heldCellItems(board, agentId) {
-  const items = store.listItems(board);
-  const now = board.clock.now().toISOString();
-  const held = new Set(items.filter(item => item.item_status === 'claimed' && item.item_owner !== agentId && item.item_lease_until > now)
-    .flatMap(item => itemFiles(item).map(cellOfPath)).filter(Boolean));
+  const held = heldCells(board, agentId);
   if (!held.size) return [];
-  return items.filter(item => item.item_status === 'open' && itemFiles(item).some(file => held.has(cellOfPath(file)))).map(item => item.item_id);
+  return store.listItems(board).filter(item => item.item_status === 'open' && itemFiles(item).some(file => held.has(cellOfPath(file)))).map(item => item.item_id);
 }
 
 /**

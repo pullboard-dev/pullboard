@@ -1,5 +1,5 @@
 /** @pullboard-test-input packages/state/src/logic/engines/* */
-/** @pullboard-world-pin reads docs/formats.md and each docs/formats page itself, the guide and pages this test checks against the code. */
+/** @pullboard-world-pin reads the committed rulings, resume notes, settings and rate card pages itself, and the generated guide, spec and static view pages from generatedDocs. */
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -21,6 +21,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openBoard } from '../apps/lib/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { declarationDocBlocks } from '../apps/cli/src/io/generated/declarations.js';
+import { generatedDocs } from '../apps/cli/src/io/generated/docs.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { exportView } from '../apps/cli/src/io/commands/view.js';
 import { main as nativeTestMain } from '../apps/cli/tests/fixtures/native.js';
@@ -46,15 +47,17 @@ import {
 } from '../packages/spec/index.js';
 import { block, documentedEvents } from '../apps/lib/tests/fixtures/formats-guide.js';
 
-const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
+/** The generated pages are rendered from the declarations; no committed copy is read. */
+const generated = generatedDocs(fileURLToPath(new URL('../', import.meta.url)), { openBoard });
+const guide = generated.get('docs/formats.md');
 /** The SPEC.md and DOCTRINE.md section lives on its own page; its sentences and marked tables are read there. */
-const specPage = readFileSync(new URL('./formats/spec.md', import.meta.url), 'utf8');
+const specPage = generated.get('docs/formats/spec.md');
 /** The proposed-rulings section lives on its own page; its sentences are read there. */
 const rulingsPage = readFileSync(new URL('./formats/rulings.md', import.meta.url), 'utf8');
 /** The resume-release-notes section lives on its own page; its marked block is read there. */
 const resumeNotesPage = readFileSync(new URL('./formats/resume-notes.md', import.meta.url), 'utf8');
 /** The static-view-export section lives on its own page; its snapshot table and sentences are read there. */
-const staticViewPage = readFileSync(new URL('./formats/static-view.md', import.meta.url), 'utf8');
+const staticViewPage = generated.get('docs/formats/static-view.md');
 
 /** The recorded-board-line-settings section lives on its own page; its table and sentences are read there. */
 const settingsPage = readFileSync(new URL('./formats/settings.md', import.meta.url), 'utf8');

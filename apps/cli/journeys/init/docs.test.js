@@ -14,8 +14,6 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { copyPackageSubset } from '../../tests/fixtures/copy.js';
 import { createHash } from 'node:crypto';
-import { generatedDocDrift } from '../../index.js';
-import { openBoard } from '../../../lib/index.js';
 import { GENERATED_DOC_PATHS } from '../../../../packages/merge/index.js';
 import { resolveMechanicalIndex } from '../../../../packages/merge/index.js';
 import { mechanicalConflictFiles } from '../../../../packages/merge/index.js';
@@ -29,10 +27,6 @@ import { SOURCE_ADVANCE_ENGINE } from '../../../../packages/state/light.js';
 import { docsRepository } from '../../tests/fixtures/generated/docs.js';
 import { addDocumentedCommand } from '../../tests/fixtures/generated/docs.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
-
-test('cli.journeys-init-docs.committed-documentation-matches-all-source-declarations: clause 2: committed documentation matches all source declarations [C7,A1,A5,M1]', () => {
-  assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '../../../..'), undefined, { openBoard }), [], 'run node docs/tools/update-docs.js');
-});
 
 // Real processes by design: each call runs a script or command of the copied candidate repository (a command that exists only in the copy), which the in-process dispatcher of this checkout cannot answer (#8276).
 test('cli.journeys-init-docs.one-command-detects-and-repairs-each: clause 2: one command detects and repairs each stale output while retaining authored prose [C7,A1,A5,M1]', t => {

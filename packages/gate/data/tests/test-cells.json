@@ -36,6 +36,7 @@
     "apps/cli/tests/fixtures/cells/shims.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/gate/tests/fixtures/clone.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/gate/tests/fixtures/child.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/git/tests/fixtures/child.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/gate/tests/fixtures/release/archive.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/chrome.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/gate/tests/fixtures/chrome.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",

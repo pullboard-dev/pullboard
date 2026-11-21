@@ -47,6 +47,7 @@ import {
   now,
   reviewHolder,
 } from "./query.js";
+import { itemFiles } from "../../../../items/index.js";
 import { outsideBuildProblem } from "../../../../items/index.js";
 import { barReadyProblem } from "../../../../verify/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
@@ -71,6 +72,8 @@ import { CLAIM_RETURNS_ENGINE } from "../../../../state/index.js";
 import { claimProblem } from "../../../../seats/index.js";
 import { randomUUID } from 'node:crypto';
 import { claimDecision } from "./claim-table.js";
+import { cellOfPath } from "../cells.js";
+import { heldCells } from "../cells.js";
 import { availableParallelism } from 'node:os';
 import { withLocalSeatPresence } from "../presence.js";
 import {
@@ -150,7 +153,7 @@ function waitsOnGate(board, gateWaits, itemId) {
 }
 
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, shapedStrong = false, perSeat = null, gateWaits = null, seatCap = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, shapedStrong = false, perSeat = null, gateWaits = null, seatCap = null, laneOff = false }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
@@ -225,7 +228,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         }
         return null;
       },
-      notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
+      notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : laneOff === true ? heldCellProblem(board, found, agentId) : null),
       builderFirstRefusal: (found) => {
         const continuation = exitContinuationProblem(board, id, agentId);
         if (continuation) return continuation;
@@ -553,3 +556,17 @@ function commitClaim(board, id, prepared, binding, ports) {
   });
 }
 
+
+/**
+ * With lanes off, the HELD refusal for an item whose cell another seat holds, naming the cell and the holder; the claim's own write lock makes it atomic, so two claims in one cell cannot both pass [C7,#2830].
+ * Why not a warning: with lanes off the cell is the unit one seat owns at a time, so a second writer in it is refused here as `next` withholds it.
+ */
+function heldCellProblem(board, found, agentId) {
+  const held = heldCells(board, agentId);
+  for (const file of itemFiles(found)) {
+    const cell = cellOfPath(file);
+    const by = cell ? held.get(cell) : undefined;
+    if (by) return new Refused('HELD', `item #${found.item_id} names ${file} in the ${cell} cell, which ${by.holder} holds through #${by.itemId}; take work in another cell with pullboard next, or wait for #${by.itemId} to land`);
+  }
+  return null;
+}

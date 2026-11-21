@@ -166,6 +166,7 @@ async function runMain(argv, streams) {
   io.decideUncertainBaseline = streams.decideUncertainBaseline;
   io.checkpointPublisher = streams.checkpointPublisher;
   io.relayOrdering = streams.relayOrdering;
+  io.markWriter = streams.markWriter;
   io.checkpointInBackground = streams.checkpointInBackground;
   /** The github door's key reader, loaded at its first call so a command that never reads keys pays for no github module [C7,#12428]. */
   io.githubKeys = async login => (await import('../../../../../packages/github/index.js')).githubKeys(login);
