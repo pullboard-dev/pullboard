@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { relayClientFixture } from '../../../fixtures/relay/client.js';
 
-test('cli.journeys-relay-setup.relay-pair-labels-the-code-for: relay pair labels the code for a computer and the QR for a phone [H17]', async (t) => {
+test('cli.journeys-relay-setup.relay-pair-labels-the-code-for: clause 1: relay pair labels the code for a computer and the QR for a phone [H17]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const cliModule = pathToFileURL(resolve(import.meta.dirname, '../../../fixtures/native.js')).href;
