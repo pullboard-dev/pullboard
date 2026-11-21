@@ -37,7 +37,7 @@ import {
 import {
   sentinelDraftNeeds,
   sentinels,
-} from '../../../../packages/sentinels/index.js';
+} from '../../../../packages/store/index.js';
 
 /** Borrow an existing connection or open a read-only one; retain exact row-decision matching. */
 export function personNeedsState(root, { board: providedBoard = null, includeRigorUndrafted = false } = {}) {
