@@ -1,4 +1,3 @@
-/** @pullboard-test-loads packages/runners/src/io/dispatch.js */
 /** @pullboard-test-loads packages/runners/src/io/health.js */
 /** @pullboard-test-loads packages/runners/index.js */
 /** @pullboard-test-loads apps/runner/src/io/scripts/worker.js */

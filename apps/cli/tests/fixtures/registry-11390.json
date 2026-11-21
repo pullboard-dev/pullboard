@@ -1,0 +1,15 @@
+{
+  "cli.journeys-runner-lost.a-synchronous-runner-call-is-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A synchronous runner call is refused by the retired SSH controller with RunnerDropped, keeping its exit code and stderr."
+    },
+    "why": "Without it, a regression where a synchronous runner call is not refused by the retired SSH controller, or loses its exit code and stderr, would pass unnoticed.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/runner/lost.test.js"
+    ]
+  }
+}

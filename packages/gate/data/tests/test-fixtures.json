@@ -1815,9 +1815,6 @@
   "packages/runners/tests/logic/diagnostics/recovery.test.js": {
     "model": 1
   },
-  "apps/cli/tests/fixtures/runner/machine.js": {
-    "repo-read": 1
-  },
   "packages/runners/tests/runner-controller.test.js": {
     "tempdir": 1
   },

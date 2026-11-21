@@ -28,8 +28,6 @@ import * as store from '../../../../../../packages/store/index.js';
 import { loadConfig } from '../../../../../../packages/config/index.js';
 import { Refused } from '../../../../../../packages/kernel/light.js';
 import { lex } from '../../../../../../packages/kernel/light.js';
-import { runnerControllerCallees } from '../../../fixtures/runner/machine.js';
-import { assertRunnerControllerReachability } from '../../../fixtures/runner/machine.js';
 
 const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE UNKNOWN_SPEC'.split(' ');
 /**
@@ -51,7 +49,7 @@ const ENTRY_POINTS = [
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 /** Runner refusals reach lifecycle checks through these package and worker entry points. */
 const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/io/slot.js', '../packages/runners/src/io/result.js',
-  '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
+  '../apps/runner/src/io/worker/entry.js'];
 // The pulled gate runs the doctrine hold through injected runner services (apps/cli/src/io/runner/handoff/services.js), which a static walk cannot follow [#6807].
 // The same services hand the gate its cell checks (requireSubmitCells), which read the cell plan and raise its refusals.
 const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js', '../apps/cli/src/io/cells-submit-checks.js'];
@@ -324,7 +322,7 @@ function codeWalk(read, { caught = false, decision = null } = {}) {
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? callbacks?.[callee])),
         ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : callbacks?.[`${space}.${callee}`])),
       ];
-      callees.push(...runnerControllerCallees(file, body, source), ...lazyCallees(file, body, source), ...injectedCallees(file, body, load));
+      callees.push(...lazyCallees(file, body, source), ...injectedCallees(file, body, load));
       facts = { codes, callees };
       localFacts.set(key, facts);
       if (shared) {
@@ -676,10 +674,6 @@ test('cli.journeys-verify-machine-walk.bootstrap-refusals-remain-visible-on-thei
   const walk = codeWalk(source, { caught: true });
   assert.ok(walk.refusalsOf('../packages/store/index.js#recordSpecApprovalBaseline').has('BOOTSTRAP_PROBE'));
   assert.ok(!walk.refusalsOf('../apps/cli/src/io/claim.js#ordered').has('BOOTSTRAP_PROBE'));
-});
-
-test('cli.journeys-verify-machine-walk.same-file-runner-controller-bridges-retain: same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
-  assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
 
 test('cli.journeys-verify-machine-walk.rigor-historical-data-boundaries-do-not: Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
