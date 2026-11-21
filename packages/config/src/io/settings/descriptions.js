@@ -231,7 +231,7 @@ const ROWS = [
   // This repo: Project
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
-  ['inbox.batchedMarks', 'Batch inbox marks', 'Off (default) writes each inbox delivery mark as the inbox is read. On queues the marks and writes them in one batch.', 'Project', 'on/off'],
+  ['inbox.batchedMarks', 'Batch inbox marks', 'On (default) queues inbox delivery marks and writes them in one batch. Off writes each mark as the inbox is read.', 'Project', 'on/off'],
   ['inbox.tokenBudget', 'Inbox size', 'The most an inbox response may hold, in bytes of text.', 'Project', 'bytes'],
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],

@@ -90,8 +90,8 @@ export function defaults() {
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7, plan: null },
     agents: { names: 'suffix' },
-    // Off by default: inbox.batchedMarks queues inbox delivery marks for one batched write instead of writing each inline [C7].
-    inbox: { tokenBudget: 8192, batchedMarks: false },
+    // On by default: inbox.batchedMarks queues inbox delivery marks for one batched write instead of writing each inline [C7].
+    inbox: { tokenBudget: 8192, batchedMarks: true },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, returnToBoard: false, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
     // On by default: laneMode off is the switch slices 2 and 3 of #2830 read; the "lanes" key stays the lane map [C7].
@@ -316,7 +316,7 @@ export function configProblems(config, root) {
     problems.push('"inbox.tokenBudget" is a whole number of at least 1024 UTF-8 bytes; 8192 by default');
   }
   if (config.inbox?.escalateAfterMinutes !== undefined && (!Number.isSafeInteger(config.inbox.escalateAfterMinutes) || config.inbox.escalateAfterMinutes < 1)) problems.push('"inbox.escalateAfterMinutes" is a whole number of minutes, off by default; with inbox.keepUntilActed on, an entry unacted this long goes to the coordinator, and twice as long to the person');
-  if (config.inbox?.batchedMarks !== undefined && typeof config.inbox.batchedMarks !== 'boolean') problems.push('"inbox.batchedMarks" is true or false, off by default; true queues inbox delivery marks for one batched write');
+  if (config.inbox?.batchedMarks !== undefined && typeof config.inbox.batchedMarks !== 'boolean') problems.push('"inbox.batchedMarks" is true or false, on by default; false writes inbox delivery marks inline');
   if (config.inbox?.keepUntilActed !== undefined && typeof config.inbox.keepUntilActed !== 'boolean') problems.push('"inbox.keepUntilActed" is a boolean, off by default; true keeps each inbox entry listed until an action its kind allows is recorded');
   if (typeof config.itemBuildBudgetMinutes !== 'number' || !Number.isFinite(config.itemBuildBudgetMinutes) || config.itemBuildBudgetMinutes <= 0) {
     problems.push('"itemBuildBudgetMinutes" is positive finite minutes; 30 by default');
