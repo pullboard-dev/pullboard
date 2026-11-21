@@ -5,6 +5,12 @@ import {
 import {
   createHash,
 } from 'node:crypto';
+import {
+  dirname,
+  isAbsolute,
+  join,
+  resolve,
+} from 'node:path';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   configFromSource,
@@ -68,6 +74,60 @@ export { trunkRef } from '../../../../../git/light.js';
 const POLICY_SOURCES = new Map();
 const POLICY_SOURCE_LIMIT = 64;
 
+const POLICY_CACHE_FILE = 'pullboard-policy-cache.json';
+const COMMIT_ID = /^[0-9a-f]{40,64}$/u;
+
+/** This checkout's Git dirs and HEAD commit from Git's own files, or null when only Git can answer; no Git child runs [C7]. */
+function checkoutHeads(root) {
+  try {
+    let top = resolve(root);
+    while (!fs.exists(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return null; top = parent; }
+    const marker = join(top, '.git');
+    let gitDir = marker;
+    if (!fs.stat(marker).isDirectory()) {
+      const match = /^gitdir:\s*(.+)$/u.exec(fs.readFile(marker).trim());
+      if (!match) return null;
+      gitDir = isAbsolute(match[1].trim()) ? match[1].trim() : resolve(top, match[1].trim());
+    }
+    const commonFile = join(gitDir, 'commondir');
+    const commonDir = fs.exists(commonFile) ? resolve(gitDir, fs.readFile(commonFile).trim()) : gitDir;
+    if (fs.exists(join(commonDir, 'reftable'))) return null;
+    const head = fs.readFile(join(gitDir, 'HEAD')).trim();
+    if (COMMIT_ID.test(head)) return { commonDir, head };
+    if (!head.startsWith('ref: refs/')) return null;
+    const ref = head.slice('ref: '.length);
+    const loose = join(commonDir, ref);
+    let value;
+    if (fs.exists(loose)) value = fs.readFile(loose).trim();
+    else {
+      const packed = fs.exists(join(commonDir, 'packed-refs')) ? fs.readFile(join(commonDir, 'packed-refs')).split('\n') : [];
+      const line = packed.find(row => row.endsWith(` ${ref}`) && !row.startsWith('#') && !row.startsWith('^'));
+      value = line ? line.slice(0, line.indexOf(' ')) : '';
+    }
+    return COMMIT_ID.test(value) ? { commonDir, head: value } : null;
+  } catch { return null; }
+}
+
+/** The committed policy bytes a past process kept in the Git common dir for this exact main tip and HEAD, or null. */
+function cachedPolicySource(heads, commit) {
+  if (!heads) return null;
+  try {
+    const record = JSON.parse(fs.readFile(join(heads.commonDir, POLICY_CACHE_FILE)));
+    return record.main === commit && record.head === heads.head && typeof record.source === 'string' ? record.source : null;
+  } catch { return null; }
+}
+
+/** Keep the policy bytes for this main tip and HEAD, replacing any older pair; a failed write only loses the cache. */
+function keepPolicySource(heads, commit, source) {
+  if (!heads) return;
+  const file = join(heads.commonDir, POLICY_CACHE_FILE);
+  const temporary = `${file}.${process.pid}.tmp`;
+  try {
+    fs.writeFile(temporary, JSON.stringify({ main: commit, head: heads.head, source }));
+    fs.rename(temporary, file);
+  } catch { try { fs.rm(temporary, { force: true }); } catch { /* the cache is optional */ } }
+}
+
 /** Re-read coordinator settings from a pinned Git object; never from the candidate filesystem. */
 export function policyAt(root, commit) {
   if (!/^[0-9a-f]{40,64}$/.test(commit ?? '')) throw new Refused('NO_POLICY', 'this item has no recorded claim base; ask the coordinator to refreeze it and claim it again');
@@ -77,7 +137,13 @@ export function policyAt(root, commit) {
   if (source === undefined) {
     // Bytes hashing to the blob identity this command already learned are the committed bytes, with no Git child [C7].
     const spec = commit + ':pullboard.json';
-    source = pinnedSpecText(root, spec) ?? policyGit(root, ['show', spec]);
+    source = pinnedSpecText(root, spec);
+    if (source === null || source === undefined) {
+      // Another command already read this main tip at this HEAD: its bytes are the commit's, so no Git child runs [C7].
+      const heads = checkoutHeads(root);
+      source = cachedPolicySource(heads, commit);
+      if (source === null) { source = policyGit(root, ['show', spec]); keepPolicySource(heads, commit, source); }
+    }
     POLICY_SOURCES.set(key, source);
     if (POLICY_SOURCES.size > POLICY_SOURCE_LIMIT) POLICY_SOURCES.delete(POLICY_SOURCES.keys().next().value);
   }
