@@ -574,7 +574,7 @@ function render({ tab: switching = false } = {}) {
     if (kept && (kept.loading || Date.now() - kept.at < 30_000)) return kept.strip;
     const entry = { loading: true, at: Date.now(), strip: kept?.strip ?? null };
     itemTimelines.set(key, entry);
-    api('/item-timeline/' + encodeURIComponent(String(item.id))).then((reply) => { entry.strip = reply; }, () => {}).finally(() => {
+    api('/item-timeline/' + encodeURIComponent(String(item.id)) + '?root=' + encodeURIComponent(view.root || '')).then((reply) => { entry.strip = reply; }, () => {}).finally(() => {
       entry.loading = false; entry.at = Date.now();
       if (entry.strip && view.item === item.id && key === view.root + '\\n' + item.id) render();
     });

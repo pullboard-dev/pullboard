@@ -116,8 +116,8 @@ test('cli.stable.journey-local-duplicate-id: clause 2: [C7,U148] a test id recor
 });
 
 test('cli.stable.journeys-registered: clause 2: [C7,U148] every test under the journeys add, agents, baseline, blueprint, cells, claim, companion and decisions folders has a registered cli.<area>.<slug> title ID', () => {
-  // The claim policy chaos case keeps its record in the registry of the item that added it (#5705).
-  const records = Object.assign({}, ...['registry-10541.json', 'registry-5705.json'].map(name => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
+  // The claim policy chaos case keeps its record in the registry of the item that added it (#5705, #12564).
+  const records = Object.assign({}, ...['registry-10541.json', 'registry-5705.json', 'registry-12564.json'].map(name => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   // #12243 moved decisions/project and agents/takeover-model under tests/io/commands; #12246 moved companion/review there too.
   const moved = ['agents/takeover-model.test.js', 'companion/review.test.js', 'decisions/project.test.js'].map((name) => join(DIR, 'io', 'commands', name));
@@ -127,7 +127,7 @@ test('cli.stable.journeys-registered: clause 2: [C7,U148] every test under the j
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
       assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
-      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10541.json or registry-5705.json`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10541.json, registry-5705.json or registry-12564.json`);
     }
   }
 });
@@ -168,8 +168,35 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: init/perf.test.js, init/perf/tab-speed-rows-ceiling.test.js.
   const viewOwned = new Set(['init/perf.test.js', 'init/perf/tab-speed-rows-ceiling.test.js', 'init/perf/tab-speed-spec.test.js']);
+  // #12248 moved these journeys under tests/io; they keep their IDs and records and are still checked here.
+  const moved = [
+    join(DIR, 'io', 'commands', 'land', 'batch-forms.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'hand-refusals.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'hand.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'junit-report.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'main-no-remote.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'noop.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'parallel-push.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'pipeline.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'runner-compose.test.js'),
+    join(DIR, 'io', 'commands', 'land', 'self-check.test.js'),
+    join(DIR, 'io', 'commands', 'lanes', 'main.test.js'),
+    join(DIR, 'io', 'init', 'agents-cells.test.js'),
+    join(DIR, 'io', 'init', 'boundary.test.js'),
+    join(DIR, 'io', 'init', 'codex-automation.test.js'),
+    join(DIR, 'io', 'init', 'defaults.test.js'),
+    join(DIR, 'io', 'init', 'docs-regenerate.test.js'),
+    join(DIR, 'io', 'init', 'gate-set.test.js'),
+    join(DIR, 'io', 'init', 'ignore-rules.test.js'),
+    join(DIR, 'io', 'init', 'ignore.test.js'),
+    join(DIR, 'io', 'init', 'permissions.test.js'),
+    join(DIR, 'io', 'init', 'practice.test.js'),
+    join(DIR, 'io', 'init', 'testkit.test.js'),
+  ];
+  const areaOf = (path) => path.includes('/io/init/') ? 'init' : path.split('/commands/')[1]?.split('/')[0];
   for (const area of ['init', 'land', 'lanes', 'languages', 'list', 'log', 'mcp']) {
-    for (const file of testFiles(join(journeys, area))) {
+    // An area whose journeys all moved into tests/io leaves no folder; the moved files stay checked through the list above.
+    for (const file of [...(existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : []), ...moved.filter((path) => areaOf(path) === area)]) {
       if (viewOwned.has(file.slice(journeys.length + 1))) continue;
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);

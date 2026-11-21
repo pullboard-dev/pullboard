@@ -56,10 +56,10 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/activity/src/io/inbox.js#diffTreePaths': 'state read diffs a claim worktree tree with synchronous git',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
   'apps/view/src/io/state.js#computeRowAges': 'projectState, a view port, reads each spec row age through synchronous git',
-  'packages/git/src/io/main.js#bareWorktreeFinding': 'state read lists a claim worktree folder with a synchronous directory read',
   'packages/git/src/io/main.js#readMainCheckout': 'merge-only submit reads the main checkout with synchronous git',
   'packages/git/src/io/main.js#gitCall': 'merge-only submit runs git through a synchronous helper',
   'packages/git/src/io/main.js#worktreeStatus': 'state read asks git for each claim worktree status',
+  'packages/git/src/io/main.js#bareWorktreeFinding': 'state read lists a claim worktree folder with a synchronous directory read',
   'packages/git/src/io/main.js#git': 'gate-receipt submit finds an item folder through a synchronous git helper',
   'packages/git/src/io/main.js#rawGit': 'code viewer request resolves a commit through a synchronous git helper',
   'packages/git/src/io/main.js#prefetchedShow': 'code viewer request reads a blob through a synchronous git helper',
@@ -83,6 +83,14 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/verify/src/io/verdict/freshness.js#composesUnchanged': 'verdict freshness compares composes with synchronous git',
   'packages/verify/src/io/verdict/freshness.js#verdictProjector': 'verdict projection asks git for ancestry synchronously',
   'packages/verify/src/io/verdict/freshness.js#ancestryStatus': 'verdict ancestry check runs synchronous git',
+  'apps/relay/src/io/retention.js#createRelayRetention': 'relay retention lists its backup folder with a synchronous directory read through the fs adapter',
+  'apps/relay/src/io/retention.js#backupFiles': 'relay retention lists its backup folder with a synchronous directory read through the fs adapter',
+  'packages/keys/src/io/relay.js#scrubLegacyPersonSessions': 'relay move lists legacy person session files with a synchronous directory read through the fs adapter',
+  'packages/link/src/io/relay/lock.js#locked': 'relay lock lists its lock folder with a synchronous directory read through the fs adapter',
+  'packages/link/src/io/relay/machine.js#readRelayMachine': 'relay machine read lists its folder with a synchronous directory read through the fs adapter',
+  'packages/link/src/io/relay/machine.js#updateRelayMachine': 'relay machine update lists its folder with a synchronous directory read through the fs adapter',
+  'packages/store/src/io/board/submit.js#recordedBaseRows': 'submit lists recorded base rows with a synchronous directory read through the fs adapter',
+  'packages/store/src/io/board/write/lock.js#boardWriteHolderText': 'busy-board error text lists lock holders with a synchronous directory read through the fs adapter',
   ...EXTRA_REQUEST_BLOCKERS,
 });
 
@@ -133,6 +141,10 @@ export function apiRequestIoProblems(sources, { known = BASE_REQUEST_BLOCKERS, e
     const model = modules.get(file), fn = model?.functions.get(name);
     if (!fn) return;
     const body = model.code.slice(fn.bodyStart, fn.end), base = model.source.slice(0, fn.bodyStart).split('\n').length;
+    for (const at of adapterLists(model, body)) {
+      const line = base + body.slice(0, at).split('\n').length - 1;
+      found.set(key + ':node:fs#readdirSync', { file, line, call: 'node:fs#readdirSync', owner: key, chain: [...chain, key] });
+    }
     for (const call of calls(body)) for (const target of call.name === 'Atomics.wait' && !model.imports.has('Atomics') ? [ATOMICS_WAIT] : targets(file, call.name)) {
       const id = (target.builtin ?? target.file) + '#' + target.name;
       if (BLOCKING.test(id)) {
@@ -172,4 +184,17 @@ function calls(code) {
   return [...code.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*(?:\?\.)?\(/gu)]
     .filter(match => !/\bfunction\s*$/u.test(code.slice(Math.max(0, match.index - 20), match.index)))
     .map(match => ({ name: match[1], at: match.index }));
+}
+
+/**
+ * Offsets of directory listings made through the file-system adapter: `list` on a binding made from `fileSystemAdapter()`,
+ * or on the call itself. The adapter's `list` is `readdirSync`, so the scan counts it the same [C7].
+ */
+function adapterLists(model, body) {
+  const locals = [...model.imports].filter(([, binding]) => binding.imported === 'fileSystemAdapter').map(([local]) => local);
+  if (!locals.length) return [];
+  const names = [...model.code.matchAll(new RegExp(`\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(?:${locals.join('|')})\\s*\\(`, 'gu'))].map(row => row[1]);
+  const direct = `(?:${locals.join('|')})\\s*\\([^()]*\\)`;
+  const bound = names.length ? `|(?<![\\w$.])(?:${names.join('|')})` : '';
+  return [...body.matchAll(new RegExp(`(?:${direct}${bound})\\s*\\.\\s*list\\s*\\(`, 'gu'))].map(row => row.index);
 }

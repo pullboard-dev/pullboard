@@ -144,6 +144,9 @@ export async function serveHere(io, values) {
   const ctx = context(io);
   traceServeStartup('serve-context-ready');
   const mainRoot = git(ctx.info.root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
+  // Workers inherit this process's cwd. Resolve the served board from the launch inputs first, then pin to its
+  // primary repository before creating workers so a removed launch directory cannot break them.
+  process.chdir(mainRoot);
   traceServeStartup('serve-registration-start');
   await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io, undefined, projectLinkPorts(io));
   traceServeStartup('serve-registration-ready');
@@ -176,7 +179,7 @@ export async function serveHere(io, values) {
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
   // The stop rules load once, here where the code is async; the sync state builder takes them as an option [C7,#11668].
   const stopRules = await loadStopRules();
-  const listening = await catchListeners(() => serveApi({ stopRules, viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument, pullRoute: pullRoute ?? undefined,
+  const listening = await catchListeners(() => serveApi({ stopRules, viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, workerCwd: mainRoot, refusalDocument, pullRoute: pullRoute ?? undefined,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog, gateMaintenanceBeat: startBeat }));
   const api = listening.value;
@@ -202,7 +205,7 @@ export async function serveHere(io, values) {
   const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), handoff: socket !== null, trial,
     close: socket !== null ? () => listening.drain(api.port).then(api.close) : api.close,
     affects: servedModuleMoved({ root: CODE_ROOT, entries: [join(CODE_ROOT, 'apps/cli/pullboard.js'), fileURLToPath(import.meta.url)] }), log: (line) => process.stderr.write(`${line}; the new process logs to ${log}\n`),
-    relaunch: () => socket !== null ? spawnOnSocket(process.execPath, sameServe(api.port), { fd: socket, cwd: process.cwd(), log }) : spawnReachable(process.execPath, sameServe(api.port), { cwd: process.cwd(), log }) });
+    relaunch: () => socket !== null ? spawnOnSocket(process.execPath, sameServe(api.port), serveRestartOptions(socket, log, mainRoot)) : spawnReachable(process.execPath, sameServe(api.port), serveRestartOptions(null, log, mainRoot)) });
   const restarted = await new Promise((stop) => {
     const stopped = (moved) => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(moved === true); };
     process.once('SIGINT', stopped);
@@ -225,6 +228,11 @@ async function newCodeClaims(_to, { db, root, count }) {
 
 /** The checkout this CLI's code runs from. */
 const CODE_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+
+/** The child options for a serve restart, anchored to the served board's primary repository. */
+export function serveRestartOptions(socket, log, mainRoot) {
+  return { ...(socket === null ? {} : { fd: socket }), cwd: mainRoot, log };
+}
 
 /** The commit the CLI's checkout is at, or null outside a Git checkout. */
 function codeCommit() {

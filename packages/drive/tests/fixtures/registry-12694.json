@@ -1,0 +1,32 @@
+{
+  "drive.local-wake.touch-finds-a-runner-under-a-home": {
+    "proves": {
+      "specs": [
+        "P7",
+        "C7"
+      ],
+      "claim": "a wake touch given the PULLBOARD_HOME a local runner started under finds that runner and writes the wake file; one given no home does not"
+    },
+    "why": "The runner's state file is keyed to its home, so a touch that ignored the home never woke a runner the tour started and the wake marker was missing.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/tests/io/local-wake.test.js",
+      "packages/drive/src/io/local.js"
+    ]
+  },
+  "drive.local-wake.idle-is-called-as-a-nap-waits": {
+    "proves": {
+      "specs": [
+        "P7",
+        "C7"
+      ],
+      "claim": "watchWake calls its idle callback when a nap begins to wait, so a runner can tell a caller it is ready for a touch"
+    },
+    "why": "The tour offers its first job only once the demo runner is idle, because a touch that lands while the runner still loads is lost.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/tests/io/local-wake.test.js",
+      "packages/drive/src/io/wake.js"
+    ]
+  }
+}

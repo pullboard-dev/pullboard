@@ -11,14 +11,6 @@ import {
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import {
-  existsSync,
-  lstatSync,
-  readFileSync,
-  readdirSync,
-  realpathSync,
-  statSync,
-} from 'node:fs';
-import {
   basename,
   dirname,
   join,
@@ -27,9 +19,14 @@ import {
   sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { environmentAdapter } from '../../../env/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { Refused } from '../../../kernel/browser.js';
 import { removeGitRepositorySelectors } from '../logic/selectors.js';
 import { localEnvVars } from './env.js';
+
+const environment = environmentAdapter();
+const fs = fileSystemAdapter();
 
 // gc.auto=0: a landing's own commits never start a background repack in its worktree (minutes under the batch) [C7].
 const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0'];
@@ -112,14 +109,14 @@ function isNullDevice(stat, path) {
 /** Return a stable, cheap signature for a path, including file contents against coarse timestamps. */
 function fileSignature(path, includeContents = true) {
   try {
-    const stat = lstatSync(path, { bigint: true });
+    const stat = fs.lstat(path, { bigint: true });
     const nullDevice = isNullDevice(stat, path);
     let target = null;
     let targetIsFile = false;
     if (stat.isSymbolicLink()) {
       try {
-        const followed = statSync(path, { bigint: true });
-        const targetPath = realpathSync.native(path);
+        const followed = fs.stat(path, { bigint: true });
+        const targetPath = fs.realpathNative(path);
         const targetIsNullDevice = isNullDevice(followed, targetPath);
         target = [String(followed.dev), String(followed.ino), String(followed.mode), String(followed.size),
           targetIsNullDevice ? null : String(followed.mtimeNs), targetIsNullDevice ? null : String(followed.ctimeNs)];
@@ -129,7 +126,7 @@ function fileSignature(path, includeContents = true) {
       }
     }
     let contents = null;
-    if (includeContents && (stat.isFile() || targetIsFile)) contents = readFileSync(path, 'utf8');
+    if (includeContents && (stat.isFile() || targetIsFile)) contents = fs.readFile(path, 'utf8');
     // /dev/null's device timestamps advance on reads; its stable identity is enough for config context.
     return [String(stat.dev), String(stat.ino), String(stat.mode), String(stat.size),
       nullDevice ? null : String(stat.mtimeNs), nullDevice ? null : String(stat.ctimeNs), contents, target];
@@ -142,7 +139,7 @@ function fileSignature(path, includeContents = true) {
 /** Refuse caching for config includes or any explicit ref backend selection this signature cannot track. */
 function configNeedsFallback(path, { attribution = false } = {}) {
   try {
-    const source = readFileSync(path, 'utf8');
+    const source = fs.readFile(path, 'utf8');
     return /^\s*\[\s*include(?:if\b|[\s\]])/imu.test(source)
       || /(?:^|\])\s*refstorage\s*=/imu.test(source)
       || (attribution && (/^\s*\[\s*(?:blame|mailmap|filter|diff)(?:\s|\])/imu.test(source)
@@ -159,7 +156,7 @@ function configNeedsFallback(path, { attribution = false } = {}) {
  */
 function repositorySignature(cwd, info = null, includeHead = false, { attribution = false, directories = true } = {}) {
   const markers = [];
-  try { markers.push(['physical-cwd', realpathSync.native(cwd)]); }
+  try { markers.push(['physical-cwd', fs.realpathNative(cwd)]); }
   catch (error) { markers.push(['physical-cwd', error.code ?? 'ERROR']); }
   let folder = resolve(cwd);
   let discoveredGitDir = null;
@@ -177,11 +174,11 @@ function repositorySignature(cwd, info = null, includeHead = false, { attributio
       } else {
         let isDirectory = marker[2] && (BigInt(marker[2]) & 0o170000n) === 0o040000n;
         if (!isDirectory) {
-          try { isDirectory = statSync(markerPath).isDirectory(); } catch { /* Git reports malformed or missing metadata. */ }
+          try { isDirectory = fs.stat(markerPath).isDirectory(); } catch { /* Git reports malformed or missing metadata. */ }
         }
         if (isDirectory) {
           try {
-            discoveredGitDir = realpathSync.native(markerPath);
+            discoveredGitDir = fs.realpathNative(markerPath);
             discoveredCommonDir = discoveredGitDir;
           } catch {
             discoveredGitDir = null;
@@ -191,10 +188,10 @@ function repositorySignature(cwd, info = null, includeHead = false, { attributio
           const pointer = /^gitdir: (.+)\n?$/u.exec(marker[6]);
           if (pointer) {
             try {
-              discoveredGitDir = realpathSync.native(resolve(folder, pointer[1]));
+              discoveredGitDir = fs.realpathNative(resolve(folder, pointer[1]));
               const common = fileSignature(join(discoveredGitDir, 'commondir'));
               discoveredCommonDir = common?.[6]
-                ? realpathSync.native(resolve(discoveredGitDir, common[6].trim()))
+                ? fs.realpathNative(resolve(discoveredGitDir, common[6].trim()))
                 : discoveredGitDir;
             } catch {
               // Let Git's normal reader report malformed or inaccessible worktree metadata.
@@ -238,7 +235,8 @@ function repositorySignature(cwd, info = null, includeHead = false, { attributio
     }
   }
   if (attribution) {
-    const index = process.env.GIT_INDEX_FILE ? resolve(cwd, process.env.GIT_INDEX_FILE) : join(gitDir, 'index');
+    const indexFile = environment.get('GIT_INDEX_FILE');
+    const index = indexFile ? resolve(cwd, indexFile) : join(gitDir, 'index');
     markers.push([index, fileSignature(index, false)]);
     for (const path of [join(commonDir, 'shallow'), join(commonDir, 'info', 'grafts'), join(commonDir, 'info', 'attributes')]) {
       markers.push([path, fileSignature(path)]);
@@ -263,7 +261,7 @@ function safeConfigOverrides(env, count) {
  * Whether Git run with this process's environment sees the same repository and refs as with a clean one: nothing
  * selects another repository, object store or configuration, and config overrides are housekeeping only.
  */
-function plainRepositoryEnvironment(env = process.env) {
+function plainRepositoryEnvironment(env = environment.all()) {
   if (INHERITED_SELECTORS.some((key) => !['GIT_CONFIG_COUNT', 'GIT_INDEX_FILE', 'GIT_PREFIX'].includes(key) && env[key] !== undefined)) return false;
   const count = env.GIT_CONFIG_COUNT === undefined ? 0 : Number(env.GIT_CONFIG_COUNT);
   return Number.isSafeInteger(count) && count >= 0 && count <= 16 && safeConfigOverrides(env, count);
@@ -271,7 +269,7 @@ function plainRepositoryEnvironment(env = process.env) {
 
 /** Describe relevant Git environment/config so harmless process settings can still share read facts. */
 function readCacheContext({ attribution = false } = {}) {
-  const env = process.env;
+  const env = environment.all();
   if (attribution && (env.GIT_NAMESPACE || Object.keys(env).some(name => name.startsWith('GIT_ATTR_')))) return null;
   const discoverySelectors = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_CEILING_DIRECTORIES',
     'GIT_DISCOVERY_ACROSS_FILESYSTEM', 'GIT_IMPLICIT_WORK_TREE', 'GIT_OBJECT_DIRECTORY',
@@ -415,7 +413,7 @@ export function gitConfig(root, key, { local = false, clean = false, flags = tru
   const args = [...(noReplace ? ['--no-replace-objects'] : []), ...(flags ? GIT_FLAGS : []), 'config', ...(local ? ['--local'] : []), '--get', key];
   const cacheKey = JSON.stringify(['config', resolve(root), args, clean]);
   return fact(cacheKey, () => {
-    const result = gitSpawnSync(args, { cwd: root, env: clean ? cleanGitEnvironment() : process.env, encoding: 'utf8' });
+    const result = gitSpawnSync(args, { cwd: root, env: clean ? cleanGitEnvironment() : environment.all(), encoding: 'utf8' });
     return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim() };
   });
 }
@@ -437,7 +435,7 @@ function changesGitFacts(args) {
  * @returns {NodeJS.ProcessEnv}
  */
 export function cleanGitEnvironment() {
-  const env = { ...process.env };
+  const env = environment.all();
   for (const key of INHERITED_SELECTORS) delete env[key];
   delete env.GIT_NO_REPLACE_OBJECTS;
   for (const key of Object.keys(env)) if (/^GIT_CONFIG_(?:KEY|VALUE)_/.test(key)) delete env[key];
@@ -495,17 +493,17 @@ function fileLocation(root, { clean = false } = {}) {
   if (!clean && !plainRepositoryEnvironment()) return undefined;
   try {
     let top = resolve(root);
-    while (!existsSync(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
+    while (!fs.exists(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
     const marker = join(top, '.git');
     let gitDir = marker;
-    if (!statSync(marker).isDirectory()) {
-      const match = /^gitdir:\s*(.+)$/u.exec(readFileSync(marker, 'utf8').trim());
+    if (!fs.stat(marker).isDirectory()) {
+      const match = /^gitdir:\s*(.+)$/u.exec(fs.readFile(marker, 'utf8').trim());
       if (!match) return undefined;
       gitDir = resolve(top, match[1].trim());
     }
     const commonFile = join(gitDir, 'commondir');
-    const commonDir = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
-    if (existsSync(join(commonDir, 'reftable'))) return undefined;
+    const commonDir = fs.exists(commonFile) ? resolve(gitDir, fs.readFile(commonFile, 'utf8').trim()) : gitDir;
+    if (fs.exists(join(commonDir, 'reftable'))) return undefined;
     return { gitDir, commonDir };
   } catch { return undefined; }
 }
@@ -513,7 +511,7 @@ function fileLocation(root, { clean = false } = {}) {
 /** Read a HEAD file: its symbolic ref, or null when detached; undefined when the file is not a plain HEAD. */
 function fileHeadRef(gitDir) {
   try {
-    const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim();
+    const head = fs.readFile(join(gitDir, 'HEAD'), 'utf8').trim();
     if (head.startsWith('ref: refs/')) return head.slice('ref: '.length);
     return OBJECT_ID.test(head) ? null : undefined;
   } catch { return undefined; }
@@ -523,10 +521,10 @@ function fileHeadRef(gitDir) {
 function fileRefCommit(commonDir, ref) {
   try {
     const loose = join(commonDir, ref);
-    if (existsSync(loose)) { const value = readFileSync(loose, 'utf8').trim(); return OBJECT_ID.test(value) ? value : undefined; }
+    if (fs.exists(loose)) { const value = fs.readFile(loose, 'utf8').trim(); return OBJECT_ID.test(value) ? value : undefined; }
     const packed = join(commonDir, 'packed-refs');
-    if (!existsSync(packed)) return null;
-    const line = readFileSync(packed, 'utf8').split('\n').find(row => row.endsWith(` ${ref}`) && !row.startsWith('#') && !row.startsWith('^'));
+    if (!fs.exists(packed)) return null;
+    const line = fs.readFile(packed, 'utf8').split('\n').find(row => row.endsWith(` ${ref}`) && !row.startsWith('#') && !row.startsWith('^'));
     if (!line) return null;
     const value = line.slice(0, line.indexOf(' '));
     return OBJECT_ID.test(value) ? value : undefined;
@@ -566,7 +564,7 @@ export function checkoutBranch(root) {
  * @param {{ env?: NodeJS.ProcessEnv }} [options]
  * @returns {string | null}
  */
-export function checkoutCommonDir(root, { env = process.env } = {}) {
+export function checkoutCommonDir(root, { env } = {}) {
   const location = fileLocation(root);
   if (location) return location.commonDir;
   const result = tryGit(root, ['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { env });
@@ -585,9 +583,20 @@ export function checkoutHead(root) {
   const ref = fileHeadRef(location.gitDir);
   if (ref === undefined) return undefined;
   if (ref === null) {
-    try { return readFileSync(join(location.gitDir, 'HEAD'), 'utf8').trim(); } catch { return undefined; }
+    try { return fs.readFile(join(location.gitDir, 'HEAD'), 'utf8').trim(); } catch { return undefined; }
   }
   return fileRefCommit(location.commonDir, ref) ?? undefined;
+}
+
+/**
+ * A checkout's index file, found from its .git marker without launching Git, or undefined when the layout is not a plain one.
+ *
+ * @param {string} root
+ * @returns {string | undefined}
+ */
+export function checkoutIndexFile(root) {
+  const location = fileLocation(root);
+  return location ? join(location.gitDir, 'index') : undefined;
 }
 
 /**
@@ -648,7 +657,7 @@ const CODE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'
  * @returns {NodeJS.ProcessEnv}
  */
 export function gitChildEnv(root, { env: extra = {}, report = null } = {}) {
-  const env = { ...process.env, ...extra };
+  const env = { ...environment.all(), ...extra };
   removeGitRepositorySelectors(env, report);
   const discoveryEnv = { ...env };
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR']) delete discoveryEnv[name];
@@ -688,7 +697,7 @@ function memoKey(kind, cwd, args, maxBuffer, env) {
   const [command] = words;
   // The worktree list is asked from many modules and environments; one answer serves all of them [C7].
   const listing = command === 'worktree' && words[1] === 'list';
-  if (commandMemo === null || (env !== process.env && !listing)) return null;
+  if (commandMemo === null || (env !== undefined && !listing)) return null;
   const reads = listing || ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
     || (command === 'diff' && !args.includes('--output'))
     || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
@@ -774,7 +783,7 @@ function rememberObjectRead(key, value, size) {
  * @param {{ maxBuffer?: number, env?: NodeJS.ProcessEnv }} [options] - Bound output captures for callers parsing larger diffs.
  * @returns {string}
  */
-export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
+export function git(cwd, args, { maxBuffer, env } = {}) {
   // A worktree list is one memoized answer for every caller, trimmed here as this function does [C7].
   if (commandMemo !== null && memoKey('git', cwd, args, maxBuffer, env)?.startsWith('["wt-')) {
     const listed = rawGit(cwd, args, env);
@@ -783,12 +792,12 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
   const key = memoKey('git', cwd, args, maxBuffer, env);
   if (key !== null && commandMemo.has(key)) return commandMemo.get(key);
   noteMemoCall(key, args);
-  const objectKey = objectReadKey('git', cwd, args, env);
+  const objectKey = objectReadKey('git', cwd, args, env ?? environment.all());
   if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
   try {
     const output = gitExecFileSync([...GIT_FLAGS, ...args], {
       cwd,
-      env,
+      env: env ?? environment.all(),
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       ...(maxBuffer === undefined ? {} : { maxBuffer }),
@@ -808,7 +817,7 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
  * @param {string[]} args
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
-export function tryGit(cwd, args, { env = process.env } = {}) {
+export function tryGit(cwd, args, { env } = {}) {
   const raw = rawGit(cwd, args, env);
   return { status: raw.status, stdout: raw.stdout.trim(), stderr: raw.stderr.trim() };
 }
@@ -825,9 +834,9 @@ function rawGit(cwd, args, env) {
     commandMemo.set(key, outcome);
     return outcome;
   }
-  const objectKey = objectReadKey('raw', cwd, args, env);
+  const objectKey = objectReadKey('raw', cwd, args, env ?? environment.all());
   if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
-  const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
+  const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env: env ?? environment.all(), encoding: 'utf8' });
   if (changesGitFacts(args)) forgetAfterWrite();
   const outcome = { status: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
   if (key !== null) commandMemo.set(key, outcome);
@@ -844,7 +853,7 @@ export function pinnedWorkingText(cwd, revision, file) {
   const oid = blobs && blobs.commit === revision ? (file.endsWith('.json') ? blobs.config : file === 'DOCTRINE.md' ? blobs.doctrine : null) : null;
   if (!oid) return null;
   try {
-    const bytes = readFileSync(join(cwd, file));
+    const bytes = fs.readFile(join(cwd, file), null);
     const hash = createHash(oid.length === 64 ? 'sha256' : 'sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
     return hash === oid ? bytes.toString('utf8') : null;
   } catch { return null; }
@@ -868,7 +877,7 @@ export function pinnedSpecText(cwd, spec) {
 export function gitShowText(cwd, revision, file) {
   const same = pinnedWorkingText(cwd, revision, file);
   if (same !== null) return same;
-  const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
+  const raw = rawGit(cwd, ['show', `${revision}:${file}`]);
   return raw.status === 0 ? raw.stdout : null;
 }
 
@@ -935,10 +944,10 @@ export function bareWorktreeFinding(cwd) {
   let root = resolve(cwd);
   while (true) {
     const gitDir = join(root, '.git');
-    if (existsSync(gitDir)) {
+    if (fs.exists(gitDir)) {
       try {
-        if (!statSync(gitDir).isDirectory()) return null;
-        if (readdirSync(root).some((entry) => entry !== '.git')) {
+        if (!fs.stat(gitDir).isDirectory()) return null;
+        if (fs.list(root).some((entry) => entry !== '.git')) {
           const bare = tryGit(root, ['config', '--file', join(gitDir, 'config'), '--bool', '--get', 'core.bare']);
           if (bare.status === 0 && bare.stdout === 'true') {
             const quotedGitDir = `'${gitDir.replaceAll("'", "'\\''")}'`;
@@ -1019,15 +1028,15 @@ function boundedRepoInfo(cwd, { env } = {}) {
  */
 function fileRepoInfo(cwd) {
   try {
-    const here = realpathSync.native(cwd);
+    const here = fs.realpathNative(cwd);
     let top = here;
-    while (!existsSync(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
+    while (!fs.exists(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
     const location = fileLocation(top);
     if (!location) return undefined;
-    const gitDir = realpathSync.native(location.gitDir), commonDir = realpathSync.native(location.commonDir);
+    const gitDir = fs.realpathNative(location.gitDir), commonDir = fs.realpathNative(location.commonDir);
     if (here === gitDir || here.startsWith(gitDir + sep) || here === commonDir || here.startsWith(commonDir + sep)) return undefined;
-    if (existsSync(join(gitDir, 'config.worktree'))) return undefined;
-    const config = readFileSync(join(commonDir, 'config'), 'utf8');
+    if (fs.exists(join(gitDir, 'config.worktree'))) return undefined;
+    const config = fs.readFile(join(commonDir, 'config'), 'utf8');
     if (/^\s*worktree\s*=/imu.test(config) || /^\s*bare\s*=\s*(?:true|yes|on|1)\s*$/imu.test(config)) return undefined;
     const head = checkoutHead(top), main = fileMainCheckout(top);
     if (head === undefined || main === undefined) return undefined;
@@ -1046,8 +1055,8 @@ function fileRepoInfo(cwd) {
  * @param {string} cwd
  * @returns {{ root: string, commonDir: string, gitDir: string, isMain: boolean }}
  */
-function readRepoInfo(cwd, env) {
-  const combined = !env && gitFacts.getStore()?.active && plainRepositoryEnvironment();
+function readRepoInfo(cwd, env, inherit = false) {
+  const combined = !env && !inherit && gitFacts.getStore()?.active && plainRepositoryEnvironment();
   if (combined && !gitFacts.getStore().resumeSources) {
     const files = fileRepoInfo(cwd);
     if (files) return files;
@@ -1064,7 +1073,7 @@ function readRepoInfo(cwd, env) {
     && oid(fields[3]) && oid(fields[4]) && isAbsolute(fields[5]);
   const missingOptional = resumeSources && info.status !== 0 && (fields.length === 7 && fields[6] === optional[0]
     || fields.length === 8 && oid(fields[6]) && fields[7] === optional[1]);
-  if (combined && info.stdout && (!baseValid || info.status !== 0 && !missingOptional)) return readRepoInfo(cwd, process.env);
+  if (combined && info.stdout && (!baseValid || info.status !== 0 && !missingOptional)) return readRepoInfo(cwd, undefined, true);
   if (combined && baseValid) {
     const [root, , , head, commit, hooks] = fields;
     const [config, doctrine] = resumeSources ? fields.slice(6, 8) : [];
@@ -1072,7 +1081,7 @@ function readRepoInfo(cwd, env) {
     const suffixValid = missingOptional || (resumeSources
       ? (fields.length === 8 || fields.length === 9) && oid(config) && oid(doctrine)
       : fields.length === 6 || fields.length === 7) && (branch === undefined || branch.startsWith('refs/'));
-    if (!suffixValid) return readRepoInfo(cwd, process.env);
+    if (!suffixValid) return readRepoInfo(cwd, undefined, true);
     const facts = scopedFacts();
     facts.set(`gitPath:${JSON.stringify([resolve(root), 'hooks', false])}`, resolve(root, hooks));
     facts.set(`headCommit:${resolve(root)}`, head);
@@ -1086,7 +1095,7 @@ function readRepoInfo(cwd, env) {
     throw new Refused('NOT_A_REPO', 'not inside a git work tree; run git init, or cd into a repo');
   }
   const [root, gitDir, commonDir] = fields;
-  return { root, commonDir: canonicalCommonDir(commonDir), gitDir, isMain: realpathSync.native(commonDir) === realpathSync.native(gitDir) };
+  return { root, commonDir: canonicalCommonDir(commonDir), gitDir, isMain: fs.realpathNative(commonDir) === fs.realpathNative(gitDir) };
 }
 
 /** Determine code provenance without letting a caller's active hook redirect Git's repository.
@@ -1105,7 +1114,7 @@ export function codeIsFromMain(root = CODE_ROOT) {
 /** Identify the running source's repository without letting an inherited hook redirect Git. */
 export function codeUsesRepository(commonDir, root = CODE_ROOT) {
   const info = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'], { env: gitChildEnv(root) });
-  return info.status === 0 && realpathSync.native(info.stdout.trim()) === realpathSync.native(commonDir);
+  return info.status === 0 && fs.realpathNative(info.stdout.trim()) === fs.realpathNative(commonDir);
 }
 
 /** Determine whether the code is from its main checkout, retaining the non-repository fallback. */
@@ -1113,20 +1122,20 @@ function readCodeIsFromMain(root) {
   // Git's own files say whether the code's checkout is the main one: there the worktree Git dir is the shared one.
   const location = fileLocation(root, { clean: true });
   if (location) {
-    try { return realpathSync.native(location.commonDir) === realpathSync.native(location.gitDir); } catch { /* Git answers below. */ }
+    try { return fs.realpathNative(location.commonDir) === fs.realpathNative(location.gitDir); } catch { /* Git answers below. */ }
   }
   // The same variables `git rev-parse --local-env-vars` names, cleared without a Git process to ask.
   const env = cleanGitEnvironment();
   const info = tryGit(root, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir'], { env });
   const fields = info.stdout.split('\n');
   if (info.status === 0 && fields.length === 3 && fields.every(Boolean)) {
-    return realpathSync.native(fields[2]) === realpathSync.native(fields[1]);
+    return fs.realpathNative(fields[2]) === fs.realpathNative(fields[1]);
   }
   if (info.status === 0) return repoInfo(root, { env }).isMain;
   let folder = resolve(root);
   while (true) {
     try {
-      lstatSync(join(folder, '.git'));
+      fs.lstat(join(folder, '.git'));
       throw new Refused('UNMERGED_SCHEMA', 'the running code has Git metadata that cannot be read; restore its Git link before retrying, or install a released pullboard outside this checkout');
     } catch (error) {
       if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
@@ -1151,7 +1160,7 @@ function readCodeIsFromMain(root) {
 export function localConfigIs(root, section, key, value) {
   if (!/^[\w./-]+$/u.test(value) || !plainRepositoryEnvironment()) return false;
   let text;
-  try { text = readFileSync(join(repoInfo(root).commonDir, 'config'), 'utf8'); }
+  try { text = fs.readFile(join(repoInfo(root).commonDir, 'config'), 'utf8'); }
   catch { return false; }
   if (/^\s*\[\s*include/imu.test(text) || /\\\r?$/mu.test(text)) return false;
   let inSection = false;
@@ -1173,7 +1182,7 @@ export function plainLocalConfigValue(root, section, key) {
   const location = fileLocation(root, { clean: true });
   if (!location) return undefined;
   let text;
-  try { text = readFileSync(join(location.commonDir, 'config'), 'utf8'); }
+  try { text = fs.readFile(join(location.commonDir, 'config'), 'utf8'); }
   catch { return undefined; }
   if (/^\s*\[\s*include/imu.test(text) || /\\\r?$/mu.test(text)) return undefined;
   let inSection = false, hasSection = false;
@@ -1335,5 +1344,5 @@ export function gitPath(root, name, { files = false } = {}) {
 /** Refuse lane-sensitive history checks while grafts can rewrite commit ancestry despite replacement guards [L3]. */
 export function refuseGrafts(root) {
   const file = gitPath(root, 'info/grafts');
-  if (existsSync(file)) throw new Refused('GIT_GRAFTS', `lane checks cannot trust history while ${file} exists; ask the coordinator to remove the graft file before retrying`);
+  if (fs.exists(file)) throw new Refused('GIT_GRAFTS', `lane checks cannot trust history while ${file} exists; ask the coordinator to remove the graft file before retrying`);
 }

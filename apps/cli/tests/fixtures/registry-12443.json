@@ -9,7 +9,7 @@
     "why": "Without it, the release median profile names only the browser-slot wrapper, and the next cut has no caller to aim at.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/speed/release-median.test.js"
+      "apps/cli/tests/io/commands/release/median.test.js"
     ]
   }
 }

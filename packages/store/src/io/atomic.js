@@ -1,4 +1,4 @@
-/** The one writer of a state file: whole bytes appear by rename, never half of them; the store owns it, its only user [C7,CD31]. */
+/** The one writer of a state file: whole bytes appear by rename, never half of them; the store owns it, and its front door lends it to a cell's small cache file [C7,CD31,#10859]. */
 import { randomUUID } from 'node:crypto';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';

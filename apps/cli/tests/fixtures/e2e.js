@@ -26,6 +26,7 @@ import { sharedCompileCache } from './sandbox/compile-cache.js';
 import { DatabaseSync } from 'node:sqlite';
 import { request } from 'node:http';
 import { connect } from 'node:net';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
@@ -100,6 +101,15 @@ export function parityRecord({ dir, env, cwd, args, result }) {
   const file = common.status === 0 ? join(common.stdout.trim(), 'pullboard', 'board.sqlite') : null;
   // A command that hands a gate job on finishes its board writes when a runner posts the receipt, at no fixed moment after it
   // returns, so its own record carries no board state; the next call's record compares the settled board instead.
+  // The inbox hands its delivery record to a detached marks worker that lands at no fixed moment, so the board is read once the worker
+  // has drained its spool (bounded; a spool that never drains is read anyway so the comparison fails visibly) [C7].
+  if (file) {
+    const board = dirname(file);
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && existsSync(board) && readdirSync(board).some(name => name.startsWith('pullboard-inbox-marks.jsonl'))) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
   if (file && existsSync(file) && !(result.code === 0 && JOB_OFFERING.has(args[0]))) {
     // @pullboard-board-file journey: a read-only look at the rows the command wrote, for the parity check.
     const db = new DatabaseSync(file, { readOnly: true });
@@ -346,8 +356,10 @@ function sandbox({ declareFamilies = false } = {}) {
   // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const git = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
-  // With test.inProcessHooks on, a plain `commit -m` runs both hooks in this process and answers with a promise; every other call is git as before [C7,#9215].
-  const tryGit = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  // tryGit answers synchronously with real git, so a caller reads `.status` straight away, whatever test.inProcessHooks says [C7,#12653].
+  const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  // With test.inProcessHooks on, a plain `commit -m` runs both hooks in this process and answers with a promise, so only a caller that awaits asks for it [C7,#9215].
+  const tryGitInProcess = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? tryGit(cwd, ...args);
   const declaredFamilies = new Map();
   /** Explicit private vendor labels are fixture data, independent of model and parent identity. */
   const declareFamily = (cwd, family) => {
@@ -405,7 +417,7 @@ function sandbox({ declareFamilies = false } = {}) {
   };
   /** A read of the board that is not the journey's subject, such as the settle wait's poll: in this process, whatever the mode, and recorded nowhere, so the parity call count follows no timing (U149) [C7]. */
   runIn.read = inProcess;
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, tryGitInProcess, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
 }
 
 const CONFIG = {

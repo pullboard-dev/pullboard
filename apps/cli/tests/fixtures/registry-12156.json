@@ -1,0 +1,3 @@
+{
+  "cli.journey.timeline-merged-and-recorded": {"proves":{"specs":["C7"],"claim":"pullboard timeline on a fixture item merged ten minutes after its commit shows merged at the commit time and recorded at the record time."},"why":"Without this case the timeline would keep charging the board's record lag to landing.","kind":"journey","inputs":["apps/cli/src/io/commands/timeline.js","packages/stats/src/logic/timeline.js"]}
+}
