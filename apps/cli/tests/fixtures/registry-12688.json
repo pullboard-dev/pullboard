@@ -1,3 +1,0 @@
-{
-  "cli.journeys-upgrade-previous-release.post-093-columns-are-an-explicit-list": {"proves":{"specs":["I1","R4"],"claim":"Only shout_answered_at holding null may differ from the 0.9.3 record."},"why":"Without it, a regression where an extra column, value or row passes the upgrade comparison would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/upgrade/previous-release.test.js"]}
-}
