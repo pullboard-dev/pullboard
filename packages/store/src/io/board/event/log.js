@@ -72,7 +72,7 @@ export function afterBoardWrite(board, work) {
  * @param {() => T} work
  * @returns {T}
  */
-export function atomic(board, work, { reviewPolicy = true, writePolicy = true } = {}) {
+export function atomic(board, work, { reviewPolicy = true, writePolicy = true, move } = {}) {
   const depth = TRANSACTION_DEPTH.get(board) ?? 0;
   const savepoint = `pullboard_atomic_${depth}`;
   if (!depth) prepareBoardWriteIdentity();
@@ -87,6 +87,7 @@ export function atomic(board, work, { reviewPolicy = true, writePolicy = true } 
       beginImmediateQueued(board.db, startedAt, marker);
       const bookkeepingAt = performance.now();
       writeRecord = beginBoardWrite(board.db, board.writeContext, marker);
+      if (move) writeRecord.move = move;
       writeRecord.phase = 'write-bookkeeping';
       writeRecord.phaseMs = performance.now() - bookkeepingAt;
       let current;

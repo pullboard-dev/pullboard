@@ -1,6 +1,6 @@
 /** The board sequencer commits only prepared writes: statements and params, never a callback [C7]. */
 import { Refused } from "../../../../../kernel/index.js";
-import { recordedWriteLock } from '../busy.js';
+import { atomic } from '../event/log.js';
 
 /** Refuse anything that is not a non-empty list of { sql, params } data before a transaction opens. */
 function checkPrepared(statements) {
@@ -54,7 +54,8 @@ function bindParam(param, results) {
  */
 export function commitPrepared(board, { move, statements } = {}) {
   checkPrepared(statements);
-  return recordedWriteLock(board, () => {
+  // The same envelope as logEvent: capture, write policy, review normalization and validation, then commit. A board with no lifecycle port has no review defaults to normalize.
+  return atomic(board, () => {
     const results = [];
     statements.forEach(({ sql, params = [], expect }, index) => {
       const { changes, lastInsertRowid } = board.db.prepare(sql).run(...params.map(param => bindParam(param, results)));
@@ -62,5 +63,5 @@ export function commitPrepared(board, { move, statements } = {}) {
       results.push({ changes, lastInsertRowid });
     });
     return results;
-  }, move);
+  }, { move, reviewPolicy: Boolean(board.runtimePorts?.lifecycle) });
 }
