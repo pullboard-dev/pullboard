@@ -7,11 +7,11 @@
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { effectiveRunners } from '../../../../../packages/runners/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
-import { submitUntilSettled as settle } from '../../../../../packages/gate/index.js';
-import { LOCK_CODES } from '../../../../../packages/gate/index.js';
-import { infrastructureFailure } from '../../../../../packages/gate/index.js';
+import { submitUntilSettled as settle } from '../../../../../packages/gate/heavy.js';
+import { LOCK_CODES } from '../../../../../packages/gate/heavy.js';
+import { infrastructureFailure } from '../../../../../packages/gate/heavy.js';
 
-export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure } from '../../../../../packages/gate/index.js';
+export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure } from '../../../../../packages/gate/heavy.js';
 
 /**
  * Whether anything can run a gate now: a local gate slot, or a configured runner whose SSH and Node answer.
