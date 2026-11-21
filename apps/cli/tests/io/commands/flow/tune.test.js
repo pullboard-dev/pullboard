@@ -1,6 +1,7 @@
-/** @pullboard-test-input apps/cli/src/io/commands/flow.js apps/cli/tests/fixtures/e2e.js packages/stats/index.js packages/queue/index.js */
+/** @pullboard-test-input apps/cli/src/io/commands/flow.js apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/flow/tune-history.js packages/stats/index.js packages/queue/index.js */
 /** pullboard flow tune prints the cycle clock and the chooser result from the board windows, read-only [C7,#1099]. */
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -12,9 +13,43 @@ import { chooseTuning } from '../../../../../../packages/stats/index.js';
 import { tuneFixes } from '../../../../../../packages/stats/index.js';
 import { tuneRecord } from '../../../../../../packages/stats/index.js';
 import { LINE_SETTING_DEFINITIONS } from '../../../../../../packages/queue/index.js';
+import { oneSeatHistory } from '../../../../fixtures/flow/tune-history.js';
+import { TUNE_POLICY } from '../../../../fixtures/flow/tune-history.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
+
+const STAGES = ['build', 'reviewWait', 'review', 'sendBackIdle', 'mergeWait'];
+
+/** Replay tuning against a seeded history and return its parsed and printed forms. */
+async function replayTune(history) {
+  const box = e2e.project();
+  writeFileSync(join(box.repo, 'history.json'), JSON.stringify(history));
+  writeFileSync(join(box.repo, 'policy.json'), JSON.stringify(TUNE_POLICY));
+  const args = ['flow', 'replay', '--tune', '--history', 'history.json', '--policy', 'policy.json'];
+  const ran = await box.runLocal(box.repo, ...args, '--json');
+  assert.equal(ran.code, 0, ran.err || ran.out);
+  const printed = await box.runLocal(box.repo, ...args);
+  assert.equal(printed.code, 0, printed.err || printed.out);
+  return { result: JSON.parse(ran.out), text: printed.out };
+}
+
+/** Return the median claim-to-landed duration in minutes. */
+function median(side) {
+  const spans = side.replay.items.map(item => (Date.parse(item.landedAt) - Date.parse(item.claimAt)) / MINUTE).sort((a, b) => a - b);
+  return spans.length % 2 ? spans[(spans.length - 1) / 2] : (spans[spans.length / 2 - 1] + spans[spans.length / 2]) / 2;
+}
+
+test('cli.journeys-flow-tune.one-seat-no-stage-worse: clause 2: pullboard flow replay --tune on a seeded one-seat history leaves no stage median of the tuned run higher than the untuned run [C7,#1099]', { timeout: 120_000 }, async () => {
+  const { result, text } = await replayTune(oneSeatHistory());
+  for (const stage of STAGES) {
+    const tuned = result.tuned.replay.stages[stage].medianMinutes, untuned = result.untuned.replay.stages[stage].medianMinutes;
+    assert.ok(tuned <= untuned, `${stage}: tuned median ${tuned} is no higher than untuned ${untuned}`);
+  }
+  assert.ok(median(result.tuned) <= median(result.untuned), 'the whole claim to landed median is no worse either');
+  assert.match(text, /^untuned: predicted; 30 measured;/mu);
+  assert.match(text, /^tuned: predicted; 30 measured;/mu);
+});
 
 test('cli.flow-tune.json-prints-cycle-and-choice: clause 1: pullboard flow tune --json on a seeded board prints the cycle state and the chooser result, and changes no setting [C7,#1099]', async () => {
   const box = e2e.project();
