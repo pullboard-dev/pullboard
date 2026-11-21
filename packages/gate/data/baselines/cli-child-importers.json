@@ -14,8 +14,6 @@
   "link/tests/io/relay/canary/needs.test.js",
   "link/tests/logic/relay/poll.test.js",
   "outbox/tests/io/relay.test.js",
-  "pin/tests/io/keyed.test.js",
-  "pin/tests/io/main.test.js",
   "seats/tests/io/projects.test.js",
   "seats/tests/registry.test.js",
   "sentinels/tests/io/serve-cli.test.js",
