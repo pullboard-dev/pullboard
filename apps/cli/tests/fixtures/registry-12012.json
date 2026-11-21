@@ -1,0 +1,15 @@
+{
+ "cli.io-commands-waits.record-reaches-record-waits": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "pullboard waits record on a fixture board straight after init, with a runner-unavailable row for another board host, lists no new item."
+  },
+  "why": "Without it the command could bypass the used-host and lane checks the sentinels tests prove.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/cli/src/io/commands/waits.js"
+  ]
+ }
+}

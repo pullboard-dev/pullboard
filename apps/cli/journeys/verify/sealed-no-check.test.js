@@ -11,7 +11,7 @@ import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixturePolicy } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
-import { TIMING_RUN_ID_ENV } from '../../../../packages/gate/index.js';
+import { TIMING_RUN_ID_ENV } from '../../../../packages/gate/heavy.js';
 
 const helpers = createE2eHelpers();
 after(() => {
@@ -20,7 +20,7 @@ after(() => {
 
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 const REPORTER = `import { tap } from 'node:test/reporters';
-import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../../../../packages/gate/index.js', import.meta.url).href)};
+import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../../../../packages/gate/heavy.js', import.meta.url).href)};
 export default async function* report(events) {
   const collector = testOutcomeCollector(process.cwd());
   let count = null;

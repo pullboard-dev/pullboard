@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../git/tests/fixtures/child.js';
 
 const FRONT_DOOR = pathToFileURL(resolve(import.meta.dirname, '../../../../apps/runner/src/io/worker.js')).href;
 

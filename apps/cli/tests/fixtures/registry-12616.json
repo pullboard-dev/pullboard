@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-status.write-hold-alarm": {"proves":{"specs":["C7"],"claim":"With a write-hold violation recorded in the last hour, pullboard status prints an alarm line naming the count and the worst move and its held ms; with none it prints no such line."},"why":"Without it, a board write held over one second would raise no alarm on status and the slow writer would go unseen.","kind":"contract","inputs":["apps/cli/tests/io/commands/status.test.js"]},
+  "cli.io-commands-status.write-hold-alarm-json": {"proves":{"specs":["C7"],"claim":"status --json carries the same write-hold count under writeHoldAlarm."},"why":"Without it, a machine reader of status could not see the write-hold alarm the text shows.","kind":"contract","inputs":["apps/cli/tests/io/commands/status.test.js"]}
+}

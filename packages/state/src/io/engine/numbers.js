@@ -102,12 +102,6 @@ export function assignEngineNumbers(root) {
   }
   const table = join(root, ENGINE_TABLE);
   if (fileSystemAdapter().exists(table)) { fileSystemAdapter().writeFile(table, engineTableSource(leaves)); files.push(ENGINE_TABLE); }
-  const formats = join(root, 'docs', 'formats.md');
-  if (fileSystemAdapter().exists(formats)) {
-    const text = fileSystemAdapter().readFile(formats, 'utf8');
-    const updated = text.replace(/^(\| `move engine` \| `)\d+(` \|)/mu, `$1${next}$2`);
-    if (updated !== text) { fileSystemAdapter().writeFile(formats, updated); files.push('docs/formats.md'); }
-  }
   return { files, assigned };
 }
 

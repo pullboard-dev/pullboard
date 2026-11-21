@@ -156,9 +156,15 @@ function shellWord(text) {
   return `'${String(text).replace(/'/gu, `'\\''`)}'`;
 }
 
-/** The add fields of a drafted wait item, the same for the CLI's ordered move and a direct board write. */
-export function waitItemFields(draft, by) {
-  return { by, lane: 'core', title: draft.title, criterion: draft.criterion, brief: draft.brief, route: draft.route, check: draft.check, specIds: ['C7'] };
+/**
+ * The add fields of a drafted wait item, the same for the CLI's ordered move and a direct board write.
+ * `board` is { hasLane, specIds } for the board the item is filed on: it has no core lane, so null (nothing to file into),
+ * and it cites only the spec rows that board has, so a fresh board never gets an item citing a row it lacks [C7].
+ */
+export function waitItemFields(draft, by, board = null) {
+  if (board && !board.hasLane) return null;
+  const specIds = board ? ['C7'].filter(id => board.specIds.includes(id)) : ['C7'];
+  return { by, lane: 'core', title: draft.title, criterion: draft.criterion, brief: draft.brief, route: draft.route, check: draft.check, specIds };
 }
 
 /**

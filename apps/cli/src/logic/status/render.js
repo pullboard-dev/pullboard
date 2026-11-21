@@ -47,6 +47,9 @@ export function statusLines(summary, options) {
   if (summary.runnerDeadlines === null) lines.push('runner wait deadline status unavailable; pullboard resources shows the queue');
   else for (const run of summary.runnerDeadlines) lines.push(`${run.agent}${run.item ? ` #${run.item}` : ''}${run.repo ? ` in ${run.repo}` : ''}: ${format.runnerDeadlineLine(run)}`);
   for (const hold of summary.longestHolds ?? []) lines.push(`board hold ${hold.at}: ${hold.heldMs} ms in ${hold.move ?? 'unknown move'}${hold.step ? `, slowest step ${hold.step} ${hold.stepMs ?? '?'} ms` : ''}`);
+  const alarm = summary.writeHoldAlarm;
+  if (alarm?.count > 0) lines.push(`write-hold alarm: ${alarm.count} board write${alarm.count === 1 ? '' : 's'} held over 1 s in the last hour${alarm.truncated ? ' (count may be partial)' : ''}; worst ${alarm.move ?? 'unknown move'} held ${alarm.heldMs} ms`);
+  else if (alarm?.truncated) lines.push('write-hold alarm: none counted, but the count may be partial');
   lines.push(...format.diskLines(summary.disk));
   for (const proposal of summary.submitInvariantProposals) lines.push(format.submitInvariantLine(proposal));
   for (const need of summary.needs.filter(need => need.kind === 'agent-approved')) lines.push(`${need.text}; ${need.what}`);

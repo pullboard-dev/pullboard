@@ -21,7 +21,7 @@ import {
 } from '../../../../src/io/trusted/policy.js';
 import {
   runFixtureGit,
-} from '../../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../../../git/tests/fixtures/child.js';
 
 /** Build only private Git objects: no board, agent, claim, gate receipt or verifier identity is fabricated. */
 function ancestry(t) {

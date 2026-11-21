@@ -548,7 +548,7 @@ export function requireTestTierAccount(run, files) {
   const green = run.isGreen === true || run.green === true || run.state === 'pass';
   const outcomes = testOutcomeFields(run.profile?.testOutcomes) ?? testOutcomeFields(run.testOutcomes);
   const missing = outcomes
-    ? files.filter(file => !outcomes.some(row => row.file === posix.normalize(file)))
+    ? files.filter(file => !outcomes.some(row => row.file === posix.normalize(file) || row.owner === posix.normalize(file)))
     : run.profile?.tests?.length ? [] : [...files];
   if (green && files.length && missing.length) {
     const named = missing.slice(0, 20).join(', ') + (missing.length > 20 ? ` and ${missing.length - 20} more` : '');

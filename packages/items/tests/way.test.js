@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { composeItemPatches } from '../index.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../git/tests/fixtures/child.js';
 
 const IDENTITY = ['-c', 'user.name=Companion Test', '-c', 'user.email=companion@example.test', '-c', 'commit.gpgsign=false'];
 const FILE = 'web/serve.js';

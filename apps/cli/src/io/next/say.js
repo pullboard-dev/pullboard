@@ -39,3 +39,9 @@ export function refuseWhileBuilding(ctx) {
   });
   if (building.length) throw new Refused('REVIEW_NOT_READY', `nothing to review yet; the builder is still working on ${building.join(', ')}`);
 }
+
+/** The idle line a next --no-wait prints when nothing is free: how long it looked, and that the board is not finished [C7,#12779]. */
+export const idleTimeoutLine = seconds => `[IDLE_TIMEOUT] nothing for this seat in ${seconds} seconds; the board is not finished. Stop, or call next again.`;
+
+/** The line a next --no-wait prints when every item in the seat's lane is verified [C7,#12779]. */
+export const boardFinishedLine = lane => `next: board finished: every item in ${lane} is verified. Stop.`;

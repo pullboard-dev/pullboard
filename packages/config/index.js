@@ -140,7 +140,6 @@ export {
   itemsBarRulesAtAdd,
   routeReservations,
   itemsTestMirrorAtAdd,
-  docsRegenerateOnCommit,
   holdsLiftSettled,
   releaseRerouteUntouched,
   reviewHoldAfterTwoReleases,

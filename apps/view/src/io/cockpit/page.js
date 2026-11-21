@@ -4,6 +4,7 @@ import { cockpitReplay } from "../../logic/cockpit/replay.js";
 import { cockpitSidebar } from "../../logic/cockpit/sidebar.js";
 import { cockpitProjectMenu } from "../../logic/cockpit/project-menu.js";
 import { cockpitRoadmap } from "./roadmap.js";
+import { flowHomePanel } from "../flow.js";
 import { cockpitProse } from "../../logic/cockpit/prose.js";
 import { costTabScript } from "../cost/tab.js";
 import { milestoneRowHtml } from "../roadmap/render.js";
@@ -79,7 +80,7 @@ import { settingsPageScript } from "../../logic/settings/page.js";
 import { agentApprovalScript } from "../../logic/agent/approval.js";
 import { historyLoadingScript } from "../history.js";
 /**
- * The compatibility rows the cockpit draws from GET /compat-cells (C7): one row per language, one cell per stage in
+ * The compatibility rows the cockpit draws from GET /api/v1/compat-cells (C7): one row per language, one cell per stage in
  * the feed's stage order, each cell carrying its outcome and the run id that recorded it.
  * Why: the page says what each setup does at each pipeline stage and which run said so. The page script carries this
  * function by its source, so it uses no names from outside itself.
@@ -100,7 +101,7 @@ export function compatRowsHtml(groups) {
   return '<table class="compat-cells"><thead>' + head + '</thead><tbody>' + rows.join('') + '</tbody></table>';
 }
 /**
- * The page script part that fetches GET /compat-cells and draws its rows on the Pipeline tab (C7).
+ * The page script part that fetches GET /api/v1/compat-cells and draws its rows on the Pipeline tab (C7).
  * Why: a snapshot has no server to ask, so it draws nothing; a failed read leaves the section hidden.
  *
  * @returns {string}
@@ -109,9 +110,11 @@ function compatScript() {
   return `
 /** Fetch the compat cells and draw one row per conformance setup under the Pipeline tab [C7]. */
 const compatRowsHtml = ${compatRowsHtml.toString()};
+let compatAt = 0;
 function drawCompatCells() {
-  if (snapshot) return;
-  api('/compat-cells').then((groups) => {
+  if (snapshot || Date.now() - compatAt < 30000) return;
+  compatAt = Date.now();
+  api('/api/v1/compat-cells').then((groups) => {
     const anchor = document.getElementById('insights-pipeline');
     if (!anchor || !Array.isArray(groups)) return;
     let section = document.getElementById('compat-cells');
@@ -127,7 +130,9 @@ function drawCompatCells() {
     section.innerHTML = '<h2>Compatibility by stage</h2>' + compatRowsHtml(groups);
   }, () => {});
 }
-drawCompatCells();
+// Asked for only when the Pipeline tab is drawn, so no other tab reads it.
+const renderBeforeCompat = render;
+render = function (...given) { const drawn = renderBeforeCompat.apply(this, given); if (view.tab === 'pipeline') drawCompatCells(); return drawn; };
 `;
 }
 /**
@@ -171,7 +176,7 @@ function lifecycle() {
  * @param {{snapshot?: boolean, readOnly?: boolean, requests?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean, hostedLocal?: boolean, relaySession?: boolean, signIn?: string|null, hostedReleaseVersion?: string, hostedReleaseVersions?: string[]|null, costPrices?: Record<string, {freshInput?: number, cacheReadInput?: number, cacheWriteInput?: number, output?: number}>|null}} [options] - Served connection and assets, optional person requests over a read-only transport, host routes, a static page with event replay, or the hosted page that reads this machine's view first.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false, hostedLocal = false, relaySession = false, signIn = null, hostedReleaseVersion, hostedReleaseVersions = null, costPrices = null, milestoneDelta = null, commandPhrases } = {}) {
+export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false, hostedLocal = false, relaySession = false, signIn = null, hostedReleaseVersion, hostedReleaseVersions = null, costPrices = null, milestoneDelta = null, commandPhrases, readFlow = null } = {}) {
   if (typeof commandPhrases !== 'function') throw new TypeError('the page needs its higher renderer to provide commandPhrases');
   // Derive the current CLI inventory for every served, relay or exported page.
   const COMMAND_SOURCE = 'pullboard (?:' + commandPhrases().join('|') + ')(?![\\w-])(?: (?:--?[\\w-]+|\\d+|#\\d+|"[^"\\n]*"|[A-Z][A-Z0-9_]*|[\\w-]*[\\/.:@][^\\s"]*|[a-z]+-\\d+)(?![\\w-]))*';
@@ -195,7 +200,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup,
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,
     milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
-    agentApprovalScript, pageScriptPart4, historyLoadingScript, paletteScript, accountScript, shoutsScript, menuScript, compatScript };
+    flowPanel: snapshot ? '' : flowHomePanel(readFlow), agentApprovalScript, pageScriptPart4, historyLoadingScript, paletteScript, accountScript, shoutsScript, menuScript, compatScript };
   return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections) + cockpitProjectMenu()
     + cockpitRoadmap(sections) + cockpitProse(sections);
 }

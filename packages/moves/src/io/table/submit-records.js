@@ -32,6 +32,7 @@ function rebuild(db, since) {
   const records_out = [], unreplayable = [];
   const agents = Object.fromEntries(db.prepare('SELECT agent_id, agent_lane, agent_route FROM agent').all().map(a => [a.agent_id, { lane: a.agent_lane, route: a.agent_route, joined: false }]));
   const parents = Object.fromEntries(db.prepare('SELECT item_id, item_parent_id FROM item').all().map(r => [r.item_id, r.item_parent_id]));
+  const sliceIds = new Set(db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item-slice:*'").all().map(r => Number(r.meta_key.slice('item-slice:'.length))));
   const childrenOf = new Map();
   for (const [id, p] of Object.entries(parents)) if (p != null) (childrenOf.get(p) ?? childrenOf.set(p, []).get(p)).push(Number(id));
   const outside = new Set(db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'outside_source:%'").all().filter(r => r.meta_value.includes('pull-request')).map(r => Number(r.meta_key.split(':')[1])));
@@ -116,7 +117,7 @@ function snapshot(itemId, actor, now) {
     now, config: CONFIG, actor: { id: actor, joined: true, lane: agents[actor]?.lane },
     item: { id: it.id, status: it.status, owner: it.owner, leaseUntil: it.leaseUntil, frozenDigest: it.frozenDigest, lane: it.lane, parentId: it.parentId,
       verdict: it.verdict, commit: it.commit, builtBy: it.builtBy, files: [], outside: outside.has(it.id) ? 'pull-request' : null },
-    children: (childrenOf.get(it.id) ?? []).filter(id => items.has(id)).map(id => ({ id, status: items.get(id).status })),
+    children: (childrenOf.get(it.id) ?? []).filter(id => items.has(id)).map(id => ({ id, status: items.get(id).status, slice: sliceIds.has(id) })),
     rejects: it.rejects, history: it.history, submits: it.submits, receipts: it.receipts,
     handoff: it.handoff,
     io: { head: null }, deferred: {}, gate: null,

@@ -6,12 +6,12 @@ import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
 import { submitFixture } from './submit.js';
 import { writeBoardMeta } from '../../index.js';
-import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/child.js';
+import { FIXTURE_MODEL } from '../../../git/tests/fixtures/child.js';
 // The board composition root through the board package's fixture, which tests already use (#8202).
 import { openKitBoard } from '../../../../apps/cli/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../git/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../git/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../git/tests/fixtures/child.js';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../kernel/index.js';
 import { addItem } from '../../index.js';

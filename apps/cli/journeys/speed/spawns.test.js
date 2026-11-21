@@ -4,6 +4,10 @@
  */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -53,8 +57,18 @@ test('cli.journeys-speed-spawns.spawn-counts-for-next-claim-and: spawn counts fo
   writeFileSync(join(box.web, 'web', 'spawns.js'), 'export const spawns = 1;\n');
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): spawn sample [G1]');
+  // #12746: the claim's own item folder holds uncommitted work and no snapshot is throttled, so the submit below (a real process that exits at once) must leave it on refs/pullboard/wip/<item>.
+  const folder = join(dirname(box.web), `${basename(box.web)}-item-${submitted}`);
+  writeFileSync(join(folder, 'wip-note.txt'), 'uncommitted work\n');
+  rmSync(resolve(folder, box.git(folder, 'rev-parse', '--git-path', 'pullboard-wip-at')), { force: true });
   writeFileSync(log, '');
   const submit = say('submit', box.run(box.web, 'submit', String(submitted), '--no-next'));
+  let snapshot = null;
+  for (let probe = 0; probe < 300 && !snapshot; probe += 1) {
+    const shown = box.tryGit(folder, 'show', `refs/pullboard/wip/${submitted}:wip-note.txt`);
+    if (shown.status === 0) snapshot = shown.stdout;
+  }
+  assert.equal(snapshot, 'uncommitted work\n', 'cli.io-item-wip.snapshot-survives-command-exit: after the submit process exited, refs/pullboard/wip/<item> holds the uncommitted change');
   for (const counts of [next, claim, submit]) {
     for (const key of ['git', 'node', 'total']) assert.equal(Number.isInteger(counts[key]), true);
   }

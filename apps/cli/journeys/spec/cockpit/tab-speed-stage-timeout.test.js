@@ -3,12 +3,14 @@
 /** @pullboard-test-gui */
 /** A tab-speed setup stage whose event never fires fails within its limit naming the stage, and a marker that never appears is refused [C7]. */
 import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 import { measureTabSpeed } from '../../../tests/fixtures/cockpit/perf/speed.mjs';
 import { cachedStressBoard } from '../../../tests/fixtures/cockpit/perf/stress-cache.mjs';
+import { streamBuildProgress } from '../../../tests/fixtures/cockpit/perf/stress-cache.mjs';
 import { waitForMarker } from '../../../tests/fixtures/cockpit/perf/stress-cache.mjs';
 
 /** Stub Chrome and view server whose first load never reports the page loaded. */
@@ -47,6 +49,20 @@ const POLL = 10, LIMIT = 100;
 test('cli.journeys-spec-cockpit-tab-speed-stage-timeout.a-cache-marker-that-never-appears: clause 2: a cache marker that never appears is refused naming board generation [C7]', async () => {
   const { root } = privateFixtureFiles('tab-speed-marker-');
   await assert.rejects(waitForMarker(`${root}/complete`, POLL, LIMIT), /stage "board generation" saw no cache marker/);
+  // While the detached build runs, each stage line its child records is printed once, and nothing is printed without a new one.
+  const record = `${root}/build.progress`, printed = [];
+  let firstPrinted;
+  const first = new Promise(done => { firstPrinted = done; });
+  appendFileSync(record, 'items 200 of 1600 written\n');
+  const stop = streamBuildProgress(record, line => { printed.push(line); firstPrinted(); }, POLL);
+  await first;
+  assert.deepEqual(printed, ['# stress-board build: items 200 of 1600 written']);
+  stop();
+  assert.equal(printed.length, 1, 'no new recorded stage prints nothing');
+  const stopAgain = streamBuildProgress(record, line => printed.push(line), POLL);
+  appendFileSync(record, 'items done in 9 ms\n');
+  stopAgain();
+  assert.deepEqual(printed.slice(1), ['# stress-board build: items 200 of 1600 written', '# stress-board build: items done in 9 ms']);
   // A lock that vanishes between the failed mkdir and its stat is retried with no ENOENT.
   const inputs = { seed: `lock-race-${process.pid}-${Date.now()}` };
   const locks = [];

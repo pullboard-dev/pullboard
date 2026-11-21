@@ -141,9 +141,9 @@ export {
   sealClauseInspection,
 } from './src/io/board/repository.js';
 
-export { boardWriteLog } from './src/io/board/write/lock.js';
+export { boardWriteLog, boardWriteHoldAlarm } from './src/io/board/write/lock.js';
 export { objectItemPatch } from './src/io/board.js';
-export { expeditedItems } from './src/io/board.js';
+export { expediteItem, expeditedItems } from './src/io/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/io/board/wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/logic/board/reland.js";
@@ -154,6 +154,8 @@ export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } fro
 export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
 export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
 export { mergedDecision } from './src/io/board/merged-table.js';
+export { claimDecision } from './src/io/board/claim-table.js';
+export { saveItemNeeds, saveAgentAbilities } from './src/io/needs.js';
 export { itemPace } from './src/io/board/sprint-pace.js';
 export { recordPulled, pullingLanding } from './src/io/board/pulled.js';
 export { readShadows } from './src/io/board/shadow-record.js';

@@ -20,7 +20,7 @@ const RED_GATE = ['apps/cli/src/io/submit/pulled.js', "if (job.gate.green !== tr
 const VERDICT_INSERT = '.run(item.item_id, agentId, decision, reason, note.trim(), item.item_commit,';
 const MOVED = 'if (before && JSON.stringify(after) !== JSON.stringify(before)) refusals.push(';
 const PULL = 'apps/cli/src/io/submit/pull.js';
-const MOVED_TREE = ['apps/cli/journeys/runner/moved.pull.test.js', 'a pulled gate whose script commits or edits a tracked file in its runner checkout'];
+const MOVED_TREE = ['apps/cli/tests/io/submit/moved.test.js', 'a pulled gate whose script commits or edits a tracked file in its runner checkout'];
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [

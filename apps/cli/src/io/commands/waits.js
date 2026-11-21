@@ -17,14 +17,21 @@ import { waitsSnapshot } from '../../../../../packages/sentinels/index.js';
 import { writeHolderRecorder } from '../../../../../packages/sentinels/index.js';
 import { context } from '../entry.js';
 import { ordered } from '../entry.js';
+import { specRowIds } from '../entry.js';
 import { whoAmI } from '../entry.js';
 import { withBoard } from '../entry.js';
 
 /** Snapshot every wait surface of this checkout's repository and machine. */
-async function snapshotHere(ctx, budgets, runnerTimeoutMs) {
+async function snapshotHere(ctx, budgets, runnerTimeoutMs, boardUsedHost = null) {
   const settings = loadMachineSettings();
-  return waitsSnapshot({ budgets, runnerTimeoutMs, hosts: (settings.runners ?? []).map(runner => runner.host).filter(host => typeof host === 'string'),
+  return waitsSnapshot({ budgets, runnerTimeoutMs, boardUsedHost, hosts: (settings.runners ?? []).map(runner => runner.host).filter(host => typeof host === 'string'),
     paths: { commonDir: ctx.info.commonDir, boardFile: ctx.file, machineHome: machineHome() } });
+}
+
+/** True when one of this board's gate or test jobs ran on the host: the machine-wide runner rows are this board's wait only then [C7]. */
+function usedHostBy(board) {
+  const used = board.db.prepare(`SELECT 1 FROM job_step WHERE job_step_name = 'result' AND instr(job_step_payload, ?) > 0 LIMIT 1`);
+  return host => Boolean(used.get(`"runner":${JSON.stringify(String(host))}`));
 }
 
 /**
@@ -55,8 +62,8 @@ export async function run(io, { first, second, rest = [] } = {}) {
     io.result?.({ waits: null });
     return 0;
   }
-  const snapshot = await snapshotHere(ctx, budgets, 10_000);
   return withBoard(ctx, async board => {
+    const snapshot = await snapshotHere(ctx, budgets, 10_000, usedHostBy(board));
     const me = whoAmI(ctx, board);
     // Only the coordinator files and releases; another seat's run reports what it saw.
     const filing = me.id === COORDINATOR;
@@ -67,7 +74,11 @@ export async function run(io, { first, second, rest = [] } = {}) {
         if (pid && waitPidRecorded(board.db, id, pid)) return;
         await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
       },
-      fileItem: draft => ordered(ctx, board, 'addItem', [waitItemFields(draft, me.id)]),
+      fileItem: draft => {
+        // This board's own lane and spec rows: a board with no core lane files nothing, and cites only the rows it has.
+        const fields = waitItemFields(draft, me.id, { hasLane: Object.hasOwn(ctx.config.lanes ?? {}, 'core'), specIds: specRowIds(ctx) });
+        return fields ? ordered(ctx, board, 'addItem', [fields]) : null;
+      },
       shout: text => ordered(ctx, board, 'shout', [{ from: 'sentinel', to: COORDINATOR, lanes: [], text, detail: { model: me.model ?? 'unknown' } }]),
       prunePools: scope => listResources({ scope, root: ctx.info.root }),
       release: async claim => {

@@ -2,7 +2,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
+import { cli } from '../../fixtures/next/take.js';
+import { existsSync } from 'node:fs';
 import { fixture } from '../../fixtures/next/take.js';
+import { readFileSync } from 'node:fs';
+import { spoolPath } from '../../../src/io/mark-spool.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 
 /** Claim a docs item from the web seat's worktree through the real command; nothing is stubbed. */
@@ -35,6 +40,53 @@ test('cli.io-commands-claim.claim-runs-through-claim-ordered: clause 3: the clai
   assert.equal(ran.status, 0, out);
   const claimed = box.board.db.prepare("SELECT COUNT(*) n FROM event WHERE item_id=? AND event_kind='claim' AND event_by=?").get(id, box.seats.actor.id).n;
   assert.equal(claimed, 1, 'the writer recorded the claim event');
+});
+
+/** The claim and mark events of one item, oldest first, with each mark's detail. */
+const claimAndMarks = (box, id) => box.board.db.prepare("SELECT event_id, event_kind, event_detail FROM event WHERE item_id=? AND event_kind IN ('claim', 'mark') ORDER BY event_id").all(id)
+  .map(row => ({ kind: row.event_kind, ...JSON.parse(row.event_detail) }));
+
+test('cli.claim.seat-ready-mark: clause 1: a claim appends exactly one seat-ready mark after its claim event, and a mark write forced to fail leaves the claim standing with the mark spooled [C7,#12159]', async t => {
+  const box = await fixture(t, { projectConfig: { laneMode: 'off' } });
+  const id = box.add('Docs lane item', { lane: 'docs' });
+  const ran = await cli(box, box.seats.actor.path, ['claim', String(id)]);
+  assert.equal(ran.code, 0, ran.out + ran.err);
+  assert.ok(ran.document.itemFolder, `the claim opened its folder: ${ran.out}`);
+  const written = claimAndMarks(box, id);
+  assert.deepEqual(written.map(row => row.kind === 'mark' ? `${row.stage}/${row.edge}` : row.kind), ['claim', 'seat-ready/point'], 'one claim, then exactly one seat-ready mark');
+  const failing = await fixture(t, { projectConfig: { laneMode: 'off' } });
+  const other = failing.add('Docs lane item', { lane: 'docs' });
+  const forced = await cli(failing, failing.seats.actor.path, ['claim', String(other)], { markWriter: async () => { throw new Refused('BOARD_BUSY', 'the board is busy'); } });
+  assert.equal(forced.code, 0, forced.out + forced.err);
+  assert.equal(store.getItem(failing.board, other).item_owner, failing.seats.actor.id, 'the claim stands');
+  assert.deepEqual(claimAndMarks(failing, other).map(row => row.kind), ['claim'], 'the failed mark wrote no event');
+  const spooled = readFileSync(spoolPath(failing.file), 'utf8').split('\n').filter(Boolean).map(text => JSON.parse(text));
+  assert.deepEqual(spooled.map(line => [line.item, line.stage, line.edge]), [[other, 'seat-ready', 'point']], 'the mark waits in the spool');
+});
+
+test('cli.claim.seat-ready-latency: clause 3: 50 claims on a fixture board before (mark writer replaced by nothing) and after (real mark): the added p95 is stated, one append per claim, no scan [C7,#12159]', async t => {
+  const box = await fixture(t, { projectConfig: { laneMode: 'off' } });
+  const timed = async markWriter => {
+    const spans = [];
+    for (let n = 0; n < 50; n++) {
+      const id = box.add('Timed item', { lane: 'docs' });
+      const started = performance.now();
+      const ran = await cli(box, box.seats.actor.path, ['claim', String(id)], markWriter ? { markWriter } : {});
+      spans.push(performance.now() - started);
+      assert.equal(ran.code, 0, ran.out + ran.err);
+      const released = await cli(box, box.seats.actor.path, ['release', String(id), '--reason', 'OTHER', '--note', 'timing loop']);
+      assert.equal(released.code, 0, released.out + released.err);
+    }
+    return spans.sort((a, b) => a - b);
+  };
+  const marks = () => box.board.db.prepare("SELECT COUNT(*) n FROM event WHERE event_kind='mark'").get().n;
+  const before = await timed(async () => {});
+  assert.equal(marks(), 0, 'before: no mark is written');
+  const after = await timed(null);
+  assert.equal(marks(), 50, 'after: one append per claim, 50 claims write 50 marks');
+  assert.equal(existsSync(spoolPath(box.file)), false, 'a free board spools nothing');
+  const p95 = spans => spans[47];
+  t.diagnostic(`claim p95 over 50 claims: before ${p95(before).toFixed(1)} ms, after ${p95(after).toFixed(1)} ms, added ${(p95(after) - p95(before)).toFixed(1)} ms; p50 before ${before[24].toFixed(1)} ms, after ${after[24].toFixed(1)} ms`);
 });
 
 test('cli.io-commands-claim.profile-names-phases: clause 1: with PULLBOARD_CLAIM_PROFILE set, pullboard claim prints one stderr line per claim phase as claim profile: <phase> <ms> ms plus a total line naming the slowest three, with it unset there is no claim profile line and --json stdout is unchanged, and every phase printed is one of the steps of run() in claim.js [C7,#12396]', async t => {

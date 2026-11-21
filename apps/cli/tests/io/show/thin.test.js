@@ -186,3 +186,43 @@ test('cli.io-show-thin.thread-entry-steps-aside: clause 2: for a fixture item wi
   assert.equal(noted.code, 0, noted.err);
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 1 }), null);
 });
+
+/** The text and status `show 1` prints through the process entry's own composition in a fresh worker thread, with count.js recording every file it loads. */
+function showThroughEntry(box, countFile) {
+  const code = `const { parentPort, workerData } = require('node:worker_threads');
+    (async () => {
+      await import(workerData.preload);
+      const { main } = await import(workerData.main);
+      const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import(workerData.ports);
+      let text = '';
+      const sink = { isTTY: false, write: (chunk) => { text += chunk; return true; } };
+      const status = await main(['show', '1'], { cwd: workerData.cwd, loadNativeBoard, gateWaitReporter, loadProcessPorts, stdout: sink, stderr: sink, stdin: process.stdin });
+      return { status, text };
+    })().then((done) => parentPort.postMessage(done), (error) => parentPort.postMessage({ failure: String(error?.stack ?? error) }));`;
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(code, { eval: true, env: { ...box.env, PULLBOARD_OWN_CLI: '1', PULLBOARD_RESIDENT: '0', PULLBOARD_COUNT_FILE: countFile },
+      workerData: { cwd: box.repo, preload: pathToFileURL(PRELOAD).href, main: pathToFileURL(`${ROOT}apps/cli/src/io/main.js`).href, ports: pathToFileURL(`${ROOT}apps/cli/src/io/ports/process.js`).href } });
+    worker.once('message', (message) => { void worker.terminate(); resolve(message); });
+    worker.once('error', reject);
+  });
+}
+
+test('cli.io-show-thin.off-never-calls-door: clause 3: with read.thinCommands off, show never loads the thin door and prints the same text as with it on [C7,#9869]', async (t) => {
+  const box = await plainProject(t);
+  const ran = async (on) => {
+    setReadThin(box, on);
+    const files = privateFixtureFiles('thin-show-off-');
+    files.write('seen.txt', '');
+    const result = await showThroughEntry(box, `${files.root}/seen.txt`);
+    assert.equal(result.failure, undefined, result.failure);
+    assert.equal(result.status, 0);
+    const seen = files.read('seen.txt').toString('utf8').split('\n').filter(Boolean);
+    return { text: result.text, doorLoaded: seen.some(file => file.endsWith('apps/cli/src/io/show/thin.js')) };
+  };
+  const off = await ran(false);
+  const on = await ran(true);
+  assert.equal(off.doorLoaded, false, 'the door stays unloaded with the setting off');
+  assert.equal(on.doorLoaded, true, 'the door loads with the setting on');
+  assert.match(off.text, /Thin show item 1/u);
+  assert.equal(on.text, off.text);
+});

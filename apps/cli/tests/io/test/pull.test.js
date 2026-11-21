@@ -40,7 +40,7 @@ import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { storeTestResult } from '../../../../../packages/gate/index.js';
+import { storeTestResult } from '../../../../../packages/gate/heavy.js';
 
 test('cli.io-test-pull.signed-completion: clause 1: a real pulled completion verifies only for its enrolled runner and exact fresh request [C7,#12647]', { timeout: 120_000 }, async () => {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');

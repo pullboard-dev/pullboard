@@ -6,17 +6,30 @@ import { fixture } from '../../fixtures/next/take.js';
 import { REAL_SIZE } from '../../fixtures/next/real-size.js';
 import { seedRealSize } from '../../fixtures/next/real-size.js';
 
-/** Seed the real-size board and run one `next --take` with the phase profile on. */
-async function takeOnRealSizeBoard(t) {
+const BAR_MS = 200;
+
+/** Print one line per profile phase and a total line set against the 200 ms bar for a seat, and assert the named phases each have a line [N2]. */
+function reportSeatProfile(seat, profile, required) {
+  const phases = profile.filter(line => !line.startsWith('next profile: total ')).map(line => /^next profile: (.+) (\d+) ms$/.exec(line)).filter(Boolean);
+  for (const [, phase, ms] of phases) console.log(`${seat} seat phase ${phase}: ${ms} ms`);
+  for (const name of required) assert.ok(phases.some(([, phase]) => phase === name), `${seat} seat profile has a ${name} phase line: ${profile.join(' | ')}`);
+  const total = phases.reduce((sum, [, , ms]) => sum + Number(ms), 0);
+  console.log(`${seat} seat total: ${total} ms against the ${BAR_MS} ms bar (${total <= BAR_MS ? `${BAR_MS - total} ms under` : `${total - BAR_MS} ms over`})`);
+}
+
+/** Seed the real-size board and run one `next --take` (a review seat runs `next --verify`, which takes too) with the phase profile on, as the build seat or, with `review`, as a review seat. */
+async function takeOnRealSizeBoard(t, { review = false } = {}) {
   const box = await fixture(t, { route: 'light' });
   seedRealSize(box);
   // The seat's lane and route need one open item filed the ordinary way, so the take on the big board hands out real work.
   box.add('Real-size handout', { route: 'light' });
+  // A review take needs one submitted item another family built, so the review seat, under another parent session and family, is handed real review work.
+  if (review) box.submit(box.add('Real-size review handout'));
   const before = process.env.PULLBOARD_NEXT_PROFILE;
   process.env.PULLBOARD_NEXT_PROFILE = '1';
   try {
     const started = performance.now();
-    const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
+    const taken = review ? await cli(box, box.seats.outside.path, ['next', '--verify']) : await cli(box, box.seats.actor.path, ['next', '--take']);
     return { taken, seconds: (performance.now() - started) / 1000 };
   } finally {
     if (before === undefined) delete process.env.PULLBOARD_NEXT_PROFILE; else process.env.PULLBOARD_NEXT_PROFILE = before;
@@ -39,8 +52,20 @@ test('cli.io-next-real-size.cli-next-real-size-next-take-on: cli.next.real-size.
   const profile = taken.err.split('\n').filter(line => line.startsWith('next profile: '));
   assert.ok(profile.some(line => line.includes(' ms; slowest three: ')), 'the profile names the slowest read paths: ' + taken.err);
   console.log(`next --take on ${REAL_SIZE.events} events, ${REAL_SIZE.agents} agents: ${seconds.toFixed(2)} s wall\n${profile.join('\n')}`);
+  reportSeatProfile('build', profile, ['claim', 'selection']);
   // The budget is the wall time around the whole command, as the original journey asserted; the profile's own total excludes process start.
   assert.ok(seconds < 2, `next --take took ${seconds.toFixed(2)} s wall on the real-size board:\n${profile.join('\n')}`);
+});
+
+test('cli.io-next-real-size.review-seat-take: clause 1: next --verify for a review seat on that board prints its next profile lines with the slowest three and finishes under 2 s [N2]', async t => {
+  const { taken, seconds } = await takeOnRealSizeBoard(t, { review: true });
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document?.review, true, 'the seat took a review: ' + taken.out);
+  const profile = taken.err.split('\n').filter(line => line.startsWith('next profile: '));
+  assert.ok(profile.some(line => line.includes(' ms; slowest three: ')), 'the profile names the slowest read paths: ' + taken.err);
+  console.log(`next --verify (review seat) on ${REAL_SIZE.events} events, ${REAL_SIZE.agents} agents: ${seconds.toFixed(2)} s wall\n${profile.join('\n')}`);
+  reportSeatProfile('review', profile, ['review merge check']);
+  assert.ok(seconds < 2, `the review take took ${seconds.toFixed(2)} s wall on the real-size board:\n${profile.join('\n')}`);
 });
 
 test('cli.io-next-real-size.context-steps-profile: cli.next.real-size.context-steps-profile: clause 1: the next profile reports fallback reclaim, dead runner restart, queued reds and lag as separate rows in place of one context row [N2]', async t => {

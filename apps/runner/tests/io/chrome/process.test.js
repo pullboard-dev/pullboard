@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createDescendantTracker } from '../../../index.js';
-import { awaitNestedRun } from '../../../../../packages/gate/index.js';
+import { awaitNestedRun } from '../../../../../packages/gate/heavy.js';
 import { runFixtureChildAsync } from '../../../../cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../cli/tests/fixtures/child.js';
 import { HOST } from '../../../../cli/tests/fixtures/runner/ssh.js';

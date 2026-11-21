@@ -4,9 +4,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { openBoard } from '../packages/board/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
+import { generatedDocs } from '../apps/cli/src/io/generated/docs.js';
 
-const guide = readFileSync(new URL('./api.md', import.meta.url), 'utf8');
+/** The API guide is rendered from the declarations; no committed copy is read. */
+const guide = generatedDocs(fileURLToPath(new URL('../', import.meta.url)), { openBoard }).get('docs/api.md');
 
 /** Read a marked Markdown shape table as a map of names to required field/type pairs. */
 function readShapeTable(start, end) {
