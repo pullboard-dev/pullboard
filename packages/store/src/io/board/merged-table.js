@@ -9,12 +9,12 @@ import { itemPace } from './sprint-pace.js';
  * Returns null when the table is not available or throws (a store used without its composition root, or a damaged row): the writer then keeps its own rules, so behaviour never changes.
  *
  * @param {{ id: number, status: string, mergedCommit?: string | null }} item - The item row before the move.
- * @param {{ agentId: string, commit: string, forced?: string }} call
+ * @param {{ agentId: string, commit: string, forced?: string, mergedAt?: number }} call
  * @param {{ pace?: string, item?: object, base?: string, io?: object }} [strict] - The pace facts from strictFacts: a strict item's frozen pace and the facts its merge reads, a sprint item's pace alone, nothing for steady.
  * @returns {{ refused?: { code: string, message: string, next?: string }, events?: object[] } | null}
  */
 export function mergedDecision(item, call, strict = {}) {
-  const move = { id: item.id, actor: call.agentId, commit: call.commit, ...(call.forced === undefined ? {} : { forced: call.forced }) };
+  const move = { id: item.id, actor: call.agentId, commit: call.commit, ...(call.forced === undefined ? {} : { forced: call.forced }), ...(call.mergedAt === undefined ? {} : { mergedAt: call.mergedAt }) };
   try { return runMergedTable(structuredClone({ ...strict, item: { id: item.id, status: item.status, mergedCommit: item.mergedCommit ?? null, ...strict.item } }), move); } catch { return null; }
 }
 

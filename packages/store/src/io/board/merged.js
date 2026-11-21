@@ -10,7 +10,9 @@ import { endReservation } from "./hold/item.js";
 import { closeItemAsks } from "./decision/answer.js";
 import { withdraw } from "./withdraw.js";
 import { endItemGateJobs } from "../../../../jobs/index.js";
+import { ENGINE_VERSION } from "../../../../state/index.js";
 import { FORCED_MERGE_ENGINE } from "../../../../state/index.js";
+import { MERGED_AT_ENGINE } from "../../../../state/index.js";
 import { measureBoardWritePhase } from "./write/lock.js";
 import { mergedDecision } from "./merged-table.js";
 import { strictFacts } from "./merged-table.js";
@@ -30,9 +32,9 @@ import { strictFacts } from "./merged-table.js";
  * With `composeLanding`, the parent's landed commit already holds its composed slices, so each submitted slice child of the parent is
  * withdrawn in the same atomic write as the merged record, with the reason "landed with parent #<parent> at <sha12>" [C7,#2397].
  *
- * @param {{ agentId: string, commit: string, note?: string, forced?: string, waiveProof?: string, composeLanding?: boolean, endGateJobs?: boolean }} merge
+ * @param {{ agentId: string, commit: string, note?: string, forced?: string, waiveProof?: string, composeLanding?: boolean, endGateJobs?: boolean, mergedAt?: number }} merge
  */
-export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced, waiveProof, composeLanding, endGateJobs = false }) {
+export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced, waiveProof, composeLanding, endGateJobs = false, mergedAt: callerMergedAt }) {
   coordinatorOnly(agentId, 'records merges');
   const reason = typeof forced === 'string' ? forced.trim() : '';
   if (forced !== undefined && !reason) throw new Refused('FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"');
@@ -57,7 +59,9 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
       throw new Refused('FORCED_NO_PROOF', `no passing receipt covers item #${id}'s tip ${tip ? tip.slice(0, 12) : '(none recorded)'}; run its check there, or record the landing with --waive-proof "<why>"`);
     }
     // The landing merged table decides what a merge refuses and records; where it is not available the writer's own rules below stand [C7,#8268].
-    const decided = phase('merged-decision', () => mergedDecision({ id, status: item.item_status, mergedCommit: item.item_merged_commit }, { agentId, commit, forced: reason || undefined }, strictFacts(board, item)));
+    // The caller passes the commit's committer time in; merged() never runs git, so a board API request can reach it [C7,#12225].
+    const mergedAt = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGED_AT_ENGINE && Number.isSafeInteger(callerMergedAt) ? callerMergedAt : undefined;
+    const decided = phase('merged-decision', () => mergedDecision({ id, status: item.item_status, mergedCommit: item.item_merged_commit }, { agentId, commit, forced: reason || undefined, mergedAt }, strictFacts(board, item)));
     if (decided?.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
     if (!decided && !reason && item.item_status !== 'verified') {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
@@ -72,7 +76,8 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
     phase('merged-record', () => setItem(board, id, { item_merged_commit: commit }));
     logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}),
       ...(reason ? { forced: true, reason, from: item.item_status, itemTip: tip, receipts, ...(waiver ? { waivedProof: waiver } : {}) } : {}),
-      ...(flakeRatchet === undefined ? {} : { flakeRatchet }), ...(decidedMerge ?? {}) });
+      ...(flakeRatchet === undefined ? {} : { flakeRatchet }), ...(decidedMerge ?? {}),
+      ...(mergedAt === undefined || decidedMerge?.mergedAt !== undefined ? {} : { mergedAt }) });
     // A strict item with a counting full-suite receipt lands and publishes in the one transaction: the table's published event follows the merged one [M2,#9327].
     phase('merged-published', () => { for (const event of decided?.events?.filter(each => each.kind === 'published') ?? []) logEvent(board, agentId, 'published', id, event.detail); });
     phase('merged-close-asks', () => closeItemAsks(board, id, { agentId, reason: 'landed' }));
