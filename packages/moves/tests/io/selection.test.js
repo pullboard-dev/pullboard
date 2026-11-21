@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import childProcessModule from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
@@ -205,6 +206,26 @@ test('moves.selection.edit-named-file-warms: clause 2: a first edit to a clean t
   assert.ok(warmFiles(box.ctx, box.board, box.seats.actor, box.ports).includes('web/target.js'), 'the edited file the open item names is warm');
   assert.equal(pick().item?.item_id, before.item?.item_id, 'the pick selects the same item');
   assert.equal(before.item?.item_id, open);
+});
+
+test('moves.selection.status-cache-per-checkout: clause 3: two seat checkouts keep separate small caches beside their own indexes, each holding only its own paths [N2,C7,#10859]', t => {
+  const box = fixture(t, { boardFrom: cellBoard });
+  const first = box.project.repo, second = join(box.project.dir, 'second-checkout');
+  mkdirSync(second, { recursive: true });
+  const gitIn = (root, ...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { cwd: root, stdio: 'pipe' });
+  gitIn(second, 'init', '-q');
+  writeFileSync(join(second, 'base.txt'), 'base\n');
+  gitIn(second, 'add', 'base.txt');
+  gitIn(second, 'commit', '-q', '-m', 'base');
+  writeFileSync(join(first, 'first-only.js'), 'one\n');
+  writeFileSync(join(second, 'second-only.js'), 'two\n');
+  const warm = root => warmFiles({ ...box.ctx, info: { ...box.ctx.info, root } }, box.board, box.seats.actor, box.ports);
+  assert.ok(warm(first).includes('first-only.js') && !warm(first).includes('second-only.js'));
+  assert.ok(warm(second).includes('second-only.js') && !warm(second).includes('first-only.js'));
+  const kept = root => JSON.parse(readFileSync(join(root, '.git', 'pullboard-warm-status.json'), 'utf8'));
+  assert.deepEqual(Object.keys(kept(first)).sort(), ['fingerprint', 'paths'], 'a cache holds only its fingerprint and paths');
+  assert.ok(kept(first).paths.includes('first-only.js') && !kept(first).paths.includes('second-only.js'), 'the first cache holds the first checkout only');
+  assert.ok(kept(second).paths.includes('second-only.js') && !kept(second).paths.includes('first-only.js'), 'the second cache holds the second checkout only');
 });
 
 test('moves.selection.derived-gate-port: clause 1: with ports.derivedGateAtHead returning a reader, pick passes it to nextFor, so an item the reader names as gated is not picked and the next free item is [C7,#10881]', t => {

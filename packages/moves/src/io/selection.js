@@ -32,6 +32,7 @@ import { laneNames } from '../../../seats/index.js';
 import { lightShaped } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { machineSettingsFile } from '../../../config/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { nextReadinessCache } from '../../../config/index.js';
 import { nextLabelBounds } from '../../../config/index.js';
 import { nextReturnedFirst } from '../../../config/index.js';
@@ -54,6 +55,8 @@ import { forcedLandedUnreviewed } from '../../../verify/index.js';
 import { ownSessionReviews } from '../../../verify/index.js';
 import { relayLinked } from '../../../link/index.js';
 import { criterionFreezer } from './freezer.js';
+
+const cacheFs = fileSystemAdapter();
 
 /** The refusals next passes over, as it does a bar that cannot be built: the unbuildable codes, and a bar naming paths no lane owns, which claim by id still refuses [C7,#11862]. */
 const PASSED_OVER = new Set([...UNBUILDABLE, 'CROSS_OWNERSHIP']);
@@ -118,9 +121,11 @@ function stamp(file) {
 }
 
 /**
- * The edited and untracked paths of a seat checkout. The paths are kept per seat root with a fingerprint: HEAD, the index
- * file's stamp, and the stamp of every path in the kept status plus every file a candidate item names. A matching
- * fingerprint reuses the kept paths and launches no git; any change reads the status again and keeps the new result.
+ * The edited and untracked paths of a seat checkout. The paths are kept in a small file of their own beside the
+ * checkout's index, in its git dir, with a fingerprint: HEAD, the index file's stamp, and the stamp of every path in the
+ * kept status plus every file a candidate item names. A matching fingerprint reuses the kept paths and launches no git;
+ * any change reads the status again and keeps the new result, written through a temp file and a rename so a reader never
+ * sees half a file. A removed checkout takes its file with it, and no seat shares or rewrites another's.
  * An edit to a tracked file that no item names can be missed until the next status, and cannot change which item is picked [C7,#10859].
  *
  * @param {string} root
@@ -130,19 +135,19 @@ function stamp(file) {
  */
 function cachedDirtyPaths(root, named, read) {
   const head = checkoutHead(root), index = checkoutIndexFile(root);
-  const file = join(dirname(machineSettingsFile()), 'warm-status-cache.json');
-  let kept = {};
-  try { const parsed = JSON.parse(readFileSync(file, 'utf8')); if (parsed && typeof parsed === 'object') kept = parsed; } catch { /* no cache yet, or one a crash left half written: read the status */ }
+  const file = index ? join(dirname(index), 'pullboard-warm-status.json') : null;
   const fingerprint = (paths) => head && index
     ? JSON.stringify([head, stamp(index), [...new Set([...paths, ...named])].sort().map(path => [path, stamp(join(root, path))])]) : null;
-  const entry = kept[root];
+  let entry;
+  if (file) { try { entry = JSON.parse(cacheFs.readFile(file, 'utf8')); } catch { /* no cache yet, or one a crash left half written: read the status */ } }
   if (Array.isArray(entry?.paths) && entry.fingerprint && entry.fingerprint === fingerprint(entry.paths)) return entry.paths;
   const paths = read();
   const next = fingerprint(paths);
-  if (next) {
+  if (file && next) {
+    const temp = `${file}.${process.pid}.tmp`;
     try {
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, JSON.stringify({ ...kept, [root]: { fingerprint: next, paths } }));
+      cacheFs.writeFile(temp, JSON.stringify({ fingerprint: next, paths }));
+      cacheFs.rename(temp, file);
     } catch { /* an unwritable cache only costs a status */ }
   }
   return paths;
