@@ -52,10 +52,10 @@ test('cli.journeys-init-docs.one-command-detects-and-repairs-each: clause 2: one
     assert.equal(readFileSync(path, 'utf8'), before, `${file} restored exactly`);
   }
   const api = join(box.root, 'docs/api.md');
-  const prose = readFileSync(api, 'utf8').replace('#', 'Authored introduction.\n\n#');
-  writeFileSync(api, prose);
+  const whole = readFileSync(api, 'utf8');
+  writeFileSync(api, whole.replace('#', 'Authored introduction.\n\n#'));
   assert.equal(box.node('docs/tools/update-docs.js').status, 0);
-  assert.equal(readFileSync(api, 'utf8'), prose, 'authored text outside generated tables survives');
+  assert.equal(readFileSync(api, 'utf8'), whole, 'the API guide is rendered whole, so text added outside its generated parts is dropped');
   assert.deepEqual(JSON.parse(box.node('docs/tools/update-docs.js', '--json').stdout).changed, [], 'second refresh is idempotent');
 });
 
