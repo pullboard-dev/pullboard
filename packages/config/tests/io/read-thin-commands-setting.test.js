@@ -5,6 +5,10 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { readThinCommands } from '../../index.js';
 import { settingsInventory } from '../../index.js';
+import { nextReturnedFirst } from '../../light.js';
+import { routeReservations } from '../../light.js';
+import { scratchRoot } from '../../light.js';
+import { submitComposeAsObject } from '../../light.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -40,4 +44,16 @@ test('config.io-read-thin-commands-setting.clause-2-a-non-boolean-read-thincomma
   for (const bad of ['yes', 1, 'true', null]) {
     assert.throws(() => withSettings({ read: { thinCommands: bad } }, readThinCommands), error => error.code === 'BAD_MACHINE_SETTINGS' && /read\.thinCommands/u.test(error.message));
   }
+});
+
+test('config.io-read-thin-commands-setting.show-read-boundary: clause 1: the light door exposes existing setting readers without inventory or setter composition [C7]', () => {
+  assert.equal(typeof nextReturnedFirst, 'function');
+  assert.equal(typeof routeReservations, 'function');
+  assert.equal(typeof submitComposeAsObject, 'function');
+  assert.equal(typeof scratchRoot, 'function');
+  assert.equal(withSettings({}, routeReservations), true);
+  assert.equal(withSettings({ route: { reservations: false } }, routeReservations), false);
+  assert.equal(withSettings({}, nextReturnedFirst), false);
+  assert.equal(withSettings({ next: { returnedFirst: true } }, nextReturnedFirst), true);
+  assert.equal(withSettings({}, submitComposeAsObject), false);
 });
