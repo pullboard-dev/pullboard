@@ -69,12 +69,19 @@ function expectedWorktreeRoot(treePath, mainRoot, placement) {
 }
 
 /** Match a reported process working directory to this tree without treating a similarly named sibling as inside it. */
-function processInTree(processes, treePath) {
+function processInTree(processes, treePath, seatFamily = false) {
   if (!Array.isArray(processes)) return { unknown: true, matched: false };
   for (const process of processes) {
     const cwd = absolutePath(typeof process === 'string' ? process : process?.cwd ?? process?.path);
     if (!cwd) return { unknown: true, matched: false };
     if (containsPath(treePath, cwd)) return { unknown: false, matched: true };
+    if (seatFamily) {
+      const sibling = relative(dirname(treePath), cwd).split(sep)[0];
+      const prefix = basename(treePath) + '-';
+      if (sibling.startsWith(prefix) && /^(?:item-[1-9]\d*|spare)$/u.test(sibling.slice(prefix.length))) {
+        return { unknown: false, matched: true };
+      }
+    }
   }
   return { unknown: false, matched: false };
 }
@@ -82,14 +89,9 @@ function processInTree(processes, treePath) {
 /** Return the last observed activity only when the whole seat is idle past the line's takeover window. */
 export function goneMaintenanceSeat(seat, takeoverMs, now, workingDirectories) {
   const root = absolutePath(seat.agent_path ?? seat.path);
-  if (!root || !idlePastTakeover(seat, takeoverMs, now) || !Array.isArray(workingDirectories)) return null;
-  for (const process of workingDirectories) {
-    const cwd = absolutePath(typeof process === 'string' ? process : process?.cwd ?? process?.path);
-    if (!cwd || containsPath(root, cwd)) return null;
-    const sibling = relative(dirname(root), cwd).split(sep)[0];
-    const prefix = basename(root) + '-';
-    if (sibling.startsWith(prefix) && /^(?:item-[1-9]\d*|spare)$/u.test(sibling.slice(prefix.length))) return null;
-  }
+  if (!root || !idlePastTakeover(seat, takeoverMs, now)) return null;
+  const census = processInTree(workingDirectories, root, true);
+  if (census.unknown || census.matched) return null;
   return seatActivity(seat);
 }
 
@@ -166,7 +168,9 @@ export function classifyMaintenanceTree(tree, {
     if (overlapsPath(resolve(main, excluded), path)) return result('active', true, 'configured-exclusion', agentIds, itemIds);
   }
 
-  const processState = processInTree(workingDirectories, path);
+  const seatRoot = itemSeat ? absolutePath(itemSeat.agent_path ?? itemSeat.path) : path;
+  const processState = processInTree(workingDirectories, seatRoot, Boolean(itemSeat || matchingSeats.length && seatRoot === path));
+  if (itemSeat && processState.matched) return result('active', true, 'process-working-directory', [itemSeat.agent_id], [folderItem]);
   if (processState.unknown) return result('active', true, 'process-census-unknown', agentIds, itemIds);
   if (processState.matched) return result('active', true, 'process-working-directory', agentIds, itemIds);
 

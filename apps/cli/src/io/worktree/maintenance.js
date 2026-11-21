@@ -143,7 +143,7 @@ async function releaseGoneMaintenanceClaims(root, config, observed, trees, ports
     const path = resolve(seat.agent_path);
     const lastSeen = goneMaintenanceSeat(seat, observed.takeoverMs, now, directories);
     if (lastSeen === null || maintenanceProtectedPath(path) || contains(path, root)) continue;
-    if (config.worktreeMaintenance.exclude.some(excluded => contains(excluded, path) || contains(path, excluded))) continue;
+    if (config.worktreeMaintenance.exclude.some(excluded => contains(resolve(root, excluded), path) || contains(path, resolve(root, excluded)))) continue;
     if (observed.seats.some(other => other !== seat && other.agent_path && resolve(other.agent_path) === path
       && goneMaintenanceSeat(other, observed.takeoverMs, now, directories) === null)) continue;
     const tree = registered.get(path) ?? registered.get(`${path}-item-${claim.item_id}`);

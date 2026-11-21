@@ -1,6 +1,7 @@
 /** @pullboard-test-loads apps/cli/src/io/worktree/maintenance.js apps/cli/src/io/worktree/maintenance/folder-sweep.js */
 /** One maintenance sweep removes clean folders of landed, withdrawn and dead-seat items inside the grace; dirty ones keep their diff at a keep ref [C7,#12537]. */
 import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -10,7 +11,8 @@ import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
 import { openBoardForRead } from '../../../../../lib/index.js';
 import { openKitBoard } from '../../../../../lib/tests/fixtures/board.js';
-import { addFixtureItem, joinAgent } from '../../../fixtures/worktree/maintenance/lifecycle.js';
+import { addFixtureItem } from '../../../fixtures/worktree/maintenance/lifecycle.js';
+import { joinAgent } from '../../../fixtures/worktree/maintenance/lifecycle.js';
 import { context } from '../../../../src/io/context.js';
 import { classifyMaintenanceTree } from '../../../../src/io/worktree/maintenance/classify.js';
 import { maintenanceCommandPorts } from '../../../../src/io/worktree/maintenance/command.js';
@@ -115,7 +117,7 @@ test('cli.io-worktree-maintenance-folder-sweep.claimed-seat-presence: clause 1: 
     assert.equal(gone.protected, true, 'the claim must be released before cleanup');
     assert.equal(classify(seat, [], folder).goneSeat?.[0], 'core-1', 'a never-beating seat ages from its creation');
     assert.equal(classify({ ...seat, heartbeatAt: now - takeoverMs + 1 }, [], folder).goneSeat, undefined);
-    assert.equal(classify(seat, [{ cwd: `${path}-item-9/subdir` }], folder).goneSeat, undefined);
+    assert.equal(classify(seat, [{ cwd: `${path}-item-9/subdir` }], folder).reason, 'process-working-directory');
     assert.equal(classify(seat, [{ cwd: path }], folder).goneSeat, undefined);
     assert.equal(classify(seat, null, folder).goneSeat, undefined);
   }
@@ -124,7 +126,7 @@ test('cli.io-worktree-maintenance-folder-sweep.claimed-seat-presence: clause 1: 
 /** Claim a native board item and put its committed work on a real Git item branch. */
 async function nativeClaim(fx, board, seat, title, leaseMs) {
   const id = await addFixtureItem(fx.box, title);
-  store.claim(board, id, { agentId: seat.agent, lane: 'web', leaseMs, itemFolder: true, perSeat: 2,
+  store.claim(board, id, { agentId: seat.agent, lane: 'web', leaseMs, itemFolder: true, perSeat: 3,
     freeze: item => ({ text: item.item_title, digest: `fixture:${item.item_title}` }) });
   return { id, ...fx.itemFolder(`${seat.path}-item-${id}`, id) };
 }
@@ -145,11 +147,14 @@ test('cli.io-worktree-maintenance-folder-sweep.releases-and-reclaims: clause 2: 
   const gone = await seat('gone'), blocked = await seat('blocked'), active = await seat('active'), renewed = await seat('renewed');
   const clean = await nativeClaim(fx, board, gone, 'Clean gone claim', 2 * 3_600_000);
   const dirty = await nativeClaim(fx, board, gone, 'Dirty expired gone claim', 20 * 60_000);
+  const ignored = await nativeClaim(fx, board, gone, 'Ignored data beyond custody', 2 * 3_600_000);
   const refused = await nativeClaim(fx, board, blocked, 'Blocked checkout custody', 2 * 3_600_000);
   const held = await nativeClaim(fx, board, active, 'Active item process custody', 2 * 3_600_000);
   const raced = await nativeClaim(fx, board, renewed, 'Changed claim custody', 2 * 3_600_000);
   store.holdItem(board, dirty.id, { agentId: 'coordinator', reason: 'Separate dependency hold' });
   const bytes = Buffer.from([1, 0, 8, 255]);
+  appendFileSync(join(fx.repo, '.git', 'info', 'exclude'), '\nignored.bin\n');
+  writeFileSync(join(ignored.path, 'ignored.bin'), bytes);
   for (const item of [dirty, refused, raced]) writeFileSync(join(item.path, 'unfinished.bin'), bytes);
   at += 25 * 60_000;
   const native = maintenanceCommandPorts(ctx, 'coordinator');
@@ -163,10 +168,11 @@ test('cli.io-worktree-maintenance-folder-sweep.releases-and-reclaims: clause 2: 
     },
   };
   const lease = await takeMaintenanceCheckout(blocked.path, blocked.agent);
-  t.after(() => lease.release());
-  const report = await runWorktreeMaintenance(fx.repo, fx.config, ports, { now: at });
+  let report;
+  try { report = await runWorktreeMaintenance(fx.repo, fx.config, ports, { now: at }); }
+  finally { lease.release(); }
   const row = work => report.entries.find(entry => entry.path === work.path);
-  for (const work of [clean, dirty]) assert.equal(store.getItem(board, work.id).item_status, 'open', row(work).reason);
+  for (const work of [clean, dirty, ignored]) assert.equal(store.getItem(board, work.id).item_status, 'open', row(work).reason);
   assert.equal(store.getItem(board, dirty.id).item_hold_reason, 'Separate dependency hold');
   assert.equal(existsSync(clean.path), false, row(clean).reason);
   assert.equal(row(clean).action, 'swept');
@@ -176,6 +182,8 @@ test('cli.io-worktree-maintenance-folder-sweep.releases-and-reclaims: clause 2: 
     fx.git(fx.repo, 'hash-object', join(dirty.path, 'unfinished.bin')).trim());
   for (const work of [dirty, refused, raced]) assert.deepEqual(readFileSync(join(work.path, 'unfinished.bin')), bytes);
   for (const work of [refused, held, raced]) assert.equal(store.getItem(board, work.id).item_status, 'claimed');
+  assert.deepEqual(readFileSync(join(ignored.path, 'ignored.bin')), bytes);
+  assert.match(row(ignored).reason, /outside folder sweep custody/u);
   assert.match(row(refused).reason, /busy/u);
   assert.match(row(raced).reason, /claim.*changed/u);
 });

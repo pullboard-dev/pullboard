@@ -125,6 +125,11 @@ export async function sweepFinishedFolders(root, entries, { mainRoot, now, confi
         await ports.recordSweep?.({ action: 'kept', rule: found.rule, path, item: found.item, ref: kept.ref, commit: kept.commit });
         continue;
       }
+      // Git's non-forced removal still drops ignored files. They are outside the keep ref's custody.
+      if (maintenanceGit(path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])) {
+        entry.reason = 'ignored data are outside folder sweep custody; worktree kept';
+        continue;
+      }
       // A detached head that main lacks keeps its commit at a keep ref before the folder goes.
       let ref = null;
       const head = quiet(path, ['rev-parse', 'HEAD']);
