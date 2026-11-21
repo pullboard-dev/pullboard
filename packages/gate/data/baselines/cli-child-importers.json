@@ -25,7 +25,5 @@
   "transport/tests/io/main.test.js",
   "transport/tests/io/pull-board.test.js",
   "transport/tests/io/pull-restart.test.js",
-  "transport/tests/io/ssh.test.js",
-  "verify/tests/io/evidence.test.js",
-  "verify/tests/logic/advance.test.js"
+  "transport/tests/io/ssh.test.js"
 ]
