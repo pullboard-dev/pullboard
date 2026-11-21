@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { personNeeds } from '../../../../../../packages/spec/light.js';
 import { heldNote } from '../../../../src/io/held.js';
-import { heldChip } from '../../../../src/io/held.js';
+import { heldChip, judgementChip, judgementNote } from '../../../../src/io/held.js';
 
 test('view.needs-summary-data.only-person-owned-blocks-become-calls-grouped: only person-owned blocks become calls, grouped by command with the latest observed reason [N26,B26,C7]', () => {
   const state = { blocks: [
@@ -54,4 +54,8 @@ test('view.needs-summary-data.held-presentation-uses-the-supplied-claim-deadline
   assert.equal(heldNote(item, source, { state: 'landed' }, now), null);
   assert.equal(heldNote({ ...item, status: 'submitted' }, source, undefined, now), null);
   assert.throws(() => heldNote(item, source), /explicit observation clock/u);
+  const judged = judgementNote({ id: 7 }, { needsJudgement: [{ id: 7, reason: 'RED_TWICE', attempts: 3 }] });
+  assert.equal(judged, 'needs a judgement: RED_TWICE, 3 attempts');
+  assert.match(judgementChip(judged), /title="needs a judgement: RED_TWICE, 3 attempts"/u);
+  assert.equal(judgementNote({ id: 8 }, { needsJudgement: [{ id: 7, reason: 'RED_TWICE', attempts: 3 }] }), null);
 });
