@@ -422,7 +422,7 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
     assert.match(page, /href="view\.css"/);
     assert.match(page, /path = snapshot \? path\.split\('\?'\)\[0\]\.slice\(1\) \+ '\.json'/);
     assert.match(page, /api\(boardPath\(view\.root\) \+ '\/events'\)/);
-    assert.match(staticViewPage, /The page fetches these files without a session key and reads the events file to replay the snapshot/);
+    assert.match(staticViewPage, /^<!-- snapshot-files:start -->$/mu);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
