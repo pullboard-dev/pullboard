@@ -124,7 +124,7 @@ test('cli.io-worktree-maintenance-folder-sweep.claimed-seat-presence: clause 1: 
 /** Claim a native board item and put its committed work on a real Git item branch. */
 async function nativeClaim(fx, board, seat, title, leaseMs) {
   const id = await addFixtureItem(fx.box, title);
-  store.claim(board, id, { agentId: seat.agent, lane: 'web', leaseMs,
+  store.claim(board, id, { agentId: seat.agent, lane: 'web', leaseMs, itemFolder: true, perSeat: 2,
     freeze: item => ({ text: item.item_title, digest: `fixture:${item.item_title}` }) });
   return { id, ...fx.itemFolder(`${seat.path}-item-${id}`, id) };
 }
@@ -136,6 +136,8 @@ test('cli.io-worktree-maintenance-folder-sweep.releases-and-reclaims: clause 2: 
   const ctx = context(io);
   const board = openKitBoard(ctx.file, ctx.clock, { gitRoot: fx.repo });
   t.after(() => store.closeBoard(board));
+  store.setLineSetting(board, { agentId: 'coordinator', key: 'takeoverMinutes', value: 15,
+    reason: 'Exercise the configured window in the native release.', window: { fixture: 1 } });
   const seat = async name => {
     const path = join(fx.box.dir, name);
     return { path, agent: await joinAgent(fx.box, path) };
@@ -146,9 +148,10 @@ test('cli.io-worktree-maintenance-folder-sweep.releases-and-reclaims: clause 2: 
   const refused = await nativeClaim(fx, board, blocked, 'Blocked checkout custody', 2 * 3_600_000);
   const held = await nativeClaim(fx, board, active, 'Active item process custody', 2 * 3_600_000);
   const raced = await nativeClaim(fx, board, renewed, 'Changed claim custody', 2 * 3_600_000);
+  store.holdItem(board, dirty.id, { agentId: 'coordinator', reason: 'Separate dependency hold' });
   const bytes = Buffer.from([1, 0, 8, 255]);
   for (const item of [dirty, refused, raced]) writeFileSync(join(item.path, 'unfinished.bin'), bytes);
-  at += 40 * 60_000;
+  at += 25 * 60_000;
   const native = maintenanceCommandPorts(ctx, 'coordinator');
   const ports = { ...native, archiveVolume: fx.ports.archiveVolume,
     workingDirectories: () => [held.path],
@@ -164,6 +167,7 @@ test('cli.io-worktree-maintenance-folder-sweep.releases-and-reclaims: clause 2: 
   const report = await runWorktreeMaintenance(fx.repo, fx.config, ports, { now: at });
   const row = work => report.entries.find(entry => entry.path === work.path);
   for (const work of [clean, dirty]) assert.equal(store.getItem(board, work.id).item_status, 'open', row(work).reason);
+  assert.equal(store.getItem(board, dirty.id).item_hold_reason, 'Separate dependency hold');
   assert.equal(existsSync(clean.path), false, row(clean).reason);
   assert.equal(row(clean).action, 'swept');
   assert.equal(fx.git(fx.repo, 'rev-parse', `core/item-${clean.id}`).trim(), clean.commit);
