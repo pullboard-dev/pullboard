@@ -6,6 +6,7 @@ import * as store from '../../../../../store/index.js';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
 import { take } from '../../../fixtures/next.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 
 /** Claim an item as the actor seat and start its submit handoff, as `submit --no-next` leaves it. */
 function submitting(box, title) {
@@ -23,7 +24,7 @@ function submitting(box, title) {
 }
 
 test('moves.record-next-idle-seat.a-pending-handoff-counts-as-free-for: clause 2: a pending handoff counts as free for the two-minute oldest-review offer [C7,#3077]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   submitting(box, 'Submit handoff frees the seat for review');
   const waiting = box.add('Review waiting two minutes');
   box.submit(waiting);
@@ -36,7 +37,7 @@ test('moves.record-next-idle-seat.a-pending-handoff-counts-as-free-for: clause 2
 });
 
 test('moves.record-next-idle-seat.next-take-reserves-the-two-minute-review-while: next --take reserves the two-minute review while its only claim is a pending handoff (clauses 1 and 2) [C7,#3077]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const held = submitting(box, 'Only claim is gating');
   const before = store.getItem(box.board, held);
   const waiting = box.add('Review at the inclusive age boundary');
