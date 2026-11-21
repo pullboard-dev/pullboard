@@ -16,6 +16,7 @@ import {
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { git } from '../../../../../packages/landing/tests/fixtures/plan.js';
+import { fixtureProjectPolicy } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { temporaryDirectory } from '../../../../cli/tests/fixtures/board.js';
 import { temporaryRepository } from '../../../../cli/tests/fixtures/board/submit.js';
 
@@ -104,6 +105,7 @@ export function toolingRepo(t, { runnable = false } = {}) {
   const root = temporaryRepository(t, 'accepted-identity-repo-');
   copyFiles(root, [...new Set([...trackedFiles(...CHECKER_PATHS, 'package.json'), ...(runnable ? runnableFiles() : [])])]);
   writeFileSync(join(root, 'packages/codemap/data/plan/cells.json'), '{}\n');
+  fixtureProjectPolicy(root, { config: { cells: { cache: true, plan: 'packages/codemap/data/plan/cells.json' } } });
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture');
   return { root, commit: git(root, 'rev-parse', 'HEAD').trim() };
