@@ -589,17 +589,6 @@ export function checkoutHead(root) {
 }
 
 /**
- * A checkout's index file, found from its .git marker without launching Git, or undefined when the layout is not a plain one.
- *
- * @param {string} root
- * @returns {string | undefined}
- */
-export function checkoutIndexFile(root) {
-  const location = fileLocation(root);
-  return location ? join(location.gitDir, 'index') : undefined;
-}
-
-/**
  * A branch's commit in a checkout's repository, read from Git's ref files, or undefined when Git must answer.
  *
  * @param {string} root
@@ -624,17 +613,38 @@ export function worktreeStatus(root) {
     { cwd: root, timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }));
 }
 
+/** A file's change stamp, its modified time and size, or '-' when it is missing. */
+function changeStamp(file) {
+  try { const info = fs.stat(file); return `${info.mtimeMs}:${info.size}`; } catch { return '-'; }
+}
+
 /**
- * This command's one list of a worktree's edited and untracked paths. A reader that kept an earlier answer supplies it
- * through `read`; the first reader's answer is shared by every later reader in the command, so a kept answer is not
- * contradicted by a fresh status [C7,#10859].
+ * This command's one list of a worktree's edited and untracked paths. The list is kept in the checkout's own Git
+ * directory with a fingerprint: HEAD, the index file's stamp, and the stamp of every kept path plus every file in
+ * `named`, the files an open item names. A matching fingerprint reuses the kept list and launches no Git; any
+ * change reads the status again and keeps the new list. An edit to a tracked file that no item names can be missed
+ * until the next status, and cannot change which item is picked [C7,#10859].
  *
  * @param {string} root
- * @param {() => string[]} [read] - Defaults to this command's status.
+ * @param {string[]} [named] - Files whose first edit must reach the list.
  * @returns {string[]}
  */
-export function worktreePaths(root, read = () => { const { changed, untracked } = statusPaths(worktreeStatus(root)); return [...changed, ...untracked]; }) {
-  return commandObservation(JSON.stringify(['worktree-paths', resolve(root)]), read);
+export function worktreePaths(root, named = []) {
+  return commandObservation(JSON.stringify(['worktree-paths', resolve(root)]), () => {
+    const read = () => { const { changed, untracked } = statusPaths(worktreeStatus(root)); return [...changed, ...untracked]; };
+    const location = fileLocation(root);
+    const head = checkoutHead(root);
+    if (!location || !head) return read();
+    const index = join(location.gitDir, 'index'), file = join(location.gitDir, 'pullboard-worktree-paths.json');
+    const fingerprint = (paths, more) => JSON.stringify([head, changeStamp(index), [...new Set([...paths, ...more])].sort().map(path => [path, changeStamp(join(root, path))])]);
+    let kept;
+    try { kept = JSON.parse(fs.readFile(file, 'utf8')); } catch { /* No list kept yet, or a crash left one half written. */ }
+    const more = [...new Set([...(Array.isArray(kept?.named) ? kept.named : []), ...named])];
+    if (Array.isArray(kept?.paths) && kept.fingerprint && kept.fingerprint === fingerprint(kept.paths, more)) return kept.paths;
+    const paths = read();
+    try { fs.writeFile(file, JSON.stringify({ fingerprint: fingerprint(paths, named), named, paths })); } catch { /* An unwritable list only costs a status. */ }
+    return paths;
+  });
 }
 
 /**
