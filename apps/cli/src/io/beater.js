@@ -19,6 +19,9 @@ export const BEATER_QUIET_MS = 30 * 60_000;
 /** Presence is not progress: the events a seat's own beats and renewals write never count as its work. */
 const PRESENCE_EVENTS = ['claim', 'renew', 'heartbeat', 'claim_stalled'];
 
+/** A claimed item folder is snapshotted at most this often: once a minute per item, for the beater and board calls alike [C7,#12568]. */
+export const WIP_EVERY_MS = 60_000;
+
 /** The most entries one folder walk reads, so a huge folder never stalls a beat. */
 const WALK_LIMIT = 4000;
 
@@ -118,6 +121,49 @@ async function seatEventAt(board, seat) {
   finally { try { if (opened) store.closeBoard(opened); } catch { /* already closed */ } }
 }
 
+/** The seat's claimed items with their item folders, or [] when the board cannot be read this tick. */
+async function claimedFolders(board, seat) {
+  let opened, store;
+  try {
+    store = await import('../../../../packages/store/index.js');
+    opened = store.openBoardForRead(board);
+    const path = opened?.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(seat)?.agent_path;
+    if (typeof path !== 'string') return [];
+    const { itemFolderPath } = await import('../../../../packages/items/light.js');
+    return opened.db.prepare("SELECT item_id FROM item WHERE item_status='claimed' AND item_owner=?").all(seat).map((row) => ({ item: row.item_id, folder: itemFolderPath(path, row.item_id) }));
+  } catch { return []; }
+  finally { try { if (opened) store.closeBoard(opened); } catch { /* already closed */ } }
+}
+
+/**
+ * Snapshot each folder the seat holds a claimed item in, at most once a minute per item; a failure never reaches the caller.
+ * The last attempt's time lives in the folder's own Git metadata, so separate CLI processes and the beater share one throttle.
+ * Why: the board, not the builder, keeps uncommitted work safe when a seat goes away (#12535) [C7,#12568].
+ */
+export async function snapshotClaimedFolders({ board, seat }, { now = Date.now, claimed = claimedFolders, snapshot = null } = {}) {
+  try {
+    for (const { item, folder } of await claimed(board, seat)) {
+      try {
+        if (!fs.exists(folder)) continue;
+        const { gitPath } = await import('../../../../packages/git/light.js');
+        const stamp = gitPath(folder, 'pullboard-wip-at');
+        const last = Number(fs.exists(stamp) ? fs.readFile(stamp, 'utf8') : 0);
+        if (Number.isFinite(last) && now() - last < WIP_EVERY_MS && now() >= last) continue;
+        fs.writeFile(stamp, String(now()));
+        (snapshot ?? (await import('./item/wip.js')).snapshotWip)(folder, item);
+      } catch { /* one folder's failed snapshot never stops the others or the caller */ }
+    }
+  } catch { /* a snapshot never fails a tick or a command */ }
+}
+
+/** A board call by a claiming seat snapshots its claimed item folders, with the once-a-minute throttle; a seat with no claim snapshots nothing. */
+export async function snapshotOnBoardCall(cwd, { seatOf = null, ...options } = {}) {
+  try {
+    const binding = (seatOf ?? (await import('../../../../packages/seats/light.js')).timingSeat)(cwd);
+    if (binding?.seat && binding.board) await snapshotClaimedFolders({ board: binding.board, seat: binding.seat }, options);
+  } catch { /* a snapshot never fails a command */ }
+}
+
 /** The lock file naming the beater that keeps `seat` alive, beside the board's private seat files. */
 function beaterLock(board, seat) { return join(dirname(board), 'beaters', `${storeName(encodeURIComponent(seat))}`); }
 
@@ -185,7 +231,7 @@ export function stopClaimBeater({ seat, board }) {
  * A `remote` binding ({ url, token, agent, seatKey? }, a seat joined by board.url) beats the board host through
  * sendRemoteHeartbeat instead of a local board, and stops once the host refuses a beat or the lock names another beater [P7,B3].
  */
-export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS, remote = null, quietMs = BEATER_QUIET_MS }, { alive: agentUp = agentAlive, pid = process.pid, send = null, now = Date.now, lastEvent = seatEventAt, lastFileChange = folderActivity, wait = null, ...options } = {}) {
+export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS, remote = null, quietMs = BEATER_QUIET_MS }, { alive: agentUp = agentAlive, pid = process.pid, send = null, now = Date.now, lastEvent = seatEventAt, lastFileChange = folderActivity, wait = null, wip = {}, ...options } = {}) {
   // The seat is quiet when it made no board event and changed no file in its folder for quietMs, whatever the watched pid does [B3].
   let lastWork = now();
   const refresh = async () => {
@@ -193,7 +239,7 @@ export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATE
     lastWork = Math.max(lastWork, ...found);
   };
   const alive = (watched) => agentUp(watched) && now() - lastWork < quietMs;
-  const pause = async (ms) => { await refresh(); await (wait ?? ((span) => new Promise((done) => setTimeout(done, span))))(ms); };
+  const pause = async (ms) => { await refresh(); await snapshotClaimedFolders({ board, seat }, wip); await (wait ?? ((span) => new Promise((done) => setTimeout(done, span))))(ms); };
   options = { ...options, wait: pause };
   try {
     const { keepClaimsAlive } = await import('../../../../packages/gate/heavy.js');
