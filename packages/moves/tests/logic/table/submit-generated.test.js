@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { boardSubmitEngine } from '../../../index.js';
 import { pipelineCause } from '../../../index.js';
+import { readSubmitRecords } from '../../../index.js';
 import { runTable } from '../../../index.js';
 import { seeded } from '../../../index.js';
 import { SUBMIT_NEXT } from '../../../index.js';
@@ -378,4 +379,37 @@ test('moves.table.red-to-board-code: clause 1: a red-to-board release carries GA
     assert.equal(release.detail.reasonCode, c.m.boardCodes === true ? 'GATE_REFUSED' : 'OTHER');
     assert.match(release.detail.reason, /^the queued gate was refused \(.*\); returned to the board for any free seat$/u);
   }
+});
+
+test('moves.submit.children-slices: clause 1: with composeLanding a parent whose unfinished children are all slices passes the children guard, and an unfinished child that is not a slice still refuses CHILDREN_OPEN [C7,#12757]', () => {
+  const accepted = results.filter(c => c.table === 'SUBMIT' && !c.result.refused && c.s.item).slice(0, 200);
+  assert.ok(accepted.length > 0);
+  for (const c of accepted) {
+    const slices = [{ id: 1, status: 'open', slice: true }, { id: 2, status: 'claimed', slice: true }, { id: 3, status: 'submitted', slice: true }, { id: 4, status: 'accepted' }];
+    const compose = { ...c.m, composeLanding: true };
+    assert.deepEqual(run(c, { ...c.s, children: slices }, compose), c.result, `seed ${c.seed} slices ride along`);
+    for (const status of ['open', 'claimed', 'submitted']) {
+      const refused = run(c, { ...c.s, children: [...slices, { id: 5, status, slice: false }] }, compose).refused;
+      assert.deepEqual([refused?.row.endsWith(':children'), refused?.code, refused?.message], [true, 'CHILDREN_OPEN', `item #${c.m.id} has 1 unfinished child items`], `seed ${c.seed} ${status} non-slice`);
+    }
+  }
+});
+
+test('moves.submit.children-slices-off: clause 2: with composeLanding absent or false the children guard refuses exactly as before, a slice child counts, and each snapshot child carries its slice flag [C7,#12757]', () => {
+  const accepted = results.filter(c => c.table === 'SUBMIT' && !c.result.refused && c.s.item).slice(0, 200);
+  for (const c of accepted) {
+    for (const m of [c.m, { ...c.m, composeLanding: false }, { ...c.m, composeLanding: 'true' }]) {
+      const refused = run(c, { ...c.s, children: [{ id: 1, status: 'open', slice: true }] }, m).refused;
+      assert.deepEqual([refused?.code, refused?.message], ['CHILDREN_OPEN', `item #${c.m.id} has 1 unfinished child items`], `seed ${c.seed}`);
+    }
+  }
+  const rows = [{ id: 1, at: NOW, kind: 'add', by: 'coordinator', item: 1, d: '{"lane":"core"}' }, { id: 2, at: NOW, kind: 'add', by: 'coordinator', item: 2, d: '{"lane":"core"}' },
+    { id: 3, at: NOW, kind: 'add', by: 'coordinator', item: 3, d: '{"lane":"core"}' }, { id: 4, at: NOW, kind: 'claim', by: 'tests-1', item: 1, d: '{}' },
+    { id: 5, at: NOW, kind: 'submit', by: 'tests-1', item: 1, d: '{"commit":"abc"}' }];
+  const answers = [[/FROM agent/u, []], [/FROM item/u, [{ item_id: 1, item_parent_id: null }, { item_id: 2, item_parent_id: 1 }, { item_id: 3, item_parent_id: 1 }]],
+    [/item-slice/u, [{ meta_key: 'item-slice:2' }]], [/outside_source/u, []], [/FROM shout/u, []], [/FROM job_step/u, []], [/FROM event/u, rows]];
+  const db = { prepare: (sql) => ({ all: () => answers.find(([re]) => re.test(sql))[1] }) };
+  const { records } = readSubmitRecords({ db }, { since: NOW });
+  const commit = records.find(r => r.table === 'COMMIT');
+  assert.deepEqual(commit.snapshot.children, [{ id: 2, status: 'open', slice: true }, { id: 3, status: 'open', slice: false }]);
 });
