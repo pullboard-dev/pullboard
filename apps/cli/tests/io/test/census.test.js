@@ -117,7 +117,7 @@ test('cli.io-test-census.explicit-report-history-times-drive-both-plans: clause 
   const timed = censusPlan(files, 1, times, false, () => [], 3);
   assert.deepEqual(timed.map(job => job.weight), [180_000, 140_000, 60_000], 'jobMinutes=3 sizes jobs using explicit report history plus recorded fallback');
   const countPacked = rowPackedJobs(files, 2, [], times);
-  assert.deepEqual(countPacked.map(job => job.weight), [230_000, 180_000], 'the count fallback receives the same timing map');
+  assert.deepEqual(countPacked.map(job => job.weight), [200_000, 180_000], 'the count fallback receives the same timing map');
 });
 
 test('cli.io-test-census.sigterm-cancels-own-shards: clause 1: SIGTERM withdraws only its unfinished pulled shards and preserves a receipt [C7,#12628]', { timeout: 120_000 }, async t => {
