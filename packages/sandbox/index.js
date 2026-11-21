@@ -8,6 +8,7 @@ export {
   mainRedBuildOffer,
   nextTake,
   closePassingMainReds,
+  withdrawMetOnMain,
   nextProgress,
   UNBUILDABLE,
   reportUnbuildableOnce,

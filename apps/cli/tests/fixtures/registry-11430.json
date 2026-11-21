@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-new.lints-cell-lint-report-clean": {"proves":{"specs":["C7"],"claim":"clause 1: a cell written by new package into a fixture project root has no finding for packages/<name> in cellLintReport."},"why":"Without it, the starter anatomy could ship with lint debt that the cell lint baseline would then have to carry.","kind":"journey","inputs":["apps/cli/src/io/commands/new.js","apps/cli/src/logic/new-package.js","apps/cli/src/logic/new-package.json"]},
+  "cli.io-commands-new.lints-generated-tests-pass": {"proves":{"specs":["C7"],"claim":"clause 2: the registry and inputs tests the generated cell carries pass when run with node --test on that fixture root."},"why":"Without it, a new cell could start with its own tests red.","kind":"journey","inputs":["apps/cli/src/io/commands/new.js","apps/cli/src/logic/new-package.js","apps/cli/src/logic/new-package.json"]}
+}

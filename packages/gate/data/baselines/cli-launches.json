@@ -1376,7 +1376,7 @@
   "apps/cli/journeys/relay/person/requests.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/release/model-tour.test.js": {
+  "apps/cli/tests/io/commands/release/model-tour.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/export/shouts.test.js": {
@@ -1457,7 +1457,7 @@
   "packages/board/tests/from-store/io/board/write.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/release/speed.test.js": {
+  "apps/cli/tests/io/commands/release/speed.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/scripts/release.test.js": {

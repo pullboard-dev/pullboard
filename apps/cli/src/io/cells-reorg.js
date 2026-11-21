@@ -83,7 +83,8 @@ export function cellsReorgReason({ title = '', criterion = '', changed, added, d
   if (beforeMap.size !== afterMap.size || [...afterMap].some(([from, to]) => beforeMap.get(from) !== to)) return 'the item changes path-map.json';
   const shim = changed.find(file => beforeMap.has(file) || afterMap.has(file));
   if (shim) return `the item changes the shim ${shim}`;
-  if (changed.some(file => file === 'packages/codemap/data/plan/cells.json' || file.startsWith('packages/codemap/data/plan/')) && planReorg(before, after, new Set(added), new Set(deleted))) {
+  // Plan rows are optional: a caller that no longer reads the plan passes none, and only plan data files are compared [C7].
+  if (before && after && changed.some(file => file === 'packages/codemap/data/plan/cells.json' || file.startsWith('packages/codemap/data/plan/')) && planReorg(before, after, new Set(added), new Set(deleted))) {
     return 'the item changes packages/codemap/data/plan/cells.json or packages/codemap/data/plan/ beyond placing its new files or retiring its deleted ones';
   }
   const data = changed.find(file => planData(file) && dataReorg(readData(file).before, readData(file).after, new Set(added), new Set(deleted)));

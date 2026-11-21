@@ -243,10 +243,10 @@ function pulledCensus(ctx, io, values = {}) {
  * @param {object} io
  * @param {{ info: { root: string } }} ctx
  * @param {{ out?: string, json?: boolean, 'no-file-limit'?: boolean }} values
- * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards, clock?: () => number }} [options] - `clock` reads the time in milliseconds for the phase seconds; `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
+ * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards, clock?: () => number, trustedTooling?: Function }} [options] - `clock` reads the time in milliseconds for the phase seconds; `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
  * @returns {Promise<number>}
  */
-export async function runCensus(io, ctx, values, { shards, prefixes = [], run, clock = Date.now } = {}) {
+export async function runCensus(io, ctx, values, { shards, prefixes = [], run, clock = Date.now, trustedTooling } = {}) {
   const root = ctx.info.root;
   const sha = cleanHead(root);
   const tracked = await trackedTests(root);
@@ -258,12 +258,13 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run, c
   const tuned = censusJobMinutesFrom(join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out);
   if (tuned) TUNED.set(root, tuned); else TUNED.delete(root);
   PRIOR.set(root, earlierCensusRows(join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out) ?? []);
-  // Opt-in: files whose declared inputs did not change since a green earlier census keep that row, marked carried [C7,#10383].
-  const carry = censusSkipUnchangedEnabled() ? censusCarry(root, { files: everyFile, sha, dir: join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out }) : { run: everyFile, carried: [], from: null };
+  // Pull census receipts have case frames and ledger keys but no authenticated full-result packet in the controller store.
+  const pulled = !run && runnerDispatchMode() === 'pull';
+  const carry = censusSkipUnchangedEnabled() && !pulled
+    ? await censusCarry(root, { files: everyFile, sha, runners: loadMachineSettings().runners, trustedTooling })
+    : { run: everyFile, carried: [] };
   const files = carry.run;
   writeFileSync(out, carry.carried.map(row => `${JSON.stringify(row)}\n`).join(''));
-  // A pull board offers each shard as a job; the landing path's in-process controller custody is never taken (#7602).
-  const pulled = !run && runnerDispatchMode() === 'pull';
   const dispatch = run ?? (pulled ? pulledCensus(ctx, io, values) : runLandingShards);
   // A settle rerun asks for the usual per-file kill, so the census's no-file-limit flag does not reach it (#9283).
   const settleReruns = censusRerunOnSettleEnabled() && dispatch !== runLandingShards;
@@ -341,7 +342,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run, c
   const phases = censusPhases({ ...marks, end: clock() }), seconds = phases.wallSecs;
   const idleSlots = censusIdleSlots(rows.values(), censusStart.getTime());
   io.result?.({ out, sha, files: everyFile.length, carried: carry.carried.length, shards: plan.length, seconds, phases, idleSlots, counts });
-  io.say(`census of ${everyFile.length} files${carry.carried.length ? ` (${carry.carried.length} carried from ${carry.from.slice(0, 10)})` : ''} at ${sha.slice(0, 10)} in ${seconds}s over ${plan.length} shards: ${Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ')}; rows in ${out}`);
+  io.say(`census of ${everyFile.length} files${carry.carried.length ? ` (${carry.carried.length} carried proofs, ${files.length} fresh)` : ''} at ${sha.slice(0, 10)} in ${seconds}s over ${plan.length} shards: ${Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ')}; rows in ${out}`);
   io.say(censusPhaseLine(phases));
   const idleLine = censusIdleLine(idleSlots);
   if (idleLine) io.say(idleLine);

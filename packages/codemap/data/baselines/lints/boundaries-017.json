@@ -45,13 +45,6 @@
     "apps/cli/journeys/relay/upload/status.test.js->apps/cli/tests/fixtures/relay/client.js": 1,
     "apps/cli/journeys/relay/upload/status.test.js->src/machine.js": 1,
     "apps/cli/journeys/relay/upload/status.test.js->src/seal.js": 1,
-    "apps/cli/journeys/release/speed.test.js->apps/cli/tests/fixtures/cases/affinity.js": 1,
-    "apps/cli/journeys/release/speed.test.js->apps/cli/tests/fixtures/child.js": 1,
-    "apps/cli/journeys/release/speed.test.js->apps/cli/tests/fixtures/e2e.js": 1,
-    "apps/cli/journeys/release/speed.test.js->apps/cli/tests/fixtures/release/cases/producer.js": 1,
-    "apps/cli/journeys/release/speed.test.js->apps/cli/tests/fixtures/release/cases/receipt.js": 1,
-    "apps/cli/journeys/release/speed.test.js->apps/cli/tests/fixtures/release/cases/transport.js": 1,
-    "apps/cli/journeys/release/speed.test.js->src/landing-shards.js": 1,
     "apps/cli/journeys/reopen/cause.test.js->apps/cli/tests/fixtures/e2e.js": 1,
     "apps/cli/journeys/reopen/cause.test.js->src/board.js": 1,
     "apps/cli/journeys/reopen/cause.test.js->src/exchange.js": 1,
@@ -384,6 +377,13 @@
     "test/runner-pid.test.js->src/test-file-pool.js": 1,
     "test/runner-timing.test.js->apps/cli/tests/fixtures/child.js": 1,
     "test/runner-timing.test.js->apps/cli/tests/fixtures/e2e.js": 1,
-    "test/runner-timing.test.js->src/resources.js": 1
+    "test/runner-timing.test.js->src/resources.js": 1,
+    "apps/cli/tests/io/commands/release/speed.test.js->apps/cli/tests/fixtures/release/cases/producer.js": 1,
+    "apps/cli/tests/io/commands/release/speed.test.js->apps/cli/tests/fixtures/child.js": 1,
+    "apps/cli/tests/io/commands/release/speed.test.js->src/landing-shards.js": 1,
+    "apps/cli/tests/io/commands/release/speed.test.js->apps/cli/tests/fixtures/cases/affinity.js": 1,
+    "apps/cli/tests/io/commands/release/speed.test.js->apps/cli/tests/fixtures/release/cases/transport.js": 1,
+    "apps/cli/tests/io/commands/release/speed.test.js->apps/cli/tests/fixtures/e2e.js": 1,
+    "apps/cli/tests/io/commands/release/speed.test.js->apps/cli/tests/fixtures/release/cases/receipt.js": 1
   }
 }
