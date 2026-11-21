@@ -1,6 +1,7 @@
 /** Fixture machine homes enable in-process hooks by default while honoring explicit fixture settings [C7]. @pullboard-test-input source-cell packages/gate */
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { loadMachineSettings } from '../../config/index.js';
