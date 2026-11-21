@@ -1,0 +1,15 @@
+{
+  "cli.journeys-speed-release-median.profile-by-caller": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: the same five in-process releases run under the profiler and print the ten largest self-time rows, with every child spawn sample charged to the nearest caller outside guard.js."
+    },
+    "why": "Without it, the release median profile names only the browser-slot wrapper, and the next cut has no caller to aim at.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/speed/release-median.test.js"
+    ]
+  }
+}

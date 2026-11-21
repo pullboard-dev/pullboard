@@ -1,5 +1,6 @@
 /** The pullboard inbox command separates canonical interrupts from break-time summaries [R2,N26]. */
 import { activityDeliveryLines } from '../../../../../packages/activity/index.js';
+import { takeWaitShouts } from '../../../../../packages/activity/index.js';
 import { deliverActivity } from '../../../../../packages/activity/index.js';
 import { agentDisplayName } from '../context.js';
 import { context } from '../context.js';
@@ -16,6 +17,7 @@ import { entryLines } from '../../../../../packages/store/index.js';
 import { openEntries } from '../../../../../packages/store/index.js';
 import { recordEntryAction } from '../../../../../packages/store/index.js';
 import { escalateEntries } from '../../../../../packages/store/index.js';
+import { listItems } from '../../../../../packages/store/index.js';
 import { sayQueuedReds } from '../../../../../packages/store/index.js';
 import { spoolInboxMarks } from '../../../../../packages/store/index.js';
 
@@ -32,10 +34,18 @@ export async function run(io, { values = {} } = {}) {
   const ctx = context(io);
   if (values.history) return history(io, ctx, values);
   if (values.archive !== undefined) return archive(io, ctx, values);
+  if (values.wait !== undefined) return wait(io, ctx, values);
   const actedIds = (values['acted-on'] ?? '').split(',').filter(Boolean);
   const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead,
     // inbox.batchedMarks: queued marks go to a background worker that writes them in one batch (#9117).
-    handOffMarks: (c, entries) => { if (!entries.length) return; spoolInboxMarks(c.file, entries); startMarksWorker(MARKS_WORKER, c.file); } };
+    handOffMarks: (c, entries) => { if (!entries.length) return; spoolInboxMarks(c.file, entries); startMarksWorker(MARKS_WORKER, c.file); },
+    // The delivery record leaves the same way: the spool holds it and the worker writes it, so the read opens no write board (#10879).
+    handOffDelivery: (c, agentId, group) => {
+      const delivery = { ...group };
+      delete delivery.agentId;
+      spoolInboxMarks(c.file, [{ agent: agentId, delivery }]);
+      startMarksWorker(MARKS_WORKER, c.file);
+    } };
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   sayLag(io, ctx);
   const result = await deliverActivity(ctx, { actedIds }, ports);
@@ -49,6 +59,43 @@ export async function run(io, { values = {} } = {}) {
     const open = withBoardRead(ctx, board => openEntries(board, whoAmI(ctx, board).id));
     for (const line of entryLines(open)) io.say(line);
   }
+  return 0;
+}
+
+/** How often a waiting inbox looks at the board; each look is a read that never holds the board writer. */
+const WAIT_POLL_MS = 3000;
+
+/** The minutes a waiting inbox lasts when none are given. */
+const WAIT_DEFAULT_MINUTES = 10;
+
+/** Items that are neither landed nor withdrawn: open, claimed, submitted, or accepted and not yet merged. */
+function openItemCount(board) {
+  return listItems(board).length + listItems(board, { inFlight: true }).filter(item => item.item_status === 'verified').length;
+}
+
+/**
+ * Block until a shout reaches this seat, no item is open, or the minutes pass, then print which and return.
+ * Why: a coordinator in a plain loop cannot use watch, which never returns, so it slept and polled; its answer to a seat's
+ * shout took minutes. Each shout is printed once, and marked read as inbox does, so a later inbox does not repeat it [C7].
+ */
+async function wait(io, ctx, values) {
+  if (values['acted-on'] || values.history) throw new Refused('USAGE', 'pullboard inbox --wait [minutes] stands alone');
+  const minutes = values.wait === '' ? WAIT_DEFAULT_MINUTES : Number(values.wait);
+  if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 240) throw new Refused('USAGE', '--wait is a number of minutes from 1 to 240');
+  const heard = new Set();
+  const deadline = Date.now() + minutes * 60_000;
+  io.say(`waiting up to ${minutes} minute${minutes === 1 ? '' : 's'} for a shout to you`);
+  const look = () => ({ taken: takeWaitShouts(ctx, heard, { withBoard, withBoardRead, whoAmI }), open: withBoardRead(ctx, openItemCount) });
+  let seen = look();
+  while (!seen.taken.lines.length && seen.open > 0 && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, Math.min(WAIT_POLL_MS, Math.max(1, deadline - Date.now()))));
+    seen = look();
+  }
+  const { taken, open } = seen;
+  io.result?.({ shouts: taken.lines, open });
+  if (taken.lines.length) for (const line of taken.lines) io.say(line);
+  else if (open === 0) io.say('nothing is open: every item is landed or withdrawn');
+  else io.say(`no shout in ${minutes} minute${minutes === 1 ? '' : 's'}; ${open} item${open === 1 ? ' is' : 's are'} still open`);
   return 0;
 }
 

@@ -13,14 +13,6 @@ import { gitBoardDataPush } from "../logic/board.js";
 import { rootTestRefusal } from './listing.js';
 import { hostname } from 'node:os';
 import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   join,
   relative,
   resolve,
@@ -46,6 +38,7 @@ import {
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
 import { quotedPersonProblems } from "../logic/message.js";
+import { quotedAddedLineProblems } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
@@ -61,6 +54,8 @@ import {
 } from "../../../spec/index.js";
 import { approvedRowProblems } from "../../../spec/index.js";
 import { specGateMoveOnly } from "../../../spec/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push', 'post-commit'];
 export const HOOKS_DIR = '.githooks';
@@ -352,6 +347,14 @@ function resolveUndoRaw(root, path) {
   return (shared.undo.get(path) ?? []).join('\0');
 }
 
+/** Every path Git's resolve-undo index records, from the one listing conflictedInMerge reads; none outside a pre-commit run. */
+function resolveUndoPaths(root) {
+  const shared = sharedReads(root);
+  if (!shared) return [];
+  resolveUndoRaw(root, '');
+  return [...shared.undo.keys()];
+}
+
 /** Merge bases of HEAD and one merge head, asked once per head. */
 function mergeBasesOf(root, mergeHead) {
   const shared = sharedReads(root);
@@ -472,7 +475,7 @@ export function addedLines(diff) {
  * @returns {{ commit: string, kind: 'secret' | 'header', problem: string }[]} Findings, empty when the range is clean.
  */
 export function recheckRange(repo, base, head, { rules } = {}) {
-  const commitRules = rules ?? (existsSync(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
+  const commitRules = rules ?? (fs.exists(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
   const listed = tryGit(repo, ['rev-list', '--reverse', `${base}..${head}`]);
   if (listed.status !== 0) throw new Refused('RANGE_UNREADABLE', `cannot list ${base}..${head}: ${listed.stderr}; pass commits this checkout holds`);
   const findings = [];
@@ -523,13 +526,49 @@ export function blockedPaths(paths, protect) {
  * @returns {string[]}
  */
 export function preCommitProblems(context) {
-  return withSharedReads(context.root, stagedPaths(context.root).touched, () => checkStagedChange(context));
+  const checked = checkedStagedPaths(context.root, context.preMergeHook ?? false);
+  return withSharedReads(context.root, checked.touched, () => checkStagedChange({ ...context, checked }));
+}
+
+/**
+ * The staged paths the pre-commit judges. For a merge of accepted main, only the paths whose staged content differs
+ * from that main side (with several main heads, from every one): what the item and the merge resolution changed. A
+ * file that arrives unchanged from main was judged when it landed there. Any other commit is judged in full.
+ * Why: on 20 Nov a stale item branch merging main staged 455-2,138 files, every one went through the shim, blocked-file,
+ * quoted-line and ownership checks, and the hook hit its 120 s timeout on every try (#11358, #12032) [C7].
+ *
+ * @param {string} root
+ * @param {boolean} preMergeHook Whether the CLI was invoked for pre-merge-commit.
+ * @returns {{ touched: string[], written: string[] }}
+ */
+function checkedStagedPaths(root, preMergeHook) {
+  const heads = mainMergeHeads(root, preMergeHook);
+  if (!heads) return stagedPaths(root);
+  const [first, ...others] = heads.map((head) => stagedPaths(root, head));
+  /** Keep the paths of one kind that differ from every main head. */
+  const fromEveryHead = (kind) => others.reduce((paths, other) => {
+    const differs = new Set(other[kind]);
+    return paths.filter((path) => differs.has(path));
+  }, first[kind]);
+  return { touched: fromEveryHead('touched'), written: fromEveryHead('written') };
+}
+
+/**
+ * The ITEM_FOLDER_OFF_BRANCH refusal when this checkout is an item folder (a path ending -item-<id>) whose HEAD is not on a `<lane>/item-<id>` branch, else null.
+ * Why: the folder's identity needs that exact branch, so a probe commit on any other branch looked like an unjoined worktree [C7,#10799].
+ */
+function itemFolderOffBranch(root) {
+  const item = /-item-([1-9]\d*)$/u.exec(root)?.[1];
+  if (!item) return null;
+  const branch = tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim();
+  if (branch.endsWith(`/item-${item}`)) return null;
+  return `ITEM_FOLDER_OFF_BRANCH: this is the item folder of #${item} but HEAD is ${branch ? `on ${branch}` : 'detached'}; switch back to <lane>/item-${item}, or probe in a separate worktree (git worktree add <path> <commit> --detach)`;
 }
 
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
-function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
+function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {}, checked }) {
   if (!isMain) refuseGrafts(root);
-  const { touched, written } = stagedPaths(root);
+  const { touched, written } = checked;
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
@@ -549,6 +588,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     }
     problems.push(...secretsIn(added).map((where) => `possible secret: ${where}`));
   }
+  // Added lines only, and no git call when commits.quotedNames is empty [C7,#11301].
+  if (config.commits?.quotedNames?.length) problems.push(...quotedAddedLineProblems(addedLinesInBatches(root, written), config.commits.quotedNames));
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]), ...deletedGateProblems(root, config));
   const rootTests = rootTestRefusal(written, { isTest: path => (config.claim?.barTestFiles ?? []).some(pattern => matchesPattern(pattern.split('/').at(-1), path)), known: path => ['HEAD', 'refs/heads/main'].some(revision => tryGit(root, ['cat-file', '-e', `${revision}:${path}`]).status === 0), read: path => { const shown = tryGit(root, ['show', `:${path}`]); return shown.status === 0 ? shown.stdout : null; } }); if (rootTests) throw new Refused(rootTests.code, rootTests.message, rootTests.next); // #4005
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
@@ -570,7 +611,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   }
   if (isMain) return problems;
   if (!agent) {
-    problems.push('this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
+    const offBranch = itemFolderOffBranch(root);
+    problems.push(offBranch ?? 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
     return problems;
   }
   const mergeHeads = mainMergeHeads(root, preMergeHook);
@@ -583,8 +625,10 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   if (readCache) readCache.paths = [...new Set([...readCache.paths, ...mergeTouched])];
   // Keeping either parent's exact content of a foreign file is accepted unchanged; when that file had a real conflict
   // in this merge, the resolution still names its owner (#860).
+  // The checked set leaves out a path resolved to main's exact content, so its conflict is found in resolve-undo instead.
   const kept = mergeHeads && !preMergeHook
-    ? mergeTouched.filter((path) => outside(path).length && unchangedMergePath(root, path, mergeHeads) && conflictedInMerge(root, path))
+    ? [...new Set([...mergeTouched, ...resolveUndoPaths(root).filter((path) => stagedObject(root, path) !== committedObject(root, 'HEAD', path))])]
+      .filter((path) => outside(path).length && unchangedMergePath(root, path, mergeHeads) && conflictedInMerge(root, path))
     : [];
   kept.forEach((path) => onNotice?.(`resolved accepted-main conflict in ${path}; the coordinator owns ${path}`));
   const ownershipTouched = mergeHeads
@@ -715,7 +759,7 @@ function committedLaneConfig(root) {
 /** Report a missing merge check at Git's effective hook path without changing files [L3,A6]. */
 export function preMergeHookProblems(root) {
   const file = gitPath(root, 'hooks/pre-merge-commit');
-  return existsSync(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
+  return fs.exists(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
 }
 
 /** Resolve Git's effective hook directory, letting Git apply core.hooksPath itself.
@@ -831,8 +875,8 @@ export function unwiredHookProblems(root) {
     const file = join(dir, hook);
     let source;
     try {
-      if ((statSync(file).mode & 0o111) === 0) return [];
-      source = readFileSync(file, 'utf8');
+      if ((fs.stat(file).mode & 0o111) === 0) return [];
+      source = fs.readFile(file, 'utf8');
     } catch { return []; }
     if (delegatesHook(source, hook)) return [];
     const path = relative(root, file);
@@ -857,7 +901,7 @@ function mainMergeHeads(root, preMergeHook) {
   try { mergeFile = gitPath(root, 'MERGE_HEAD'); } catch { return null; }
   let merges;
   try {
-    if (existsSync(mergeFile)) merges = readFileSync(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
+    if (fs.exists(mergeFile)) merges = fs.readFile(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
     else if (preMergeHook) {
       const names = Object.keys(process.env).filter((name) => name.startsWith('GITHEAD_'));
       if (names.some((name) => !/^GITHEAD_(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu.test(name))) return null;
@@ -1030,7 +1074,7 @@ export function applyFixers(root, fixers) {
   const covers = (fixer, path) => (fixer.files ?? ['*']).some((pattern) => matchesPattern(pattern, path));
   const notes = [];
   for (const fixer of fixers) {
-    const files = written.filter((path) => covers(fixer, path) && !unstaged.has(path) && existsSync(join(root, path)));
+    const files = written.filter((path) => covers(fixer, path) && !unstaged.has(path) && fs.exists(join(root, path)));
     if (!files.length) continue;
     const result = spawnSync(`${fixer.run} ${files.map(shellQuote).join(' ')}`, {
       cwd: root,
@@ -1110,7 +1154,7 @@ let cachedInstallerVersion;
 
 /** Read installer metadata only when generating a hook, so importing board helpers needs no package. */
 function installerVersion() {
-  return cachedInstallerVersion ??= JSON.parse(readFileSync(new URL("../../../../package.json", import.meta.url), 'utf8')).version;
+  return cachedInstallerVersion ??= JSON.parse(fs.readFile(new URL("../../../../package.json", import.meta.url), 'utf8')).version;
 }
 
 /**
@@ -1176,11 +1220,11 @@ export function hookScript(hook, version = installerVersion()) {
  */
 export function installHooks(root, onWrite = () => {}) {
   const dir = join(root, HOOKS_DIR);
-  mkdirSync(dir, { recursive: true });
+  fs.mkdir(dir, { recursive: true });
   const notes = [];
   for (const hook of HOOKS) {
     const file = join(dir, hook);
-    const existing = existsSync(file) ? readFileSync(file, 'utf8') : null;
+    const existing = fs.exists(file) ? fs.readFile(file, 'utf8') : null;
     if (existing !== null && !existing.includes(HOOK_MARK)) {
       const isWired = existing.includes(`hook ${hook}`) && existing.includes('pullboard');
       notes.push(
@@ -1192,15 +1236,15 @@ export function installHooks(root, onWrite = () => {}) {
     }
     const script = hookScript(hook);
     if (existing === script) {
-      if ((statSync(file).mode & 0o777) !== 0o755) {
-        chmodSync(file, 0o755);
+      if ((fs.stat(file).mode & 0o777) !== 0o755) {
+        fs.chmod(file, 0o755);
         onWrite(`${HOOKS_DIR}/${hook}`);
         notes.push(`restored executable mode for ${HOOKS_DIR}/${hook}`);
       } else notes.push(`kept ${HOOKS_DIR}/${hook}`);
       continue;
     }
-    writeFileSync(file, script);
-    chmodSync(file, 0o755);
+    fs.writeFile(file, script);
+    fs.chmod(file, 0o755);
     onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
   }

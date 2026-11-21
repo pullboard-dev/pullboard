@@ -9,6 +9,8 @@ import { IN_STATE } from '../shared.js';
 export const MOVES = [
   {
     verb: 'withdraw', from: ['open', 'claimed', 'submitted', 'verified'], to: 'withdrawn', by: ['coordinator'], refuse: 'CLOSED',
+    // Withdraw ends the item's gate jobs, whose step writer refuses a missing job or an unnamed step [C7,M1].
+    alsoRefuses: [{ code: 'JOB_MISSING', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' }, { code: 'JOB_STEP_NAME', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' }],
     guards: ['joined', 'coordinatorOnly', 'noteGiven', 'itemExists', 'mainRedUnchanged', IN_STATE],
     sets: ['item_withdrawn_reason'], command: 'pullboard withdraw <id> <reason>',
   },

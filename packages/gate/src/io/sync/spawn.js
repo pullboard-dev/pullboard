@@ -15,8 +15,7 @@
  *
  * @file-local Reads the config and the modules reached from its entries, through the engine.
  */
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { syncCallsIn } from '../../../../codemap/index.js';
@@ -28,7 +27,8 @@ import { runCheck } from '../scan.js';
 
 export { syncCallsIn, syncSpawnProblems, syncSpawnReport, writeSyncSpawnBaseline };
 
-const MAIN = Boolean(process.argv[1]) && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+const fs = fileSystemAdapter();
+const MAIN = Boolean(process.argv[1]) && fs.exists(process.argv[1]) && fs.realpath(process.argv[1]) === fs.realpath(fileURLToPath(import.meta.url));
 
 if (MAIN && process.argv.includes('--report')) {
   const root = resolve(process.argv.slice(2).find(argument => !argument.startsWith('--')) ?? '.');

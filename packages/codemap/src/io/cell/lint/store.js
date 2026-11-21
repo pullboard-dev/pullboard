@@ -3,16 +3,20 @@ import { createHash } from 'node:crypto';
 import {
   cellExistsSync,
   cellReadFileSync,
+  cellSourceSnapshot,
 } from '../snapshot.js';
 import { join } from 'node:path';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { cellLintCells } from './shards.js';
+import { translatedBase } from './shards.js';
 import { readCellLintCellBaseline } from './shards.js';
 import { writeCellLintCellBaseline } from './shards.js';
 import { CELL_METRICS } from '../lints.js';
 import { validateCellLintBaseline } from './ratchet.js';
 import { Refused } from '../../../../../kernel/index.js';
 
+import { readPathMap } from '../../../logic/path/map.js';
+import { pathMapFromFiles } from '../../../logic/path/map.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../../../logic/path/map.js';
 import { CELL_BASELINE_DIRECTORY } from '../../../logic/path/map.js';
 import { storeName } from '../../store-names.js';
@@ -79,6 +83,21 @@ function readLegacyCellLintBaseline(root) {
 export function readCellLintBaseline(root) {
   try { return readCellLintCellBaseline(root, readLegacyCellLintBaseline(root)); }
   catch (error) { throw new Refused('CELL_BASELINE', `restore the complete per-cell cell lint baseline: ${error.message}`); }
+}
+
+/**
+ * The committed baseline with every allowance key translated to its cell path through the committed path map, counts
+ * unchanged, for compare-time reads; untranslated when no path-map cell exists. readCellLintBaseline keeps the stored
+ * legacy keys, which the writer's round trip needs [C7,CD64].
+ *
+ * @param {string} root
+ * @returns {object}
+ */
+export function readCellKeyedLintBaseline(root) {
+  const baseline = readCellLintBaseline(root);
+  if (!cellLintCells(root).length) return baseline;
+  const snapshot = cellSourceSnapshot(root);
+  return translatedBase(baseline, snapshot ? pathMapFromFiles(snapshot.files, snapshot.entries) : readPathMap(root));
 }
 
 /** Seed one empty shard for each existing path-map cell without rewriting accepted legacy bytes. */

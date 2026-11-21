@@ -2,15 +2,35 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
+import { realGitAdapter } from '../../../git/index.js';
+import { withGitContractAdapter } from '../../../git/index.js';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { headTree } from '../../../git/index.js';
+import * as store from '../../../store/index.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { boardJobQueueCall } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
+import { applyGateReceipt } from '../../src/io/gate.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { recordGateQueue } from '../../src/io/gate/queue-snapshot.js';
+import { QUEUED_GATES_SQL } from '../../src/io/gate/queue-snapshot.js';
+import { LEASED_GATES_SQL } from '../../src/io/gate/queue-snapshot.js';
+import { SHARD_JOBS_SQL } from '../../src/io/gate.js';
+import { shardJobs } from '../../index.js';
+import { WIDE_SEED_SQL } from '../../src/io/recheck.js';
+import { settleDoneShardGates } from '../../src/io/gate.js';
+import { jobQueueCall } from '../../src/io/jobs.js';
+import { settleWaitingGates } from '../../src/io/gate.js';
+import { ledgerMissReasons } from '../../../store/index.js';
+import { recordTestResults } from '../../../store/index.js';
 
 const STAMP = '2026-11-16T12:00:00.000Z';
 const MAIN = 'a'.repeat(40);
@@ -65,11 +85,12 @@ test('api.gate.land-red-under-separate-still-holds: clause 2: a red or hook-refu
 });
 
 /** A gate job whose receipt's proof plan splits three files two to a core, offered as shards and read back as the runner reads them: each shard's data.shard by index. */
-function shardData(t, needs) {
+function shardData(t, needs, seed) {
   const dir = cellSandbox(t).dir;
   const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
   board.seat = cellSeat(board, { lane: 'web', path: join(dir, 'seat') });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  if (seed) seed(board.db);
   offerJob(board.db, { id: 'gate:s', kind: 'gate', item: item.item_id, candidate: MAIN, base: MAIN, now: 1,
     request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
   const proofPlan = { runner: 'node --test', cores: 2, files: ['web/a.test.js', 'web/b.test.js', 'web/c.test.js'], ...(needs ? { needs } : {}) };
@@ -96,4 +117,465 @@ test('api.gate.shard-carries-browser-gui-need: clause 1: offerProofShards puts p
 
 test('api.gate.shard-plan-absent-without-needs: clause 2: a proof plan with no needs field adds no plan to the shard [C7]', t => {
   for (const shard of shardData(t, null)) assert.equal('plan' in shard, false, 'a shard of a plan with no needs carries no plan');
+});
+
+/** Every job a runner can claim from the board, read as the runner reads it: id, the shard's files, and whether its data asks for the runner alone. */
+function claimedShards(board) {
+  const seen = [];
+  for (let held = claimJob(board.db, { runner: 'r-timing', capabilities: [], now: 8 }); held; held = claimJob(board.db, { runner: 'r-timing', capabilities: [], now: 8 })) {
+    const data = jobRequest(board.db, { job: held.job, runner: 'r-timing', token: held.token }).request.input.data;
+    if (data.shard) seen.push({ job: held.job, files: data.shard.files, of: data.shard.of, alone: data.checkTiming === true, keyed: 'checkTiming' in data });
+  }
+  return seen.sort((a, b) => a.job.localeCompare(b.job));
+}
+
+/** A gate job whose passed receipt carries `plan` as its proof plan, offered as shards; the answer and the shards a runner reads. */
+function gateShards(t, plan) {
+  const dir = cellSandbox(t).dir;
+  const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
+  board.seat = cellSeat(board, { lane: 'web', path: join(dir, 'seat') });
+  const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  offerJob(board.db, { id: 'gate:t', kind: 'gate', item: item.item_id, candidate: MAIN, base: MAIN, now: 1, request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
+  const receipt = { version: 1, status: 0, gate: { source: MAIN, green: true, phases: [], proofPlan: { runner: 'node --test', ...plan } } };
+  const answer = offerProofShards(board, { job: 'gate:t', receipt, offered: { item: item.item_id, candidate: MAIN, main: MAIN, submit: { agentId: board.seat.id } } });
+  return { answer, shards: claimedShards(board) };
+}
+
+/** A claimed land job whose runner asks the board, through the jobs route, to shard `plan`; the answer and the shards a runner reads. */
+function landShards(t, plan) {
+  const dir = cellSandbox(t).dir;
+  const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
+  offerJob(board.db, { id: 'land:1:t', kind: 'land', base: MAIN, needs: [], now: 4 });
+  const held = claimJob(board.db, { runner: 'r-land', capabilities: [], now: 5 });
+  const answer = boardJobQueueCall(board, { action: 'shards', job: 'land:1:t', runner: 'r-land', token: held.token, merged: TRUNK,
+    plan: { runner: 'node --test', ...plan }, gate: { run: ['node', '-e', 'x'], entry: 'gate.js', commits: [MAIN] } }, { mode: 'pull', now: 6 });
+  return { answer, shards: claimedShards(board) };
+}
+
+const TIMED = ['web/a.test.js', 'web/b.test.js', 'web/c.test.js', 'web/d.test.js', 'web/e.test.js'];
+
+test('api.gate.timing-files-own-exclusive-shards: clause 1: offerProofShards gives each proofPlan.timing file its own gate-shard whose data carries checkTiming: true, splits the rest round-robin with no checkTiming, and shards a plan with a timing file even within its cores [C7]', t => {
+  const { answer, shards } = gateShards(t, { cores: 2, files: TIMED, timing: ['web/d.test.js', 'web/elsewhere.test.js'] });
+  assert.deepEqual(answer.shards, ['gate:t:shard:1', 'gate:t:shard:2', 'gate:t:shard:3']);
+  assert.deepEqual(shards.map(({ job, files, of, alone }) => ({ job, files, of, alone })), [
+    { job: 'gate:t:shard:1', files: ['web/a.test.js', 'web/c.test.js'], of: 3, alone: false },
+    { job: 'gate:t:shard:2', files: ['web/b.test.js', 'web/e.test.js'], of: 3, alone: false },
+    { job: 'gate:t:shard:3', files: ['web/d.test.js'], of: 3, alone: true },
+  ], 'the timing file is a shard of its own; a timing name outside the plan\'s files is ignored');
+  assert.equal(shards.some(shard => !shard.alone && shard.keyed), false, 'an ordinary shard carries no checkTiming key');
+  const within = gateShards(t, { cores: 4, files: ['web/a.test.js', 'web/b.test.js'], timing: ['web/b.test.js'] });
+  assert.deepEqual(within.shards.map(({ files, alone }) => ({ files, alone })), [{ files: ['web/a.test.js'], alone: false }, { files: ['web/b.test.js'], alone: true }],
+    'a plan within its cores still shards when a file is timing');
+});
+
+test('api.gate.land-timing-files-own-exclusive-shards: clause 2: offerLandShards, through the jobs route action shards, gives each land plan timing file its own shard whose data carries checkTiming: true [C7]', t => {
+  const { answer, shards } = landShards(t, { cores: 2, files: TIMED, timing: ['web/a.test.js'] });
+  assert.equal(answer.sharded, true);
+  assert.deepEqual(shards.map(({ job, files, alone }) => ({ job, files, alone })), [
+    { job: 'land:1:t:shard:1', files: ['web/b.test.js', 'web/d.test.js'], alone: false },
+    { job: 'land:1:t:shard:2', files: ['web/c.test.js', 'web/e.test.js'], alone: false },
+    { job: 'land:1:t:shard:3', files: ['web/a.test.js'], alone: true },
+  ]);
+  const within = landShards(t, { cores: 8, files: ['web/a.test.js', 'web/b.test.js'], timing: ['web/a.test.js'] });
+  assert.equal(within.answer.sharded, true, 'a land plan within its cores still shards when a file is timing');
+  assert.deepEqual(within.shards.map(({ files, alone }) => ({ files, alone })), [{ files: ['web/b.test.js'], alone: false }, { files: ['web/a.test.js'], alone: true }]);
+});
+
+test('api.gate.no-timing-plan-unchanged: clause 3: a plan with no timing field offers the same round-robin shards as before, none carrying checkTiming, and a plan within its cores is not split [C7]', t => {
+  const gate = gateShards(t, { cores: 2, files: TIMED });
+  assert.deepEqual(gate.shards.map(({ files, keyed }) => ({ files, keyed })), [
+    { files: ['web/a.test.js', 'web/d.test.js'], keyed: false },
+    { files: ['web/b.test.js', 'web/e.test.js'], keyed: false },
+    { files: ['web/c.test.js'], keyed: false },
+  ]);
+  assert.equal(gateShards(t, { cores: 8, files: TIMED, timing: [] }).answer, null, 'a gate plan within its cores and no timing file is not split');
+  const land = landShards(t, { cores: 2, files: TIMED });
+  assert.deepEqual(land.shards.map(({ files, keyed }) => ({ files, keyed })), gate.shards.map(({ files, keyed }) => ({ files, keyed })));
+  assert.equal(landShards(t, { cores: 8, files: TIMED }).answer.sharded, false, 'a land plan within its cores and no timing file is not split');
+});
+
+const SHARD_FILES = ['web/a.test.js', 'web/b.test.js'];
+const SHARD_GREEN = head => ({ version: 1, status: 0, gate: { source: head, green: true, phases: [{ role: 'proof', status: 0 }] } });
+const SIGNED = ['a'.repeat(64)];
+const SHARD_RED = (head, failures, signed = true) => ({ version: 1, status: 1, gate: { source: head, green: false, phases: [{ role: 'proof', status: 1, failures, ...(signed ? { failureSignatures: SIGNED } : {}), tail: 'not ok' }] } });
+/** The main-receipt lookup of a board whose main has a receipt for every file the red names; a signed case reads as one main fails the same way, an unsigned one as new. */
+const mainFails = () => ({ cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => ({ file, owner: 'item', own: [], receipt: null, job: null })) });
+
+/** A claimed item whose gate offered two shards; shard one posts `red`, shard two posts green, through the receipt dispatch. The last answer is `last`. */
+function twoShardGate(t, { red, options, files = [] }) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
+  const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  cellClaim(board, item.item_id, seat, { root: repo.root });
+  const held = store.getItem(board, item.item_id);
+  const head = repo.commit;
+  const parent = `gate:${item.item_id}:main-red`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: 1,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files } } });
+  const lease = claimJob(board.db, { runner: 'r-gate', capabilities: [], now: 2 });
+  const gate = { version: 1, source: head, green: false, environment: { node: process.version, platform: process.platform, arch: process.arch }, phases: [{ role: 'check', status: 0 }],
+    analysis: { proofFiles: SHARD_FILES, proofCommand: 'node --test' }, proofPlan: { runner: 'node --test', cores: 1, files: SHARD_FILES } };
+  const sharded = boardJobQueueCall(board, { action: 'receipt', job: parent, runner: 'r-gate', token: lease.token, receipt: { status: 0, gate } }, { mode: 'pull', now: 3, ...options });
+  assert.equal(sharded.applied.outcome, 'sharded', JSON.stringify(sharded.applied));
+  let last = null;
+  sharded.applied.shards.forEach((shard, index) => {
+    const at = 10 * (index + 1);
+    const claimed = claimJob(board.db, { runner: `r-${at}`, capabilities: [], now: at });
+    last = boardJobQueueCall(board, { action: 'receipt', job: shard, runner: `r-${at}`, token: claimed.token, receipt: index === 0 ? red(head) : SHARD_GREEN(head) }, { mode: 'pull', now: at + 1, ...options }).applied;
+  });
+  return { board, item, last };
+}
+
+test('api.io-gate.shard-main-red-settles-green: clause 1: a gate whose only red shard fails only in a file main fails settles green and notes the file as main-red [C7,#12215]', t => {
+  const f = twoShardGate(t, { red: head => SHARD_RED(head, [{ file: 'web/a.test.js', name: 'loads under load' }]), options: { compareWithMain: mainFails() } });
+  assert.equal(f.last.outcome, 'review', JSON.stringify(f.last));
+  const notes = store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? ''));
+  assert.equal(notes.length, 1, 'one note fact');
+  assert.match(notes[0].event_detail, /web\/a\.test\.js/u);
+});
+
+test('api.io-gate.shard-red-outside-main-stays-red: clause 2: a red shard with a case main does not fail, or with no comparison answer, settles red and notes no main-red [C7,#12215]', t => {
+  const failures = [{ file: 'web/a.test.js', name: 'loads under load' }];
+  const fresh = twoShardGate(t, { red: head => SHARD_RED(head, failures, false), options: { compareWithMain: mainFails() } });
+  assert.equal(fresh.last.outcome, 'red', JSON.stringify(fresh.last));
+  const none = twoShardGate(t, { red: head => SHARD_RED(head, failures), options: {} });
+  assert.equal(none.last.outcome, 'red', JSON.stringify(none.last));
+  for (const f of [fresh, none]) assert.equal(store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? '')).length, 0);
+});
+
+test('api.io-gate.shard-red-in-item-diff-stays-red: clause 1: a red shard whose failing file main also fails but the item diff touches settles red and appends no main-red note [C7,#12216]', t => {
+  const failures = [{ file: 'web/a.test.js', name: 'loads under load' }];
+  const f = twoShardGate(t, { red: head => SHARD_RED(head, failures), options: { compareWithMain: mainFails() }, files: ['web/a.test.js'] });
+  assert.equal(f.last.outcome, 'red', JSON.stringify(f.last));
+  assert.equal(store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? '')).length, 0, 'no main-red note');
+});
+
+const KEY = '1'.repeat(64);
+const CONTEXT = 'e'.repeat(64);
+const proofRow = (file, status, inputKey = KEY) => ({ file, inputKey, command: 'proof', context: CONTEXT, status });
+
+test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer carries the ledger hit for a file with a recorded pass and a reason none, red or changed for each other file [C7,P7]', t => {
+  let reasons;
+  const seed = db => { recordTestResults(db, { receipt: 'r1', origin: 'fixture', rows: [proofRow('web/a.test.js', 'pass'), proofRow('web/b.test.js', 'fail'), proofRow('web/b.test.js', 'pass', '2'.repeat(64)), proofRow('web/b.test.js', 'fail', '2'.repeat(64))] });
+    reasons = ledgerMissReasons(db, ['web/a.test.js', 'web/b.test.js', 'web/c.test.js']); };
+  const [first, second] = shardData(t, undefined, seed);
+  // Shard 1 holds a (a recorded pass: a hit) and c (no row at all); shard 2 holds b (a fail and a pass shadowed by a fail: red).
+  assert.deepEqual(first.files, ['web/a.test.js', 'web/c.test.js']);
+  assert.deepEqual(first.ledger.files, [['web/a.test.js', KEY, 0]]);
+  assert.deepEqual(first.ledger.contexts, [CONTEXT]);
+  assert.deepEqual(first.ledger.reasons, { 'web/c.test.js': 'none' });
+  assert.deepEqual(second.ledger.reasons, { 'web/b.test.js': 'red' });
+  assert.equal(second.ledger.files, undefined, 'a shard without a hit hands its runner no hit list');
+  // A file with a recorded pass that the runner still misses reads changed: its input key moved.
+  assert.deepEqual(reasons, { 'web/a.test.js': 'changed', 'web/b.test.js': 'red', 'web/c.test.js': 'none' });
+});
+
+test('api.io-gate.shard-offer-ledger-absent-without-rows: clause 1: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
+  for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
+});
+
+/** A real fixture board with `count` gate jobs offered, each needing a capability only the runner 'r-gpu' has, so a runner with none holds the queue still. */
+function queueBoard(t, count) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  for (let index = 1; index <= count; index += 1) offerJob(board.db, { id: `gate:q${index}:head`, kind: 'gate', needs: ['gpu'], run: ['true'], now: index });
+  return board;
+}
+const queueEvents = board => board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'gate-queue' AND item_id IS NULL ORDER BY event_id").all().map(row => JSON.parse(row.event_detail));
+const pull = (board, runner, capabilities, now) => boardJobQueueCall(board, { action: 'claim', runner, capabilities }, { mode: 'pull', now });
+
+test('api.io-gate.queue-snapshot-on-change: clause 1: two runner claim calls with the same queue append exactly one gate-queue event with queued ids in offer order, leased count, runnersSeen and serveStartedAt [C7]', t => {
+  const board = queueBoard(t, 3);
+  pull(board, 'r-idle', [], 10);
+  pull(board, 'r-idle', [], 11);
+  const events = queueEvents(board);
+  assert.equal(events.length, 1, JSON.stringify(events));
+  const { queued, leased, runnersSeen, serveStartedAt } = events[0];
+  assert.deepEqual({ queued, leased, runnersSeen }, { queued: ['gate:q1:head', 'gate:q2:head', 'gate:q3:head'], leased: 0, runnersSeen: ['r-idle'] });
+  assert.equal(typeof serveStartedAt, 'number');
+});
+
+test('api.io-gate.queue-snapshot-next: clause 2: a call after one job is claimed appends a second gate-queue event without that job in queued, and a call with an unchanged queue after it appends none [C7]', t => {
+  const board = queueBoard(t, 3);
+  pull(board, 'r-idle', [], 10);
+  pull(board, 'r-gpu', ['gpu'], 11);
+  const claimed = board.db.prepare('SELECT job_id FROM job WHERE job_lease_owner IS NOT NULL').all().map(row => row.job_id);
+  assert.equal(claimed.length, 1, 'the capable runner took one job');
+  const second = queueEvents(board).at(-1);
+  assert.equal(queueEvents(board).length, 2);
+  assert.equal(second.queued.includes(claimed[0]), false, 'the claimed job left the queue');
+  assert.equal(second.queued.length, 2);
+  assert.equal(second.leased, 1);
+  assert.deepEqual(second.runnersSeen, ['r-gpu', 'r-idle']);
+  pull(board, 'r-idle', [], 12);
+  assert.equal(queueEvents(board).length, 2, 'an unchanged queue appends nothing');
+});
+
+test('api.io-gate.queue-snapshot-latency: clause 3: at 60000 gate-shard rows and 93 offered gate jobs, 50 pull claims each in a rolled-back transaction append at most one gate-queue event each, the snapshot adds a p95 printed on one line, and its queue reads SEARCH job with no SCAN [C7]', t => {
+  const board = queueBoard(t, 93);
+  board.db.exec('BEGIN');
+  const insert = board.db.prepare("INSERT INTO job (job_id, job_kind, job_step, job_created, job_updated) VALUES (?, 'gate-shard', 'done', 1, 1)");
+  for (let row = 0; row < 60000; row += 1) insert.run(`gate:q${(row % 300) + 1}:head:shard:${Math.floor(row / 300)}`);
+  board.db.exec('COMMIT');
+  const rollback = new Error('rolled back');
+  const timed = work => {
+    let ms = 0, appended = 0;
+    try {
+      store.atomic(board, () => {
+        const before = board.db.prepare("SELECT count(*) AS n FROM event WHERE event_kind = 'gate-queue'").get().n;
+        const start = performance.now();
+        work();
+        ms = performance.now() - start;
+        appended = board.db.prepare("SELECT count(*) AS n FROM event WHERE event_kind = 'gate-queue'").get().n - before;
+        throw rollback;
+      });
+    } catch (error) { if (error !== rollback) throw error; }
+    return { ms, appended };
+  };
+  const claims = [], snapshots = [];
+  for (let call = 0; call < 50; call += 1) {
+    const claim = timed(() => pull(board, `r-${call}`, [], 1000 + call));
+    assert.ok(claim.appended <= 1, `call ${call} appended ${claim.appended} gate-queue events`);
+    claims.push(claim.ms);
+    snapshots.push(timed(() => recordGateQueue(board, { runner: `s-${call}` }, 2000 + call)).ms);
+  }
+  const p95Of = list => list.sort((a, b) => a - b)[Math.ceil(list.length * 0.95) - 1];
+  const after = p95Of(claims), added = p95Of(snapshots);
+  console.log(`api.io-gate.queue-snapshot-latency: pull claim p95 ${after.toFixed(2)} ms after, ${Math.max(after - added, 0).toFixed(2)} ms before; the snapshot adds p95 ${added.toFixed(2)} ms`);
+  for (const sql of [QUEUED_GATES_SQL, LEASED_GATES_SQL]) {
+    const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...(sql === LEASED_GATES_SQL ? [1] : [])).map(step => step.detail).join(' | ');
+    assert.match(plan, /SEARCH job/u, plan);
+    assert.doesNotMatch(plan, /SCAN job/u, plan);
+  }
+});
+
+test('api.io-gate.shard-jobs-key-range: clause 1: shardJobs returns exactly a gate\'s own shard rows in order, not a sibling gate whose job id extends the same text, and its query plan searches job_id with no scan of job [C7]', t => {
+  const board = cellBoard(t, ':memory:');
+  for (const [id, kind, created] of [['gate:1:a:shard:2', 'gate-shard', 2], ['gate:1:a:shard:1', 'gate-shard', 1], ['gate:1:ab:shard:1', 'gate-shard', 1], ['gate:1:a', 'gate', 0], ['gate:1:a:shard:3', 'gate', 3]]) {
+    board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_created, job_updated) VALUES (?, ?, ?, ?, ?)').run(id, kind, 'offered', created, created);
+  }
+  assert.deepEqual(shardJobs(board.db, 'gate:1:a').map(shard => shard.job_id), ['gate:1:a:shard:1', 'gate:1:a:shard:2']);
+  assert.deepEqual(shardJobs(board.db, 'gate:1:ab').map(shard => shard.job_id), ['gate:1:ab:shard:1']);
+  const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${SHARD_JOBS_SQL}`).all('gate-shard', 'gate:1:a:shard:', shardKeyEnd('gate:1:a:shard:')).map(step => step.detail).join(' | ');
+  assert.match(plan, /SEARCH job/u, plan);
+  assert.doesNotMatch(plan, /SCAN job/u, plan);
+});
+
+/** The exclusive upper bound of the job ids that start with `prefix`, as shardJobs reads them. */
+const shardKeyEnd = prefix => `${prefix}\uFFFF`;
+
+/** A generated board of 500 gates and 20000 gate-shard rows (40 each), the first `done` gates done on a claimed item, so each is a settle candidate. In memory, so the pass times the board's queries alone, not a runs file. */
+function scaleBoard(t, { done = 30 } = {}) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, ':memory:', undefined, { gitRoot: repo.root });
+  const now = Date.now();
+  const ids = Array.from({ length: 500 }, () => cellItem(board, { lane: 'web', title: 'Build a page' }).item_id);
+  const insert = board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_item, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?)');
+  ids.slice(0, done).forEach((id, index) => cellClaim(board, id, cellSeat(board, { lane: 'web', path: `${repo.root}/seat-${index}` }), { root: repo.root }));
+  const gates = ids.map((id, index) => `gate:${id}:head${index}`);
+  board.db.exec('BEGIN');
+  ids.forEach((id, index) => {
+    insert.run(gates[index], 'gate', index < done ? 'done' : 'offered', id, now - 1000 + index, now);
+    for (let shard = 1; shard <= 40; shard += 1) insert.run(`${gates[index]}:shard:${shard}`, 'gate-shard', shard % 3 ? 'offered' : 'done', id, now - 1000 + index, now);
+  });
+  board.db.exec('COMMIT');
+  return { board, now, gates };
+}
+
+test('api.io-gate.shard-jobs-key-range-scale: clause 1: on 20000 shard rows across 500 gates shardJobs returns each gate\'s shards identical to the old substr query, and its plan searches the job primary-key index (sqlite_autoindex_job_1), not job_kind_created [C7]', t => {
+  const { board, gates } = scaleBoard(t);
+  assert.equal(board.db.prepare("SELECT count(*) AS n FROM job WHERE job_kind = 'gate-shard'").get().n, 20000);
+  const oldQuery = board.db.prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id');
+  for (const gate of gates) {
+    const prefix = `${gate}:shard:`;
+    const rows = shardJobs(board.db, gate).map(row => ({ ...row }));
+    assert.equal(rows.length, 40, gate);
+    assert.deepEqual(rows, oldQuery.all('gate-shard', prefix.length, prefix).map(row => ({ ...row })), gate);
+  }
+  const prefix = `${gates[7]}:shard:`;
+  const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${SHARD_JOBS_SQL}`).all('gate-shard', prefix, shardKeyEnd(prefix)).map(step => step.detail).join(' | ');
+  assert.match(plan, /SEARCH job USING INDEX sqlite_autoindex_job_1 \(job_id>\? AND job_id<\?\)/u, plan);
+  assert.doesNotMatch(plan, /job_kind_created/u, plan);
+});
+
+test('api.io-gate.shard-jobs-scale: clause 2: on that board of 20000 shard rows across 500 gates, a settleDoneShardGates pass over 30 candidate gates takes under 5 ms, its time printed [C7]', t => {
+  const { board, now } = scaleBoard(t, { done: 30 });
+  const candidates = board.db.prepare("SELECT count(*) AS n FROM item JOIN job ON job.job_item = item.item_id WHERE item.item_status = 'claimed' AND job.job_kind = 'gate' AND job.job_step = 'done'").get().n;
+  assert.equal(candidates, 30);
+  const pass = () => assert.deepEqual(settleDoneShardGates(board, {}, { now }), []);
+  for (let round = 0; round < 5; round += 1) pass();
+  const times = Array.from({ length: 21 }, () => { const start = performance.now(); pass(); return performance.now() - start; }).sort((a, b) => a - b);
+  const median = times[10];
+  t.diagnostic(`api.io-gate.shard-jobs-scale: settle pass over 30 candidate gates median ${median.toFixed(2)} ms, fastest ${times[0].toFixed(2)} ms, slowest ${times[20].toFixed(2)} ms`);
+  assert.ok(median < 5, `a settle pass over 30 candidates took ${median} ms, not under 5 ms`);
+});
+
+test('api.io-gate.seed-window-in-sql: clause 1: with gate.seedWideMainTests on, the 24 h window is inside the seeding SQL and its query plan searches job by an index and never scans job_step [C7,P7]', t => {
+  const { db } = cellBoard(t, ':memory:');
+  assert.match(WIDE_SEED_SQL, /job_created >= \?/u, 'the window bound is a parameter of the SQL, not a filter over rows read');
+  const plan = db.prepare(`EXPLAIN QUERY PLAN ${WIDE_SEED_SQL}`).all(0, 10).map(row => row.detail);
+  assert.ok(plan.some(line => /^SEARCH job USING (?:COVERING )?INDEX job_kind_created \(job_kind=\? AND job_created>\?\)/u.test(line)), `job is searched by the kind and created index: ${plan.join(' | ')}`);
+  assert.equal(plan.some(line => /^SCAN/u.test(line)), false, `no table is scanned: ${plan.join(' | ')}`);
+  assert.equal(plan.some(line => /job_step USING INDEX job_step_name_(?:at|seq)/u.test(line)), false, `job_step is read by its job key, not by name across all jobs: ${plan.join(' | ')}`);
+});
+
+test('api.io-gate.seed-claim-path-no-git: clause 1: with gate.seedWideMainTests on and main unmoved, a pull claim through boardJobQueueCall spawns no git process, and the main sha is computed once per main move [C7,P7]', t => {
+  const project = cellProject(t, { real: true, config: { affectedTests: 'node --test' } });
+  const board = { db: cellBoard(t, ':memory:').db, gitRoot: project.repo };
+  const spawned = [];
+  const counting = Object.fromEntries(['spawnSync', 'execFileSync', 'spawn'].map(name => [name, (args, options) => { spawned.push(args.join(' ')); return realGitAdapter[name](args, options); }]));
+  const claim = () => withGitContractAdapter(counting, () => boardJobQueueCall(board, { action: 'claim', runner: 'r-seed', capabilities: [] }, { mode: 'pull', now: 10 * 3_600_000, seedWideMainTests: true }));
+  claim();
+  spawned.length = 0;
+  claim();
+  claim();
+  assert.deepEqual(spawned, [], 'claims at an unmoved main spawn no git process');
+  writeFileSync(join(project.repo, 'moved.txt'), 'moved');
+  project.git(project.repo, 'add', '-A');
+  project.git(project.repo, 'commit', '-qm', 'chore: move main');
+  claim();
+  assert.ok(spawned.length >= 1 && spawned.length <= 2, `one main move computes its sha once: ${spawned.join(' | ')}`);
+  spawned.length = 0;
+  claim();
+  assert.deepEqual(spawned, [], 'the next claim at the moved main spawns none');
+});
+
+/** A claimed item with one unsharded gate job `parent`; `post` posts a receipt for it through the production jobs route. */
+function oneGate(t, options = {}) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
+  const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  cellClaim(board, item.item_id, seat, { root: repo.root });
+  const held = store.getItem(board, item.item_id);
+  const head = repo.commit;
+  const parent = `gate:${item.item_id}:settle-event`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: 1,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files: [] } } });
+  const lease = claimJob(board.db, { runner: 'r-gate', capabilities: [], now: 2 });
+  const post = receipt => boardJobQueueCall(board, { action: 'receipt', job: parent, runner: 'r-gate', token: lease.token, receipt }, { mode: 'pull', now: 3, ...options }).applied;
+  return { board, item, head, parent, post };
+}
+
+/** The gate_settled events of the board, as their parsed details. */
+const settledEvents = board => board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'gate_settled'").all().map(row => JSON.parse(row.event_detail));
+
+test('api.io-gate.settled-green-and-item-red: clause 1: a green and an item-red receipt posted through the jobs route each append one gate_settled event with outcome and class (green, item) and (red, item) [C7,#12314]', t => {
+  const green = oneGate(t);
+  const answer = green.post({ version: 1, status: 0, gate: { source: green.head, green: true, phases: [{ role: 'proof', status: 0 }] } });
+  assert.equal(answer.outcome, 'review', JSON.stringify(answer));
+  assert.deepEqual(settledEvents(green.board).map(({ job, outcome, class: kind }) => ({ job, outcome, class: kind })), [{ job: green.parent, outcome: 'green', class: 'item' }]);
+  const red = oneGate(t);
+  const failed = red.post({ version: 1, status: 1, gate: { source: red.head, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: 'web/a.test.js', name: 'loads under load' }], tail: 'not ok' }] } });
+  assert.equal(failed.outcome, 'red', JSON.stringify(failed));
+  assert.deepEqual(settledEvents(red.board).map(({ job, outcome, class: kind }) => ({ job, outcome, class: kind })), [{ job: red.parent, outcome: 'red', class: 'item' }]);
+});
+
+test('api.io-gate.settled-once-per-job: clause 2: a sharded gate settled by settleDoneShardGates and re-seen by settleWaitingGates, and the same receipt applied twice, each leave exactly one gate_settled event for the job [C7,#12314]', t => {
+  const sharded = twoShardGate(t, { red: SHARD_GREEN, options: {} });
+  assert.equal(sharded.last.outcome, 'review', JSON.stringify(sharded.last));
+  settleDoneShardGates(sharded.board);
+  settleWaitingGates(sharded.board, 'main:none', { compareWithMain: mainFails() });
+  assert.equal(settledEvents(sharded.board).length, 1, 'the sharded gate leaves one event');
+  const again = oneGate(t);
+  const receipt = { version: 1, status: 1, gate: { source: again.head, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: 'web/a.test.js', name: 'loads under load' }], tail: 'not ok' }] } };
+  assert.equal(again.post(receipt).outcome, 'red');
+  assert.equal(applyGateReceipt(again.board, { job: again.parent, receipt }).outcome, 'red', 'the same receipt applies a second time');
+  assert.equal(settledEvents(again.board).length, 1, 'the twice-applied receipt leaves one event');
+});
+
+test('api.io-gate.settled-class-main-red-stale-infra: clause 1: receipts posted through the jobs route append gate_settled with (red, main-red) for a red only in a case main also fails, (stale, stale-base) for a gate with a newer job, and (unknown, infra) for a receipt with gate.analysis.infra [C7,#12315]', t => {
+  const kinds = gate => settledEvents(gate.board).map(({ job, outcome, class: kind }) => ({ job, outcome, class: kind }));
+  const main = oneGate(t, { compareWithMain: mainFails() });
+  const answer = main.post({ version: 1, status: 1, gate: { source: main.head, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: 'web/a.test.js', name: 'loads under load' }], failureSignatures: SIGNED, tail: 'not ok' }] } });
+  assert.equal(answer.outcome, 'review', JSON.stringify(answer));
+  assert.ok('mainOwned' in answer, 'the settle names the red as main-owned');
+  assert.deepEqual(kinds(main), [{ job: main.parent, outcome: 'red', class: 'main-red' }]);
+  const stale = oneGate(t);
+  offerJob(stale.board.db, { id: `gate:${stale.item.item_id}:newer`, kind: 'gate', needs: [], item: stale.item.item_id, candidate: stale.head, base: stale.head, now: 2, request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
+  const late = stale.post({ version: 1, status: 0, gate: { source: stale.head, green: true, phases: [{ role: 'proof', status: 0 }] } });
+  assert.equal(late.outcome, 'stale', JSON.stringify(late));
+  assert.deepEqual(kinds(stale), [{ job: stale.parent, outcome: 'stale', class: 'stale-base' }]);
+  const infra = oneGate(t);
+  infra.post({ version: 1, status: 1, gate: { source: infra.head, green: false, analysis: { infra: 'the runner lost its checkout' }, phases: [{ role: 'proof', status: 1, failures: [], tail: 'not ok' }] } });
+  assert.deepEqual(kinds(infra), [{ job: infra.parent, outcome: 'unknown', class: 'infra' }]);
+});
+
+/** On `board`, a new claimed item whose two-shard gate waits on its last shard; `lose` records that shard done with its apply lost, offered at `at`. */
+function lostApply(board, repo, name, at) {
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat-${name}` });
+  const item = cellItem(board, { lane: 'web', title: `Build ${name}` });
+  cellClaim(board, item.item_id, seat, { root: repo.root });
+  const held = store.getItem(board, item.item_id);
+  const head = repo.commit;
+  const parent = `gate:${item.item_id}:${name}`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: at,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files: [] } } });
+  const lease = claimJob(board.db, { runner: `r-${name}`, capabilities: [], now: at + 1 });
+  const gate = { version: 1, source: head, green: false, environment: { node: process.version, platform: process.platform, arch: process.arch }, phases: [{ role: 'check', status: 0 }],
+    analysis: { proofFiles: SHARD_FILES, proofCommand: 'node --test' }, proofPlan: { runner: 'node --test', cores: 1, files: SHARD_FILES } };
+  const sharded = boardJobQueueCall(board, { action: 'receipt', job: parent, runner: `r-${name}`, token: lease.token, receipt: { status: 0, gate } }, { mode: 'pull', now: at + 2 });
+  const lost = [];
+  sharded.applied.shards.forEach((shard, index) => {
+    const claimed = claimJob(board.db, { runner: `r-${name}-${index}`, capabilities: [], now: at + 3 + index });
+    const posted = { action: 'receipt', job: shard, runner: `r-${name}-${index}`, token: claimed.token, receipt: SHARD_GREEN(head) };
+    // The last shard's receipt records with no apply, as when the board restarted between the record and the apply.
+    // It is held back to `lose`, because a receipt posted through boardJobQueueCall would open the settle window.
+    if (index === sharded.applied.shards.length - 1) lost.push(() => jobQueueCall(board.db, posted, { mode: 'pull', now: at + 4 + index }));
+    else boardJobQueueCall(board, posted, { mode: 'pull', now: at + 4 + index });
+  });
+  return { id: item.item_id, lose: lost[0] };
+}
+
+/** One board with its repo, for gates whose settle the claims below time. */
+function settleBoard(t) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  return { repo, board };
+}
+const claimAt = (board, now) => boardJobQueueCall(board, { action: 'claim', runner: 'r-idle', capabilities: [] }, { mode: 'pull', now });
+const statusOf = (board, id) => store.getItem(board, id).item_status;
+
+test('api.io-gate.settle-throttle-window: clause 1: a done sharded gate with a lost apply settles on a claim at T, a second one made eligible after stays unsettled on a claim at T+4 s, and a claim at T+9 s settles it [C7,#12480]', t => {
+  const { repo, board } = settleBoard(t);
+  const T = Date.now();
+  const one = lostApply(board, repo, 'one', T);
+  const two = lostApply(board, repo, 'two', T + 200);
+  const [first, second] = [one.id, two.id];
+  one.lose();
+  assert.equal(statusOf(board, first), 'claimed', 'the lost apply leaves the item claimed');
+  claimAt(board, T + 1000);
+  assert.notEqual(statusOf(board, first), 'claimed', 'the first claim settles the first gate');
+  two.lose();
+  claimAt(board, T + 5000);
+  assert.equal(statusOf(board, second), 'claimed', 'a claim 4 s after the settle skips the walk');
+  claimAt(board, T + 10_000);
+  assert.notEqual(statusOf(board, second), 'claimed', 'a claim 9 s after the settle walks again');
+});
+
+test('api.io-gate.settle-on-receipt: clause 2: a receipt posted through boardJobQueueCall opens the window, so a claim 1 s after it settles a gate that became eligible inside the window of an earlier settle [C7,#12480]', t => {
+  const { repo, board } = settleBoard(t);
+  const T = Date.now() + 100_000;
+  const late = lostApply(board, repo, 'late', T - 1000);
+  const gated = late.id;
+  claimAt(board, T);
+  late.lose();
+  claimAt(board, T + 500);
+  assert.equal(statusOf(board, gated), 'claimed', 'inside the window the claim skips the walk');
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat-plain` });
+  const other = cellItem(board, { lane: 'web', title: 'Build plain' });
+  cellClaim(board, other.item_id, seat, { root: repo.root });
+  const head = repo.commit;
+  const parent = `gate:${other.item_id}:plain`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: other.item_id, candidate: head, base: head, now: T + 600,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: store.getItem(board, other.item_id).item_frozen_digest, tree: headTree(repo.root), files: [] } } });
+  const lease = claimJob(board.db, { runner: 'r-plain', capabilities: [], now: T + 601 });
+  boardJobQueueCall(board, { action: 'receipt', job: parent, runner: 'r-plain', token: lease.token, receipt: SHARD_GREEN(head) }, { mode: 'pull', now: T + 700 });
+  claimAt(board, T + 1700);
+  assert.notEqual(statusOf(board, gated), 'claimed', 'a claim 1 s after the receipt settles the gate');
 });

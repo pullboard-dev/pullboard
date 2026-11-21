@@ -1,4 +1,4 @@
-import { withImportParseCache as withSubmitParseCache } from '../../../../packages/gate/index.js';
+import { withImportParseCache as withSubmitParseCache } from '../../../../packages/gate/heavy.js';
 import { withCellGitObjects } from '../../../../packages/codemap/index.js';
 import { cellsObjectSnapshots } from '../../../../packages/codemap/index.js';
 import { withCellSourceSnapshots } from '../../../../packages/codemap/index.js';
@@ -8,8 +8,8 @@ import { withCellLintParser } from '../../../../packages/codemap/index.js';
 import { cellsCacheDirectory } from '../../../../packages/codemap/index.js';
 import { inventoryCache } from './cells/cache-door.js';
 import { observationCache } from './cells/cache-door.js';
-import { acceptedCellsIdentity } from '../../../../packages/gate/index.js';
-import { readAcceptedCells } from '../../../../packages/gate/index.js';
+import { acceptedCellsIdentity } from '../../../../packages/gate/heavy.js';
+import { readAcceptedCells } from '../../../../packages/gate/heavy.js';
 import { inventoryPending } from './cells/cache-door.js';
 import { withBindingReadCache } from '../../../../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
@@ -26,6 +26,7 @@ import { cellGit as git } from '../../../../packages/codemap/index.js';
 import { cellTryGit as tryGit } from '../../../../packages/codemap/index.js';
 import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { cellInventory } from '../../../../packages/codemap/index.js';
 import { cellLintReport } from '../../../../packages/codemap/index.js';
 import { cellLintGrowth } from '../../../../packages/codemap/index.js';
@@ -36,34 +37,18 @@ import {
   onlyForwards,
   withDeclaredLoads,
 } from '../../../../packages/codemap/index.js';
-import { checkMoved } from '../../../../packages/codemap/index.js';
 import { lightFrontDoorProblems } from '../../../../packages/codemap/index.js';
 import { pureDoorProblems } from '../../../../packages/codemap/index.js';
 import { pureFrontDoorProblems } from '../../../../packages/codemap/index.js';
 import { readPlan } from '../../../../packages/codemap/index.js';
 import { shardFile } from '../../../../packages/codemap/index.js';
-import { unplanned } from '../../../../packages/codemap/index.js';
-import { stalePlanRows } from '../../../../packages/codemap/index.js';
 import { scriptMentions } from '../../../../packages/codemap/index.js';
 import { testFile } from '../../../../packages/codemap/index.js';
 import { posix } from 'node:path';
 import { cellOfFolder } from '../logic/cell-of-folder.js';
 import { cellsReorgReason } from './cells-reorg.js';
 import { warning } from './cells-reorg.js';
-import { fixtureFinding } from './cells-reorg.js';
-import { fixtureWarning } from './cells-reorg.js';
 import { importLine } from './cells-reorg.js';
-
-/** Exact multiset subtraction keeps duplicate diagnostics from borrowing one old allowance. */
-function additions(before, after) {
-  const counts = new Map();
-  for (const value of before) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return after.filter(value => {
-    if (!(counts.get(value) > 0)) return true;
-    counts.set(value, counts.get(value) - 1);
-    return false;
-  });
-}
 
 /** Compare exact diagnostic endpoints in the candidate's committed rename namespace, retaining all other text. */
 function mappedCutDiagnostic(map, problem) {
@@ -133,68 +118,54 @@ function sharedPolicy(file) {
     || file.startsWith('packages/codemap/data/plan/') || file.startsWith('packages/codemap/data/baselines/lints/');
 }
 
-/** The plan's own settings, without its per-cell rows, so a row edit is told apart from a global one. */
-function planSettings(plan) {
-  const { cells, files, tests, ...settings } = plan ?? {};
-  return JSON.stringify(settings);
-}
-
 /**
  * Split the changed policy files into the cells they name and a reason to recheck everything.
- * A cell's own plan shard, path-map shard or baseline shard, and an index edit that only adds, removes or edits
- * cell rows, name just those cells; any other shared file, or an index edit that names no row, still means all
- * cells, so an unknown policy file always fails safe.
+ * A cell's own path-map shard, baseline shard or plan shard names just that cell, read from the file's name against the
+ * cells the folders show; any other shared file, so an unknown policy file, still means all cells and fails safe.
+ * The plan's stays and rows are never read, so editing them cannot widen the touched set.
  *
  * Why: 12 of the 21 slow cells steps on 8 Nov rechecked every cell for a one-row policy edit.
  *
+ * @param {string[]} files changed repo paths
+ * @param {Set<string>} known cell names the folders show
  * @returns {{ all: string|undefined, cells: Set<string> }}
  */
-function policyScope(files, plans) {
-  const [before, after] = plans, cells = new Set(), names = new Map((after?.cells ?? []).map(cell => [cell.name, cell]));
-  const rows = plan => new Map((plan?.cells ?? []).map(cell => [cell.name, JSON.stringify(cell)]));
-  const oldRows = rows(before), newRows = rows(after);
-  const changedRows = [...newRows].filter(([name, row]) => oldRows.get(name) !== row).map(([name]) => name);
-  const settingsSame = planSettings(before) === planSettings(after);
+function policyScope(files, known) {
+  const cells = new Set(), byKey = new Map([...known].map(name => [name.replace(':', '-'), name]));
   for (const file of files) {
-    if (plans.some(plan => plan.stays?.some(row => row.path === file))) return { all: file, cells };
     if (!sharedPolicy(file)) continue;
-    if (file === 'packages/codemap/data/plan/cells.json' && settingsSame && changedRows.length) { for (const name of changedRows) cells.add(name); continue; }
-    const keyed = /^(?:packages\/codemap\/data\/plan\/path-map|packages\/codemap\/data\/baselines\/lints\/cells)\/([a-z][a-z0-9-]*)\.json$/u.exec(file)?.[1];
-    const own = [...names.values()].find(cell => shardFile(cell) === file || keyed !== undefined && cell.name.replace(':', '-') === keyed);
-    if (own) { cells.add(own.name); continue; }
+    const keyed = /^packages\/codemap\/data\/(?:plan\/path-map\/|baselines\/lints\/cells\/|plan\/\d{2,}-)([a-z][a-z0-9-]*)\.json$/u.exec(file)?.[1];
+    const own = keyed === undefined ? undefined : byKey.get(keyed);
+    if (own) { cells.add(own); continue; }
     return { all: file, cells };
   }
   return { all: undefined, cells };
 }
 
-function allCellsReason(files, plans) {
-  return policyScope(files, plans).all;
+/** Cell names the folders show: every path in the inventories' file maps and every changed file. */
+function foldersKnown(files, inventories) {
+  const known = new Set();
+  for (const file of [...files, ...inventories.flatMap(inventory => [...(inventory.files?.keys() ?? [])])]) {
+    const name = cellOfFolder(file);
+    if (name !== null) known.add(name);
+  }
+  return known;
 }
 
-/**
- * Whether the cell owns a path the move maps carry, found from the target's folder, never from the plan's path rows [C7,#8742].
- *
- * Why: the plan rows are being retired, and a folder already names the cell.
- *
- * @param {string} name cell name
- * @param {Array<Map<string, string>>} maps path maps (from to target), one per side
- * @returns {boolean}
- */
-export function cellHasMovedPaths(name, maps) {
-  return maps.some(map => [...map.values()].some(to => cellOfFolder(to) === name));
+function allCellsReason(files, inventories = []) {
+  return policyScope(files, foldersKnown(files, inventories)).all;
 }
 
 /** Attribute changed cells and their direct importers against both immutable graphs. */
 export function touchedCells(files, before, after, inventories) {
-  const plans = [before, after];
+  const known = foldersKnown(files, inventories);
   // Shared metadata or an unowned root-tool stay can alter every reachable cell.
-  const scope = policyScope(files, plans);
+  const scope = policyScope(files, known);
   if (scope.all) {
-    return after.cells.map(cell => cell.name);
+    return [...known].sort();
   }
-  const known = new Set(plans.flatMap(plan => plan.cells.map(cell => cell.name)));
   const byPath = new Map();
-  /** A path's cell comes from its folder, never from the plan's rows; only a cell the plans name counts [#8555]. */
+  /** A path's cell comes from its folder, never from the plan's rows [#8555]. */
   const owners = file => {
     if (!byPath.has(file)) { const name = cellOfFolder(file); byPath.set(file, name !== null && known.has(name) ? [name] : []); }
     return byPath.get(file);
@@ -298,15 +269,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot, criterion);
   const oldInventory = inventories ? inventories.base(mainRoot, acceptedMain) : cellInventory(mainRoot, parsers);
   const newInventory = inventories ? inventories.candidate(candidateRoot, oldInventory, changed) : cellInventory(candidateRoot, parsers);
-  const unplaced = unplanned(candidateRoot, after, newInventory);
   const machinery = [];
-  if (reorg && unplaced.length) {
-    const message = `source paths have no cells-plan entry: ${unplaced.join(', ')}; place each with node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`;
-    if (!collectMachinery) throw new Refused('CELLS_PLAN_UNPLACED', message);
-    machinery.push({ kind: 'placement', code: 'CELLS_PLAN_UNPLACED', message, rule: receiptDigest(readFileSync(fileURLToPath(import.meta.url), 'utf8')) });
-  }
-  warnings.push(...unplaced.map(file => warning(file, 1, 'no cells-plan placement', `node packages/codemap/src/io/cells/scripts/plan.js --place ${file} --cell <cell> (or --stay), then commit the plan`)));
-  policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
   for (const row of deletedScriptMentions(mainRoot, candidateRoot, changed)) {
     if (reorg) policy.push(`${row.file}:${row.line} names deleted ${row.path} inside a string; point it at the moved file or front door`);
@@ -316,7 +279,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     read: (revision, file) => shimSnapshotFile(revision === 'before' ? mainRoot : candidateRoot, file),
     changes: changed.map(file => ({ file, before: shimSnapshotFile(mainRoot, file), after: shimSnapshotFile(candidateRoot, file) })) }));
   if (policy.length && !collectMachinery) return { cells: [], problems: policy, warnings, reorg };
-  const fallback = allCellsReason(changed, [before, after]);
+  const fallback = allCellsReason(changed);
   if (fallback) onAllCells(fallback);
   const direct = touchedCells(changed, before, after, []);
   // A file that newly only forwards is a shim even outside any planned cell's folder, so the shim count still runs for it [C7].
@@ -325,7 +288,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     const was = shimSnapshotFile(mainRoot, file);
     return text !== undefined && onlyForwards(text, false) && !(was !== undefined && onlyForwards(was, false));
   });
-  if (!direct.length && !addsShim) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
+  if (!direct.length && !addsShim && !fallback) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
   const oldReport = inventories?.report?.(mainRoot, acceptedMain) ?? cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
@@ -336,17 +299,6 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const problems = [...policy, ...cellLintGrowth(newReport, baseline, { enforcedOnly: true })
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`)];
   problems.push(...shimCountProblems({ before: oldReport, after: newReport, beforeInventory: oldInventory, afterInventory: newInventory }));
-  for (const name of cells) {
-    const previous = before.cells.some(cell => cell.name === name);
-    const moved = cellHasMovedPaths(name, [mainMap, candidateMap]);
-    if (!moved) continue;
-    const oldMoved = previous ? checkMoved(mainRoot, before, name, { acceptedBase: acceptedMain, lintReport: oldReport, lintBaseline: baseline, inventory: oldInventory }) : [];
-    const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline, inventory: newInventory });
-    for (const problem of additions(oldMoved, newMoved)) {
-      if (!reorg && fixtureFinding(problem)) warnings.push(fixtureWarning(name, problem));
-      else problems.push(`${name} --moved: ${problem}`);
-    }
-  }
   return { cells, problems, warnings, reorg, allCellsReason: fallback ?? null, ...(collectMachinery ? { machinery } : {}) };
 }
 
@@ -371,10 +323,12 @@ function cellsComposition(root, acceptedMain, commit) {
     '-m', 'chore(cells): inspect immutable submit composition [C7,D3]'], { env });
 }
 
+const environment = environmentAdapter();
+
 /** Bind every approved Node preload to its actual bytes; uncertainty disables persistent reuse. */
 function preloadFingerprint() {
   try {
-    return String(process.env.NODE_OPTIONS ?? '').split(/\s+/u).filter(Boolean).map(token => {
+    return String(environment.get('NODE_OPTIONS', '')).split(/\s+/u).filter(Boolean).map(token => {
       const match = /^--(?:import|require)=(.+)$/u.exec(token);
       if (!match) throw new Error('unrecognized preload');
       const value = match[1].startsWith('"') ? JSON.parse(match[1]) : match[1];

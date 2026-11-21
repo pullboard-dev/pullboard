@@ -2,8 +2,8 @@
 /** Test files on one machine never outnumber its cores, and the longest files start first [C7]. */
 import { executionServices } from '../../fixtures/execution.js';
 import { executionServicesSource } from '../../fixtures/execution.js';
-import { withGateSlot } from '../../../index.js';
-import { awaitNestedRun } from '../../../index.js';
+import { withGateSlot } from '../../../heavy.js';
+import { awaitNestedRun } from '../../../heavy.js';
 import { timedFile } from '../../fixtures/file-pool.js';
 import { fixture } from '../../fixtures/file-pool.js';
 import { peak } from '../../fixtures/file-pool.js';
@@ -20,7 +20,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from '../../fixtures/child.js';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { startFixtureChild } from '../../fixtures/child.js';
-import { occupiedPlaces } from '../../../index.js';
+import { occupiedPlaces } from '../../../heavy.js';
 import { GATE_SLOT_HELD_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../resources/index.js';

@@ -1,6 +1,7 @@
 /** @pullboard-test-input apps/cli/tests/** apps/cli/journeys/** */
 /** Every cli-app test, in its tests and journeys folders, carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10476,#10541]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -115,14 +116,18 @@ test('cli.stable.journey-local-duplicate-id: clause 2: [C7,U148] a test id recor
 });
 
 test('cli.stable.journeys-registered: clause 2: [C7,U148] every test under the journeys add, agents, baseline, blueprint, cells, claim, companion and decisions folders has a registered cli.<area>.<slug> title ID', () => {
-  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry-10541.json'), 'utf8'));
+  // The claim policy chaos case keeps its record in the registry of the item that added it (#5705).
+  const records = Object.assign({}, ...['registry-10541.json', 'registry-5705.json'].map(name => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
+  // #12243 moved decisions/project and agents/takeover-model under tests/io/commands; #12246 moved companion/review there too.
+  const moved = ['agents/takeover-model.test.js', 'companion/review.test.js', 'decisions/project.test.js'].map((name) => join(DIR, 'io', 'commands', name));
   for (const area of ['add', 'agents', 'baseline', 'blueprint', 'cells', 'claim', 'companion', 'decisions']) {
-    for (const file of testFiles(join(journeys, area))) {
+    const files = existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : [];
+    for (const file of [...files, ...moved.filter((path) => path.includes(`/commands/${area}/`))]) {
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
       assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
-      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10541.json`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10541.json or registry-5705.json`);
     }
   }
 });
@@ -141,8 +146,8 @@ test('cli.stable.journeys-registered-10552: clause 2: [C7,U148] every test under
 });
 
 test('cli.stable.journeys-registered-10549: clause 1: [C7,U148] every core-owned test under the journeys release, resources, resume, sync and upgrade folders has a registered cli.<area>.<slug> title ID', () => {
-  // A test later split out of this slice keeps its record in the registry of the item that moved it or added it (#10694, #10970).
-  const records = Object.assign({}, ...['registry-10549.json', 'registry-10694.json', 'registry-10695.json', 'registry-10970.json', 'registry-10933.json'].map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
+  // A test later split out of this slice keeps its record in the registry of the item that moved it or added it (#10694, #10970, #12005).
+  const records = Object.assign({}, ...['registry-10549.json', 'registry-10694.json', 'registry-10695.json', 'registry-10970.json', 'registry-10933.json', 'registry-12005.json'].map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them.
   const viewOwned = new Set([]);
@@ -152,7 +157,7 @@ test('cli.stable.journeys-registered-10549: clause 1: [C7,U148] every core-owned
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
       assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
-      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10549.json, registry-10694.json, registry-10695.json, registry-10933.json or registry-10970.json`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10549.json, registry-10694.json, registry-10695.json, registry-10933.json, registry-10970.json or registry-12005.json`);
     }
   }
 });
@@ -162,7 +167,7 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
   const records = Object.assign({}, ...readdirSync(join(DIR, 'fixtures')).filter((name) => /^registry(?:-\d+)?\.json$/u.test(name)).sort().map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: init/perf.test.js, init/perf/tab-speed-rows-ceiling.test.js.
-  const viewOwned = new Set(['init/perf.test.js', 'init/perf/tab-speed-rows-ceiling.test.js']);
+  const viewOwned = new Set(['init/perf.test.js', 'init/perf/tab-speed-rows-ceiling.test.js', 'init/perf/tab-speed-spec.test.js']);
   for (const area of ['init', 'land', 'lanes', 'languages', 'list', 'log', 'mcp']) {
     for (const file of testFiles(join(journeys, area))) {
       if (viewOwned.has(file.slice(journeys.length + 1))) continue;
@@ -247,13 +252,16 @@ test('cli.stable.journeys-registered-10551: clause 1: [C7,U148] every core-owned
 });
 
 test('cli.stable.journeys-registered-10545: clause 1: [C7,U148] every core-owned test under the journeys fact, hooks, imports, inbox, intake and join folders has a registered cli.<area>.<slug> title ID', () => {
-  // Journey cases register in their own slice's file (registry-10545.json, registry-10838.json, registry-8915.json), so every slice's records count.
-  const records = Object.assign({}, ...readdirSync(join(DIR, 'fixtures')).filter((name) => /^registry(?:-\d+)?\.json$/u.test(name)).sort().map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
+  // Journey cases register in their own slice's file (registry-10545.json, registry-10838.json, registry-8915.json) or in a registry-<id>.json beside the journeys, so every slice's records count.
+  const records = loadRecords(join(DIR, 'fixtures'), join(DIR, '..', 'journeys')).records;
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: inbox/sidebar.test.js.
   const viewOwned = new Set(['inbox/sidebar.test.js']);
+  // #12246 moved the intake journeys under tests/io/commands/intake; they keep their records and are still checked here.
+  const movedIntake = ['boundary', 'main', 'revision'].map((name) => join(DIR, 'io', 'commands', 'intake', `${name}.test.js`));
   for (const area of ['fact', 'hooks', 'imports', 'inbox', 'intake', 'join']) {
-    for (const file of testFiles(join(journeys, area))) {
+    const files = existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : [];
+    for (const file of area === 'intake' ? [...files, ...movedIntake] : files) {
       if (viewOwned.has(file.slice(journeys.length + 1))) continue;
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
@@ -269,8 +277,11 @@ test('cli.stable.journeys-registered-10548: clause 1: [C7,U148] every core-owned
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them.
   const viewOwned = new Set(['sentinels/needs.test.js']);
+  // #12244 moved reopen/evidence under tests/io/commands; its records stay in the registry files.
+  const moved = [join(DIR, 'io', 'commands', 'reopen', 'evidence.test.js')];
   for (const area of ['relay', 'reopen', 'roadmap', 'sentinels', 'settings']) {
-    for (const file of testFiles(join(journeys, area))) {
+    const files = existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : [];
+    for (const file of [...files, ...moved.filter((path) => path.includes(`/commands/${area}/`))]) {
       if (viewOwned.has(file.slice(journeys.length + 1))) continue;
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);

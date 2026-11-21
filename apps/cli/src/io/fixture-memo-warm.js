@@ -3,9 +3,7 @@ import { trustedRunnerStep } from './submit/gate.js';
 import { controllerMemoStore } from './memo.js';
 import { keepRunnerFixtureMemo } from './memo.js';
 import { fixtureMemoArtifact } from './memo.js';
-import { PLAN_DIR } from '../../../../packages/codemap/index.js';
-import { PLAN_FILE } from '../../../../packages/codemap/index.js';
-import { withGateSlot } from '../../../../packages/gate/index.js';
+import { withGateSlot } from '../../../../packages/gate/heavy.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { checkCommandDefinition } from '../../../../packages/git/index.js';
 import { git } from '../../../../packages/git/index.js';
@@ -15,40 +13,27 @@ import { fileURLToPath } from 'node:url';
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
 
-/** The module whose import closure is the fixture analyzer; packages/codemap/src/io/cells/scripts/plan.js names its memo by this closure. */
+/** The module whose import closure is the fixture analyzer; packages/codemap/src/io/cells/memo.js names its memo by this closure. */
 const ANALYZER = 'packages/codemap/src/io/cells-move-fixtures.js';
 
 /**
  * The warm entry, run from main's archive with the runner's checkout of main as its root: seed the fixture memo from
- * the controller's store, run checkMoved for every moved cell exactly as a gate's cells check does at main, and return
- * the memo. A main whose tooling lacks a part returns an empty result rather than failing.
+ * the controller's store and return the memo. It reads no plan and runs no moved check, which #10705 removed.
+ * A main whose tooling lacks a part returns an empty result rather than failing.
  */
-const WARM_ENTRY = `import * as codemap from './packages/codemap/index.js';
-import * as cellsCache from './apps/cli/src/io/cells/cache.js';
-import * as gate from './packages/gate/index.js';
-import { readFileSync } from 'node:fs';
+const WARM_ENTRY = `import * as cellsCache from './apps/cli/src/io/cells/cache.js';
+import { text } from 'node:stream/consumers';
 const root = process.argv[2];
-const input = JSON.parse(readFileSync(0, 'utf8'));
+const input = JSON.parse(await text(process.stdin));
 const result = { main: input.main, source: input.main, cells: 0 };
 const memos = await import('./apps/cli/src/io/memo.js').then(module => module.runnerFixtureMemos(cellsCache, process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT ?? null)).catch(() => null);
-if (memos && typeof codemap.checkMoved === 'function' && typeof codemap.cellInventory === 'function') {
-  const parsers = { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn };
-  const accepted = codemap.readPlan(root), map = codemap.cellReadPathMap(root);
-  const inventory = codemap.cellInventory(root, parsers), lintReport = codemap.cellLintReport(root, parsers, { inventory });
-  const lintBaseline = codemap.cellLintBaseline(lintReport);
-  for (const cell of accepted.cells) {
-    if (!cell.paths.some(([from, to]) => map.get(from) === to)) continue;
-    codemap.checkMoved(root, accepted, cell.name, { acceptedBase: input.main, lintReport, lintBaseline, inventory });
-    result.cells += 1;
-  }
-  result.fixtureMemo = memos.collect();
-}
+if (memos) result.fixtureMemo = memos.collect();
 process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n');
 `;
 
 /**
- * True when the first-parent change into `commit` touches the fixture analyzer's import closure or the cells plan,
- * which name and key the fixture memo. Why: only those landings leave every runner's memo cold.
+ * True when the first-parent change into `commit` touches the fixture analyzer's import closure,
+ * which names and keys the fixture memo. Why: only those landings leave every runner's memo cold.
  *
  * @param {string} root
  * @param {string} commit
@@ -57,7 +42,6 @@ process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n')
 export function changesFixtureAnalyzer(root, commit) {
   const env = gitChildEnv(root);
   const changed = git(root, ['diff', '--name-only', '--no-renames', '-z', `${commit}^1`, commit], { env }).split('\0').filter(Boolean);
-  if (changed.some(path => path === PLAN_FILE || path.startsWith(`${PLAN_DIR}/`))) return true;
   const tool = fileURLToPath(new URL('../../../../', import.meta.url));
   const closure = new Set(checkCommandDefinition(tool, [], [fileURLToPath(new URL(`../../../../${ANALYZER}`, import.meta.url))])
     .map(entry => entry.path).filter(path => path.startsWith('project:')).map(path => path.slice('project:'.length)));

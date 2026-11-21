@@ -144,6 +144,18 @@ export function projectFlowWindow(prepared, minutes, now) {
     stages, constraint: { stage: constraint, overTargetMinutes: constraint ? stages[constraint].overTargetMinutes : 0 } };
 }
 
+/** Build the same window and constraint from replayFlow items instead of board events; pure, with no board and no clock [C7]. */
+export function replayWindow(items, sinceMs, untilMs) {
+  const landed = items.filter(item => {
+    const at = Date.parse(item.landedAt);
+    return at > sinceMs && at <= untilMs;
+  });
+  const stages = Object.fromEntries(WINDOW_STAGES.map(stage => [stage, { targetMinutes: TARGETS[stage],
+    overTargetMinutes: landed.reduce((sum, item) => sum + Math.max(0, (item.stages?.[stage] ?? 0) - TARGETS[stage]), 0) }]));
+  const stage = WINDOW_STAGES.reduce((largest, name) => stages[name].overTargetMinutes > (largest ? stages[largest].overTargetMinutes : 0) ? name : largest, null);
+  return { landedItems: landed.length, stages, constraint: { stage, overTargetMinutes: stage ? stages[stage].overTargetMinutes : 0 } };
+}
+
 /** Render the measured window without substituting zero for absent quartiles or undocumented eligibility. */
 export function flowWindowLines(flowWindow) {
   const time = value => value === null ? 'unmeasured' : `${Number(value.toFixed(2))} min`;

@@ -10,6 +10,7 @@
 import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { workerError } from './state/materializer.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** How long a call may wait for a free worker before it is refused API_BUSY. */
 const QUEUE_MS = 1_000;
@@ -22,6 +23,15 @@ const CALL_MS = 120_000;
  * claim and renewal was refused API_BUSY, 62 test jobs sat queued with six runners idle and landings stopped (#10786).
  */
 const RUNNER_WORKERS = 1;
+/** Runner job actions safe to name in health; request fields other than this canonical name stay out of pool state. */
+const RUNNER_ACTIONS = Object.freeze(['claim', 'renew', 'progress', 'receipt']);
+/**
+ * How many worker losses in a row, with no call answered between them, make the pool unhealthy. Why: on 20 Nov every
+ * worker died at start (ENOENT uv_cwd, ~130 a second) and every runner claim got API_WORKER_FAILED for 2.5 h while health said ok.
+ */
+const FAILING_AFTER = 10;
+/** How long a loss counts toward unhealthy; a streak older than this is history, not a live fault. */
+const FAILING_MS = 60_000;
 
 /** The pool size this machine's cores give: one core stays with the request thread, and at least two workers run. */
 export function handlerPoolSize(cores = availableParallelism()) {
@@ -39,7 +49,7 @@ export function handlerPoolSize(cores = availableParallelism()) {
 export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize(), queueMs = QUEUE_MS, callMs = CALL_MS, runnerWorkers = RUNNER_WORKERS, Refused, onFailure }) {
   // The worker takes none of this process's preloads, as the state worker does: a test runner's preload run again
   // in a thread claims the file's test slot a second time [C7].
-  const { NODE_TEST_CONTEXT: _testContext, ...env } = process.env;
+  const { NODE_TEST_CONTEXT: _testContext, ...env } = environmentAdapter().all();
   const slots = [];
   // Agent calls (moves, requests, reads) wait in `queue`; runner job calls wait in `runnerQueue`, served first.
   const queue = [];
@@ -47,6 +57,9 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
   const reserved = Math.max(0, Math.min(runnerWorkers, size - 1));
   let nextId = 0;
   let closed = false;
+  // Consecutive worker losses since a worker last answered a call, and when the latest one happened.
+  let lostInARow = 0;
+  let lostAt = 0;
 
   /** A refusal naming a full pool, so a client backs off instead of waiting on a hung call. */
   const busy = (route, runner) => new Refused('API_BUSY', `every one of the API's ${runner ? size : size - reserved} handler workers ${runner ? '' : 'open to agent calls '}is busy, so ${route} was not started; retry in a few seconds`);
@@ -65,6 +78,7 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
     worker.on('message', (message) => {
       const call = slot.call;
       if (!call || call.id !== message.id) return;
+      lostInARow = 0;
       finish(slot);
       if (message.error) call.fail(workerError(message.error, Refused));
       else call.ok(message.value);
@@ -73,6 +87,8 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
       if (slot.worker !== worker || closed) return;
       const call = slot.call;
       clearTimeout(slot.deadline);
+      lostInARow++;
+      lostAt = Date.now();
       onFailure?.(error);
       call?.fail(new Refused('API_WORKER_FAILED', `the handler worker running ${call.route} stopped (${error?.message ?? error}); retry`));
       if (closed) return;
@@ -122,10 +138,10 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
      * without a limit, behind the queue. A runner call (`runner`: a runner's job call and its board lookup) waits in
      * its own queue, served before agent calls, and may take the workers agent calls leave to it (#10786).
      */
-    call(kind, args, { route = kind, internal = false, runner = false } = {}) {
+    call(kind, args, { route = kind, internal = false, runner = false, action = null } = {}) {
       if (closed) return Promise.reject(new Refused('API_CLOSED', 'the API is closing; retry against the restarted server'));
       return new Promise((ok, fail) => {
-        const call = { id: ++nextId, kind, args, route, runner, ok, fail, timer: null };
+        const call = { id: ++nextId, kind, args, route, runner, action: runner && RUNNER_ACTIONS.includes(action) ? action : null, ok, fail, timer: null };
         const lane = runner ? runnerQueue : queue;
         const free = lane.length ? null : freeFor(call);
         if (free) return run(free, call);
@@ -137,7 +153,12 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
     /** What health reports: the pool size, the workers kept for runner job calls, the workers holding a call and for how long, and the queued calls. */
     health(now = Date.now()) {
       const held = slots.filter((slot) => slot.call);
-      return { workers: size, runnerWorkers: reserved, busy: held.length, queued: queue.length + runnerQueue.length, oldestMs: held.length ? now - Math.min(...held.map((slot) => slot.started)) : 0 };
+      const runnerActions = Object.fromEntries(RUNNER_ACTIONS.map((action) => {
+        const active = slots.filter((slot) => slot.call?.runner && slot.call.action === action);
+        return [action, { busy: active.length, oldestMs: active.length ? now - Math.min(...active.map((slot) => slot.started)) : 0 }];
+      }));
+      const failing = lostInARow >= FAILING_AFTER && now - lostAt <= FAILING_MS;
+      return { ok: !failing, ...(failing ? { error: { code: 'API_WORKER_FAILED', message: `${lostInARow} handler workers in a row stopped before answering a call; restart the serve` } } : {}), lostInARow, workers: size, runnerWorkers: reserved, busy: held.length, queued: queue.length + runnerQueue.length, oldestMs: held.length ? now - Math.min(...held.map((slot) => slot.started)) : 0, runnerActions };
     },
     /** End every worker and refuse every queued call. */
     close() {

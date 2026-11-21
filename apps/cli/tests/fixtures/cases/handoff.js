@@ -10,7 +10,7 @@ import { submitFixture } from '../board/submit.js';
 
 /** Install real CLI controls while reusing the frozen suite's isolated Git and SQLite setup. */
 export function installPostMoveHandoffCases({ fixture, cli }) {
-  test('submit returns with the next build claimed by the same seat [N2,V4]', async t => {
+  test('submit returns without claiming the next build for the seat [N2,V4,#12020]', async t => {
     const files = {
       'web/value.js': 'export const value = 0;\n',
       'web/handoff.test.js': `import assert from 'node:assert/strict';
@@ -36,11 +36,10 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     assert.equal(result.code, 0, result.out + result.err);
     // The pulled gate keeps the claim until a runner posts its receipt, so the submitted item stays claimed here [C7].
     assert.equal(store.getItem(box.board, first).item_status, 'claimed', 'the original operation is retained');
-    assert.equal(store.getItem(box.board, next).item_owner, seat.id, `the same command takes its next build: ${result.out} ${result.err}`);
-    assert.equal(store.getItem(box.board, next).item_status, 'claimed');
+    assert.equal(store.getItem(box.board, next).item_status, 'open', `submit claims nothing for the seat: ${result.out} ${result.err}`);
     assert.equal(result.document.id, first, 'the primary submission document remains authoritative');
-    assert.equal(result.document.next.item.item_id, next);
-    assert.equal(result.document.next.review, false);
+    assert.equal(result.document.next.item, null);
+    assert.deepEqual(result.document.next.reasons, ['run pullboard next']);
   });
 
   test('a verdict returns with the next threshold review reserved [N2,V1,V4]', async t => {

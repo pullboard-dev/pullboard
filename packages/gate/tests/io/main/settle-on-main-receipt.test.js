@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
@@ -145,4 +145,28 @@ t => {
   assert.match(gateFacts[0], /unknown at .* until main's missing receipts record/u);
   assert.equal(store.getItem(board, item).item_status, 'claimed');
   assert.deepEqual(submitsAndGates(board, item).submits, []);
+});
+
+test('gate.io-main-settle-on-main-receipt.unchanged-red-not-reapplied: clause 1: with gate.settleOnMainReceipt on, a second main receipt for the failing file with the same result writes no second red fact, settled fact or shout for the gate it already settled red [C7,#12190]', { timeout: 60_000 }, // budget: one fixture repo and board, no runner process.
+t => {
+  const { board, item, job, seat, recordMain } = unknownShardedGate(t, true);
+  recordMain('green');
+  const counts = () => {
+    const thread = facts(board, item);
+    return { red: thread.filter(text => text.startsWith(`Gate job ${job} red at `)).length, settled: thread.filter(text => text.startsWith(`Gate job ${job} settled red`)).length,
+      shouts: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_to = ?').get(seat.id).n };
+  };
+  const first = counts();
+  assert.equal(first.red, 1, 'the first main receipt settled the gate red');
+  assert.equal(first.settled, 1);
+  // Main records FILE again: a second main-test job keyed to the same file, as a later main asks for it.
+  const queued = jobs.jobsOf(board.db, { kind: MAIN_TEST_JOB }).flatMap(row => row.steps).find(step => step.name === 'queued').payload;
+  const again = 'main-test:fixture-again';
+  jobs.createJob(board.db, { id: again, kind: MAIN_TEST_JOB, base: queued.tree, now: Date.now() });
+  jobs.writeStep(board.db, again, 'queued', queued, { now: Date.now() });
+  const { claim, posted } = recordMain('green');
+  assert.equal(claim.job, again, 'the runner took the second main-test job');
+  assert.equal(posted.applied.outcome, 'recorded', JSON.stringify(posted.applied));
+  assert.deepEqual(counts(), first, 'the unchanged red is not applied again');
+  assert.equal(store.getItem(board, item).item_status, 'claimed', 'the red stays with its builder');
 });

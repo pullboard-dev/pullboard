@@ -93,7 +93,8 @@ export async function preCommitHook(io, ctx, info, first, hookRead, rowDecisions
   // The trunk branch's commit comes from Git's ref files when they can answer, so no process is started for it.
   const accepted = (trunk?.startsWith('refs/heads/') ? checkoutRefCommit(info.root, trunk) : null) || tryGit(info.root, ['rev-parse', '--verify', trunk]).stdout.trim() || 'HEAD';
   const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
-  const staticProblems = await stagedStaticProblems(info.root, process.env);
+  // The staged check goes to a free runner first; the host runs it only when no runner answers in time [C7,#12570].
+  const staticProblems = await stagedStaticProblems(info.root, process.env, { ctx: ctx.info ? ctx : null, main: accepted === 'HEAD' ? null : accepted, say: (line) => io.err(line) });
   const ceilingTables = await stagedCeilingTables(process.env);
   return [...staticProblems, ...withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, ceilingTables, root: info.root, isMain: isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }))];
 }

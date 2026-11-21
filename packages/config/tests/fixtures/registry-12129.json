@@ -1,0 +1,3 @@
+{
+  "config.io-settings.excuse-main-red-files-setting": {"proves":{"specs":["C7"],"claim":"gate.excuseMainRedFiles defaults to false, is described, rejects a non-boolean with BAD_MACHINE_SETTINGS, and excuseMainRedFilesEnabled() is true only for an exact true."},"why":"Without it the main-red file excuse switch could be undescribed, default on or turn on from a loose value.","kind":"contract","inputs":["packages/config/src/io/settings.js","packages/config/src/logic/settings.js","packages/config/src/io/settings/descriptions.js","packages/config/src/io/settings/machine-defaults.js"]}
+}

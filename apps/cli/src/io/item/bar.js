@@ -10,6 +10,9 @@ import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 /** The coordinator's lane and seat id: laneOf names it for every path no lane owns. */
 export const COORDINATOR = 'coordinator';
 
+/** The longest --after chain add and edit accept, the new item itself counted. */
+export const MAX_CHAIN_DEPTH = 3;
+
 /**
  * The paths a bar names that the build cannot reach on main: absent from main and owned by no lane, such as the test/ and
  * bin/ layout the Cells move retired, which no seat may recreate. Why: 284 live items named such paths and every core
@@ -92,17 +95,270 @@ export function requireRegistryRecord(tracked, named, isTest) {
     if (at < 0 || !isTest(path) || path.slice(at).startsWith('/tests/registry')) continue;
     const cell = path.slice(0, at);
     if (!tracked.some(file => file.startsWith(`${cell}/tests/registry`) && isTest(file))) continue;
-    if (named.some(other => other.startsWith(`${cell}/tests/fixtures/registry`) && other.endsWith('.json'))) continue;
+    if (named.some(other => (other.startsWith(`${cell}/tests/fixtures/registry`) || other === `${cell}/tests/registry.json`) && other.endsWith('.json'))) continue;
     const record = `${cell}/tests/fixtures/registry.json`;
     throw new Refused('REGISTRY_TEST_ID', `the bar names ${path}, a test in a strict-registry cell, but not its registry record ${record}`,
       `name ${record} in the bar and title each test <cell id>.<area>.<name>: clause N: ..., not a bare clause N title`);
   }
 }
 
+const FILE_REMOVAL = /\b(?:delet(?:e|es|ed|ing)|remov(?:e|es|ed|ing)|mov(?:e|es|ed|ing)|renam(?:e|es|ed|ing)|git mv)\b/iu;
+
+/**
+ * Refuse a lane bar that asks to delete, remove, move or rename a file on main that an approved must row of the spec names in
+ * its gate list, naming the row ids and the split (#11742).
+ * Why: pre-commit demands each such row point at a new home and the spec is coordinator-owned, so a lane builder can never
+ * satisfy the bar; 43 rows named the two files of #11199 and #11201. The callers pass the spec cell's parseSpec and gateFiles, so
+ * this module takes no new cell import.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any bar.
+ * @param {boolean} exempt A coordinator or person filer, who may name any path and repoint rows themselves.
+ * @param {{ parseSpec: Function, gateFiles: Function }} spec The spec cell's readers, passed in by add and edit.
+ */
+export async function requireSpecGateRows(ctx, bar, on, exempt, { parseSpec, gateFiles }) {
+  if (!on || exempt) return;
+  const clauses = String(bar.criterion ?? '').split(/\n|(?<=[.;])\s+(?=\d+\.\s)/u).filter(clause => FILE_REMOVAL.test(clause));
+  if (!clauses.length) return;
+  const trunk = trunkBranch(ctx.info.root);
+  const spec = tryGit(ctx.info.root, ['show', `${trunk}:${ctx.config.spec}`]);
+  if (spec.status !== 0) return;
+  const rows = parseSpec(spec.stdout).rows.filter(row => row.status === 'approved' && row.tier === 'must');
+  const named = [...new Set(clauses.flatMap(clause => pathTokens(clause)))].filter(path => !path.endsWith('/'));
+  if (!named.length) return;
+  const present = onTrunk(ctx.info.root)(named);
+  const hits = [];
+  for (const path of named) {
+    if (!present.has(path)) continue;
+    const ids = rows.filter(row => gateFiles(row.gate).includes(path)).map(row => row.id);
+    if (ids.length) hits.push({ path, ids });
+  }
+  if (!hits.length) return;
+  throw new Refused('SPEC_GATE_ROW', `the bar deletes, removes, moves or renames ${hits.map(hit => `${hit.path} (named by ${hit.ids.join(', ')})`).join('; ')}; those approved must rows name it in their gate list, pre-commit refuses the change until each row points at a new home, and the spec is coordinator-owned`,
+    'split the bar: the lane piece, then the coordinator piece filed --after it to repoint those rows (pullboard add --split-coordinator)');
+}
+
+/** The item branch names (`<lane>/item-<id>`) present in the repository, as a set. */
+function itemBranches(root) {
+  const listed = tryGit(root, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']);
+  return new Set(listed.status === 0 ? listed.stdout.split('\n').filter(Boolean) : []);
+}
+
+/**
+ * Refuse a bar that names a path missing from main which the unmerged branch of another open, accepted or verified item adds,
+ * unless --after already names that item; the refusal names each such item and the rerun (#11741).
+ * Why: 5+ builders were released BLOCKED on a file an accepted item had not yet landed; add and edit catch it before a claim cycle.
+ * Only paths are read, from one branch listing and one added-files diff per candidate item with a branch.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string, check?: string }} bar
+ * @param {{ on: boolean, after?: Array<string|number>, self?: number|null, items: () => any[] }} options
+ *   on is the items.barRulesAtAdd machine setting (off accepts any bar); after is the item's own --after list; self is the edited item;
+ *   items reads the board's items, called only once a missing path needs a waiting item.
+ */
+export function requireAfterNeeded(ctx, bar, { on, after = [], self = null, items }) {
+  if (!on) return;
+  const named = barPaths({ criterion: bar.criterion, check: bar.check }).filter(path => !path.endsWith('/'));
+  if (!named.length) return;
+  const found = onTrunk(ctx.info.root)(named);
+  const missing = named.filter(path => !found.has(path));
+  if (!missing.length) return;
+  const root = ctx.info.root, trunk = trunkBranch(root), branches = itemBranches(root);
+  const already = new Set((Array.isArray(after) ? after : String(after ?? '').split(',')).filter(Boolean).map(id => String(id).trim().replace(/^.*#/u, '')));
+  const waits = [];
+  for (const item of items()) {
+    const open = item.item_status === 'open' || item.item_status === 'submitted' || (item.item_status === 'verified' && !item.item_merged_commit);
+    const branch = `${item.item_lane}/item-${item.item_id}`;
+    if (!open || item.item_id === self || already.has(String(item.item_id)) || !branches.has(branch)) continue;
+    const added = tryGit(root, ['diff', '--name-only', '--diff-filter=A', `${trunk}...${branch}`]);
+    if (added.status !== 0) continue;
+    const adds = new Set(added.stdout.split('\n').filter(Boolean));
+    const paths = missing.filter(path => adds.has(path));
+    if (paths.length) waits.push({ id: item.item_id, paths });
+  }
+  if (!waits.length) return;
+  const ids = waits.map(wait => wait.id).sort((a, b) => a - b);
+  throw new Refused('AFTER_NEEDED', `the bar names ${waits.map(wait => `${wait.paths.join(', ')} (added by the unmerged branch of #${wait.id})`).join('; ')}, missing from main`,
+    `rerun with --after ${ids.join(',')}`);
+}
+
+/** The deepest chain an open item waits on, itself first, as ids; a closed or unknown id is no chain (a cycle stops where it repeats). */
+export function chainDepthOf(items) {
+  const rows = new Map(items.map(row => [String(row.item_id), row]));
+  const open = row => row.item_status === 'open' || row.item_status === 'claimed' || row.item_status === 'submitted' || (row.item_status === 'verified' && !row.item_merged_commit);
+  const afterOf = row => (Array.isArray(row.item_after) ? row.item_after : String(row.item_after ?? '').split(',')).map(id => String(id).trim().replace(/^.*#/u, '')).filter(Boolean);
+  const chain = (id, seen) => {
+    const row = rows.get(String(id));
+    if (!row || !open(row) || seen.has(String(id))) return [];
+    const next = new Set(seen).add(String(id));
+    let deepest = [];
+    for (const parent of afterOf(row)) {
+      const found = chain(parent, next);
+      if (found.length > deepest.length) deepest = found;
+    }
+    return [row.item_id, ...deepest];
+  };
+  return id => chain(id, new Set());
+}
+
+/**
+ * Refuse a new --after list whose longest chain through open items is deeper than MAX_CHAIN_DEPTH, itself counted, CHAIN_TOO_DEEP.
+ * Why: deep --after chains stall behind their slowest link; filing interface-first pieces keeps each one buildable now.
+ * Existing deep chains are not touched: only the item being added or edited is measured.
+ *
+ * @param {Array<string|number>|string|undefined} after the item's own --after list
+ * @param {(id: string) => Array<string|number>} depthOf the deepest chain an open item waits on, itself first; empty for a closed item
+ * @param {number|null} [self] the edited item, which never counts as its own link
+ */
+export function requireChainDepth(after, depthOf, self = null) {
+  const parents = (Array.isArray(after) ? after : String(after ?? '').split(',')).map(id => String(id).trim().replace(/^.*#/u, '')).filter(id => id && id !== String(self));
+  let deepest = [];
+  for (const parent of parents) {
+    const found = depthOf(parent);
+    if (found.length > deepest.length) deepest = found;
+  }
+  if (deepest.length + 1 <= MAX_CHAIN_DEPTH) return;
+  throw new Refused('CHAIN_TOO_DEEP', `the --after chain is ${deepest.length + 1} deep (the item, then ${deepest.map(id => `#${id}`).join(' -> ')}); the limit is ${MAX_CHAIN_DEPTH}`,
+    'split interface-first: file the contract piece with no --after, and let each later piece wait on it alone');
+}
+
+/**
+ * Refuse a bar that names a file on main which a lane other than the item's owns, LANE_FOREIGN_PATH (#11739).
+ * Why: pre-commit refuses such a change as OUTSIDE_LANE, so the claim cost a builder a full cycle; add and edit catch it first.
+ * Paths missing from main stay with BAR_PATH_MISSING, coordinator-owned paths with CROSS_OWNERSHIP, shared paths are open to
+ * every lane, and the coordinator and the person may name any path.
+ *
+ * @param {any} ctx
+ * @param {{ id: string }} me The filing seat.
+ * @param {{ lane: string, criterion?: string, check?: string, by?: string }} item
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts the bar as written.
+ */
+export function requireBarInLane(ctx, me, item, on) {
+  if (!on || me.id === COORDINATOR || item.lane === COORDINATOR || item.by === 'person') return;
+  const named = barPaths({ criterion: item.criterion, check: item.check });
+  if (!named.length) return;
+  const found = onTrunk(ctx.info.root)(named);
+  const foreign = named.filter(path => found.has(path.replace(/\/$/u, '')) && !ctx.config.shared.some(prefix => path.startsWith(prefix)))
+    .map(path => ({ path, owner: laneOf(ctx.config, path) })).filter(({ owner }) => owner !== COORDINATOR && owner !== item.lane);
+  if (!foreign.length) return;
+  const owners = [...new Set(foreign.map(({ owner }) => owner))];
+  throw new Refused('LANE_FOREIGN_PATH', `the bar names ${foreign.map(({ path, owner }) => `${path} (${owner}'s)`).join(', ')}, which lane ${item.lane} does not own`,
+    `file it in the owning lane (${owners.join(', ')}), or split it into the ${item.lane} piece and the ${owners.join('/')} piece filed with --after the first`);
+}
+
+/** A pass-with-no-tests flag of a test runner: the check goes green when the named test file does not exist. */
+const PASS_EMPTY_FLAG = /--(?:passWithNoTests|pass-with-no-tests)\b/u;
+
+/** A path shaped like a test file: under a tests folder, or named test or spec. */
+const TEST_SHAPED = /(?:^|\/)(?:tests?|__tests__)\/|[._-](?:test|spec)\./u;
+
+/**
+ * Refuse a check that passes with no tests while its test file is absent from main, behind items.barRulesAtAdd (#11779).
+ * Why: a check green on no tests proved nothing before any work existed, and the baseline guard only runs after add returns.
+ * A check already guarded by `test -f <file> &&`, one without the flag, a test file on main and --accept-green all stay accepted.
+ *
+ * @param {any} ctx
+ * @param {{ check?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any check.
+ * @param {string} [acceptGreen] The --accept-green reason, when given.
+ */
+export function requireNonEmptyCheck(ctx, bar, on, acceptGreen) {
+  const check = bar.check ?? '';
+  if (!on || acceptGreen || !PASS_EMPTY_FLAG.test(check) || /^\s*test -f /u.test(check)) return;
+  const named = barPaths({ check }, { prose: false }).filter(path => TEST_SHAPED.test(path) && !path.endsWith('/'));
+  const found = named.length ? onTrunk(ctx.info.root)(named) : new Set();
+  const [absent] = named.filter(path => !found.has(path));
+  if (!absent) return;
+  throw new Refused('CHECK_PASSES_EMPTY', `the check passes with no tests, and ${absent} is absent from main, so it is green before any work exists`,
+    `name the fixed check: test -f ${absent} && ${check.trim()}, or file it with --accept-green "<why>"`);
+}
+
+/**
+ * Refuse a lane item filed with no spec row, so the filer supplies the row and a builder never drafts one (#11778).
+ * Why: trial boards had builders run pullboard spec draft themselves, writing rows nobody approved; a draft written by add
+ * would still be unapproved and fail UNKNOWN_SPEC until applied, so add refuses and names the two commands that fix it.
+ *
+ * @param {{ lane: string, title: string, specIds: string[] }} item The item as it is about to be filed.
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off files the item as written.
+ */
+export function requireSpecRow(item, on) {
+  if (!on || item.lane === COORDINATOR || item.specIds?.length) return;
+  throw new Refused('SPEC_ROW_NEEDED', `a ${item.lane} item needs a spec row, and this add names none`,
+    `pullboard spec draft "${item.title}", then the same add with --specs <id>`);
+}
+
+/** The cell a path sits in, as the gate names it: `apps/<x>` or `packages/<x>`; null for any other path. */
+const cellPrefix = path => /^(?:apps|packages)\/[^/]+/u.exec(path)?.[0] ?? null;
+
+/**
+ * The fixture files a bar names that a named test of another cell may not import: a `<cell>/tests/fixtures/` file whose cell
+ * holds none of the named tests and that the listing does not name as a pure helper (#11740).
+ * Why: the cell-test rule lets a test import its own cell, a lower cell's front door, a leaf front door or a listed pure helper,
+ * and a fixture file is none of the doors, so every unlisted other-cell fixture fails the static gate.
+ *
+ * @param {string[]} named The paths the bar names.
+ * @param {string[]} helpers The listed pure helper paths.
+ * @param {(path: string) => boolean} isTest The codemap's test-file predicate, passed in so this module never names a test file itself.
+ * @returns {{ test: string, fixture: string }[]}
+ */
+export function crossCellFixtures(named, helpers, isTest) {
+  const tests = named.filter(isTest);
+  const cells = new Set(tests.map(cellPrefix));
+  return named
+    .filter(path => /^(?:apps|packages)\/[^/]+\/tests\/fixtures\//u.test(path) && !cells.has(cellPrefix(path)) && !helpers.includes(path))
+    .flatMap(fixture => (tests.length ? [{ test: tests[0], fixture }] : []));
+}
+
+/**
+ * Refuse a bar whose test file imports a tests/fixtures file of another cell that the pure-helper listing does not name, as the
+ * cell-test rule would at the static gate (#11740), behind items.barRulesAtAdd. The coordinator and person filers may name any path.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string, check?: string, brief?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any fixture.
+ * @param {boolean} [exempt] The filer is the coordinator or the person.
+ */
+export async function requireCellTestFixture(ctx, bar, on, exempt = false) {
+  if (!on || exempt) return;
+  const root = ctx.info.root;
+  const { TEST_CELL_LISTING } = await import('../../../../../packages/gate/index.js');
+  const { isDefaultTestFile } = await import('../../../../../packages/codemap/index.js');
+  const listed = tryGit(root, ['show', `${trunkBranch(root)}:${TEST_CELL_LISTING}`]);
+  if (listed.status !== 0) return;
+  let helpers;
+  try { helpers = Object.keys(JSON.parse(listed.stdout).pureHelpers ?? {}); } catch { return; }
+  const [bad] = crossCellFixtures(barPaths(bar), helpers, isDefaultTestFile);
+  if (!bad) return;
+  throw new Refused('CELL_TEST_FIXTURE', `the bar names ${bad.fixture}, a fixture of another cell than the test ${bad.test}, and it is not a listed pure helper; the cell-test rule refuses the import`,
+    `use a fixture in the test's own cell, the front door of a cell below it, a leaf cell's front door, or a pure helper listed in ${TEST_CELL_LISTING}`);
+}
+
 /** Refuse an added or edited bar that names a path missing from main [C7]. */
 export async function requireBarPathsOnMain(ctx, bar) {
   const refusal = await missingPathRefusal(ctx, bar);
   if (refusal) throw refusal;
+}
+
+/**
+ * Refuse a brief Files entry absent from main unless a criterion clause names it, so a builder is never told to edit a file that
+ * is not there and no clause says to create it [C7,#12124].
+ * Why: a brief Files line is the builder's map; an entry missing from main with no clause creating it is a typo or a move.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string, brief?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any brief as written.
+ */
+export function briefFilesAbsentFromMain(ctx, bar, on) {
+  if (!on) return;
+  const files = [...new Set(briefFiles(bar.brief ?? '').filter(file => !file.endsWith('/')))];
+  if (!files.length) return;
+  const found = onTrunk(ctx.info.root)(files);
+  const created = String(bar.criterion ?? '');
+  const absent = files.filter(file => !found.has(file) && !created.includes(file));
+  if (!absent.length) return;
+  throw new Refused('BRIEF_FILE_MISSING', `the brief Files list names ${absent.join(', ')}, absent from main, and no clause creates it`,
+    'add a clause that creates the file, or remove the entry from the brief Files list (pullboard edit <id> --criterion/--brief)');
 }
 
 /**
@@ -175,9 +431,24 @@ export function splitAdvice(lane, title, paths) {
     + `(pullboard add coordinator "${title}: coordinator piece" --after <lane item id>) naming ${paths.join(', ')}`;
 }
 
-/** Refuse a lane item whose bar names a coordinator-owned path; the coordinator and the person may name any path. */
+/**
+ * The options that make add and edit judge ownership the way claim does, or undefined with items.barRulesAtAdd off [C7,#11777].
+ * Why: with the setting on, the Files list alone says what an item changes, so a bar that cites a file the builder only reads is
+ * filed, and the coordinator filing a lane item meets the same rule as a lane seat.
+ *
+ * @param {any} ctx
+ * @param {boolean} on The items.barRulesAtAdd machine setting.
+ */
+export function barOwnerOptions(ctx, on) {
+  return on ? { filesOnly: true, prose: false, check: false, present: onTrunk(ctx.info.root) } : undefined;
+}
+
+/**
+ * Refuse a lane item whose bar names a coordinator-owned path; the coordinator and the person may name any path.
+ * With filesOnly set (items.barRulesAtAdd) the coordinator exemption covers only coordinator-lane items and person filings.
+ */
 export function requireNoCoordinatorPath(config, me, item, options) {
-  if (me.id === COORDINATOR || item.lane === COORDINATOR || item.by === 'person') return;
+  if ((me.id === COORDINATOR && !options?.filesOnly) || item.lane === COORDINATOR || item.by === 'person') return;
   const paths = coordinatorPaths(config, item, options);
   if (!paths.length) return;
   throw new Refused('CROSS_OWNERSHIP', `the bar names ${paths.join(', ')}, which no lane owns, so lane ${item.lane} cannot build it`,

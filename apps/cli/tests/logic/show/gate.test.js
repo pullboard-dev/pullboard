@@ -60,6 +60,34 @@ test('cli.logic-show-gate.a-red-pulled-gate-prints-gate-red: a red pulled gate p
   assert.deepEqual(pulledRedLines({ id: 'gate:1', step: 'claimed', gate: null }, { item_id: 1, item_status: 'claimed' }), []);
 });
 
+test('cli.logic-show-gate.red-line-prints-phase-command: clause 1: a red phase that carries its command prints it as one command line under GATE_RED, and a red phase with none prints no command line [C7]', () => {
+  const gate = { green: false, phases: [{ role: 'proof', status: 1, command: 'node --test ./tests/a.test.js', exit: 'boom' }] };
+  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate }, { item_id: 1, item_status: 'claimed' });
+  assert.match(red[0], /^GATE_RED: /u);
+  assert.equal(red[1], 'command: node --test ./tests/a.test.js');
+  const bare = pulledRedLines({ id: 'gate:1', step: 'done', gate: { green: false, phases: [{ role: 'proof', status: 1, exit: 'boom' }] } }, { item_id: 1, item_status: 'claimed' });
+  assert.equal(bare.some(line => line.startsWith('command: ')), false);
+});
+
+/** A red proof phase whose one failing case carries `error`, with a node --test output tail that names the crash. */
+function crashedGate(error) {
+  return { green: false, phases: [{ role: 'proof', status: 1, errors: [{ file: 'test/a.test.js', name: 'a.test.js', error }],
+    tail: '# Subtest: a.test.js\n# ReferenceError: describe is not defined\n#     at file:///a.test.js:1:1' }] };
+}
+
+test('cli.logic-show-gate.generic-case-error-leads-with-output-line: clause 1: a case whose error is only "test failed" is named by the first error line of its phase output [C7]', () => {
+  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate: crashedGate('test failed') }, { item_id: 1, item_status: 'claimed' });
+  const named = red.find(line => line.includes('::'));
+  assert.match(named, /ReferenceError: describe is not defined$/u);
+  assert.doesNotMatch(named, /test failed/u);
+});
+
+test('cli.logic-show-gate.specific-case-error-unchanged: clause 2: a case with its own error keeps that text and gets no extra output line [C7]', () => {
+  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate: crashedGate('expected 1 to equal 2') }, { item_id: 1, item_status: 'claimed' });
+  assert.deepEqual(red.filter(line => line.includes('::')), ['  test/a.test.js :: a.test.js: expected 1 to equal 2']);
+  assert.ok(!red.some(line => line.includes('ReferenceError')), 'the output line is not added beside a specific error');
+});
+
 const DEFERRED = { green: false, deferred: true, phases: [{ role: 'proof', status: 1, exit: 'full suite deferred' }] };
 
 test('cli.logic-show-gate.a-done-gate-whose-receipt-is-deferred: clause 1: a done gate whose receipt is deferred to shard jobs prints no GATE_RED line [C7]', () => {

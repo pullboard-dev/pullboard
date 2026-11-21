@@ -1,0 +1,3 @@
+{
+  "cli.journeys-help-main.help-lists-timeline-forms": {"proves":{"specs":["C7"],"claim":"Help --all lists both pullboard timeline forms."},"why":"Without it, a regenerated help catalog that drops pullboard timeline <id> or --fleet would pass unnoticed.","kind":"journey","inputs":["apps/cli/tests/io/commands/help.test.js"]}
+}

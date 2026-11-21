@@ -16,7 +16,7 @@
     "hand-policy": 3,
     "raw-board": 3
   },
-  "apps/cli/journeys/formats/live.test.js": {
+  "apps/cli/tests/io/formats/live.test.js": {
     "tempdir": 1,
     "raw-board": 5,
     "model": 4
@@ -108,7 +108,7 @@
   "packages/gate/tests/io/admission/cpu/load.test.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/main/resource.test.js": {
+  "packages/gate/tests/io/main/short.test.js": {
     "hand-policy": 1
   },
   "packages/gate/tests/io/main/output.test.js": {
@@ -354,7 +354,7 @@
     "tempdir": 1,
     "raw-board": 5
   },
-  "apps/cli/journeys/fact/item/notes.test.js": {
+  "apps/cli/tests/io/commands/fact/item-notes.test.js": {
     "model": 2
   },
   "apps/cli/journeys/land/landing/noop.test.js": {
@@ -477,7 +477,7 @@
   "packages/store/tests/fixtures/tmp.js": {
     "tempdir": 1
   },
-  "packages/store/tests/io/board/writer.test.js": {
+  "packages/board/tests/from-store/io/board/writer.test.js": {
     "tempdir": 2
   },
   "apps/cli/journeys/resume/board.test.js": {
@@ -534,9 +534,6 @@
   },
   "packages/codemap/tests/io/cells/backlog.test.js": {
     "tempdir": 2
-  },
-  "packages/gate/tests/io/edges/temporary.test.js": {
-    "tempdir": 1
   },
   "apps/cli/tests/fixtures/check-baseline.js": {
     "tempdir": 1,
@@ -743,9 +740,6 @@
     "env-spread": 1,
     "model": 1
   },
-  "packages/doctrine/tests/io/main/moves.test.js": {
-    "tempdir": 2
-  },
   "packages/doctrine/tests/io/main/diff.test.js": {
     "tempdir": 2
   },
@@ -785,7 +779,7 @@
   "apps/lib/tests/durable/runner.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/resume/e2e.test.js": {
+  "apps/cli/tests/io/resume/e2e.test.js": {
     "hand-policy": 5
   },
   "apps/cli/tests/fixtures/e2e.js": {
@@ -809,15 +803,15 @@
     "raw-board": 1,
     "model": 10
   },
-  "apps/cli/journeys/show/policy/dependency.test.js": {
+  "apps/cli/tests/io/commands/show/dependency.test.js": {
     "hand-policy": 1,
     "raw-board": 1
   },
-  "apps/cli/journeys/show/policy/e2e.test.js": {
+  "apps/cli/tests/io/commands/show/e2e.test.js": {
     "hand-policy": 3,
     "raw-board": 2
   },
-  "apps/cli/journeys/show/policy/refs.test.js": {
+  "apps/cli/tests/io/commands/show/refs.test.js": {
     "hand-policy": 1,
     "raw-board": 2
   },
@@ -840,7 +834,7 @@
   "apps/cli/journeys/view/e2e.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/view/e2e-doctrine.test.js": {
+  "apps/cli/tests/io/commands/view/e2e-doctrine.test.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/merged/e2e.test.js": {
@@ -868,9 +862,6 @@
     "tempdir": 1
   },
   "packages/runners/tests/fixture-copiers.test.js": {
-    "tempdir": 1
-  },
-  "packages/gate/tests/logic/test/source/edits.test.js": {
     "tempdir": 1
   },
   "apps/cli/tests/fixtures/cases/quarantine-submit.js": {
@@ -911,9 +902,6 @@
   },
   "packages/gate/tests/io/main/async.test.js": {
     "tempdir": 2
-  },
-  "apps/cli/tests/fixtures/gate/driver.js": {
-    "raw-board": 1
   },
   "packages/gate/tests/io/main/failures.test.js": {
     "tempdir": 1
@@ -978,13 +966,6 @@
     "raw-board": 1
   },
   "packages/resources/tests/io/handoff/prune.test.js": {
-    "tempdir": 1,
-    "repo-read": 1
-  },
-  "packages/resources/tests/io/handoff/worker/cap.test.js": {
-    "tempdir": 1
-  },
-  "packages/resources/tests/io/handoff/worker/detach.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
@@ -1240,7 +1221,7 @@
   "packages/landing/tests/io/main/audit/knows.test.js": {
     "tempdir": 2
   },
-  "apps/cli/journeys/fact/main/cache.test.js": {
+  "apps/cli/tests/io/commands/fact/main-cache.test.js": {
     "raw-board": 2
   },
   "apps/cli/tests/fixtures/main/moved.js": {
@@ -1351,7 +1332,7 @@
     "raw-board": 3,
     "model": 2
   },
-  "apps/cli/journeys/resume/refusals.test.js": {
+  "apps/cli/tests/io/resume/refusals.test.js": {
     "model": 1,
     "hand-policy": 1
   },
@@ -1426,7 +1407,7 @@
   "apps/cli/tests/fixtures/presence.js": {
     "raw-board": 4
   },
-  "apps/cli/journeys/resume/presence/heartbeat.test.js": {
+  "apps/cli/tests/io/resume/heartbeat.test.js": {
     "raw-board": 14,
     "tempdir": 2
   },
@@ -1484,7 +1465,7 @@
     "tempdir": 2,
     "raw-board": 4
   },
-  "apps/cli/journeys/submit/steps.test.js": {
+  "apps/cli/tests/io/submit/steps.test.js": {
     "model": 5
   },
   "packages/board/tests/from-store/any.test.js": {
@@ -1686,7 +1667,7 @@
   "apps/cli/tests/fixtures/reopen/cause.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/reopen/evidence.test.js": {
+  "apps/cli/tests/io/commands/reopen/evidence.test.js": {
     "raw-board": 1
   },
   "packages/gate/tests/io/requeue/valid.test.js": {
@@ -1741,10 +1722,10 @@
     "repo-read": 1,
     "env-spread": 1
   },
-  "apps/cli/journeys/companion/companions/review.test.js": {
+  "apps/cli/tests/io/commands/companion/review.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/fact/review/packet/cases/fixture.test.js": {
+  "apps/cli/tests/io/commands/fact/review-packet-cases-fixture.test.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/queue/review.test.js": {
@@ -2019,7 +2000,7 @@
     "tempdir": 4,
     "repo-read": 1
   },
-  "apps/cli/journeys/show/check.test.js": {
+  "apps/cli/tests/io/commands/show/check.test.js": {
     "tempdir": 1,
     "env-spread": 1,
     "hand-policy": 2,
@@ -2113,10 +2094,10 @@
     "raw-board": 2,
     "hand-policy": 1
   },
-  "apps/cli/journeys/submit/handoff/recovery.test.js": {
+  "apps/cli/tests/io/submit/handoff-recovery.test.js": {
     "raw-board": 3
   },
-  "apps/cli/journeys/submit/handoff.test.js": {
+  "apps/cli/tests/io/submit/handoff.test.js": {
     "raw-board": 2
   },
   "packages/gate/tests/io/submit/line.test.js": {
@@ -2145,14 +2126,14 @@
   "apps/cli/journeys/sync/main.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/fact/team/repo.test.js": {
+  "apps/cli/tests/io/commands/fact/team-repo.test.js": {
     "hand-policy": 2,
     "raw-board": 8
   },
   "apps/cli/journeys/export/team/link.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/fact/team/events.test.js": {
+  "apps/cli/tests/io/commands/fact/team-events.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/export/team/board.test.js": {

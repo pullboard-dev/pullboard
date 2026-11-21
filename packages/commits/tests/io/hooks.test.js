@@ -2,6 +2,7 @@
 /** The pre-commit shared reads answer each cells plan shard as one record, however many paths a commit stages [C7,#10657]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
@@ -107,6 +108,44 @@ test('commits.io-hooks.lanes-on-unchanged: clause 2: with laneMode on the named 
   assert.match(problems[0], /outside the web lane: packages\/alpha\/src\/a\.js/u);
 });
 
+/** A linked worktree named like an item folder of #7, checked out on `branch`, with one staged change. */
+function itemFolder(t, branch) {
+  const graph = fixtureCommittedGraph('pullboard-item-folder-'), main = graph.root, root = `${main}-item-7`;
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { core: { owns: ['a.txt'], specs: ['G1'] } } }) + '\n');
+  graph.put('a.txt', 'original\n');
+  graph.commit();
+  runFixtureSetupGit(['worktree', 'add', '-b', branch, root], { cwd: main });
+  writeFileSync(join(root, 'a.txt'), 'edited\n');
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  return root;
+}
+
+const FOLDER_OPTIONS = { isMain: false, boardFile: 'board.sqlite', config: { protect: { blocked: [], allowed: [], secrets: false } }, approvedRowPorts: { checkLoosening: () => [] } };
+
+test('commits.io-hooks.item-folder-off-branch-refused: clause 1: a commit in a claimed item folder whose HEAD is on probe/7 is refused with ITEM_FOLDER_OFF_BRANCH, not NOT_JOINED, and says to switch back or probe elsewhere [C7,#10799]', (t) => {
+  const problems = preCommitProblems({ ...FOLDER_OPTIONS, root: itemFolder(t, 'probe/7'), agent: null });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /^ITEM_FOLDER_OFF_BRANCH: /u);
+  assert.match(problems[0], /switch back to <lane>\/item-7, or probe in a separate worktree/u);
+  assert.doesNotMatch(problems[0], /not joined/u);
+});
+
+test('commits.io-hooks.item-folder-own-branch-passes: clause 2: a commit on core/item-7 in that folder, resolved to its claiming seat, passes as today [C7,#10799]', (t) => {
+  assert.deepEqual(preCommitProblems({ ...FOLDER_OPTIONS, root: itemFolder(t, 'core/item-7'), agent: { agent_lane: 'core', agent_id: 'seat-1' } }), []);
+});
+
+test('commits.io-hooks.unjoined-worktree-unchanged: clause 2: a checkout that is not an item folder and has no seat still says it has not joined a lane [C7,#10799]', (t) => {
+  const graph = fixtureCommittedGraph('pullboard-unjoined-');
+  t.after(() => rmSync(graph.root, { recursive: true, force: true }));
+  graph.put('a.txt', 'original\n');
+  graph.commit();
+  graph.put('a.txt', 'edited\n');
+  runFixtureSetupGit(['add', '-A'], { cwd: graph.root });
+  assert.deepEqual(preCommitProblems({ ...FOLDER_OPTIONS, root: graph.root, agent: null }), ['this worktree has not joined a lane: pullboard join <lane> --model "<model name>"']);
+});
+
 /** A repository with one commit per message after a base commit; a message starting "Merge " is made as a merge commit. */
 function messages(t, list) {
   const graph = fixtureCommittedGraph('pullboard-range-messages-'), root = graph.root;
@@ -160,4 +199,96 @@ test('commits.io-hooks.commit-msg-refuses-a-quote: clause 1: commitMsgProblems r
   assert.equal(commitMsgProblems('chore: sam said "tidy" the notes\n', { rules, spec }).length, 1);
   assert.deepEqual(commitMsgProblems(body, { rules: { ...rules, quotedNames: [] }, spec }), []);
   assert.deepEqual(commitMsgProblems('chore: tidy the notes\n\nSam reviewed it.\n', { rules, spec }), []);
+});
+
+/** A fixture repo whose base commit holds an older quoting line; the staged change adds `line` to a second file. */
+function quotingChange(t, line) {
+  const graph = fixtureCommittedGraph('pullboard-quoted-names-'), root = graph.root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  graph.put('notes/old.txt', 'Sam said "an older line"\n');
+  graph.put('notes/new.txt', 'plain\n');
+  graph.commit();
+  graph.put('notes/new.txt', `plain\n${line}\n`);
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  return root;
+}
+
+/** The pre-commit refusals for that staged change with the given quoted names. */
+function quotingProblems(root, quotedNames) {
+  return preCommitProblems({ root, isMain: true, agent: null, config: { protect: { blocked: [], allowed: [], secrets: false }, commits: { quotedNames } },
+    approvedRowPorts: { checkLoosening: () => [] } });
+}
+
+test('commits.io-hooks.pre-commit-refuses-an-added-quote: clause 1: with commits.quotedNames Sam, a staged added line quoting Sam is refused naming file and line; an unchanged older line and the same line with no names pass [C7,#11301]', t => {
+  const quote = 'Sam said "ship it"';
+  const root = quotingChange(t, quote);
+  const problems = quotingProblems(root, ['Sam']);
+  assert.equal(problems.length, 1, problems.join('\n'));
+  assert.match(problems[0], /^notes\/new\.txt:2 quotes a configured person/u);
+  assert.deepEqual(quotingProblems(root, []), []);
+  const older = quotingChange(t, 'a plain added line');
+  assert.deepEqual(quotingProblems(older, ['Sam']), []);
+});
+
+/**
+ * An item folder of #7 on core/item-7 that committed its own change to src/item.js (and, with `resolve`, line 1 of
+ * src/shared.js), merging a main that changed `fillers` other files (and line 5 of src/shared.js), left staged and
+ * uncommitted, as a builder's `git merge main` leaves it for the pre-commit hook.
+ */
+function stagedMainMerge(t, fillers, { resolve = false } = {}) {
+  const graph = fixtureCommittedGraph('pullboard-merge-checked-'), main = graph.root, root = `${main}-item-7`;
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const run = (cwd, args) => runFixtureSetupGit(['-c', 'user.name=Test Agent', '-c', 'user.email=agent@example.com', ...args], { cwd });
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { core: { owns: ['src/'], specs: ['G1'] } } }) + '\n');
+  graph.put('src/item.js', 'export const item = 0;\n');
+  graph.put('src/shared.js', 'a\nb\nc\nd\ne\n');
+  for (let index = 0; index < fillers; index++) graph.put(`src/f${index}.js`, `export const value = ${index};\n`);
+  graph.commit();
+  runFixtureSetupGit(['worktree', 'add', '-b', 'core/item-7', root], { cwd: main });
+  writeFileSync(join(root, 'src/item.js'), 'export const item = 1;\n');
+  if (resolve) writeFileSync(join(root, 'src/shared.js'), 'A\nb\nc\nd\ne\n');
+  run(root, ['commit', '-qam', 'feat: item change']);
+  for (let index = 0; index < fillers; index++) graph.put(`src/f${index}.js`, `export const value = ${index + 1};\n`);
+  if (resolve) graph.put('src/shared.js', 'a\nb\nc\nd\nE\n');
+  graph.commit();
+  run(root, ['merge', '-q', '--no-ff', '--no-commit', 'main']);
+  return root;
+}
+
+/** Run the real pre-commit as the core seat of #7 with a shim port that records the paths it is handed to check. */
+function checkedPaths(root) {
+  const paths = [];
+  const problems = preCommitProblems({ ...FOLDER_OPTIONS, root, agent: { agent_lane: 'core', agent_id: 'seat-1' },
+    shimImports: (options) => { paths.push(...options.paths); return []; } });
+  return { problems, paths: paths.sort() };
+}
+
+test('commits.io-hooks.merge-checks-item-files-only: clause 1: a staged merge of main bringing in N files unchanged from main plus one item-changed file checks only the item-changed file, the same one path at N=5 and N=200 [C7]', (t) => {
+  for (const fillers of [5, 200]) {
+    const { problems, paths } = checkedPaths(stagedMainMerge(t, fillers));
+    assert.deepEqual(problems, []);
+    assert.deepEqual(paths, ['src/item.js'], `N=${fillers}`);
+  }
+});
+
+test('commits.io-hooks.merge-resolution-still-checked: clause 2: a file whose merged content differs from main\'s version, because both sides changed it, is still checked beside the item-changed file [C7]', (t) => {
+  const { problems, paths } = checkedPaths(stagedMainMerge(t, 5, { resolve: true }));
+  assert.deepEqual(problems, []);
+  assert.deepEqual(paths, ['src/item.js', 'src/shared.js']);
+});
+
+test('commits.io-hooks.plain-commit-checked-set-unchanged: clause 3: a plain non-merge commit checks every staged written path, as before [C7]', (t) => {
+  const graph = fixtureCommittedGraph('pullboard-plain-checked-'), main = graph.root, root = `${main}-item-7`;
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { core: { owns: ['src/'], specs: ['G1'] } } }) + '\n');
+  for (const path of ['src/item.js', 'src/f0.js', 'src/f1.js', 'src/f2.js']) graph.put(path, 'export const value = 0;\n');
+  graph.commit();
+  runFixtureSetupGit(['worktree', 'add', '-b', 'core/item-7', root], { cwd: main });
+  for (const path of ['src/item.js', 'src/f0.js', 'src/f1.js']) writeFileSync(join(root, path), 'export const value = 1;\n');
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  const { problems, paths } = checkedPaths(root);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(paths, ['src/f0.js', 'src/f1.js', 'src/item.js']);
 });

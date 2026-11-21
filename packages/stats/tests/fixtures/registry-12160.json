@@ -1,0 +1,16 @@
+{
+  "stats.timeline.released-lease-lapsed": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The timeline shows a swept claim as a released row with reason LEASE_LAPSED followed by a re-claimed row."
+    },
+    "why": "Without it a lapsed lease reads as an unexplained gap between a claim and the next builder's claim.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/timeline.js",
+      "packages/stats/tests/logic/timeline.test.js"
+    ]
+  }
+}

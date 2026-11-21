@@ -8,10 +8,6 @@
       "cells": 5,
       "deep": 0
     },
-    "apps/cli/src/io/alive.js": {
-      "cells": 2,
-      "deep": 0
-    },
     "apps/cli/src/io/bar.js": {
       "cells": 3,
       "deep": 0
@@ -31,10 +27,6 @@
     "apps/cli/src/io/cells-submit-checks.js": {
       "cells": 1,
       "deep": 18
-    },
-    "apps/cli/src/io/cells/backlog.js": {
-      "cells": 2,
-      "deep": 0
     },
     "apps/cli/src/io/cells/cache.js": {
       "cells": 4,
@@ -773,10 +765,6 @@
       "deep": 0
     },
     "apps/cli/tests/fixtures/cockpit/usage.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "apps/cli/tests/fixtures/copy.js": {
       "cells": 1,
       "deep": 0
     },
@@ -1660,10 +1648,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/doctrine/src/io/paths.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/doctrine/src/io/rulings.js": {
       "cells": 3,
       "deep": 0
@@ -1981,6 +1965,10 @@
       "deep": 0
     },
     "packages/gate/tests/fixtures/p95.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/package-copy.js": {
       "cells": 1,
       "deep": 0
     },
@@ -3063,10 +3051,6 @@
     "packages/resources/src/io/controller/disposition.js": {
       "cells": 1,
       "deep": 0
-    },
-    "packages/resources/src/io/handoff/worker/cap.js": {
-      "cells": 2,
-      "deep": 1
     },
     "packages/resources/src/io/home.js": {
       "cells": 1,

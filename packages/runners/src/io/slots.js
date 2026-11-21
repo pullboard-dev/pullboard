@@ -1,15 +1,10 @@
 /** Runner slot counts computed from each runner's own measured cores and memory (opt-in gate.measuredSlots) [C7]. */
-import { closeSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { storeName } from './store-names.js';
+
+const fs = fileSystemAdapter();
 
 /** One core stays free for the runner's worker and the operating system. */
 export const RESERVED_CORES = 1;
@@ -80,7 +75,7 @@ const RUNNER_PROBE_STALE_MS = 60_000;
 
 /** Read a small JSON file, or null when it is absent or half-written. */
 function readJson(path) {
-  try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFile(path, 'utf8')); } catch { return null; }
 }
 
 /** Whether a runner's last shared probe outcome still answers for it: fresh success, or a failure inside its backoff. */
@@ -109,7 +104,7 @@ async function waitForShared(state, now, waitMs) {
 function claimHeld(lock, now) {
   const held = readJson(lock), at = Number(held?.at);
   if (Number.isFinite(at)) return now >= at && now - at < RUNNER_PROBE_STALE_MS;
-  try { return Date.now() - statSync(lock).mtimeMs < RUNNER_PROBE_STALE_MS; } catch { return false; }
+  try { return Date.now() - fs.stat(lock).mtimeMs < RUNNER_PROBE_STALE_MS; } catch { return false; }
 }
 
 /**
@@ -122,22 +117,22 @@ async function claimProbe(directory, host, now, waitMs) {
   const state = join(directory, storeName(key)), lock = join(directory, `${key}.lock`);
   const current = readJson(state);
   if (shareCurrent(current, now)) return { shared: current };
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   for (let attempt = 0; attempt < 2; attempt++) {
-    try { closeSync(openSync(lock, 'wx', 0o600)); writeFileSync(lock, JSON.stringify({ pid: process.pid, at: now })); break; }
+    try { fs.close(fs.open(lock, 'wx', 0o600)); fs.writeFile(lock, JSON.stringify({ pid: process.pid, at: now })); break; }
     catch (error) {
       if (error.code !== 'EEXIST') throw error;
       if (attempt > 0 || claimHeld(lock, now)) return await waitForShared(state, now, waitMs);
-      try { unlinkSync(lock); } catch (gone) { if (gone.code !== 'ENOENT') throw gone; }
+      try { fs.unlink(lock); } catch (gone) { if (gone.code !== 'ENOENT') throw gone; }
     }
   }
   // Another process may have finished between the first read and this claim.
   const finished = readJson(state);
-  if (shareCurrent(finished, now)) { try { unlinkSync(lock); } catch { /* A claim already gone needs no release. */ } return { shared: finished }; }
+  if (shareCurrent(finished, now)) { try { fs.unlink(lock); } catch { /* A claim already gone needs no release. */ } return { shared: finished }; }
   return { settle: (failed, facts) => {
     const temporary = `${state}.${process.pid}.tmp`;
-    try { writeFileSync(temporary, JSON.stringify({ at: now, failed, ...(facts ? { facts } : {}) })); renameSync(temporary, state); }
-    finally { try { unlinkSync(lock); } catch { /* A claim already gone needs no release. */ } }
+    try { fs.writeFile(temporary, JSON.stringify({ at: now, failed, ...(facts ? { facts } : {}) })); fs.rename(temporary, state); }
+    finally { try { fs.unlink(lock); } catch { /* A claim already gone needs no release. */ } }
   } };
 }
 
