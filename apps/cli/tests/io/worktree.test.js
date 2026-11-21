@@ -50,13 +50,13 @@ test('cli.io-worktree.primary-root-from-files: clause 1: a linked worktree of an
 
 test('cli.io-worktree.primary-root-falls-back-to-git: clause 2: a repository with a separate shared Git directory resolves its primary checkout through Git [C7,#12582]', () => {
   const box = fixture();
-  const separate = join(box.dir, 'shared.git');
+  const separate = join(box.dir, 'git-data');
   const clone = join(box.dir, 'separate-clone');
   box.git(box.dir, 'clone', '-q', `--separate-git-dir=${separate}`, box.repo, clone);
   const calls = [];
   const details = info(clone, box.env);
   const found = withGitContractAdapter(observingGit(calls), () => primaryCheckoutRoot(details));
-  assert.equal(found, clone, `common dir ${details.commonDir}; worktrees ${box.git(clone, 'worktree', 'list', '--porcelain')}; Git calls ${JSON.stringify(calls)}`);
+  assert.equal(found, clone);
   assert.notEqual(info(clone, box.env).commonDir.split('/').at(-1), '.git');
   assert.ok(calls.length > 0, 'non-.git common dir kept the Git fallback');
 });
