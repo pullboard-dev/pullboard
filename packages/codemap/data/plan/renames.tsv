@@ -3451,7 +3451,7 @@ test/e2e-audit.test.js	apps/cli/journeys/fact/e2e/audit.test.js
 test/e2e-board.test.js	apps/cli/journeys/list/board.test.js
 test/e2e-cli.test.js	apps/cli/journeys/resume/e2e.test.js
 test/e2e-fixture-join.test.js	apps/cli/journeys/fact/e2e/join.test.js
-test/e2e-gate-slot.test.js	apps/cli/journeys/gate/slot.test.js
+test/e2e-gate-slot.test.js	apps/cli/tests/io/commands/gate/slot.test.js
 test/e2e-helpers.js	apps/cli/tests/fixtures/e2e.js
 test/e2e-items.test.js	apps/cli/journeys/spec/e2e.test.js
 test/e2e-model-names.test.js	apps/cli/journeys/release/model.test.js
@@ -3565,7 +3565,7 @@ test/health.test.js	apps/cli/journeys/health/main.test.js
 test/heartbeat-claims.test.js	apps/cli/journeys/heartbeat/claims.test.js
 test/heartbeat-presence-only.test.js	apps/cli/journeys/heartbeat/presence.test.js
 test/help-examples.test.js	apps/cli/journeys/help/examples.test.js
-test/help.test.js	apps/cli/journeys/help/main.test.js
+test/help.test.js	apps/cli/tests/io/commands/help.test.js
 test/history.test.js	apps/cli/journeys/ledger/history.test.js
 test/hook-commit-msg-no-queue.test.js	apps/cli/journeys/hook/commit/queue.test.js
 test/hook-no-slot.test.js	apps/cli/journeys/hook/slot.test.js
@@ -3592,7 +3592,7 @@ test/init.test.js	apps/cli/journeys/init/main.test.js
 test/inspection-clauses.test.js	apps/cli/journeys/settings/clauses.test.js
 test/inspection-submit-ticks.test.js	apps/cli/journeys/submit/ticks.test.js
 test/intake-fixture.js	apps/cli/tests/fixtures/intake.js
-test/intake.test.js	apps/cli/journeys/intake/main.test.js
+test/intake.test.js	apps/cli/tests/io/commands/intake/main.test.js
 test/item-folder-keeps-seat.test.js	apps/cli/journeys/fact/item/seat.test.js
 test/item-folder-seat-binding.test.js	apps/cli/journeys/release/binding.test.js
 test/item-folder-seat-once.test.js	apps/lib/tests/logic/native/once.test.js
@@ -3977,7 +3977,7 @@ test/resources-runner-only-fixture.js	packages/gate/tests/fixtures/resources/run
 test/resources-verify-fixture.js	packages/gate/tests/fixtures/resources/verify.js
 test/resume-flow.test.js	apps/cli/journeys/resume/flow.test.js
 test/review-capacity-wake.test.js	apps/cli/journeys/capacity/wake.test.js
-test/review-companions.test.js	apps/cli/journeys/companion/companions/review.test.js
+test/review-companions.test.js	apps/cli/tests/io/commands/companion/review.test.js
 test/review-comparison-dead-worker.test.js	apps/cli/journeys/show/review/worker.test.js
 test/review-eligibility.test.js	apps/cli/journeys/show/review/eligibility.test.js
 test/review-family-cover-replay.json	apps/cli/tests/fixtures/review/family/replay.json
