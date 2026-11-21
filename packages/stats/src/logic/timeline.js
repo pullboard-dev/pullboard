@@ -142,7 +142,7 @@ function gateQueueReason(snapshot, previous, item) {
 function stretches(rows, end, seatEvents = null) {
   const out = [];
   const gate = { queued: new Set(), running: new Set() }, land = { queued: new Set(), running: new Set() };
-  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false, settleWait = null, gateWait = null, builder = null, waitingSince = null;
+  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false, settleWait = null, gateWait = null, builder = null, waitingSince = null, finishing = false;
   const bucketNow = () => {
     if (held) return { reason: 'HELD' };
     if (gateWait) return { reason: gateWait };
@@ -151,6 +151,8 @@ function stretches(rows, end, seatEvents = null) {
     if (phase === 'merged') return { bucket: 'landing' };
     if (land.queued.size && phase !== 'building') return { bucket: 'waiting to land' };
     if (settleWait && !gate.running.size && !gate.queued.size && (phase === 'submitted' || phase === 'open')) return { reason: settleWait };
+    // A finish span a seat marks while it builds is its test run: it counts as testing, not building [C7,#12159].
+    if (phase === 'building' && finishing) return { bucket: 'testing' };
     if (phase === 'building') return { bucket: rework ? 'rework' : 'building' };
     if (phase === 'submitted') {
       if (gate.running.size) return { bucket: 'testing' };
@@ -168,16 +170,17 @@ function stretches(rows, end, seatEvents = null) {
     if (current.stage === 'gate-queued') gateWait = current.reason ?? null;
     else gateWait = null;
     if (current.stage === 'filed') { phase = 'open'; }
-    else if (current.stage === 'claimed' || current.stage === 're-claimed') { phase = 'building'; wait = null; settleWait = null; builder = current.actor; }
+    else if (current.stage === 'claimed' || current.stage === 're-claimed') { phase = 'building'; wait = null; settleWait = null; builder = current.actor; finishing = false; }
     else if (current.stage === 'released') { phase = 'open'; wait = current.reason === 'BLOCKED' ? 'DEPENDENCY' : null; }
     else if (current.stage === 'rejected' || current.stage === 'reopened') { phase = 'open'; rework = true; outcome = null; }
-    else if (current.stage === 'submitted') { phase = 'submitted'; rework = false; outcome = null; settleWait = null; gate.queued.clear(); gate.running.clear(); }
+    else if (current.stage === 'submitted') { phase = 'submitted'; rework = false; outcome = null; settleWait = null; finishing = false; gate.queued.clear(); gate.running.clear(); }
     else if (current.stage === 'reviewing' && current.edge === 'end') { phase = 'submitted'; outcome = outcome ?? 'green'; }
     else if (current.stage === 'reviewing') phase = 'reviewing';
     else if (current.stage === 'verdict' && current.reason === 'reject') { phase = 'open'; rework = true; outcome = null; }
     else if (current.stage === 'verdict') phase = 'verdict';
     else if (current.stage === 'held') held = current.edge === 'start';
     else if (current.stage === 'smoke') smoking = current.edge === 'start';
+    else if (current.stage === 'finish') finishing = current.edge === 'start';
     else if (current.stage === 'merged') phase = rows[index + 1]?.stage === 'recorded' ? 'recorded' : 'merged';
     else if (current.stage === 'recorded') phase = 'recorded';
     if (gateJob) {
