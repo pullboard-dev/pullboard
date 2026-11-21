@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
-import { boardHoldPercentiles } from '../../../../../../store/src/io/board/hold/log.js';
+import { boardHoldPercentiles } from '../../../../../../store/index.js';
 import * as store from '../../../../../../store/index.js';
 import { cellBoard } from '../../../../fixtures/cell-board.js';
 import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';

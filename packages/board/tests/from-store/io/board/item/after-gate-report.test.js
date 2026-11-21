@@ -2,21 +2,22 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { recordSubmitHandoff } from "../../../../../../jobs/index.js";
-import { setAfterGate } from "../../../../../../store/src/io/board/item/after-gate.js";
+import { setAfterGate } from "../../../../../../store/index.js";
 import { getItem } from "../../../../../../store/index.js";
 import { itemThread } from "../../../../../../store/index.js";
-import { fixture } from "../../../../../../store/tests/fixtures/dispatch.js";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import * as store from "../../../../../../store/index.js";
 import { ENGINE_VERSION } from "../../../../../../state/index.js";
 import { afterGateReport } from "../../../../../../store/index.js";
-import { recordAfterGateClaim } from "../../../../../../store/src/io/board/item/after-gate-report.js";
-import { recordAfterGateRebuild } from "../../../../../../store/src/io/board/item/after-gate-report.js";
+import { recordAfterGateClaim } from "../../../../../../store/index.js";
+import { recordAfterGateRebuild } from "../../../../../../store/index.js";
 import { cellBoard } from "../../../../fixtures/cell-board.js";
+import { cellProject } from "../../../../../../store/tests/fixtures/cell.js";
 import { cellItem } from "../../../../../../store/tests/fixtures/cell.js";
 import { cellSeat } from "../../../../../../store/tests/fixtures/cell.js";
 import { temporaryRepository } from "../../../../../../store/tests/fixtures/submit.js";
+import { submitFixture } from "../../../../../../store/tests/fixtures/submit.js";
 
 /** The after-gate claim notes on one item's thread. */
 function claimNotes(board, id) {
@@ -25,7 +26,23 @@ function claimNotes(board, id) {
 
 /** A board with a gate-green parent submitted at a real head, and the seat that claims. */
 function seeded(t) {
-  const box = fixture(t);
+  const project = cellProject(t, { real: true });
+  const clock = { now: () => new Date("2026-10-25T10:00:00.000Z") };
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
+  const seats = {
+    actor: cellSeat(board, { lane: "web", path: join(project.dir, "actor"), family: "Family Alpha" }),
+    builder: cellSeat(board, { lane: "web", path: join(project.dir, "builder"), family: "Family Alpha" }),
+  };
+  const box = { board, clock, seats };
+  box.add = title => cellItem(board, { lane: "web", title, criterion: "The real fixture succeeds.", check: "true",
+    specIds: ["G1"], brief: "Files: web/dispatch.js\nTest: the real board selects the eligible item and retains its ownership." }).item_id;
+  box.claim = (id, seat = seats.builder) => store.claim(board, id, { agentId: seat.id, lane: seat.lane, leaseMs: 3_600_000,
+    freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: item.item_criterion, check: item.item_check, rows: [] }), digest: "digest:" + id }) });
+  box.submit = id => {
+    box.claim(id);
+    const head = project.git(project.repo, "rev-parse", "HEAD");
+    submitFixture(board, id, { agentId: seats.builder.id, commit: head, tree: project.git(project.repo, "rev-parse", head + "^{tree}") });
+  };
   const parent = box.add("Green parent");
   box.submit(parent);
   const head = getItem(box.board, parent).item_commit;

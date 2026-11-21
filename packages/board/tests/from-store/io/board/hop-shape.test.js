@@ -7,11 +7,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { closeBoard } from '../../../../../store/index.js';
 import { register } from '../../../../../store/index.js';
-import { ensureGateHopTable } from '../../../../../store/src/io/board/hop.js';
-import { GATE_HOP_SCHEMA_SQL } from '../../../../../store/src/io/board/hop.js';
-import { boardStanding } from '../../../../../store/src/io/board/migrate.js';
-import { SCHEMA_DIGEST } from '../../../../../store/src/io/board/schema/source.js';
-import { SCHEMA_VERSION } from '../../../../../store/src/io/board/schema/source.js';
+import { ensureGateHopTable } from '../../../../../store/index.js';
+import { GATE_HOP_SCHEMA_SQL } from '../../../../../store/index.js';
+import { boardStanding } from '../../../../../store/index.js';
+import { SCHEMA_DIGEST } from '../../../../../store/index.js';
+import { SCHEMA_VERSION } from '../../../../../store/index.js';
 import { openKitBoard } from '../../../fixtures/cell-board.js';
 import { temporaryDirectory } from '../../../../../store/tests/fixtures/tmp.js';
 
