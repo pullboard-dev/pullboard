@@ -48,6 +48,7 @@ import { hostname } from 'node:os';
 import {
   TEST_RESULT_ORIGIN_ENV,
   TEST_RESULT_REQUEST_ENV,
+  TEST_RESULT_PULLED_REQUEST_ENV,
   completedTestResult,
   TEST_RESULT_STORE_ENV,
   TEST_RESULT_VERSION,
@@ -495,7 +496,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   mkdirSync(join(store, 'red'), { recursive: true, mode: 0o700 });
   pruneRuns(store);
   writeAtomic(join(runDir, 'keys.json'), { root, store, stage, commit,
-    request: env[TEST_RESULT_REQUEST_ENV] ?? null,
+    request: env[TEST_RESULT_REQUEST_ENV] ?? env[TEST_RESULT_PULLED_REQUEST_ENV] ?? null,
     machine: env[TEST_RESULT_ORIGIN_ENV] || `local-${digest(hostname()).slice(0, 16)}`,
     inputs: Object.fromEntries(run.filter(file => file.key).map(file => [file.path, { inputKey: file.inputKey, context: file.context }])),
     files: Object.fromEntries(run.filter(file => file.key).map(file => [file.path, file.key])) });
@@ -631,6 +632,7 @@ export function recordTestAction(file) {
   delete process.env[TEST_RESULT_STORE_ENV];
   delete process.env[TEST_RESULT_ORIGIN_ENV];
   delete process.env[TEST_RESULT_REQUEST_ENV];
+  delete process.env[TEST_RESULT_PULLED_REQUEST_ENV];
   delete process.env.PULLBOARD_TEST_CACHE_TOOLING;
   delete process.env[LEDGER_HITS_ENV];
   if (!runDir || process.env.NODE_TEST_CONTEXT !== 'child-v8') return;

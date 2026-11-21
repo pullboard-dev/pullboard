@@ -23,6 +23,9 @@ import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
 import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
+import { authenticatedPullPacket } from '../../../src/io/test/pull.js';
+import { completePacketEntries } from '../../../src/io/test/pull.js';
+import { pullPacketDigest } from '../../../src/io/test/pull.js';
 import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
 import { generateKeyPairSync } from 'node:crypto';
 import { signRunnerReceipt } from '../../../../../packages/runners/index.js';
@@ -56,6 +59,54 @@ test('cli.io-test-pull.signed-completion: clause 1: a real pulled completion ver
   const unsigned = await signedPullFixture(null);
   assert.equal(unsigned.receipt.status, 0, 'ordinary unsigned execution still returns');
   assert.equal(unsigned.receipt.signedCompletion, undefined);
+});
+
+test('cli.io-test-pull.authenticated-outcome-retention: clause 1: controller accepts only a complete bounded packet bound to the exact request, enrolled runner runtime, tooling and outcomes [C7,#12643]', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const runtimeSha256 = 'a'.repeat(64), toolingSha256 = 'b'.repeat(64), packet = Buffer.from('complete packet').toString('base64');
+  const expected = { job: 'test:exact', nonce: 'c'.repeat(48), source: 'd'.repeat(40), tree: 'e'.repeat(40), status: 0, signal: null,
+    outputSha256: 'f'.repeat(64), requestSha256: '1'.repeat(64), packetSha256: pullPacketDigest(packet), runtimeSha256, toolingSha256 };
+  const row = { version: 1, ...expected, host: 'runner.example', context: { version: 1, runtime: runtimeSha256, tooling: toolingSha256 } };
+  const signed = { ...row, signature: signRunnerReceipt(row, privateKey) };
+  const enrolled = [{ host: row.host, runtimeSha256, publicKey: publicKey.export({ type: 'spki', format: 'der' }).toString('base64url') }];
+  assert.equal(authenticatedPullPacket(signed, expected, enrolled), true);
+  for (const field of ['requestSha256', 'packetSha256', 'runtimeSha256', 'toolingSha256']) {
+    assert.equal(authenticatedPullPacket(signed, { ...expected, [field]: '0'.repeat(64) }, enrolled), false, `mismatched ${field}`);
+  }
+  assert.equal(authenticatedPullPacket(signed, expected, [{ ...enrolled[0], runtimeSha256: '0'.repeat(64) }]), false, 'runtime must match independent enrollment pin');
+  assert.match(testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''), /selectedTestResults\(store, keys\)/u);
+});
+
+test('cli.io-test-pull.authenticated-outcome-retention-origin: clause 2: a packet entry whose origin request differs is not retained [C7,#12643]', () => {
+  const run = '11111111-2222-3333-4444-555555555555', outcomes = [{ file: 'a.test.js', name: 'x', passed: true, skipped: false }];
+  const entry = request => ({ inputKey: 'k1', file: 'a.test.js', status: 'pass', origin: { request }, tap: { testOutcomes: outcomes } });
+  const args = { keys: ['k1'], files: ['a.test.js'], runId: run, outcomes, valid: () => true };
+  assert.equal(completePacketEntries([entry(run)], args), true);
+  assert.equal(completePacketEntries([entry('99999999-2222-3333-4444-555555555555')], args), false, 'earlier request entry');
+  assert.equal(completePacketEntries([entry(run), entry(null)], args), false, 'entry without origin request');
+});
+
+test('cli.io-test-pull.authenticated-outcome-retention-guard: clause 3: the record-only pulled request env neither fires nor skips the completed-entry guard [C7,#12643]', { timeout: 300_000 }, () => {
+  const repo = fixtureCommittedGraph('pull-test-guard-'), scratch = privateFixtureFiles('pull-test-guard-runner-');
+  const runner = join(scratch.root, 'runner'), one = join(runner, 'pull', 'one'), two = join(runner, 'pull', 'two'), three = join(runner, 'pull', 'three');
+  const counter = join(scratch.root, 'executions');
+  repo.put('package.json', '{"type":"module"}\n');
+  repo.put('test/proof.test.js', `import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('proof', () => appendFileSync(${JSON.stringify(counter)}, 'x'));\n`);
+  const commit = repo.commit();
+  mkdirSync(join(runner, 'pull'), { recursive: true });
+  for (const path of [one, two, three]) runFixtureGit(['clone', '-q', repo.root, path]);
+  const entry = join(scratch.root, 'entry.mjs');
+  writeFileSync(entry, testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''));
+  const base = { main: commit, source: commit, files: ['test/proof.test.js'], command: `${process.execPath} ${focusedRunnerPath()} ./test/proof.test.js` };
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PULLBOARD_(TEST_|LEDGER_HITS|TIMING_RUN_ID)/u.test(key)));
+  const run = (root, runId, extra = {}) => runPulledEntry(entry, root, { ...base, runId }, { ...env, ...extra });
+  assert.equal(run(one, '11111111-2222-3333-4444-555555555555').status, 0);
+  const second = run(two, '66666666-2222-3333-4444-555555555555');
+  assert.match(second.stdout, /# reused /u, 'a pulled request id does not make reuse demand a completed entry');
+  assert.equal(readFileSync(counter, 'utf8'), 'x');
+  const guarded = run(three, '77777777-2222-3333-4444-555555555555', { PULLBOARD_TEST_RESULT_REQUEST: '88888888-2222-3333-4444-555555555555' });
+  assert.doesNotMatch(guarded.stdout, /# reused /u, 'the fleet request env still demands a completed entry');
+  assert.equal(readFileSync(counter, 'utf8'), 'xx');
 });
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
