@@ -199,3 +199,19 @@ test('gate.io-board-request-blocking.known-blockers-equal-the-owners-reached: cl
   assert.deepEqual(check.run(root, tree, { requestIoExtraRoots: false }), []);
   assert.equal(check.run(root, tree, { requestIoExtraRoots: true }).filter(row => row.includes('global:Atomics#wait')).length, 1);
 });
+
+test('gate.io-board-request-blocking.adapter-list-blocks: clause 1: a request-path function that lists a directory through fileSystemAdapter().list is reported as blocking [C7]', () => {
+  const entry = 'packages/api/src/io/main.js', row = sources.find(found => found.file === entry);
+  const inject = text => [...sources.filter(found => found.file !== entry), { ...row, source: row.source + "\nimport { helper } from './added.js';\nexport function addedHandler() { return helper(); }\n" }, { file: 'packages/api/src/io/added.js', source: text }];
+  const owners = text => apiRequestIoProblems(inject(text)).filter(found => found.owner === 'packages/api/src/io/added.js#helper').map(found => found.call);
+  const head = "import { fileSystemAdapter } from '../../../fs/index.js';\n";
+  assert.deepEqual(owners(head + "const fs = fileSystemAdapter();\nexport function helper() { return fs.list('.'); }"), ['node:fs#readdirSync']);
+  assert.deepEqual(owners(head + "export function helper() { return fileSystemAdapter().list('.'); }"), ['node:fs#readdirSync']);
+  assert.deepEqual(owners(head + "const fs = fileSystemAdapter();\nexport function helper() { return fs.exists('.'); }"), []);
+});
+
+test('gate.io-board-request-blocking.bare-worktree-row-fires: clause 2: the known-blocker row for bareWorktreeFinding is back in the gate request list and fires on main [C7]', () => {
+  const owner = 'packages/git/src/io/main.js#bareWorktreeFinding';
+  assert.ok(owner in KNOWN_REQUEST_BLOCKERS);
+  assert.ok(apiRequestIoProblems(sources, { known: {} }).some(found => found.owner === owner && found.call === 'node:fs#readdirSync'));
+});
