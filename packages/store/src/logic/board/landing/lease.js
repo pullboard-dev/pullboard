@@ -12,7 +12,7 @@ import { staleStateLimits } from "../stale/state/policy.js";
 import { AGENT_GRANT_ENGINE } from "../../../../../state/light.js";
 import { MOVES } from "../../../../../state/index.js";
 import { causeProblem } from "../rigor.js";
-import { ENGINE_VERSION } from "../../../../../state/index.js";
+import { ENGINE_VERSION, WITHDRAW_AS_MET_ENGINE } from "../../../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../../state/light.js";
 import { LANDING_FAULT_CODES } from './limits.js';
 import { LANDING_RED_LIMIT } from './limits.js';
@@ -40,7 +40,7 @@ function moveTables() {
 let withdrawBuilt = null;
 /** Run the withdraw table over a snapshot and a move; `from` is the lifecycle machine's list of states a withdrawal may start from [C7,#8273]. */
 export function runWithdrawTable(from, snapshot, move) {
-  withdrawBuilt ??= moveTables().withdrawEngine({ from });
+  withdrawBuilt ??= moveTables().withdrawEngine({ from, metEngine: WITHDRAW_AS_MET_ENGINE });
   return moveTables().runTable(withdrawBuilt.table, withdrawBuilt.rules, snapshot, move);
 }
 
