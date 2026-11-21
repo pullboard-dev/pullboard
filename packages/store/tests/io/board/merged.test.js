@@ -1,9 +1,11 @@
 /** With composeLanding in its args, recording a parent's landing closes its submitted slices in the same write [C7,#2397]. */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import { board_ensureCoordinator } from '../../../index.js';
 import { getItem } from '../../../index.js';
 import { merged } from '../../../index.js';
+import { MERGED_AT_ENGINE } from '../../../../state/index.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';
@@ -55,4 +57,40 @@ test('store.io-board-merged.compose-landing-off-leaves-slices: clause 3: without
   f.land();
   assert.equal(getItem(f.board, f.parent).item_merged_commit, COMMIT);
   for (const id of f.slices) assert.equal(f.status(id), 'submitted');
+});
+
+/** A real repo with one commit and a board whose clock is ten minutes past it, with one open item to land by hand. */
+function landing(t, engine) {
+  const project = cellProject(t, { real: true });
+  const later = () => new Date(Date.now() + 10 * 60 * 1000);
+  const board = cellBoard(t, project.boardFile, { now: later }, { real: true, gitRoot: project.repo });
+  board_ensureCoordinator(board, project.repo);
+  if (engine !== undefined) board.executionEngineVersion = engine;
+  const item = cellItem(board, { lane: 'web', title: 'Landed by hand', criterion: '1. It works [test]', route: 'strong', check: 'true' }).item_id;
+  const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: project.repo, encoding: 'utf8' }).trim();
+  const committedAt = Number(execFileSync('git', ['show', '-s', '--format=%ct', commit], { cwd: project.repo, encoding: 'utf8' }).trim()) * 1000;
+  const land = (extra = { mergedAt: committedAt }) => merged(board, item, { agentId: 'coordinator', commit, forced: 'landed by hand', waiveProof: 'test fixture', ...extra });
+  const event = () => board.db.prepare("SELECT event_at, event_detail FROM event WHERE event_kind = 'merged' AND item_id = ?").get(item);
+  return { board, commit, committedAt, land, event };
+}
+
+test('store.merged.merged-at-commit-time: clause 1: at MERGED_AT_ENGINE the merged event carries the commit time as detail.mergedAt while event_at stays the record time [C7,#12225]', t => {
+  const f = landing(t, MERGED_AT_ENGINE);
+  f.land();
+  const row = f.event();
+  const detail = JSON.parse(row.event_detail);
+  assert.equal(detail.mergedAt, f.committedAt, 'mergedAt is the commit\'s committer time in ms');
+  assert.ok(Date.parse(row.event_at) - detail.mergedAt >= 9 * 60 * 1000, `event_at ${row.event_at} stays the record time, ten minutes after the commit`);
+});
+
+test('store.merged.merged-at-absent: clause 2: below MERGED_AT_ENGINE, or with no mergedAt or one that is not a safe integer, the event has no mergedAt key [C7,#12225]', t => {
+  const old = landing(t, MERGED_AT_ENGINE - 1);
+  old.land();
+  assert.equal('mergedAt' in JSON.parse(old.event().event_detail), false, 'below the engine there is no mergedAt');
+  const none = landing(t, MERGED_AT_ENGINE);
+  none.land({});
+  assert.equal('mergedAt' in JSON.parse(none.event().event_detail), false, 'no mergedAt passed leaves the key out');
+  const bad = landing(t, MERGED_AT_ENGINE);
+  bad.land({ mergedAt: 1.5 });
+  assert.equal('mergedAt' in JSON.parse(bad.event().event_detail), false, 'a value that is not a safe integer leaves the key out');
 });

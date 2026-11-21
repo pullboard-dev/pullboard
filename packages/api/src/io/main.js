@@ -108,6 +108,7 @@ import { seedWideMainTestsEnabled } from '../../../config/index.js';
 import { retryNewRedsOnceEnabled } from '../../../config/index.js';
 import { receiptMissingCauseEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
+import { excuseMainRedFilesEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
 import { recordLapseEnabled } from '../../../config/index.js'; import { runnersCoresPerShard } from '../../../config/index.js';
 import { runnerCommitReportEnabled } from '../../../config/index.js';
@@ -1253,7 +1254,7 @@ function exactTreeCheckOn(root) {
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, gateAgedMs, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), failFastShards: failFastShardsEnabled(), seedWideMainTests: seedWideMainTestsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), exactTreeCheck: body?.action === 'receipt' && exactTreeCheckOn(board.root), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, gateAgedMs, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), failFastShards: failFastShardsEnabled(), seedWideMainTests: seedWideMainTestsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), excuseMainRedFiles: excuseMainRedFilesEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), exactTreeCheck: body?.action === 'receipt' && exactTreeCheckOn(board.root), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }
