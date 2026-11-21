@@ -9,9 +9,9 @@ import { cellClaim } from '../../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
-import { claimDecision } from '../../../../../store/src/io/board/claim-table.js';
-import { saveItemNeeds } from '../../../../../store/src/io/needs.js';
-import { saveAgentAbilities } from '../../../../../store/src/io/needs.js';
+import { claimDecision } from '../../../../../store/index.js';
+import { saveItemNeeds } from '../../../../../store/index.js';
+import { saveAgentAbilities } from '../../../../../store/index.js';
 
 /** A real board whose claims the live claim table decides, with one open web item. */
 function setup(t) {
