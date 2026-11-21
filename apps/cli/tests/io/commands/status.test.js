@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
 import { main } from '../../fixtures/native.js';
-import { getItem, holdItem } from '../../../../../packages/store/index.js';
+import { getItem } from '../../../../../packages/store/index.js';
+import { holdItem } from '../../../../../packages/store/index.js';
 import { recordSubmitHandoff } from '../../../../../packages/jobs/index.js';
 
 test('cli.io-commands-status.ready-buffer: clause 2: the real status command carries buildersByRoute beside readyByRoute and prints a ready buffer line for each route [C7,#12475]', async (t) => {
