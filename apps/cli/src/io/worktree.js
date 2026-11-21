@@ -82,6 +82,14 @@ export function primaryCheckoutRoot(info) {
   let commonDir;
   try { commonDir = fs.realpath(info.commonDir); }
   catch { return null; }
+  // A plain clone exposes its primary checkout directly: Git's shared directory is <root>/.git.
+  // Avoid listing every linked worktree on this common path, which grows with the number of seats.
+  if (basename(commonDir) === '.git') {
+    const root = dirname(commonDir);
+    try {
+      if (fs.stat(commonDir).isDirectory() && fs.realpath(join(root, '.git')) === commonDir) return root;
+    } catch { /* Invalid or stale metadata keeps the Git fallback below. */ }
+  }
   /** Return unique validated primary checkouts among candidate repository paths.
    *
    * @param {string[]} candidates

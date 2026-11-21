@@ -351,7 +351,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   try { failureSignatures = cases ? caseSignatures(cases, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
-  try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
+  try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, failedFiles, root }) : null; } catch { ledger = null; }
   // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run;
   // a plain single-file check prints TAP only, so its cases are read from that TAP as the in-process gate did [V4,C7].
   let outcomes = null, blocked = null;

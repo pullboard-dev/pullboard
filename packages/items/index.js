@@ -36,7 +36,7 @@ export { reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemI
 export { checkRouted, checkRoute, checkTestFiles, missingCheckFiles, checkPerItemCriterion, stripPerItemFullSuiteCriterion } from './src/logic/routing.js';
 export { requireLedger, recordItemSession, refuseSelfSession } from './src/io/sessions.js';
 export { requireOutsideReceipt } from './src/io/outside/proof.js';
-export { OUTSIDE_SENSITIVE_PATHS, SENSITIVE_CELLS, planSensitivePaths, outsideSensitivePaths, outsideSensitivity } from './src/logic/outside/sensitive.js';
+export { OUTSIDE_SENSITIVE_PATHS, SENSITIVE_CELLS, outsideSensitivePaths, outsideSensitivity } from './src/logic/outside/sensitive.js';
 export { outsideSource, saveOutsideSource, requireOutsideOwner, outsideSandboxProblem, outsideBuildProblem } from './src/logic/outside/source.js';
 export { outsideVerdict } from './src/io/outside/verify.js';
 export { parentIdentity, parentSessionDigest, canonicalSessionDigest, saveJoinedSession, runtimeSessionIdentity, runtimeParentSession, joinParentSession } from './src/io/parent.js';

@@ -1,4 +1,5 @@
 /** Run the drive cell's fallback reclaim pass for a board command before it answers (RFC 0008 DJ15) [C7]. */
+import { DatabaseSync } from 'node:sqlite';
 import { lapsedGateJobs } from '../../../../packages/drive/light.js';
 import { GATE_DRIVE_KIND } from '../../../../packages/drive/light.js';
 import { gateDriveJobId } from '../../../../packages/drive/light.js';
@@ -27,6 +28,9 @@ export async function fallbackReclaim(ctx, command) {
       return { runs, lapsed: lapsedGateJobs(board.db, { now: now(), runs }) };
     });
     if (!lapsed.length) return null;
+    // Never queue for the writer: lapsed gate jobs exist most of the time, and a writer held by a verify or submit made
+    // every seat's next wait seconds here (7 s at load, 20 Nov). The dispatcher reclaims first; this pass only helps.
+    if (!writerFreeNow(ctx.file)) return null;
     // The list read above is handed on, so the whole fallback is one reclaimLapsed pass; driveOnce rechecks the lease.
     // A job whose item is no longer submitted at its commit is ended, never renewed (zombie gate jobs, 9 Nov).
     // The drive cell loads only now, when a lapsed job exists: a healthy board never pays for the step machinery (#11941).
@@ -36,6 +40,25 @@ export async function fallbackReclaim(ctx, command) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Whether the board's writer is free this instant: a zero-wait BEGIN IMMEDIATE on a private connection, rolled back at once.
+ * Why: the store's write path queues for the lock, which a best-effort pass must never do (#12583).
+ *
+ * @param {string} file - The board file.
+ * @returns {boolean}
+ */
+function writerFreeNow(file) {
+  let db;
+  try {
+    db = new DatabaseSync(file);
+    db.exec('PRAGMA busy_timeout = 0');
+    db.exec('BEGIN IMMEDIATE');
+    db.exec('ROLLBACK');
+    return true;
+  } catch { return false; }
+  finally { try { db?.close(); } catch { /* Never opened. */ } }
 }
 
 /** The board_meta row that turns the runs file on; the same key as RUNS_STORE_KEY in packages/store, which this light helper must not import statically [P7,#9113]. */

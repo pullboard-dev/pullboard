@@ -32,6 +32,11 @@ const HOT_INDEXES = [
   'CREATE INDEX IF NOT EXISTS event_kind_id ON event (event_kind, event_id)',
 ];
 
+/** Only live coordinator call-outs enter this index; answered and unrelated shout history stays outside every `next` read [C7]. */
+const COORDINATOR_CALLOUT_INDEX_SQL = `CREATE INDEX IF NOT EXISTS shout_open_coordinator_callout ON shout (shout_id)
+  WHERE shout_to='coordinator' AND shout_from <> 'coordinator' AND shout_answers IS NULL AND shout_answered_at IS NULL
+    AND (shout_text LIKE '%needs a sharper bar%' OR shout_text LIKE 'Queued gate for #%' OR shout_text LIKE '%has two send-backs%' OR shout_text LIKE 'Stuck: decision #%' OR shout_text LIKE '%decision request%')`;
+
 /**
  * Create the hot-query indexes. They index columns that migrate() adds to older boards, so this runs
  * after it, never inside the table schema.
@@ -69,6 +74,47 @@ function missingOwnerStatusIndex(db) {
 }
 
 /**
+ * A seat's events in order: next's idle check reads the seat's latest event with one seek [C7].
+ * Why: through event_by_at that read sorted every event of the seat, 0.2-1.1 s warm for the coordinator's 181,874 events
+ * and 6.2 s of one next at load (20 Nov). Additive, not in SCHEMA, so no digest drift.
+ */
+const SEAT_EVENT_INDEX = 'event_by_id';
+const SEAT_EVENT_SQL = `CREATE INDEX IF NOT EXISTS ${SEAT_EVENT_INDEX} ON event (event_by, event_id)`;
+
+/** True when the seat event index is not installed yet. */
+function missingSeatEventIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(SEAT_EVENT_INDEX);
+}
+
+/**
+ * The status seeks the item lists read: the unfinished scope (open, claimed, submitted) by status, and the verified items not yet merged by id [C7,#12581].
+ * Why: item_status NOT IN ('verified','withdrawn') scanned every item the board ever held, 14 MB of criterion text, on each next.
+ * Why additive, not in SCHEMA: SCHEMA feeds the digest, so a line there read as drift on every existing board (#11000).
+ */
+const STATUS_INDEX = 'item_status_id';
+const UNMERGED_INDEX = 'item_verified_unmerged';
+const STATUS_SQL = `CREATE INDEX IF NOT EXISTS ${STATUS_INDEX} ON item (item_status, item_id);
+  CREATE INDEX IF NOT EXISTS ${UNMERGED_INDEX} ON item (item_id) WHERE item_status='verified' AND COALESCE(item_merged_commit,'')=''`;
+
+/** True when either item-list index is not installed yet. */
+function missingStatusIndexes(db) {
+  return [STATUS_INDEX, UNMERGED_INDEX].some(name => !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(name));
+}
+
+/**
+ * A seat's events of one kind, in order: next's cooldown and pairing reads (releases, finishes) seek them by seat and kind [C7].
+ * Why: through event_by_at they read every event of the seat and filtered by kind, which grew with the seat's whole history
+ * (the coordinator's 181,874 events cost next over a second at load, 20 Nov). Additive, not in SCHEMA, so no digest drift.
+ */
+const SEAT_KIND_INDEX = 'event_by_kind_id';
+const SEAT_KIND_SQL = `CREATE INDEX IF NOT EXISTS ${SEAT_KIND_INDEX} ON event (event_by, event_kind, event_id)`;
+
+/** True when the seat-and-kind event index is not installed yet. */
+function missingSeatKindIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(SEAT_KIND_INDEX);
+}
+
+/**
  * The reservation columns #9181 put into SCHEMA and ADDED_COLUMNS without a SCHEMA_VERSION bump, so every board stamped before it read as drifted (#11172).
  * Why additive, not in SCHEMA: SCHEMA and ADDED_COLUMNS feed the digest, and repairDrift repairs no column. Each is nullable, so no row is rewritten.
  */
@@ -76,6 +122,7 @@ const ADDITIVE_COLUMNS = [
   ['item', 'item_reservation_holder', 'TEXT'],
   ['item', 'item_reservation_by', 'TEXT'],
   ['item', 'item_reservation_at', 'TEXT'],
+  ['shout', 'shout_answered_at', 'TEXT'],
 ];
 
 /** The same columns as DDL, for the shared-schema declaration a worktree compares a trunk board against. */
@@ -87,6 +134,11 @@ function missingAdditiveColumns(db) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all();
     return columns.length > 0 && !columns.some(entry => entry.name === column);
   });
+}
+
+/** True when the bounded coordinator call-out lookup has not been installed on an older board. */
+function missingCoordinatorCalloutIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='shout_open_coordinator_callout'").get();
 }
 
 /** Add each additive column only when absent. Why public: the shared-schema declaration must know the columns a trunk board carries. */
@@ -103,7 +155,7 @@ function missingLedgerCommitIndex(db) {
 
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
+  return missingAdditiveColumns(db) || missingCoordinatorCalloutIndex(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingSeatEventIndex(db) || missingStatusIndexes(db) || missingSeatKindIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
@@ -112,6 +164,10 @@ export function ensureAdditiveIndexes(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(OWNER_STATUS_SQL);
+  db.exec(STATUS_SQL);
+  db.exec(SEAT_KIND_SQL);
+  db.exec(SEAT_EVENT_SQL);
+  db.exec(COORDINATOR_CALLOUT_INDEX_SQL);
   ensureJobTables(db);
   db.exec(LEDGER_SCHEMA_SQL);
   db.exec(EVENT_ARCHIVE_SCHEMA_SQL);
@@ -125,8 +181,8 @@ export function ensureAdditiveIndexes(db) {
  */
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
-  return missingAdditiveColumns(db) || HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
+  return missingAdditiveColumns(db) || missingCoordinatorCalloutIndex(db) || HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingSeatEventIndex(db) || missingStatusIndexes(db) || missingSeatKindIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
 }
 
 /**
@@ -139,6 +195,10 @@ export function ensureAdditiveSchema(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(OWNER_STATUS_SQL);
+  db.exec(STATUS_SQL);
+  db.exec(SEAT_KIND_SQL);
+  db.exec(SEAT_EVENT_SQL);
+  db.exec(COORDINATOR_CALLOUT_INDEX_SQL);
   db.exec(JOB_SCHEMA_SQL);
   db.exec(RUN_SCHEMA_SQL);
   db.exec(LEDGER_SCHEMA_SQL);

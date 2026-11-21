@@ -1,0 +1,30 @@
+{
+  "store.io-board-verify.solo-accept-live-board": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "On a board with no execution engine version, a builder accept with every solo low-stakes fact true is admitted and writes its solo-low-stakes-accept event."
+    },
+    "why": "Without it the verify table skipped a live board, so the builder accept was refused SELF_VERIFY after every fact held (#11356).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/verify-table.js"
+    ]
+  },
+  "store.io-board-verify.solo-refused-live-board": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "On the same board the builder accept stays refused SELF_VERIFY with the setting off, a team row or an unproved check."
+    },
+    "why": "Without it the live-board fix could widen the self-accept past low-stakes rows with a proven check.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/verify-table.js"
+    ]
+  }
+}

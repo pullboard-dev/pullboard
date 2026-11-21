@@ -5,7 +5,6 @@ import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellHasMovedPaths } from '../../../src/io/cells-submit-checks.js';
 import { touchedCells } from '../../../src/io/cells-submit-checks.js';
 
 const PLAN = join(import.meta.dirname, '../../../../../packages/codemap/data/plan');
@@ -13,6 +12,9 @@ const cells = readdirSync(PLAN).filter(name => /^\d+-.*\.json$/.test(name)).map(
 const plan = { cells };
 /** The same plan with every path row removed: only folders, roots and doors are left to name a cell. */
 const bare = { cells: cells.map(cell => ({ ...cell, paths: [] })) };
+
+/** One inventory whose file map holds the given paths, the shape touchedCells reads the known cells from. */
+const inventoryOf = files => ({ files: new Map(files.map(file => [file, Buffer.from('')])), edges: new Map() });
 
 /** The old attribution, which scanned every cell's rows for each file. */
 function planOwners(file) {
@@ -25,22 +27,25 @@ test('cli.io-submit-touched-cells-folder.c7-touchedcells-returns-the-same-cells-
   assert.ok(files.length > 1000, 'the plan on main has rows to attribute');
   for (const file of files) {
     const expected = planOwners(file).sort();
-    assert.deepEqual(touchedCells([file], plan, plan, []), expected, `${file} with the plan rows`);
-    assert.deepEqual(touchedCells([file], bare, bare, []), expected, `${file} with the plan rows removed`);
+    assert.deepEqual(touchedCells([file], plan, plan, [inventoryOf([file])]), expected, `${file} with the plan rows`);
+    assert.deepEqual(touchedCells([file], bare, bare, [inventoryOf([file])]), expected, `${file} with the plan rows removed`);
   }
-  assert.deepEqual(touchedCells(files, bare, bare, []), touchedCells(files, plan, plan, []), 'all files together');
-  assert.deepEqual(touchedCells(['README.md', 'packages/nonexistent/index.js'], bare, bare, []), [], 'a path in no planned cell names none');
+  assert.deepEqual(touchedCells(files, bare, bare, [inventoryOf(files)]), touchedCells(files, plan, plan, [inventoryOf(files)]), 'all files together');
+  assert.deepEqual(touchedCells(['README.md', 'tools/x.js'], bare, bare, [inventoryOf(files)]), [], 'a path in no cell folder names none');
 });
 
-test('cli.io-submit-touched-cells-folder.c7-checkmoved-is-chosen-from-folders-cellhasmovedpaths: clause 2: [C7] checkMoved is chosen from folders: cellHasMovedPaths names the same cells with the plan rows removed', () => {
-  const maps = [new Map(), new Map()];
-  let rows = 0;
-  for (const cell of cells) for (const [from, to] of cell.paths) { maps[rows % 2].set(from, to); rows += 1; }
-  assert.ok(rows > 1000, 'the plan on main has rows to attribute');
-  for (const cell of bare.cells) {
-    const expected = cells.find(row => row.name === cell.name).paths.some(([from, to]) => maps.some(map => map.get(from) === to));
-    assert.equal(cellHasMovedPaths(cell.name, maps), expected, `${cell.name} with the plan rows removed`);
-  }
-  assert.equal(cellHasMovedPaths('kernel', [new Map([['old.js', 'packages/kernel/index.js']]), new Map()]), true, 'a target in the cell folder is a move');
-  assert.equal(cellHasMovedPaths('kernel', [new Map([['old.js', 'README.md']]), new Map()]), false, 'a target outside every cell is no move');
+/** A plan carrying stays and edited rows that name the file under test. */
+const stayed = file => ({ cells: [{ name: 'noise', root: 'packages/noise', paths: [[file, file, 'seed']] }], stays: [{ path: file }] });
+
+test('cli.io-submit-touched-cells-folder.c7-policyscope-reads-no-plan-stays-or-rows: clause 2: [C7] a plan stay or cells.json row edit no longer widens the touched set', () => {
+  const file = 'packages/codemap/src/io/main.js';
+  const expected = touchedCells([file], bare, bare, [inventoryOf([file])]);
+  assert.deepEqual(expected, ['codemap'], 'the folder names the cell');
+  assert.deepEqual(touchedCells([file], bare, stayed(file), [inventoryOf([file])]), expected, 'a stay on the file names no other cell');
+  assert.deepEqual(touchedCells([file], stayed(file), plan, [inventoryOf([file])]), expected, 'an edited row names no other cell');
+});
+
+test('cli.io-submit-touched-cells-folder.c7-the-real-caller-keeps-its-cells-on-the-submit-gate: clause 3: [C7] shared policy still names every cell the folders show, through the four arguments', () => {
+  const files = ['packages/codemap/src/io/main.js', 'apps/cli/src/io/main.js', 'packages/gate/src/io/main.js'];
+  assert.deepEqual(touchedCells(['package.json'], bare, bare, [inventoryOf(files)]), ['app:cli', 'codemap', 'gate'], 'shared metadata still means all cells');
 });

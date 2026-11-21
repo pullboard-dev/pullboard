@@ -21,7 +21,7 @@
     "apps/cli/journeys/verify/admission.test.js->apps/cli/tests/fixtures/e2e.js": 1,
     "apps/cli/journeys/verify/admission.test.js->src/gui-admission.js": 1,
     "apps/cli/journeys/verify/admission.test.js->src/resources.js": 1,
-    "apps/cli/journeys/verify/check-checked.test.js->apps/cli/tests/fixtures/child.js": 1,
+    "apps/cli/tests/io/commands/verify/checked.test.js->apps/cli/tests/fixtures/child.js": 1,
     "apps/cli/journeys/verify/check-landing.test.js->apps/cli/tests/fixtures/child.js": 1,
     "apps/cli/journeys/verify/check-landing.test.js->src/board.js": 1,
     "apps/cli/journeys/verify/check.test.js->src/board.js": 1,
