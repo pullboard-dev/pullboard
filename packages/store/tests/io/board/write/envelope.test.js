@@ -34,20 +34,20 @@ test('store.io-board-write-sequencer.envelope-capture: clause 1: [C7] a prepared
   const logged = fixture(t);
   const prepared = fixture(t);
   const detail = { text: 'x' };
-  const viaLog = await captureBoardChanges(() => logEvent(logged.board, logged.seat.id, 'note', null, detail));
-  const viaPrepared = await captureBoardChanges(() => commitPrepared(prepared.board, { move: 'event-append', statements: [prepareEventAppend(prepared.board, { by: prepared.seat.id, kind: 'note', itemId: null, detail })] }));
+  const viaLog = await captureBoardChanges(() => logEvent(logged.board, 'not-a-seat', 'note', null, detail));
+  const viaPrepared = await captureBoardChanges(() => commitPrepared(prepared.board, { move: 'event-append', statements: [prepareEventAppend(prepared.board, { by: 'not-a-seat', kind: 'note', itemId: null, detail })] }));
   assert.ok(viaLog.changes.length > 0, 'the logEvent write is captured');
   assert.equal(viaPrepared.changes.length, viaLog.changes.length);
-  assert.ok(viaPrepared.changes.every((changes, index) => Buffer.compare(Buffer.from(changes), Buffer.from(viaLog.changes[index])) === 0), 'the changesets are byte-equal');
+  assert.ok(viaPrepared.changes.every((changes, index) => Buffer.compare(Buffer.from(changes), Buffer.from(viaLog.changes[index])) === 0),
+    `the changesets are byte-equal (${viaPrepared.changes.map(changes => changes.length)} vs ${viaLog.changes.map(changes => changes.length)})`);
 });
 
 test('store.io-board-write-sequencer.envelope-policy: clause 2: [C7] commitPrepared applies the write policy and review normalization logEvent does, and a refused write appends nothing', t => {
   const { board, seat } = fixture(t);
   const calls = [];
-  const lifecycle = board.runtimePorts.lifecycle;
-  const normalize = lifecycle.normalizeReviewDefaults;
+  const normalize = board.runtimePorts.lifecycle.normalizeReviewDefaults;
   const statement = () => prepareEventAppend(board, { by: seat.id, kind: 'note', itemId: null, detail: { text: 'p' } });
-  t.mock.method(lifecycle, 'normalizeReviewDefaults', target => { calls.push('review'); return normalize(target); });
+  board.runtimePorts = { ...board.runtimePorts, lifecycle: { ...board.runtimePorts.lifecycle, normalizeReviewDefaults: target => { calls.push('review'); return normalize(target); } } };
   board.prepareWritePolicy = () => ({ current: () => true, enter: () => calls.push('enter'), assertCurrent: () => calls.push('assert'), leave: () => calls.push('leave') });
   const before = eventCount(board);
   commitPrepared(board, { move: 'event-append', statements: [statement()] });
