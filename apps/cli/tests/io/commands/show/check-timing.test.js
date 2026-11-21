@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { createE2eHelpers } from '../../../../fixtures/e2e.js';
+import { fixtureAdd } from '../../../../fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
