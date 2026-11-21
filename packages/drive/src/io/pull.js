@@ -312,15 +312,15 @@ export function countingTurns(limit) {
  *   fetchGate: asked inside the fetch turn before each fetch; a reason it returns ends the checkout without fetching. onFetch: told each fetch's reason, or null once it worked [#9024].
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), fetchTurn = null, git = null, ref = null, fetchGate = null, onFetch = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), fetchTurn = null, git = null, ref = null, fetchGate = null, onFetch = null, now = () => performance.now() } = {}) {
   if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
   if (main !== null && !SHA.test(String(main))) return { ok: false, reason: `the job names no main commit (${main})` };
-  const phases = { fetchMs: 0, checkoutMs: 0 };
-  let mark = performance.now();
+  const phases = { fetchMs: 0, fetchWaitMs: 0, fetchWorkMs: 0, checkoutMs: 0 };
+  let mark = now();
   /** Charge the time since the last mark to one phase. */
-  const lap = phase => { const now = performance.now(); phases[phase] += Math.round(now - mark); mark = now; };
+  const lap = phase => { const at = now(); phases[phase] += Math.round(at - mark); mark = at; };
   let store = join(cache, 'git');
   if (!disk.exists(join(store, 'HEAD'))) {
     const made = await exclusive(() => objectStore(git, cache));
@@ -332,13 +332,20 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   const present = await Promise.all(wanted.map(async one => SHA.test(String(one ?? '')) && (await git.run(store, ['cat-file', '-e', `${one}^{commit}`])).status === 0));
   const absent = wanted.filter((_, index) => !present[index]);
   if (absent.length) {
+    const queuedAt = now();
     const missing = await (fetchTurn ?? exclusive)(async () => {
-      for (const one of absent) {
-        const refused = fetchGate?.(); if (refused) return refused;
-        const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
-        onFetch?.(reason); if (reason) return reason;
+      const startedAt = now();
+      phases.fetchWaitMs = Math.round(startedAt - queuedAt);
+      try {
+        for (const one of absent) {
+          const refused = fetchGate?.(); if (refused) return refused;
+          const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
+          onFetch?.(reason); if (reason) return reason;
+        }
+        return null;
+      } finally {
+        phases.fetchWorkMs = Math.round(now() - startedAt);
       }
-      return null;
     });
     if (missing) return { ok: false, reason: missing };
   }
@@ -1034,7 +1041,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const started = Date.now();
     // Claim-to-command, in phases the receipt carries: the board's request, the commit download (waiting its turn included),
     // the checkout, and whether the slot's warm folder was reused.
-    const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, checkoutMs: checkout.phases.checkoutMs,
+    const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, fetchWaitMs: checkout.phases.fetchWaitMs,
+      fetchWorkMs: checkout.phases.fetchWorkMs, checkoutMs: checkout.phases.checkoutMs,
       reused: checkout.reused, totalMs: started - claimedAt };
     liveEnvironments.add(name);
     const job = jobEnvironment(cache, name, claim.job, environmentAdapter().all(), requestedEnv), tag = randomBytes(8).toString('hex');

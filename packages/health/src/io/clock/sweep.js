@@ -10,6 +10,8 @@ import { boardFacts } from './facts.js';
 import { timing } from './facts.js';
 import { CLOCK_MOVE_EVENT } from './facts.js';
 import { CLOCK_ACTOR } from './facts.js';
+import { toRebar } from './moves/hold.js';
+import { recordedHoldMinutes } from './moves/hold.js';
 import { clockHealth } from './health.js';
 import { CLOCK_HEALTH_KEY } from './health.js';
 /** The version of the result document `pullboard clock --json` prints. */
@@ -44,10 +46,11 @@ function existing() {
   return { owner: 'existing-path' };
 }
 
-/** The move registry: a move name to function(board, item, row, now, plan, ports). This slice registers alarm and existing only. */
+/** The move registry: a move name to function(board, item, row, now, plan, ports). Registered: alarm, existing and to-rebar. */
 export const CLOCK_MOVES = new Map([
   ['alarm', alarm],
   ['existing', existing],
+  ['to-rebar', toRebar],
 ]);
 
 /** Whether a clock_move for this rule and state start is already on the item, which makes the pass idempotent. */
@@ -102,7 +105,9 @@ export function clockSweep(board, { now, dryRun = false, moves = CLOCK_MOVES, fa
     try { row = clockRow({ ...boardFacts(board, item, getItem), ...(facts ? facts(board, item) : {}) }); }
     catch { continue; }
     const history = events(board, { itemId: item.item_id });
-    const { since, evidence, deadlineMinutes } = timing(item, row, history);
+    const timed = timing(item, row, history);
+    const { since, evidence } = timed;
+    const deadlineMinutes = timed.deadlineMinutes ?? (row.rule === 'hold' ? recordedHoldMinutes(board, item, since, ports) : undefined);
     const base = { item: item.item_id, rule: row.rule, state: row.state, move: row.move, since, evidence };
     if (since === null || !(deadlineMinutes ?? row.deadlineMinutes)) {
       result.waiting.push({ ...base, reason: 'deadline-unknown' });
