@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureSetupGit } from '../../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles, runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
 import {
   historicalPaths,
   historyPathMap,
@@ -12,7 +12,7 @@ import {
   pathAtCommit,
   pathMapFromFiles,
   readPathMap,
-} from '../../../../src/logic/path/map.js';
+} from '../../../src/logic/path/map.js';
 
 /** Create a real Git repository with committed path-map inputs. */
 function repository(t, files = {}) {
