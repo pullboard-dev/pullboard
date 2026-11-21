@@ -29,10 +29,9 @@ function repository(t, files = {}) {
   };
   runFixtureSetupGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   for (const [file, value] of Object.entries(files)) write(file, value);
-  if (Object.keys(files).length) {
-    runFixtureSetupGit(['add', '--all'], { cwd: root, env });
-    runFixtureSetupGit(['commit', '-qm', 'record path map'], { cwd: root, env });
-  }
+  if (!Object.keys(files).length) write('README.md', 'no path map source\n');
+  runFixtureSetupGit(['add', '--all'], { cwd: root, env });
+  runFixtureSetupGit(['commit', '-qm', 'record path map fixture'], { cwd: root, env });
   return { root, env, write };
 }
 
