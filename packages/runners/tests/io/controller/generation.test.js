@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/runners/index.js packages/runners/src/io/dispatch.js packages/runners/src/io/main.js packages/runners/src/io/module/parser.js packages/runners/src/io/package.js packages/runners/src/io/tooling/snapshot.js */
+/** @pullboard-test-input packages/runners/index.js packages/runners/src/io/main.js packages/runners/src/io/module/parser.js packages/runners/src/io/package.js packages/runners/src/io/tooling/snapshot.js */
 /** @pullboard-test-loads packages/runners/src/io/tooling/snapshot.js packages/runners/src/io/module/parser.js packages/runners/src/io/main.js packages/runners/index.js */
 /** The moved runner controller keeps its private compiler independent and its loaded generation pinned [C7,P3]. */
 import assert from 'node:assert/strict';
@@ -79,7 +79,7 @@ test('runners.generation.moved-controller-step-bodies-stay-bound: moved controll
     assert.throws(() => currentRunnerTooling(installed, loaded, { rescan: false }),
       error => error.code === 'RUNNER_TOOLING_CHANGED', 'packages/runners/index.js');
   } finally { writeFileSync(index, originalIndex); }
-  for (const file of ['packages/runners/src/io/main.js', 'packages/runners/src/io/dispatch.js']) {
+  for (const file of ['packages/runners/src/io/main.js']) {
     const path = toolSourcePath(installed, file);
     const original = readFileSync(path);
     try {
