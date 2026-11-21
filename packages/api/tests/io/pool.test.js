@@ -28,14 +28,14 @@ const VIEW_PORTS = Object.freeze(Object.fromEntries(['projectState', 'activeView
  * A handler ports module, as a data: URL, giving the API's pool handlers over the fixture board's openers. With
  * `channel`, its jobs handler is the test hook: it tells the channel it is blocked and then busy-waits `blockMs` inside the handler.
  */
-function handlerPorts({ channel = null, blockMs = 30_000 } = {}) {
+function handlerPorts({ channel = null, blockMs = 30_000, fail = false } = {}) {
   const hook = channel === null ? '' : `jobs() {
     const channel = new BroadcastChannel(${JSON.stringify(channel)});
     channel.postMessage('blocked');
     channel.close();
     const until = Date.now() + ${blockMs};
     while (Date.now() < until) { /* The test hook busy-waits inside the handler. */ }
-    return { ok: true };
+    ${fail ? "throw new Error('fixture handler failed');" : 'return { ok: true };'}
   },`;
   const source = `import { BroadcastChannel } from 'node:worker_threads';
 import { openCellBoard } from ${JSON.stringify(CELL)};
@@ -86,11 +86,45 @@ function blockedHandlers(t, channel, count) {
 }
 
 /** Send a jobs call that the test drops at its end, since its handler never answers in time. */
-function droppedJobsCall(t, api, id) {
+function droppedJobsCall(t, api, id, action = 'claim', extra = {}) {
   const abort = new AbortController();
   t.after(() => abort.abort());
-  call(api, `/api/v1/boards/${id}/jobs`, { body: { action: 'claim', runner: 'fixture-runner' }, signal: abort.signal }).catch(() => {});
+  call(api, `/api/v1/boards/${id}/jobs`, { body: { action, runner: 'fixture-runner', ...extra }, signal: abort.signal }).catch(() => {});
 }
+
+test('api.pool.runner-job-action-age: clause 1 [C7]: authenticated health reports the active count and oldest age for an allowlisted runner action', { timeout: 30_000 }, async (t) => {
+  const { entry, id } = fixtureBoard(t);
+  const channel = `pool-action-${process.pid}`;
+  const blocked = blockedHandlers(t, channel, 1);
+  const api = await served(t, entry, handlerPorts({ channel, blockMs: 1_000 }));
+  await timedHealth(api);
+  droppedJobsCall(t, api, id, 'claim', { privatePayloadSentinel: 'must-not-appear' });
+  await blocked;
+  const health = await timedHealth(api);
+  assert.equal(health.status, 200, JSON.stringify(health.body));
+  assert.deepEqual(health.body.pool.runnerActions.claim, { busy: 1, oldestMs: health.body.pool.runnerActions.claim.oldestMs });
+  assert.ok(Number.isFinite(health.body.pool.runnerActions.claim.oldestMs) && health.body.pool.runnerActions.claim.oldestMs >= 0, JSON.stringify(health.body.pool.runnerActions.claim));
+  assert.deepEqual(Object.keys(health.body.pool.runnerActions).sort(), ['claim', 'progress', 'receipt', 'renew']);
+  assert.equal(JSON.stringify(health.body).includes('privatePayloadSentinel'), false);
+});
+
+test('api.pool.runner-job-action-cleanup: clause 2 [C7]: finished and failed runner calls clear the action breakdown and raw job payload fields never enter health', { timeout: 30_000 }, async (t) => {
+  const { entry, id } = fixtureBoard(t);
+  const api = await served(t, entry, handlerPorts({ channel: `pool-finish-${process.pid}`, blockMs: 1, fail: false }));
+  await timedHealth(api);
+  const finished = await call(api, `/api/v1/boards/${id}/jobs`, { body: { action: 'renew', runner: 'fixture-runner', privatePayloadSentinel: 'never-health' } });
+  assert.equal(finished.status, 200);
+  const finishedHealth = (await timedHealth(api)).body;
+  assert.deepEqual(finishedHealth.pool.runnerActions.renew, { busy: 0, oldestMs: 0 });
+  assert.equal(JSON.stringify(finishedHealth).includes('never-health'), false);
+
+  const failingApi = await served(t, entry, handlerPorts({ channel: `pool-fail-${process.pid}`, blockMs: 1, fail: true }));
+  const failed = await call(failingApi, `/api/v1/boards/${id}/jobs`, { body: { action: 'receipt', runner: 'fixture-runner', privatePayloadSentinel: 'never-health' } });
+  assert.equal(failed.status, 500);
+  const failedHealth = (await timedHealth(failingApi)).body;
+  assert.deepEqual(failedHealth.pool.runnerActions.receipt, { busy: 0, oldestMs: 0 });
+  assert.equal(JSON.stringify(failedHealth).includes('never-health'), false);
+});
 
 test('api.pool.clause-request-handler-blocked-api: clause 1 [A2,C7]: with a request handler blocked for 30 s, the API answers health within 200 ms', { timeout: 30_000 }, async (t) => {
   const { entry, id } = fixtureBoard(t);
