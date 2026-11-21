@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
 import { main } from '../../fixtures/native.js';
+import { getItem, holdItem } from '../../../../../packages/store/index.js';
+import { recordSubmitHandoff } from '../../../../../packages/jobs/index.js';
 
 test('cli.io-commands-status.ready-buffer: clause 2: the real status command carries buildersByRoute beside readyByRoute and prints a ready buffer line for each route [C7,#12475]', async (t) => {
   const box = await fixture(t);
@@ -21,4 +23,30 @@ test('cli.io-commands-status.ready-buffer: clause 2: the real status command car
     const rest = builders > 0 ? `${builders} builders = ${(ready / builders).toFixed(1)}x` : 'no builders';
     assert.ok(out.split('\n').includes(`ready buffer: ${route} ${ready} ready, ${rest}`), `status prints the ${route} ready buffer line`);
   }
+});
+
+test('cli.io-commands-status.eligible-ready: clause 1: status readyByRoute counts only the items next would offer, not a held item, a gate-queued item or a claim waiting to land [C7,#12567]', async (t) => {
+  const box = await fixture(t);
+  const { board } = box;
+  const place = (id, fields) => {
+    board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
+    try { board.db.prepare(`UPDATE item SET ${Object.keys(fields).map(key => `${key}=?`).join(', ')} WHERE item_id=?`).run(...Object.values(fields), id); }
+    finally { board.db.exec('DELETE FROM temp.moving'); }
+  };
+  const file = name => ({ brief: `Files: web/${name}.js\nTest: the real status command counts what next offers.` });
+  const ids = { mid: box.add('Eligible mid', { route: 'mid', ...file('a') }), strong: box.add('Eligible strong', { route: 'strong', ...file('b') }),
+    held: box.add('Held', { route: 'mid', ...file('c') }), gate: box.add('Gate queued at head', { route: 'mid', ...file('d') }),
+    waiting: box.add('Claim waiting to land', { route: 'strong', ...file('e') }) };
+  holdItem(board, ids.held, { agentId: 'coordinator', reason: 'Fixture hold.' });
+  box.submit(ids.gate);
+  recordSubmitHandoff(board.db, ids.gate, { id: `fixture-${ids.gate}`, commit: getItem(board, ids.gate).item_commit, agentId: box.seats.builder.id, state: 'queued' });
+  place(ids.gate, { item_status: 'open', item_owner: null });
+  board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`claim_waiting:${ids.waiting}`, JSON.stringify([ids.mid]));
+  const json = await cli(box, box.root, ['status']);
+  assert.equal(json.code, 0, json.out + json.err);
+  const { capacity, capacityForecast, reviewQueue } = json.document;
+  assert.deepEqual(capacity.readyByRoute, { mid: 1, strong: 1 });
+  assert.equal(capacity.readyItems, 2);
+  const builders = capacity.readyItems + Math.ceil((reviewQueue.pending ?? 0) / 20);
+  assert.equal(capacityForecast.agents.recommended, capacityForecast.available ? builders : null);
 });

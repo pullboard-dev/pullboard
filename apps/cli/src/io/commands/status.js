@@ -59,6 +59,13 @@ function readyBuffer(capacity, seats) {
   return { ...capacity, buildersByRoute };
 }
 
+/** The recommended fleet is the eligible ready count as builders plus one reviewer per 20 pending reviews, rounded up; a forecast that is not current keeps no recommendation [C7,#12567]. */
+function eligibleRecommendation(forecast, eligibleReady, pendingReviews) {
+  if (!forecast.available || !forecast.agents) return forecast;
+  const reviewers = Number.isSafeInteger(pendingReviews) && pendingReviews > 0 ? Math.ceil(pendingReviews / 20) : 0;
+  return { ...forecast, agents: { ...forecast.agents, recommended: eligibleReady + reviewers } };
+}
+
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
 
@@ -113,7 +120,10 @@ export async function run(io, { values }) {
     landing = landWhy(board, ctx.clock.now());
     clock = statusClock(board, store.readBoardMeta);
     batchLine = adaptiveBatchLine?.(board, adaptiveBatch) ?? null;
-    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: readyBuffer(routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), store.withLocalSeatPresence(board, agents)), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    const capacity = readyBuffer(routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), store.withLocalSeatPresence(board, agents));
+    const reviewQueue = { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) };
+    const capacityForecast = eligibleRecommendation(readCapacity(board, undefined, { currentProofCounters, proofCounter }), capacity.readyItems, reviewQueue.pending);
+    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity, capacityForecast, usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && fs.exists(relayMachineDirectory())) {
