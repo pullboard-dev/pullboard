@@ -2,18 +2,17 @@
 /** The view command hands the home page the Flow reader that `pullboard why` builds from the board [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { main } from '../../fixtures/native.js';
+import { main, nativeRelayPorts } from '../../fixtures/native.js';
 import { fixture } from '../../fixtures/next/take.js';
 import { fetchPrintedViewLink } from '../../fixtures/view/link.js';
-import * as nativeBoard from '../../../../lib/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
 import { flowReader } from '../../../src/io/commands/why.js';
 
 test('cli.io-commands-why.flow-reader: clause 1: flowReader(io) returns the releaseFlow document and returns null on a board read error [N26,C7]', async t => {
   const box = await fixture(t);
-  const doc = flowReader({ cwd: box.root, clock: box.clock, nativeBoard })();
+  const doc = flowReader({ cwd: box.root, clock: box.clock, nativeBoard: nativeRelayPorts() })();
   assert.ok(doc && Array.isArray(doc.items) && Array.isArray(doc.idle), 'the reader returns the flow document');
-  assert.equal(flowReader({ cwd: '/nonexistent-pullboard-flow-reader', nativeBoard })(), null, 'a board that cannot be read gives null, not a throw');
+  assert.equal(flowReader({ cwd: '/nonexistent-pullboard-flow-reader', nativeBoard: nativeRelayPorts() })(), null, 'a board that cannot be read gives null, not a throw');
 });
 
 test('cli.io-commands-why.view-passes-flow-reader: clause 2: the real view command serves a home page that shows the Flow panel because view.js passes readFlow from flowReader [N26,C7]', { timeout: 120_000 }, async t => {
