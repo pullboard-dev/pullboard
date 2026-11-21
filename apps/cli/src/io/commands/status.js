@@ -146,5 +146,24 @@ export async function run(io, { values }) {
     const all = await withBoardRead(ctx, (board) => store.listItems(board, { all: true }));
     productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
   }
+  await askReleaseCheck(io, values);
   return 0;
+}
+
+/** The release-check question; plain text so the person answers it at once. */
+export const RELEASE_CHECK_QUESTION = 'Check once a day for new pullboard releases? [y/N] (Enter leaves it unanswered)';
+
+/**
+ * Ask the release-check question once, only at a person's own terminal, and store a yes or no through the config door [O1,C7,#12109].
+ * Why: the answer is the person's alone, so a blank line, a closed stdin or any other text records nothing and the question stays open; the ask path loads lazily so status's static closure holds its count.
+ */
+async function askReleaseCheck(io, values) {
+  if (values.json || !io.stdin?.isTTY || !io.stdout?.isTTY) return;
+  const { updateCheckAsked, recordUpdateCheckAnswer } = await import('../../../../../packages/config/index.js');
+  if (updateCheckAsked()) return;
+  io.say(RELEASE_CHECK_QUESTION);
+  const { firstInputLine } = await import('../support.js');
+  const answer = (await firstInputLine(io.stdin)).trim().toLowerCase();
+  if (/^(?:y|yes)$/u.test(answer)) recordUpdateCheckAnswer(true);
+  else if (/^(?:n|no)$/u.test(answer)) recordUpdateCheckAnswer(false);
 }
