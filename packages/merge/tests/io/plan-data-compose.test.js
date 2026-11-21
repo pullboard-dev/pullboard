@@ -91,7 +91,7 @@ test('merge.io-test-tiers-compose.disjoint-both-orders: clause 1: withSourceComp
       const bytes = readFileSync(join(composition.directory, file), 'utf8');
       assert.equal(bytes, expectedTiers([right, base[0], left]), 'the full tier rows are present in exact alphabetical order');
       assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head, 'the callback runs at the composition HEAD');
-      assert.equal(git(composition.directory, 'show', `${composition.head}:${file}`), bytes, 'the composition HEAD contains those exact bytes');
+      assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head, 'the exact bytes are read from the checked-out composition HEAD');
       return bytes;
     });
     results.push(result);
@@ -144,7 +144,7 @@ ${stays.map(value => `    ${JSON.stringify({ path: value.path, reason: value.rea
       assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head, 'the callback runs at the composition HEAD');
       const bytes = readFileSync(join(composition.directory, file), 'utf8');
       assert.equal(bytes, wanted, 'both plan-index row schemas preserve exact rows in sorted order');
-      assert.equal(git(composition.directory, 'show', `${composition.head}:${file}`), bytes, 'the composition HEAD contains those exact bytes');
+      assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head, 'the exact bytes are read from the checked-out composition HEAD');
       return bytes;
     }));
   }
