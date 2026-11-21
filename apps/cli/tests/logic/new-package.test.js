@@ -8,8 +8,6 @@ test('cli.logic-new-package.anatomy-paths: clause 1: [C7] newPackageFiles(name, 
   assert.deepEqual(Object.keys(files).sort(), [
     'packages/my-cell/index.js',
     'packages/my-cell/light.js',
-    'packages/my-cell/src/io/.gitkeep',
-    'packages/my-cell/src/logic/.gitkeep',
     'packages/my-cell/tests/fixtures/registry.json',
     'packages/my-cell/tests/inputs.test.js',
     'packages/my-cell/tests/registry.test.js',
