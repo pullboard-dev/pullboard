@@ -23,6 +23,8 @@ export const TEST_RESULT_VERSION = 2;
 export const TEST_RESULT_STORE_ENV = 'PULLBOARD_TEST_RESULT_STORE';
 export const TEST_RESULT_ORIGIN_ENV = 'PULLBOARD_TEST_RESULT_ORIGIN';
 export const TEST_RESULT_REQUEST_ENV = 'PULLBOARD_TEST_RESULT_REQUEST';
+/** Record-only: names the pulled request on entries a run writes; it never makes reuse demand a completed entry [C7,#12643]. */
+export const TEST_RESULT_PULLED_REQUEST_ENV = 'PULLBOARD_TEST_RESULT_PULLED_REQUEST';
 const HASH = /^[0-9a-f]{64}$/u;
 // Cache data stays inside the existing one-MiB runner request budget. An oversized optional
 // transfer is a cache miss, never a refused test or permission to truncate a proof.
