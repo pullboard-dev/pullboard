@@ -2,7 +2,8 @@
 /** The view command hands the home page the Flow reader that `pullboard why` builds from the board [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { main, nativeRelayPorts } from '../../fixtures/native.js';
+import { main } from '../../fixtures/native.js';
+import { nativeRelayPorts } from '../../fixtures/native.js';
 import { fixture } from '../../fixtures/next/take.js';
 import { fetchPrintedViewLink } from '../../fixtures/view/link.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
