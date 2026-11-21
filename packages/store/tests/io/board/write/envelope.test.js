@@ -37,9 +37,13 @@ test('store.io-board-write-sequencer.envelope-capture: clause 1: [C7] a prepared
   const viaLog = await captureBoardChanges(() => logEvent(logged.board, 'not-a-seat', 'note', null, detail));
   const viaPrepared = await captureBoardChanges(() => commitPrepared(prepared.board, { move: 'event-append', statements: [prepareEventAppend(prepared.board, { by: 'not-a-seat', kind: 'note', itemId: null, detail })] }));
   assert.ok(viaLog.changes.length > 0, 'the logEvent write is captured');
-  assert.equal(viaPrepared.changes.length, viaLog.changes.length);
-  assert.ok(viaPrepared.changes.every((changes, index) => Buffer.compare(Buffer.from(changes), Buffer.from(viaLog.changes[index])) === 0),
-    `the changesets are byte-equal (${viaPrepared.changes.map(changes => changes.length)} vs ${viaLog.changes.map(changes => changes.length)})`);
+  assert.equal(viaPrepared.changes.length, 1, 'the prepared write is captured as one changeset');
+  // logEvent also writes proof counters, which belong to the per-event hooks a move migration replaces; the event row itself must replay the same.
+  const replay = fixture(t).board;
+  const note = board => ({ ...board.db.prepare("SELECT * FROM event WHERE event_kind = 'note'").get(), event_id: 0 });
+  replay.db.exec("DELETE FROM event");
+  assert.equal(replay.db.applyChangeset(viaPrepared.changes[0]), true, 'the relay can apply the prepared changeset');
+  assert.deepEqual(note(replay), note(logged.board));
 });
 
 test('store.io-board-write-sequencer.envelope-policy: clause 2: [C7] commitPrepared applies the write policy and review normalization logEvent does, and a refused write appends nothing', t => {
