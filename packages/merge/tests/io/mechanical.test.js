@@ -27,8 +27,8 @@ function conflictIndex(t, baseSource, leftSource, rightSource) {
     git(root, 'commit', '-q', '-m', `side ${index}`);
     return git(root, 'rev-parse', 'HEAD');
   });
-  git(root, 'checkout', '-q', '--detach', base);
-  git(root, 'read-tree', '-i', '-m', base, heads[0], heads[1]);
+  git(root, 'checkout', '-q', 'side0');
+  assert.throws(() => git(root, 'merge', '--no-commit', '--no-ff', 'side1'), /status: 1/u);
   return { root };
 }
 
