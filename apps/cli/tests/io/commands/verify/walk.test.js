@@ -42,8 +42,7 @@ const ENTRY_POINTS = [
   // submitHere loads the pulled gate offer lazily, which the walk does not follow, so the offer is its own submit entry [#6807].
   { verbs: ['submit'], at: ['../packages/store/src/io/board.js#submit', '../apps/cli/src/io/commands/submit.js#submitHere', '../apps/cli/src/io/submit/pull.js#offerSubmitGate'] },
   { verbs: ['reserve'], at: ['../packages/store/src/io/board.js#reserveReview', '../packages/store/src/io/board.js#reserveNextReview'] },
-  { verbs: ['accept'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
-  { verbs: ['reject'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
+  { verbs: ['accept', 'reject'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
   { verbs: ['escalate'], at: ['../packages/store/src/logic/board/escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['../packages/store/src/io/board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['../packages/store/src/io/board.js#refreeze'] },
@@ -383,12 +382,20 @@ function codeProblems(machine, read = fromDisk) {
   const problems = new Set();
   for (const { verbs, at } of ENTRY_POINTS) {
     const declared = declaredCodes(machine, verbs);
-    const verdictWalk = verbs.length === 1 && ['accept', 'reject'].includes(verbs[0])
-      ? codeWalk(read, { caught: true, decision: verbs[0].toUpperCase() }) : walk;
     for (const entry of at) {
-      for (const code of verdictWalk.refusalsOf(entry)) {
+      for (const code of walk.refusalsOf(entry)) {
         if (!declared.has(code) && !(code in NOT_MOVES)) problems.add(`${code} is raised by ${verbs.join(' and ')} but not declared there`);
       }
+    }
+  }
+  // Keep the shared verdict audit, and also check codes exclusive to a guarded arm.
+  const verdictEntry = '../apps/cli/src/io/commands/verify.js#verifyHere';
+  const acceptCodes = codeWalk(read, { caught: true, decision: 'ACCEPT' }).refusalsOf(verdictEntry);
+  const rejectCodes = codeWalk(read, { caught: true, decision: 'REJECT' }).refusalsOf(verdictEntry);
+  for (const [verb, codes, other] of [['accept', acceptCodes, rejectCodes], ['reject', rejectCodes, acceptCodes]]) {
+    const armDeclared = declaredCodes(machine, [verb]);
+    for (const code of codes) {
+      if (!other.has(code) && !armDeclared.has(code) && !(code in NOT_MOVES)) problems.add(`${code} is raised by ${verb} but not declared there`);
     }
   }
   const commandFiles = fs.readdirSync(new URL('../../../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
