@@ -40,6 +40,8 @@ import { listItems } from "./query.js";
 import { listAgents } from "./query.js";
 import { reviewHolder } from "./query.js";
 import { laneHold } from "./query.js";
+import { REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS } from "./query.js";
+import { REVIEWER_ALIVE_RESERVE_ENGINE } from "../../../../state/light.js";
 import { itemFiles } from "../../../../items/index.js";
 import { itemFileCollisions } from "../../../../items/index.js";
 import { contentionScores } from "../../../../items/index.js";
@@ -130,6 +132,19 @@ function composeLandingReview(board) {
     AND EXISTS (SELECT 1 FROM board_meta WHERE meta_key = 'item-slice:' || item.item_id)`).all();
   for (const { parent } of unfinished) held.add(parent);
   return held;
+}
+
+/** The review lanes: seats there take reviews, every other lane except the coordinator and the person builds [C7,#12556]. */
+const REVIEW_LANES = new Set(['review', 'tests']);
+
+/** Whether this seat is a builder seat while another seat in a review lane has a fresh heartbeat; false below its engine or with no heartbeats read [C7,#12556]. */
+function reviewerAliveFor(board, agentId, reviewHeartbeats) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < REVIEWER_ALIVE_RESERVE_ENGINE || !reviewHeartbeats) return false;
+  const lanes = new Map(board.db.prepare('SELECT agent_id AS id, agent_lane AS lane FROM agent').all().map(row => [row.id, row.lane]));
+  const lane = lanes.get(agentId);
+  if (lane === undefined || REVIEW_LANES.has(lane) || ['coordinator', 'person'].includes(lane)) return false;
+  const cutoff = board.clock.now().getTime() - REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS;
+  return [...lanes].some(([id, other]) => id !== agentId && REVIEW_LANES.has(other) && Date.parse(reviewHeartbeats.get(id) ?? '') > cutoff);
 }
 
 /**
@@ -272,6 +287,8 @@ export function nextFor(board, options) {
     }));
     const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
     if (heldByMe) return reviewResult({ item: heldByMe, reasons: [] });
+    // At REVIEWER_ALIVE_RESERVE_ENGINE a builder seat is reserved no review while a review-lane seat is alive; the review waits for it [C7,#12556].
+    if (reviewerAliveFor(board, agentId, reviewHeartbeats)) return reviewResult(empty('review-lane-alive', { item: null, reasons: ['a review-lane seat is alive and takes the reviews; builders take builds'] }));
     const presenceProblem = liveRouteProblem(board, agentId, { withLocalSeatPresence });
     if (presenceProblem) return reviewResult(empty('unknown', { item: null, reasons: [presenceProblem] }));
     const milestonePriority = milestonePriorities(board);
