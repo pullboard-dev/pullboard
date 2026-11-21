@@ -117,7 +117,8 @@
     "why": "Without it, a regression where add accepts three numbered clauses and refuses a fourth even inside one cell would pass unnoticed.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/add/brief.test.js"
+      "apps/cli/src/io/commands/add.js",
+      "apps/cli/tests/io/commands/add/brief.test.js"
     ]
   },
   "cli.journeys-add-brief.add-and-edit-refuse-a-check": {
