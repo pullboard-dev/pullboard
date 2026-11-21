@@ -47,6 +47,15 @@ test('cli.io-commands-status.eligible-ready: clause 1: status readyByRoute count
   const { capacity, capacityForecast, reviewQueue } = json.document;
   assert.deepEqual(capacity.readyByRoute, { mid: 1, strong: 1 });
   assert.equal(capacity.readyItems, 2);
-  const builders = capacity.readyItems + Math.ceil((reviewQueue.pending ?? 0) / 20);
-  assert.equal(capacityForecast.agents.recommended, capacityForecast.available ? builders : null);
+});
+
+test('cli.io-commands-status.eligible-recommended: clause 2: status recommends the eligible ready count plus one reviewer per 20 pending reviews, rounded up [C7,#12567]', async (t) => {
+  const box = await fixture(t);
+  for (const title of ['First eligible', 'Second eligible']) box.add(title, { brief: `Files: web/${title.split(' ')[0]}.js\nTest: the real status command recommends from eligibility.` });
+  const json = await cli(box, box.root, ['status']);
+  assert.equal(json.code, 0, json.out + json.err);
+  const { capacity, capacityForecast, reviewQueue } = json.document;
+  assert.equal(capacity.readyItems, 2);
+  assert.equal(capacityForecast.available, true, JSON.stringify(capacityForecast).slice(0, 300));
+  assert.equal(capacityForecast.agents.recommended, capacity.readyItems + Math.ceil((reviewQueue.pending ?? 0) / 20));
 });
