@@ -84,10 +84,10 @@ function cleanHead(root) {
 }
 
 /** The census plan, cut by each file's measured seconds (the previous census's rows, then the recorded time) unless census.jobMinutes decides; the dispatcher and the row writer both cut it here so a label names the same files [C7]. */
-const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, false, (list = files) => rowPackedJobs(list, count, PRIOR.get(root) ?? [], times), timed ? jobMinutesFor(root) : null, censusSoloFileSeconds()); };
+const cutPlan = (root, files, count, timed = true) => { const times = TIMING.get(root) ?? readFileTimes(root); return censusPlan(files, count, times, false, (list = files) => rowPackedJobs(list, count, [], times), timed ? jobMinutesFor(root) : null, censusSoloFileSeconds()); };
 
-/** The rows of the newest earlier census for each checkout, read before this run empties its own file [C7]. */
-const PRIOR = new Map();
+/** One accepted timing map shared by both census planners for each checkout [C7]. */
+const TIMING = new Map();
 /** The job length a self-tuning census chose for each checkout, so the dispatcher and the row writer cut the same plan [C7,U151]. */
 const TUNED = new Map();
 const jobMinutesFor = root => censusJobMinutes() ?? TUNED.get(root) ?? null;
@@ -107,6 +107,12 @@ export function earlierCensusRows(dir, out) {
   const rows = [];
   try { for (const line of readFileSync(newest.path, 'utf8').split('\n')) { if (line) { try { rows.push(JSON.parse(line)); } catch { /* a torn line is skipped */ } } } } catch { return null; }
   return rows;
+}
+
+/** Prior report times override the recorded table; files absent from that report retain their recorded time [C7]. */
+export function censusTimingInputs(dir, out, recorded = {}) {
+  const rows = earlierCensusRows(dir, out) ?? [];
+  return { rows, times: { ...recorded, ...rowFileTimes(rows) } };
 }
 
 /**
@@ -255,9 +261,11 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run, c
   const out = resolve(root, values.out ?? join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
   mkdirSync(dirname(out), { recursive: true });
   // Read the earlier census before this run empties its own file.
-  const tuned = censusJobMinutesFrom(join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out);
+  const reportDir = dirname(out);
+  const tuned = censusJobMinutesFrom(reportDir, out);
   if (tuned) TUNED.set(root, tuned); else TUNED.delete(root);
-  PRIOR.set(root, earlierCensusRows(join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out) ?? []);
+  const { times } = censusTimingInputs(reportDir, out, readFileTimes(root));
+  TIMING.set(root, times);
   // Opt-in: files whose declared inputs did not change since a green earlier census keep that row, marked carried [C7,#10383].
   const carry = censusSkipUnchangedEnabled() ? censusCarry(root, { files: everyFile, sha, dir: join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out }) : { run: everyFile, carried: [], from: null };
   const files = carry.run;
