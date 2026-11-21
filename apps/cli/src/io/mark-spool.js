@@ -1,4 +1,5 @@
 /** The mark spool: a mark the board refused as busy or unreachable waits in one local file and is replayed, in order and with its original time, by the next mark that writes [C7,#12158]. */
+import { randomUUID } from 'node:crypto';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileSystemAdapter } from '../../../../packages/fs/index.js';
@@ -84,4 +85,31 @@ export async function replaySpool(boardFile, board, write) {
   }
   fs.writeFile(file, '');
   return written;
+}
+
+/** The real mark write: one appendMark through the board's ordered writer. */
+async function orderedMark(ctx, board, { item, id, agentId, stage, edge, reason, ref, at }) {
+  const { ordered } = await import('./claim.js');
+  await ordered(ctx, board, 'appendMark', [item, { id, agentId, stage, edge, reason, ref, at }]);
+}
+
+/**
+ * Record one mark for a command that is not `pullboard mark`: one append, no scan, and a failed write spools the mark instead of failing the caller.
+ * Why: the claim and test paths write marks on the board's own account, so a busy board must never fail them (#12158 spool).
+ *
+ * @param {any} io The command's io; `io.markWriter` replaces the real write when a caller injects one.
+ * @param {any} ctx
+ * @param {any} board An open board.
+ * @param {{ item: number, agentId: string, stage: string, edge: string, reason?: string|null, ref?: string|null, at: number }} mark
+ * @returns {Promise<boolean>} true when the board took the mark, false when it was spooled.
+ */
+export async function recordMark(io, ctx, board, { item, agentId, stage, edge, reason = null, ref = null, at }) {
+  const line = { id: randomUUID(), item, agentId, stage, edge, reason, ref, at };
+  try {
+    await (io.markWriter ?? orderedMark)(ctx, board, line);
+    return true;
+  } catch {
+    spoolMark(ctx.file, line);
+    return false;
+  }
 }

@@ -133,15 +133,17 @@ function bind(table) {
   };
   return Object.freeze({ ...table, name: table.move, outcomes: table.outcomes.map(o => named('outcome', o)), followups: table.followups.map(f => named('followup', f)) });
 }
+/** The children that still block a parent: every open, claimed or submitted child, except a slice while the move says composeLanding (the landing composes it). */
+const unfinishedChildren = (s, m) => s.children.filter(c => ['open', 'claimed', 'submitted'].includes(c.status) && !(m.composeLanding === true && c.slice === true));
 /** Board guards both the pre-gate dry run and the post-gate write check (moveItem's submit guards, in order). */
 function boardGuards(phase) {
   return [
     ioGuard(`${phase}:builder-family`, 'familyProblem', 'a strict item is submitted by a builder with a declared vendor family'),
     guard(`${phase}:outside`, 'OUTSIDE_NATIVE_BUILD', 'an outside PR item stays with its author', s => s.item.outside === 'pull-request',
       (s, m) => `outside item #${m.id} stays with its PR author; ask the coordinator to return it, then intake the author's new exact head`),
-    guard(`${phase}:children`, 'CHILDREN_OPEN', 'a parent is submitted only once its children are finished',
-      s => s.children.some(c => ['open', 'claimed', 'submitted'].includes(c.status)),
-      (s, m) => `item #${m.id} has ${s.children.filter(c => ['open', 'claimed', 'submitted'].includes(c.status)).length} unfinished child items`),
+    guard(`${phase}:children`, 'CHILDREN_OPEN', 'a parent is submitted only once its children are finished; with composeLanding its slices ride along',
+      (s, m) => unfinishedChildren(s, m).length > 0,
+      (s, m) => `item #${m.id} has ${unfinishedChildren(s, m).length} unfinished child items`),
     guard(`${phase}:head-new`, 'HEAD_NOT_NEW', 'rework comes back only at a new head', (s, m) => headSeen(s, m.commit ?? s.io.head?.commit),
       (s, m) => `#${m.id} already has a submission at ${String(m.commit ?? s.io.head?.commit).slice(0, 12)}; commit the rework first`),
   ];
