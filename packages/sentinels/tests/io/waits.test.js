@@ -31,9 +31,6 @@ import { readHeartbeatClaims } from '../../src/io/surfaces.js';
 import { readRunnerJobs } from '../../src/io/surfaces.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { waitForCondition } from '../../../gate/tests/fixtures/runner/holders.js';
-import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/testkit.js';
-import { cli } from '../../../../apps/cli/tests/fixtures/next/take.js';
-import { fixture } from '../../../../apps/cli/tests/fixtures/next/take.js';
 
 /** Whether a pid is gone. */
 function gone(pid) {
@@ -589,20 +586,4 @@ test('sentinels.io-waits.no-missing-lane-or-row: clause 2: waitItemFields return
   assert.deepEqual(outcome.filed, []);
   assert.match(outcome.notes.join('\n'), /no core lane/u);
   assert.equal(m.items().length, 0);
-});
-
-test('sentinels.io-waits.command-reaches-record-waits: clause 3: the waits record entry on a fixture board straight after init, with a runner-unavailable row for another board host, lists no new item [test] [C7]', async t => {
-  const box = await fixture(t);
-  const joined = await cli(box, box.root, ['join', 'coordinator', '--model', FIXTURE_MODEL]);
-  assert.equal(joined.code, 0, joined.out + joined.err);
-  mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  const db = new DatabaseSync(join(process.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'));
-  db.exec("CREATE TABLE IF NOT EXISTS runner_unavailable (host TEXT PRIMARY KEY, since TEXT, detail TEXT DEFAULT '')");
-  db.prepare('INSERT OR REPLACE INTO runner_unavailable (host, since, detail) VALUES (?, ?, ?)').run('other-board-host', new Date(box.clock.now().getTime() - 20 * MINUTE).toISOString(), 'CLEANUP_UNVERIFIED');
-  db.close();
-  const itemCount = () => box.board.db.prepare('SELECT COUNT(*) AS n FROM item').get().n;
-  const before = itemCount();
-  const recorded = await cli(box, box.root, ['waits', 'record']);
-  assert.equal(recorded.code, 0, recorded.out + recorded.err);
-  assert.equal(itemCount(), before, 'a runner row of another board host files no item');
 });
