@@ -625,6 +625,19 @@ export function worktreeStatus(root) {
 }
 
 /**
+ * This command's one list of a worktree's edited and untracked paths. A reader that kept an earlier answer supplies it
+ * through `read`; the first reader's answer is shared by every later reader in the command, so a kept answer is not
+ * contradicted by a fresh status [C7,#10859].
+ *
+ * @param {string} root
+ * @param {() => string[]} [read] - Defaults to this command's status.
+ * @returns {string[]}
+ */
+export function worktreePaths(root, read = () => { const { changed, untracked } = statusPaths(worktreeStatus(root)); return [...changed, ...untracked]; }) {
+  return commandObservation(JSON.stringify(['worktree-paths', resolve(root)]), read);
+}
+
+/**
  * Split a porcelain v1 -z status into the paths it changes, both sides of a rename or copy, and its untracked paths.
  *
  * @param {Buffer | string} status

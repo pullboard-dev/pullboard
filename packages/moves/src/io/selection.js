@@ -45,6 +45,7 @@ import { headCommit } from '../../../git/index.js';
 import { resolveCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
+import { worktreePaths } from '../../../git/index.js';
 import { checkoutHead } from '../../../git/index.js';
 import { checkoutIndexFile } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
@@ -101,11 +102,11 @@ export function warmFiles(ctx, board, me, { dirtyFiles }) {
   const recent = board.db.prepare(WARM_ITEMS_SQL).all(me.id).flatMap((item) => store.itemFiles(item));
   // One next reads this seat's edits once, however many of its steps warm from them; an unchanged checkout reuses the last read [C7,#10859].
   const named = [...recent, ...board.db.prepare(OPEN_LANE_FILES_SQL).all(me.lane).flatMap((item) => store.itemFiles(item))];
-  const dirty = cachedDirtyPaths(ctx.info.root, named, () => {
+  const dirty = worktreePaths(ctx.info.root, () => cachedDirtyPaths(ctx.info.root, named, () => {
     // The command's shared status names the same edited and untracked paths as status --porcelain, without its quoting.
     try { const { changed, untracked } = statusPaths(worktreeStatus(ctx.info.root)); return [...changed, ...untracked]; }
     catch { return commandObservation(JSON.stringify(['dirty-files', ctx.info.root]), () => dirtyFiles(ctx.info.root)); }
-  });
+  }));
   return [...new Set([...recent, ...dirty])];
 }
 
