@@ -27,7 +27,7 @@ export function milestoneRowHtml(row, presentation = {}) {
   const key = 'i:' + row.label;
   const labels = { building: 'Building', ready: 'Ready', review: 'In review', back: 'Sent back', accepted: 'Verified', landed: 'Merged' };
   const tones = { building: 'busy', ready: 'free', review: 'warn', back: 'no', accepted: 'ok', landed: 'ok' };
-  const status = presentation.stateChipHtml ?? (row.held ? heldChip(row.held) : '<span class="chip ' + tones[stage] + ' roadmap-stage-chip">' + labels[stage] + '</span>') + (row.judgement ? judgementChip(row.judgement) : '');
+  const status = (presentation.stateChipHtml ?? (row.held ? heldChip(row.held) : '<span class="chip ' + tones[stage] + ' roadmap-stage-chip">' + labels[stage] + '</span>')) + (row.judgement ? judgementChip(row.judgement) : '');
   const inner = place + icon + '<span class="t">' + text + (row.stageHtml ? '' : row.stale || '') + '</span><span class="roadmap-status">' + status + '</span>';
   const board = row.open && row.open.root !== root ? ' data-board="' + esc(row.open.root) + '"' : '';
   const toggle = 'class="milestone-item' + (row.block?.dot ? ' blocked' : '') + '" data-roadmap-key="' + esc(key) + '" aria-expanded="' + open + '"' + board + ' title="' + esc(row.title ? row.title + (!row.open && row.why ? ' (' + row.why + ')' : '') : row.why) + '"';

@@ -24,4 +24,9 @@ test('view.held.judgement-chip-on-roadmap: clause 2: the roadmap row shows the c
   assert.equal(milestoneRowHtml({ ...row, judgement: null }), plain);
   assert.doesNotMatch(plain, /judgement/u);
   assert.equal(marked.replace(/<span class="chip warn judgement"[^>]*>judgement<\/span>/u, ''), plain);
+  // The production caller (cockpit roadmap) always supplies stateChipHtml; the chip must still show beside it.
+  const stage = { stateChipHtml: '<span class="chip busy">Building</span>' };
+  const staged = milestoneRowHtml({ ...row, judgement: note }, stage);
+  assert.match(staged, /<span class="chip busy">Building<\/span><span class="chip warn judgement" title="needs a judgement: RED_TWICE/u);
+  assert.equal(milestoneRowHtml({ ...row, judgement: null }, stage), milestoneRowHtml(row, stage));
 });
