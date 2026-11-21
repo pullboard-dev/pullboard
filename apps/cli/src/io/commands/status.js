@@ -16,6 +16,7 @@ import { foreignBlockers } from '../../../../../packages/items/light.js';
 import { readReceivedBoardState } from '../../../../../packages/store/light.js';
 import { relayMachineDirectory } from '../../../../../packages/store/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
+import { readThinCommands } from '../../../../../packages/config/light.js';
 import { withBoardRead } from '../board/read.js';
 import { fallbackReclaim } from '../reclaim.js';
 import { statusClock } from '../status/clock.js';
@@ -80,6 +81,8 @@ export async function run(io, { values }) {
   const { runnerDeadlineLine } = await import('../../../../../packages/resources/index.js');
   // Status does not load the library root that binds the runner; unbound, its coverage fingerprint never matches the writer's.
   bindProofRunner(fileURLToPath(new URL('../run/tests.js', import.meta.url)));
+  // With read.thinCommands on, the thin door is asked first; this slice has no printing half, so a served board and a null both take the full path below and the output is unchanged [C7,#12743].
+  if (readThinCommands()) await (await import('../status/thin.js')).thinStatusFacts({ cwd: ctx.info.root, clock: ctx.clock });
   const hasRelayState = relayStateExists(ctx.info.commonDir);
   if (hasRelayState) await io.prepareProcessPorts?.();
   const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;

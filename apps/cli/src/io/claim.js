@@ -292,8 +292,11 @@ function dropsLegacyPolicyPin(board, id, agentId) {
 
 /** Order a claim on every route (claim, next, run) only after a check green on main is not held, the bar's paths exist and its files are its lane's [V4,C7]. */
 export async function claimOrdered(ctx, board, args) {
+  ctx.io.nextPhase?.('claim proves-nothing guard', args[0]);
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
+  ctx.io.nextPhase?.('claim missing-paths guard', args[0]);
   await refuseClaimMissingPaths(ctx, board, args[0]);
+  ctx.io.nextPhase?.('claim policy and ownership guards', args[0]);
   const refreshPolicy = dropsLegacyPolicyPin(board, args[0], args[1].agentId);
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
   const returnedRework = store.lineSettings(board).reworkSameFamily === true && isReturnedRework(board, args[0]);
@@ -311,27 +314,33 @@ export async function claimOrdered(ctx, board, args) {
     if (refusal) throw refusal;
   }
   // A budget at its stop line refuses a new claim only; a claim the seat already holds renews, so nothing stops mid-item [N2].
+  ctx.io.nextPhase?.('claim budget guard', args[0]);
   if (!(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
     const { budgetClaimRefusal, machineBudgetState } = await import('../../../../packages/stats/light.js');
     const refusal = budgetClaimRefusal(machineBudgetState(board, Date.now()));
     if (refusal) throw refusal;
   }
   const estimate = held.item_expected_build_minutes;
+  ctx.io.nextPhase?.('claim worktree snapshot', args[0]);
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
   const seat = store.agentById(board, args[1].agentId);
   const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers) : null;
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
+  ctx.io.nextPhase?.('claim admission', args[0]);
+  const admission = store.claimAdmission(board, args[0], args[1].agentId, perSeat, { runs: store.boardRunsReader(board, ctx.file) });
+  ctx.io.nextPhase?.('claim ordered move', args[0]);
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules: sealExitCheckpoints(ctx.config, exitRules), exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     ...(routeCap ? { routeCap } : {}), ...(nextLightShapedStrong() && lightShaped(held) ? { shapedStrong: true } : {}), ...(perSeat === null ? {} : { perSeat }),
     // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
-    ...store.claimAdmission(board, args[0], args[1].agentId, perSeat, { runs: store.boardRunsReader(board, ctx.file) }),
+    ...admission,
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   // seat.checkpoints (off by default): a fresh claim records what is left to build; a renewal or a correction re-claim records nothing [C7,#8549].
+  ctx.io.nextPhase?.('claim checkpoint', args[0]);
   if (!result.renewed && !adoptCorrection && !refreshPolicy) await recordCheckpoint(ctx, board, { item: args[0], agent: args[1].agentId, moment: 'claim', parts: { left: [`build #${args[0]}: ${held.item_title}`], evidence: args[1].head ? [`claim head ${args[1].head}`] : [] } }, ordered);
   return result;
 }
