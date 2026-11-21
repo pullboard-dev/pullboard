@@ -45,8 +45,8 @@ import { loadSpec } from '../../../../packages/spec/index.js';
 import { gateFiles } from '../../../../packages/spec/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { rigorDraftNeeds } from '../../../../packages/rigor/index.js';
-import { sentinelDraftNeeds } from '../../../../packages/sentinels/index.js';
-import { sentinels } from '../../../../packages/sentinels/index.js';
+import { sentinelDraftNeeds } from '../../../../packages/store/index.js';
+import { sentinels } from '../../../../packages/store/index.js';
 import { publicLiveRunners } from './live/read.js';
 import { readGateJobs } from './dashboard/gates.js';
 
