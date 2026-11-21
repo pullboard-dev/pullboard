@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { personNeeds } from '../../../../../../packages/spec/light.js';
 import { heldNote } from '../../../../src/io/held.js';
-import { heldChip, judgementChip, judgementNote } from '../../../../src/io/held.js';
+import { heldChip } from '../../../../src/io/held.js';
+import { judgementChip } from '../../../../src/io/held.js';
+import { judgementNote } from '../../../../src/io/held.js';
 
 test('view.needs-summary-data.only-person-owned-blocks-become-calls-grouped: only person-owned blocks become calls, grouped by command with the latest observed reason [N26,B26,C7]', () => {
   const state = { blocks: [
