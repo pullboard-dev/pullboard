@@ -255,3 +255,27 @@ test('cli.journeys-speed-release-median.profile-by-git-call: clause 1: [C7] the 
   console.log(`# release by-git-call median ${median(samples).toFixed(0)} ms (${samples.map((ms) => ms.toFixed(0)).join(', ')})`);
   for (const { argv, caller, ms, count } of top) console.log(`# ${(ms / RUNS).toFixed(1)} ms per release git ${argv} ${caller} (${(count / RUNS).toFixed(1)} calls per release)`);
 });
+
+test('cli.journeys-speed-release-median.counted-git-children: clause 1: [C7] each timed release starts no git worktree list and no status --no-optional-locks, and runs status --ignored=matching only for a folder it removes', async (t) => {
+  const box = largeBoard(t);
+  const db = new DatabaseSync(box.board, { readOnly: true });
+  const ids = db.prepare("SELECT item_id AS id FROM item WHERE item_title LIKE 'Seeded item %' ORDER BY item_id LIMIT ?").all(RUNS).map((row) => Number(row.id));
+  db.close();
+  assert.equal(ids.length, RUNS);
+  for (const id of ids) {
+    const claimed = await box.inProcess(box.web, 'claim', String(id), '--no-next');
+    assert.equal(claimed.code, 0, `claim ${id}: ${claimed.err}${claimed.out}`);
+    let released;
+    const rows = await timeGitCalls(async () => {
+      released = await box.inProcess(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next');
+    });
+    assert.equal(released.code, 0, `release ${id}: ${released.err}${released.out}`);
+    const argvs = rows.map((row) => row.argv);
+    assert.deepEqual(argvs.filter((argv) => /(^|\s)worktree list(\s|$)/u.test(argv)), [], `release ${id} starts no worktree list`);
+    assert.deepEqual(argvs.filter((argv) => argv.includes('--no-optional-locks')), [], `release ${id} starts no status --no-optional-locks`);
+    const ignored = argvs.filter((argv) => argv.includes('--ignored=matching')).length;
+    const removed = argvs.filter((argv) => /(^|\s)worktree remove(\s|$)/u.test(argv)).length;
+    assert.ok(removed >= 1, `release ${id} removes its idle seat folder`);
+    assert.ok(ignored <= removed, `release ${id} runs status --ignored=matching ${ignored} times for ${removed} removed folders`);
+  }
+});
