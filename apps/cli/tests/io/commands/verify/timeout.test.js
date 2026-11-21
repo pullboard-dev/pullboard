@@ -1,7 +1,8 @@
 /** Verify holds a frozen check to its configured landing.timeout ceiling [C7,V18]. */
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync } from '../../../fixtures/child.js';
-import { mkdirSync, symlinkSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import {
   readFileSync,
   writeFileSync,
