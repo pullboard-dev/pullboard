@@ -12,7 +12,7 @@ export {
  * A raise site that knows more (an item id, a commit, a path) says so in its message or passes its
  * own step to Refused; this table is the step a refusal falls back to when it does neither, so no
  * refusal ends without one. Each step is a command or an action that gets past the rule, never a
- * step that leads straight back to the same refusal. apps/cli/journeys/submit/steps.test.js checks that
+ * step that leads straight back to the same refusal. apps/cli/tests/io/submit/steps.test.js checks that
  * every code raised in src/ has a row here.
  */
 import { Refused } from '../../../../../packages/kernel/index.js';

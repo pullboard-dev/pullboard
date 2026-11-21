@@ -700,7 +700,7 @@
         "spawns a child process (apps/cli/journeys/resume/e2e-more.test.js)"
       ]
     },
-    "apps/cli/journeys/gate/slot.test.js": {
+    "apps/cli/tests/io/commands/gate/slot.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -710,7 +710,7 @@
         "sync"
       ],
       "reasons": [
-        "drives a browser (apps/cli/journeys/gate/slot.test.js)",
+        "drives a browser (apps/cli/tests/io/commands/gate/slot.test.js)",
         "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
         "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
@@ -876,7 +876,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/view/e2e-doctrine.test.js": {
+    "apps/cli/tests/io/commands/view/e2e-doctrine.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -1092,7 +1092,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/help/main.test.js": {
+    "apps/cli/tests/io/commands/help.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -1811,7 +1811,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/submit/steps.test.js": {
+    "apps/cli/tests/io/submit/steps.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -2451,7 +2451,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/companion/companions/review.test.js": {
+    "apps/cli/tests/io/commands/companion/review.test.js": {
       "cells": [
         "app:lib",
         "kernel",

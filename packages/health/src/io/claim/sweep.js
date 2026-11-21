@@ -9,6 +9,12 @@ import { getItem } from '../../../../store/index.js';
 import { insertShout } from '../../../../store/index.js';
 import { closeFinishedAsks } from '../../../../store/index.js';
 import { withLocalSeatPresence } from '../../../../store/index.js';
+import { withSeatPresence } from '../../../../store/index.js';
+import { readBoardMeta } from '../../../../store/index.js';
+import { writeBoardMeta } from '../../../../store/index.js';
+import { deleteBoardMeta } from '../../../../store/index.js';
+import { listBoardMetaWithPrefix } from '../../../../store/index.js';
+import { claimFolderCommitAt } from './activity.js';
 import { planClaimWatchdog } from '../../../../seats/index.js';
 import { WATCHDOG_GRACE_MS } from '../../../../seats/index.js';
 import { staleStateSnapshot } from '../stale/state/snapshot.js';
@@ -124,6 +130,55 @@ function noteSweepTick(board, now) {
   });
 }
 
+/** A claim whose seat shows no sign of life for this long is silent; a stall cannot explain an hour of it. */
+export const CLAIM_SILENT_MS = 60 * 60_000;
+
+/** The board_meta key that holds one claim's silence count. */
+const silenceKey = id => `claim_silence:${id}`;
+
+/** One claim's silence count as {episode, since, sweeps}, or null when the seat is not counted silent. */
+export function readClaimSilence(board, id) {
+  const value = readBoardMeta(board.db, silenceKey(id));
+  try { return value ? JSON.parse(value) : null; } catch { return null; }
+}
+
+/**
+ * Count, once per sweep, the consecutive sweeps each claim's seat has shown no sign of life for an hour: no heartbeat, no
+ * board event it wrote and no commit in the item folder since the claim began. The count lives in board_meta, so it survives
+ * sweeps and processes, restarts with each new claim episode and disappears on any sign of life or when the claim ends.
+ * It releases nothing; the release rule reads the count through readClaimSilence.
+ * @param {number} now - The sweep's instant in milliseconds.
+ */
+export function recordClaimSilence(board, items, now, ports = {}) {
+  const claimed = items.filter(item => item.item_status === 'claimed' && item.item_owner);
+  const seats = new Map((ports.seats ?? withSeatPresence)(board, [...new Set(claimed.map(item => item.item_owner))].map(agent_id => ({ agent_id })))
+    .map(seat => [seat.agent_id, seat]));
+  const commitAt = ports.commitAt ?? claimFolderCommitAt;
+  const silent = new Map();
+  for (const item of claimed) {
+    const owner = item.item_owner;
+    const episode = board.db.prepare("SELECT event_id,event_at FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(item.item_id, owner);
+    if (!episode) continue;
+    const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(owner)?.agent_path;
+    const seen = [episode.event_at, seats.get(owner)?.heartbeatAt,
+      board.db.prepare('SELECT max(event_at) AS at FROM event WHERE event_by=?').get(owner)?.at,
+      path ? commitAt(path, item.item_id, now) : null].map(value => Date.parse(value ?? '')).filter(Number.isFinite);
+    const last = Math.max(...seen);
+    if (now - last >= CLAIM_SILENT_MS) silent.set(item.item_id, { episode: episode.event_id, since: new Date(last).toISOString() });
+  }
+  atomic(board, () => {
+    for (const { key } of listBoardMetaWithPrefix(board.db, 'claim_silence:')) {
+      if (!silent.has(Number(key.slice('claim_silence:'.length)))) deleteBoardMeta(board.db, key);
+    }
+    for (const [id, found] of silent) {
+      const before = readClaimSilence(board, id);
+      const sweeps = before?.episode === found.episode ? before.sweeps + 1 : 1;
+      writeBoardMeta(board.db, silenceKey(id), JSON.stringify({ episode: found.episode, since: before?.episode === found.episode ? before.since : found.since, sweeps }));
+    }
+  });
+  return silent;
+}
+
 /**
  * Record every claimed worktree's changed files, then apply the idle, stalled and returned-claim checks that read
  * those worktrees. Why here: the person's rule (#2427) is that a board command does only its own job, so this runs
@@ -134,6 +189,8 @@ export async function sweepClaims(ctx, board, actor, ordered, ports = {}) {
   const agents = ports.agents ?? listAgents(board);
   (ports.recordClaimWorktrees ?? recordClaimWorktrees)(board, items, agents, { now: ctx.clock.now() });
   ctx.sweepGapMs = noteSweepTick(board, ctx.clock.now().getTime());
+  // The count the stall release reads (#12091); a failed count is taken again on the next sweep.
+  try { (ports.recordClaimSilence ?? recordClaimSilence)(board, items, ctx.clock.now().getTime(), ports.silence); } catch { /* the next sweep counts again */ }
   const snapshot = (ports.captureLapsedClaims ?? captureLapsedClaims)(ctx, board, actor);
   // The sentinel posts as itself, so each shout records the model of the seat whose sweep sent it [I13].
   const model = agents.find(agent => agent.agent_id === actor)?.agent_model ?? 'unknown';

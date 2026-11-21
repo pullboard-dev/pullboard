@@ -402,6 +402,15 @@ test('the README starts setup with your agent [I1]', () => {
   assert.ok(setup.includes('`init` writes your spec, doctrine and agent instructions, and installs the hooks and the board. Commit what it wrote, then open Claude Code in the repo and say what to build. That agent becomes your coordinator.'), 'the manual explanation remains unchanged');
 });
 
+test('the README upgrade note names the repairs doctor reports after an upgrade from 0.9.3 [I1,I11]', () => {
+  const note = README.split(/\r?\n/u).find((line) => line.startsWith('Upgrading from 0.9.3?'));
+  assert.ok(note, 'the README has an upgrade note');
+  assert.ok(note.includes('`pullboard inbox`'), 'the note names inbox, which repairs the changed board triggers');
+  assert.ok(note.includes('`pullboard init`'), 'the note names init, which rewrites the hooks');
+  assert.ok(note.includes('`.githooks`'), 'the note says to commit the rewritten hooks');
+  assert.ok(note.indexOf('`pullboard inbox`') < note.indexOf('`pullboard init`'), 'inbox comes before init');
+});
+
 test('README is concise and skimmable without removing its instructions or figures [I10,I12]', () => {
   const lines = README.split(/\r?\n/u);
   let insideFence = false;

@@ -500,7 +500,9 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `person_signing` | enabling agent, or person | engine-76 `signed`, `request`, `presence`, `intent` |
 | `person_proposal` | proposing agent | engine-76 `request`, `verb` |
 | `source_advanced` | coordinator | Exact checked source and native receipt custody: `version`, `board`, `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, `episode`, `reviewEpisode`, `reviewBy`, `reviewUntil`, `verdict`, `head`, `tree`, `mergeTree`, `paths`, `generated`, `selectionDigest`, `phases`. |
+| `next-finished` | idle seat | `version`, `engine`, `lane` (a seat that finished its loop, once per seat) |
 | `next-idle` | idle seat | `version`, `engine`, `reason` (structured next observation; absent historical reasons stay unknown) |
+| `next-idle-timeout` | idle seat | `version`, `engine`, `lane`, `minutes`, `awaited` (a next call that gave up waiting) |
 | `review-default` | board | Review-policy migration: `engine`, `count`, `unfinished`. |
 | `coordinator-usage` | coordinator | `session`, `observedAt`, `records`, `estimate` (one coordinator session's usage, kept under the board key coordinator:session with no item) |
 <!-- events:end -->
