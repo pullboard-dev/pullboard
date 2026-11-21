@@ -1,0 +1,47 @@
+{
+  "cli.io-cells-reorg.plan-files-name-no-reorg": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "cellsReorgReason gives null for plan shard and plan-data edits and still names a path-map change."
+    },
+    "why": "Reorg work is named from the title, path map and shims only, so plan files need no reads at submit.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/cells-reorg.js",
+      "apps/cli/src/io/cells-submit-checks.js",
+      "apps/cli/tests/io/cells-reorg.test.js"
+    ]
+  },
+  "cli.io-cells-reorg.no-plan-readers": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "cells-reorg.js has no plan-reading functions."
+    },
+    "why": "Reorg work is named from the title, path map and shims only, so plan files need no reads at submit.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/cells-reorg.js",
+      "apps/cli/src/io/cells-submit-checks.js",
+      "apps/cli/tests/io/cells-reorg.test.js"
+    ]
+  },
+  "cli.io-cells-reorg.submit-checks-call-without-plan-rows": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The submit cells check calls cellsReorgReason without plan rows or readData."
+    },
+    "why": "Reorg work is named from the title, path map and shims only, so plan files need no reads at submit.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/cells-reorg.js",
+      "apps/cli/src/io/cells-submit-checks.js",
+      "apps/cli/tests/io/cells-reorg.test.js"
+    ]
+  }
+}

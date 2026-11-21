@@ -14,6 +14,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { cellInventory } from '../../../../../packages/codemap/index.js';
+import { cellOf } from '../../../../../packages/codemap/index.js';
+import { verificationOrder } from '../../../../../packages/codemap/index.js';
 import { testFile } from '../../../../../packages/codemap/index.js';
 import { inPlanScope } from '../../../../../packages/codemap/index.js';
 import { readPathMap } from '../../../../../packages/codemap/index.js';
@@ -122,7 +124,13 @@ test('cli.journeys-fact-plan-cells.the-plan-places-every-tracked-module: the pla
 test('cli.journeys-fact-plan-cells.no-cell-is-ordered-ahead-of: no cell is ordered ahead of a cell it imports, computed from the real source, except the cuts it names [D3,CD64]', () => {
   const { edges } = cellInventory(ROOT, { importsIn, commonJsIn });
   const index = cellIndex(PLAN, readPathMap(ROOT));
-  const position = new Map(PLAN.cells.map(cell => [cell.name, cell.order]));
+  const names = new Set(PLAN.cells.map(cell => cell.name));
+  for (const [file, rows] of edges) for (const path of [file, ...rows.map(row => row.target)]) {
+    const root = cellOf(path);
+    const name = root?.startsWith('apps/') ? `app:${root.slice(5)}` : root?.startsWith('packages/') ? root.slice(9) : null;
+    if (names.has(name)) index.set(path, name);
+  }
+  const position = new Map(verificationOrder(PLAN, edges).map((name, index) => [name, index]));
   const cuts = new Set(PLAN.cells.flatMap(cell => cell.cuts.map(row => `${row.cell}->${cell.name}`)));
   const ahead = new Set();
   let checked = 0;
@@ -136,11 +144,14 @@ test('cli.journeys-fact-plan-cells.no-cell-is-ordered-ahead-of: no cell is order
   const crossCellEdges = [...edges].flatMap(([file, rows]) => testFile(file) ? []
     : rows.filter(({ target }) => !testFile(target) && index.has(file) && index.has(target) && index.get(file) !== index.get(target)));
   assert.ok(crossCellEdges.length > 0, 'the real inventory contains cross-cell imports');
+  assert.ok(edges.get('packages/api/src/io/main.js')?.some(row => row.target === 'packages/health/index.js')
+    && index.get('packages/api/src/io/main.js') === 'api' && index.get('packages/health/index.js') === 'health',
+  'the real api to health front-door import has both owners');
   assert.equal(checked, crossCellEdges.length, 'the order check visits every cross-cell import in the inventory');
-  assert.deepEqual([...ahead], [], 'name the import as a cut of the later cell, or regenerate with node packages/codemap/src/io/cells/scripts/plan.js --write');
+  assert.deepEqual([...ahead], [], 'the computed order must place each uncut dependency first');
   for (const cell of PLAN.cells) {
-    for (const name of cell.item?.after ?? []) assert.ok(position.get(name) < cell.order, `${cell.name} waits only on earlier cells`);
-    if (!cell.name.startsWith('app:')) assert.ok(PLAN.cells.filter(other => other.name.startsWith('app:')).every(app => app.order > cell.order), `package ${cell.name} moves before every app`);
+    for (const name of cell.item?.after ?? []) assert.ok(position.get(name) < position.get(cell.name), `${cell.name} waits only on earlier cells`);
+    if (!cell.name.startsWith('app:')) assert.ok(PLAN.cells.filter(other => other.name.startsWith('app:')).every(app => position.get(app.name) > position.get(cell.name)), `package ${cell.name} moves before every app`);
   }
 });
 

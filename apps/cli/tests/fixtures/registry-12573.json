@@ -1,0 +1,38 @@
+{
+  "cli.io-test-pull.runner-dispatch-keeps-affected-diagnose-and-focused-runs-on-runners": {
+    "proves": {
+      "specs": ["C7", "P7"],
+      "claim": "Pull dispatch selects runner jobs for affected, focused diagnosis and ordinary focused test runs."
+    },
+    "why": "Builder test execution should use a free runner for each of these selections.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/test/pull.js"]
+  },
+  "cli.io-test-pull.runner-job-keeps-candidate-item-and-interactive-priority": {
+    "proves": {
+      "specs": ["C7", "P7"],
+      "claim": "A pulled test job carries the requested candidate and item and has interactive priority."
+    },
+    "why": "Interactive test proof must be attributed to the requested item and commit.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/test/pull.js"]
+  },
+  "cli.io-test-pull.queued-diagnose-reaches-its-worker": {
+    "proves": {
+      "specs": ["C7", "P7"],
+      "claim": "The queued test record and launched worker command retain the focused diagnosis flag."
+    },
+    "why": "Moving diagnosis off the host must preserve the caller's diagnosis request.",
+    "kind": "cell unit",
+    "inputs": ["packages/drive/src/io/queue.js"]
+  },
+  "cli.io-test-pull.diagnose-labels-clipped-receipt-output": {
+    "proves": {
+      "specs": ["C7", "P7"],
+      "claim": "Pulled diagnosis preserves the red diagnostic text and marks when the signed receipt contains only a clipped tail."
+    },
+    "why": "Runner-side diagnosis must preserve useful failure detail without mistaking a bounded receipt for the whole output.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/test/pull.js"]
+  }
+}

@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { cellsInventoryJob } from '../../../../../packages/drive/index.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
-import { readAcceptedCells } from '../../../../../packages/gate/index.js';
-import { recordAcceptedCellsFailure } from '../../../../../packages/gate/index.js';
-import { toolingIsPinned } from '../../../../../packages/gate/index.js';
-import { warmAcceptedCells } from '../../../../../packages/gate/index.js';
+import { readAcceptedCells } from '../../../../../packages/gate/heavy.js';
+import { recordAcceptedCellsFailure } from '../../../../../packages/gate/heavy.js';
+import { toolingIsPinned } from '../../../../../packages/gate/heavy.js';
+import { warmAcceptedCells } from '../../../../../packages/gate/heavy.js';
 import { withMainCheckout } from '../../../../../packages/landing/index.js';
 import { withFileLock } from '../../../../../packages/outbox/index.js';
 

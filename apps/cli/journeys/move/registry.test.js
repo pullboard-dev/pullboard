@@ -147,6 +147,8 @@ test('cli.journeys-move-registry.live-registry-invariants-and-historical-actors:
     ...acceptedExpected,
     tables: {
       ...acceptedExpected.tables,
+      // The current schema adds this nullable column to the historical unanswered shout.
+      shout: acceptedExpected.tables.shout.map(row => ({ ...row, shout_answered_at: null })),
       board_meta: acceptedExpected.tables.board_meta.map(row => row.meta_key === 'relay_engine_version'
         ? { ...row, meta_value: String(ENGINE_VERSION) }
         : row),

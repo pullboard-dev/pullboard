@@ -387,9 +387,10 @@ function lastCommitMs(path) {
 }
 
 /**
- * Claims whose only liveness is a heartbeat loop, and heartbeat loops orphaned or duplicated. A claim breaches when its
- * seat's heartbeat is fresh while its last real activity (any board event by the seat, or a commit in its worktree) is
- * older than the budget. A loop whose parent is gone (ppid 1, or a parent no longer running) is orphaned.
+ * Claims whose only liveness is a heartbeat loop, heartbeat loops orphaned, and loops duplicated in a claimed seat. A
+ * claim breaches when its seat's heartbeat is fresh while its last real activity (any board event by the seat, or a
+ * commit in its worktree) is older than the budget. A loop whose parent is gone (ppid 1, or a parent no longer running)
+ * is orphaned.
  *
  * Why: heartbeat loops kept claims alive after the agents that owned them died; `next` never handed those items on.
  */
@@ -430,7 +431,9 @@ export function readHeartbeatClaims(boardFile, now, census, { cwds = localCwds, 
   finally { db?.close(); presence?.close(); }
   for (const [path, group] of byPath) {
     for (const [index, loop] of group.entries()) {
-      if (!loop.orphaned && index === 0) continue;
+      // A duplicate holds something only where a claimed seat lives. Loops in any other folder, such as an agent's own
+      // scratch workspace, beat no claim, so they are no wait; an orphaned loop is still reported anywhere [C7,#12525].
+      if (!loop.orphaned && (index === 0 || !seats.has(path))) continue;
       rows.push({ surface: 'heartbeat-loop', key: `heartbeat-loop:${seats.get(path) ?? path}`, holder: `pid ${loop.pid} heartbeat loop in ${seats.get(path) ?? path}`,
         pid: loop.pid, ageMs: loop.ageMs, context: doing(census, loop.pid), detail: loop.orphaned ? 'parent gone' : `duplicate: ${group.length} loops in this worktree`,
         waiters: [], evidence: `ps pid ${loop.pid} started ${loop.started}; cwd ${path}`, ...(loop.orphaned ? { orphan: { pid: loop.pid, started: loop.started } } : {}) });

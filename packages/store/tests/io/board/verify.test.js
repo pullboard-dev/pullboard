@@ -87,8 +87,8 @@ function soloItem(board, title, stakes = 'low') {
 }
 
 /** The builder's own verify call, with the sealed review the CLI records and the solo facts as given. */
-function builderVerify(board, id, decision, solo) {
-  board.executionEngineVersion = store.ENGINE_VERSION; // the verify table decides only on a board that runs an engine
+function builderVerify(board, id, decision, solo, live = false) {
+  if (!live) board.executionEngineVersion = store.ENGINE_VERSION; // the verify table decides only on a board that runs an engine
   const item = store.getItem(board, id);
   return store.verify(board, id, { agentId: 'core-1', decision, ...(decision === 'REJECT' ? { reason: 'TEST_FAILURE', clause: CLAUSE } : {}), head: item.item_commit, digest: item.item_frozen_digest,
     note: 'Synthetic solo accept fixture; the check ran red then green on a machine.', ...REVIEW, review: { commit: item.item_commit, head: item.item_commit, trunk: LANDED, paths: [] }, ...solo });
@@ -140,6 +140,30 @@ function verdict(board, id, decision, extra) {
     ? { ...base, note: 'Synthetic isolated-flag fixture accept.' }
     : { ...base, reason: 'TEST_FAILURE', clause: CLAUSE, note: 'Synthetic isolated-flag fixture reject.' });
 }
+
+test('store.io-board-verify.solo-accept-live-board: clause 1: on a live board that carries no execution engine version, the builder accept with every solo low-stakes fact true is admitted and writes its solo-low-stakes-accept event [C7,#966]', t => {
+  const { board } = seeded(t);
+  const id = soloItem(board, 'Solo live');
+  assert.equal(board.executionEngineVersion, undefined, 'the board carries no engine version, as a live board does');
+  assert.equal(builderVerify(board, id, 'ACCEPT', { soloLowStakes: true, rows: LOW, checks: MACHINE }, true).decision, 'ACCEPT');
+  assert.equal(store.getItem(board, id).item_status, 'verified');
+  assert.equal(soloEvents(board, id).length, 1, 'one solo-low-stakes-accept event');
+});
+
+test('store.io-board-verify.solo-refused-live-board: clause 2: on the same live board the builder accept is still refused SELF_VERIFY with the setting off, a team row or an unproved check [C7,#966]', t => {
+  const { board } = seeded(t);
+  const cases = [
+    ['Live flag off', 'low', { soloLowStakes: false, rows: LOW, checks: MACHINE }],
+    ['Live flag absent', 'low', { rows: LOW, checks: MACHINE }],
+    ['Live team row', 'team', { soloLowStakes: true, rows: LOW, checks: MACHINE }],
+    ['Live unproved check', 'low', { soloLowStakes: true, rows: LOW, checks: [{ machineRun: true, redBefore: false, greenAfter: true }] }],
+  ];
+  for (const [title, stakes, solo] of cases) {
+    const id = soloItem(board, title, stakes);
+    assert.throws(() => builderVerify(board, id, 'ACCEPT', solo, true), error => error.code === 'SELF_VERIFY', title);
+    assert.equal(soloEvents(board, id).length, 0, `${title}: no event`);
+  }
+});
 
 test('store.io-board-verify.records-isolated: clause 1: store.verify given isolated true or false records it in board_meta as verdict_isolated:<verdict_id> beside the verdict, for an accept and for a reject, and a verdict given no isolated field writes no such row [C7,#1112]', t => {
   const { board, submitted } = seeded(t);

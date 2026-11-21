@@ -22,6 +22,11 @@ function requiredFamilyWaits(board, item) {
   return Boolean(item.item_review_family ?? requiredReviewFamily(board, item.item_id)) && relaxRequiredFamilyEnabled();
 }
 
+/** Whether a verdict may stand on its reservation's relaxation witness: the same tier rule the reservation used, so a review-family item widened at reservation is not refused again at verify [C7,#11333]. */
+export function verdictRelaxableTier(board, item) {
+  return relaxableTier(board, item, itemReviewPolicy, classifiedStrict, requiredFamilyWaits(board, item));
+}
+
 /** Compute a native witness or retain its live reservation; only nextFor supplies a selection-local cache [V1,H16]. */
 export function reviewFamilyRelaxation(board, item, agentId, threshold, policy, familyPolicy, cache = null, reviewHeartbeats = null) {
   if (frozenFamilyPolicy(item, familyPolicy) !== 'require' && !requiredFamilyWaits(board, item) || !relaxableTier(board, item, itemReviewPolicy, classifiedStrict, requiredFamilyWaits(board, item))) return null;

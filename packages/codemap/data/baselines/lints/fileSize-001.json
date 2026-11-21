@@ -104,7 +104,7 @@
     "apps/cli/journeys/verify/machine.test.js": 989,
     "test/main-red.test.js": 90,
     "apps/cli/tests/fixtures/move/registry/baseline.json": 7907,
-    "apps/cli/journeys/next/order.test.js": 513,
+    "apps/cli/tests/io/commands/next/order.test.js": 513,
     "test/package-files-copies.test.js": 47,
     "apps/cli/journeys/relay/pairing.test.js": 25,
     "apps/cli/journeys/resume/presence.test.js": 130,

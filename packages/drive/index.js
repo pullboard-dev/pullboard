@@ -27,3 +27,5 @@ export { SERVE_FD_ENV, announceListening, catchListeners, inheritedListener, spa
 export { BOARD_HOST, addLocalBoard, localBoards, localRunnerStarting, localRunnerState, localRunnerStatus, processAlive, serveLocalRunner, startLocalRunner, wakeLocalRunner, WAKE_FILE } from './src/io/local.js';
 export { startLoopWatchdog } from './src/io/watchdog.js';
 export { startBeat } from './src/io/beat.js';
+
+export { measureExecutionContext, matchesExecutionContext } from './src/io/pull/execution-context.js';

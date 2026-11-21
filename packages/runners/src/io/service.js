@@ -327,7 +327,7 @@ export async function runnerServiceInstaller() {
     ? `macOS Local Network privacy blocks a LaunchAgent or a process left by ssh from ${host}; ${sudo
       ? `run runner serve as a LaunchDaemon: on this runner run ${sudo}` : 'this LaunchDaemon is allowed, so check that the board is up, or use its Tailscale 100.x address'}`
     : `if ${host} is on the local network, macOS Local Network privacy blocks this LaunchAgent; run pullboard runner install-serve ${plan.host} --board <the board's LAN URL> to install a LaunchDaemon, or use the board's Tailscale 100.x address`;
-  const args = [process.execPath, join(app, plan.entry), plan.board, keyFile, join(root, 'pull'), hint];
+  const args = [process.execPath, join(app, plan.entry), plan.board, keyFile, join(root, 'pull'), hint, ...(plan.publicKey ? [plan.host, plan.publicKey] : [])];
   const path = [dirname(process.execPath), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'].join(':');
   mkdirSync(dirname(plist), { recursive: true });
   writeFileSync(plist, ['<?xml version="1.0" encoding="UTF-8"?>',
@@ -423,7 +423,7 @@ export async function installRunnerService(runner, { board, key, remove = false,
     const chosen = key ?? target.key;
     if (!chosen) throw new Refused('BOARD_KEY_REQUIRED', 'the runner needs the board key: pass --key, or use the URL pullboard serve printed with its ?k=', 'pullboard runner install-serve <ssh-host> --board <url> --key <board-key>');
     Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles(),
-      jobs: runner.slots, ceilingMs: runner.ceilingMs ?? DEFAULT_RUN_CEILING_MS });
+      jobs: runner.slots, ceilingMs: runner.ceilingMs ?? DEFAULT_RUN_CEILING_MS, ...(runner.publicKey ? { publicKey: runner.publicKey } : {}) });
   }
   const script = `exec ${pullWord(runner.node ?? 'node')} --input-type=module -e ${pullWord(installerProgram())}`;
   const run = await createSshAdapter().run(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
