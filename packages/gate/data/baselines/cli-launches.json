@@ -305,7 +305,7 @@
   "apps/cli/journeys/agents/session-takeover.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/companion/companions/review.test.js": {
+  "apps/cli/tests/io/commands/companion/review.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/spec/e2e/next.test.js": {
@@ -935,7 +935,7 @@
   "apps/cli/journeys/fact/bound.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/verify/check-checked.test.js": {
+  "apps/cli/tests/io/commands/verify/checked.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/lane/merged.test.js": {
@@ -1610,7 +1610,7 @@
   "apps/cli/journeys/shout/http/state.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/verify/checks-heavy.test.js": {
+  "apps/cli/tests/io/commands/verify/heavy.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/fact/board/busy-migration.test.js": {

@@ -43,7 +43,7 @@
     "apps/cli/journeys/test/command.test.js": 1,
     "apps/cli/journeys/test/resources.test.js": 1,
     "apps/cli/journeys/verify/admission.test.js": 1,
-    "apps/cli/journeys/verify/check-checked.test.js": 1,
+    "apps/cli/tests/io/commands/verify/checked.test.js": 1,
     "apps/cli/journeys/verify/check-landing.test.js": 1,
     "apps/cli/journeys/verify/check.test.js": 1,
     "apps/cli/journeys/verify/main.test.js": 1,
