@@ -4,6 +4,7 @@ import { cockpitReplay } from "../../logic/cockpit/replay.js";
 import { cockpitSidebar } from "../../logic/cockpit/sidebar.js";
 import { cockpitProjectMenu } from "../../logic/cockpit/project-menu.js";
 import { cockpitRoadmap } from "./roadmap.js";
+import { flowHomePanel } from "../flow.js";
 import { cockpitProse } from "../../logic/cockpit/prose.js";
 import { costTabScript } from "../cost/tab.js";
 import { milestoneRowHtml } from "../roadmap/render.js";
@@ -175,7 +176,7 @@ function lifecycle() {
  * @param {{snapshot?: boolean, readOnly?: boolean, requests?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean, hostedLocal?: boolean, relaySession?: boolean, signIn?: string|null, hostedReleaseVersion?: string, hostedReleaseVersions?: string[]|null, costPrices?: Record<string, {freshInput?: number, cacheReadInput?: number, cacheWriteInput?: number, output?: number}>|null}} [options] - Served connection and assets, optional person requests over a read-only transport, host routes, a static page with event replay, or the hosted page that reads this machine's view first.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false, hostedLocal = false, relaySession = false, signIn = null, hostedReleaseVersion, hostedReleaseVersions = null, costPrices = null, milestoneDelta = null, commandPhrases } = {}) {
+export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false, hostedLocal = false, relaySession = false, signIn = null, hostedReleaseVersion, hostedReleaseVersions = null, costPrices = null, milestoneDelta = null, commandPhrases, readFlow = null } = {}) {
   if (typeof commandPhrases !== 'function') throw new TypeError('the page needs its higher renderer to provide commandPhrases');
   // Derive the current CLI inventory for every served, relay or exported page.
   const COMMAND_SOURCE = 'pullboard (?:' + commandPhrases().join('|') + ')(?![\\w-])(?: (?:--?[\\w-]+|\\d+|#\\d+|"[^"\\n]*"|[A-Z][A-Z0-9_]*|[\\w-]*[\\/.:@][^\\s"]*|[a-z]+-\\d+)(?![\\w-]))*';
@@ -199,7 +200,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup,
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,
     milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
-    agentApprovalScript, pageScriptPart4, historyLoadingScript, paletteScript, accountScript, shoutsScript, menuScript, compatScript };
+    flowPanel: snapshot ? '' : flowHomePanel(readFlow), agentApprovalScript, pageScriptPart4, historyLoadingScript, paletteScript, accountScript, shoutsScript, menuScript, compatScript };
   return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections) + cockpitProjectMenu()
     + cockpitRoadmap(sections) + cockpitProse(sections);
 }
