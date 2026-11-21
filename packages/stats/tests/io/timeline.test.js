@@ -8,6 +8,7 @@ import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { cellReviewAccept } from '../../../store/tests/fixtures/cell.js';
 import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { readFleetTimelines } from '../../index.js';
 import { readItemTimeline } from '../../index.js';
@@ -101,4 +102,22 @@ test('stats.io-timeline.fleet-real-board: clause 2: readFleetTimelines on a real
   assert.ok(!read.timelines.some(entry => entry.item === old));
   assert.deepEqual(read.fleetRows.map(entry => [entry.route, entry.ms]), [['/new', 700]]);
   assert.deepEqual(readFleetTimelines(board, { since: start + 9 * 60 * 60 * 1000 }).timelines, [], 'a cutoff past the last event finds no item');
+});
+
+test('stats.io-timeline.review-real-board: clause 3: readItemTimeline on a real cellBoard after a submit, a review reservation and an accept made through the store moves returns the reviewing and verdict rows [C7,#12161]', t => {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile);
+  const seat = cellSeat(board, { lane: 'core', path: '/builder' });
+  const reviewer = cellSeat(board, { lane: 'core', path: '/reviewer' });
+  const id = cellItem(board, { lane: 'core', title: 'Review stages fixture item' }).item_id;
+  cellClaim(board, id, seat, { root: repo.root });
+  const hash = '5'.repeat(40);
+  submitFixture(board, id, { agentId: seat.id, commit: hash, tree: hash });
+  cellReviewAccept(board, id, reviewer);
+  const { rows } = readItemTimeline(board, id);
+  const stages = rows.map(row => row.stage);
+  assert.ok(stages.includes('reviewing') && stages.includes('verdict'), stages.join(','));
+  assert.ok(stages.indexOf('submitted') < stages.indexOf('reviewing') && stages.indexOf('reviewing') < stages.indexOf('verdict'), stages.join(','));
+  assert.equal(rows.find(row => row.stage === 'verdict').reason, 'accept');
+  assert.equal(rows.find(row => row.stage === 'reviewing').actor, reviewer.id);
 });
