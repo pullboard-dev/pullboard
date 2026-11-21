@@ -16,7 +16,7 @@ const COORDINATOR = 'coordinator';
  * @returns {string | null}
  */
 export function coordinatorCalloutLine(board, nowMs) {
-  const rows = board.db.prepare("SELECT shout_id, shout_at, shout_text FROM shout WHERE shout_to = 'coordinator' AND shout_from <> 'coordinator' AND shout_answers IS NULL AND shout_answered_at IS NULL AND (shout_text LIKE '%needs a sharper bar%' OR shout_text LIKE 'Queued gate for #%' OR shout_text LIKE '%has two send-backs%' OR shout_text LIKE 'Stuck: decision #%' OR shout_text LIKE '%decision request%') ORDER BY shout_id")
+  const rows = board.db.prepare("SELECT shout_id, shout_at, shout_text FROM shout INDEXED BY shout_open_coordinator_callout WHERE shout_to = 'coordinator' AND shout_from <> 'coordinator' AND shout_answers IS NULL AND shout_answered_at IS NULL AND (shout_text LIKE '%needs a sharper bar%' OR shout_text LIKE 'Queued gate for #%' OR shout_text LIKE '%has two send-backs%' OR shout_text LIKE 'Stuck: decision #%' OR shout_text LIKE '%decision request%') ORDER BY shout_id")
     .all().filter(row => actionableCallout(row.shout_text));
   if (!rows.length) return null;
   const marks = SUBJECT_CHANGE_KINDS.map(() => '?').join(',');
