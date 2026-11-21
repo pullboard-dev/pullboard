@@ -15,6 +15,7 @@ import {
   privateFixtureFiles,
 } from '../child.js';
 import { stopFixtureLocalRunners } from '../runner/local-stop.js';
+import { settleMarksWorkers } from './marks-workers.js';
 import { performance } from 'node:perf_hooks';
 import {
   appendFileSync,
@@ -175,6 +176,8 @@ after(async () => {
   for (const child of serverChildren.keys()) child.kill('SIGKILL');
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
+  // The in-process inbox reads leave detached marks workers writing into the case boards; wait for their exits before the folders go.
+  await settleMarksWorkers();
   // A queued submit starts a loopback local runner in each case's machine home; stop them and wait for the exits, or one still writes into the folder being removed [C7,#9714].
   stopFixtureLocalRunners(TEMP_DIRS.map((dir) => join(dir, 'home')));
   // A killed local runner may still be writing into a case's folder for a moment; the run's sandbox removes what is left.
