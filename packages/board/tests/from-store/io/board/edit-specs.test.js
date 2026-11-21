@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { editItem } from '../../../src/io/board/edit.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
+import { editItem } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
 
 const ROWS = { G1: 'The first row text.', G2: 'The second row text.', G3: 'The third row text.' };
 /** The freezer the CLI sends with a correction, reduced to the pieces this test reads: the criterion, its check and the cited rows' text. */

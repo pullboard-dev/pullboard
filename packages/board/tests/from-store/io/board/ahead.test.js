@@ -5,12 +5,12 @@ import { existsSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { closeBoard } from '../../../index.js';
-import { events } from '../../../index.js';
-import { register } from '../../../index.js';
-import { GATE_HOP_SCHEMA_SQL } from '../../../src/io/board/hop.js';
-import { openKitBoard } from '../../fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { closeBoard } from '../../../../../store/index.js';
+import { events } from '../../../../../store/index.js';
+import { register } from '../../../../../store/index.js';
+import { GATE_HOP_SCHEMA_SQL } from '../../../../../store/index.js';
+import { openKitBoard } from '../../../fixtures/cell-board.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 
 // The proof counters are read from the derived database beside the board, which the dual write fills when this is on [C7].
 process.env.PULLBOARD_PROOF_DERIVED_DB = '1';

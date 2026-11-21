@@ -1,17 +1,17 @@
 /** addBlock records a named block of items in the store and listBlocks reads it back [C7,#2202]. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addBlock } from "../../../index.js";
-import { claim } from "../../../index.js";
-import { claimBlock } from "../../../index.js";
-import { getItem } from "../../../index.js";
-import { listBlocks } from "../../../index.js";
-import { addItem } from "../../../index.js";
-import { logEvent } from "../../../index.js";
-import { BLOCK_ENGINE } from "../../../../state/light.js";
-import { cellBoard } from "../../fixtures/cell.js";
-import { cellProject } from "../../fixtures/cell.js";
-import { cellSeat } from "../../fixtures/cell.js";
+import { addBlock } from "../../../../../store/index.js";
+import { claim } from "../../../../../store/index.js";
+import { claimBlock } from "../../../../../store/index.js";
+import { getItem } from "../../../../../store/index.js";
+import { listBlocks } from "../../../../../store/index.js";
+import { addItem } from "../../../../../store/index.js";
+import { logEvent } from "../../../../../store/index.js";
+import { BLOCK_ENGINE } from "../../../../../state/light.js";
+import { cellBoard } from "../../../fixtures/cell-board.js";
+import { cellProject } from "../../../../../store/tests/fixtures/cell.js";
+import { cellSeat } from "../../../../../store/tests/fixtures/cell.js";
 
 const BRIEF = "Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n";
 
@@ -27,7 +27,7 @@ function twoItems(t) {
   return { board, ids: [add("First member"), add("Second member")] };
 }
 
-test("store.blocks.add-and-list: clause 1: addBlock on a board with two open items stores the newBlock record and listBlocks returns it with its members [C7,#2202]", t => {
+test('store.blocks.add-and-list: clause 1: addBlock on a board with two open items stores the newBlock record and listBlocks returns it with its members [C7,#2202]', t => {
   const { board, ids } = twoItems(t);
   assert.deepEqual(listBlocks(board), []);
   const added = addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
@@ -41,7 +41,7 @@ test("store.blocks.add-and-list: clause 1: addBlock on a board with two open ite
   assert.equal(listed[0].by, "coordinator");
 });
 
-test("store.blocks.refusals: clause 2: a repeated name refuses BLOCK_EXISTS, an unknown member id refuses NO_ITEM, and a board below BLOCK_ENGINE refuses ENGINE_VERSION [C7,#2202]", t => {
+test('store.blocks.refusals: clause 2: a repeated name refuses BLOCK_EXISTS, an unknown member id refuses NO_ITEM, and a board below BLOCK_ENGINE refuses ENGINE_VERSION [C7,#2202]', t => {
   const { board, ids } = twoItems(t);
   addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "light" });
   assert.throws(() => addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "light" }), { code: "BLOCK_EXISTS" });
@@ -51,7 +51,7 @@ test("store.blocks.refusals: clause 2: a repeated name refuses BLOCK_EXISTS, an 
   assert.throws(() => addBlock(board, { agentId: "coordinator", name: "older", ids, tier: "light" }), { code: "ENGINE_VERSION" });
 });
 
-test("store.blocks.real-path: clause 3: addBlock called through the store front door records a block that listBlocks reads and a usage refusal records nothing [C7,#2202]", t => {
+test('store.blocks.real-path: clause 3: addBlock called through the store front door records a block that listBlocks reads and a usage refusal records nothing [C7,#2202]', t => {
   const { board, ids } = twoItems(t);
   assert.equal(typeof addBlock, "function");
   assert.throws(() => addBlock(board, { agentId: "coordinator", name: "solo", ids: [ids[0]], tier: "mid" }), { code: "USAGE" });
@@ -59,7 +59,7 @@ test("store.blocks.real-path: clause 3: addBlock called through the store front 
   assert.deepEqual(listBlocks(board).map(block => block.name), ["front-door"]);
 });
 
-test("store.blocks.claim-all-members: clause 1: claimBlock claims every open member for the seat in one write with the ordinary claim and one shared lease, and another seat claim of a member is refused [C7,#2202]", t => {
+test('store.blocks.claim-all-members: clause 1: claimBlock claims every open member for the seat in one write with the ordinary claim and one shared lease, and another seat claim of a member is refused [C7,#2202]', t => {
   const { board, ids } = twoItems(t);
   addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
   const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
@@ -75,7 +75,7 @@ test("store.blocks.claim-all-members: clause 1: claimBlock claims every open mem
   assert.throws(() => claim(board, ids[0], { agentId: rival.id, lane: "web", leaseMs: HOUR, freeze: FREEZE }), { code: "HELD" });
 });
 
-test("store.blocks.claim-refusals: clause 2: an unknown name refuses NO_BLOCK, a member held by another seat refuses BLOCK_CLAIMED naming it with nothing claimed, and a seat whose route is below the block tier refuses BLOCK_TIER [C7,#2202]", t => {
+test('store.blocks.claim-refusals: clause 2: an unknown name refuses NO_BLOCK, a member held by another seat refuses BLOCK_CLAIMED naming it with nothing claimed, and a seat whose route is below the block tier refuses BLOCK_TIER [C7,#2202]', t => {
   const { board, ids } = twoItems(t);
   const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
   assert.throws(() => claimBlock(board, { agentId: seat.id, name: "ghost", lane: "web", leaseMs: HOUR, freeze: FREEZE }), { code: "NO_BLOCK" });
@@ -89,7 +89,7 @@ test("store.blocks.claim-refusals: clause 2: an unknown name refuses NO_BLOCK, a
   assert.equal(getItem(board, ids[0]).item_owner, null, "the refused block claimed no member");
 });
 
-test("store.blocks.renew-as-one: clause 1: renewing one member a seat holds through a block renews the lease of every member it holds through that block [C7,#2202]", t => {
+test('store.blocks.renew-as-one: clause 1: renewing one member a seat holds through a block renews the lease of every member it holds through that block [C7,#2202]', t => {
   const { board, ids } = twoItems(t);
   addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
   const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
@@ -105,7 +105,7 @@ test("store.blocks.renew-as-one: clause 1: renewing one member a seat holds thro
   assert.deepEqual(events, [...ids].sort(), "each member has its own renew event");
 });
 
-test("store.blocks.renew-peer-correction-refused: clause 1: renewing one member of a block while a held peer has a pending criterion correction is refused PENDING_REFREEZE, and neither member's lease nor renew events move [C7,#2202]", t => {
+test('store.blocks.renew-peer-correction-refused: clause 1: renewing one member of a block while a held peer has a pending criterion correction is refused PENDING_REFREEZE, and neither member\'s lease nor renew events move [C7,#2202]', t => {
   const { board, ids } = twoItems(t);
   addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
   const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
@@ -119,7 +119,7 @@ test("store.blocks.renew-peer-correction-refused: clause 1: renewing one member 
   assert.equal(renewEvents(), before, "no renew event was written");
 });
 
-test("store.blocks.renew-non-member-unchanged: clause 2: a renew of a claim that is not held through a block renews only that item, exactly as today [C7,#2202]", t => {
+test('store.blocks.renew-non-member-unchanged: clause 2: a renew of a claim that is not held through a block renews only that item, exactly as today [C7,#2202]', t => {
   const { board, ids } = twoItems(t);
   const first = cellSeat(board, { lane: "web", path: "/solo-seat-a", route: "strong" });
   const second = cellSeat(board, { lane: "web", path: "/solo-seat-b", route: "strong" });
@@ -133,7 +133,7 @@ test("store.blocks.renew-non-member-unchanged: clause 2: a renew of a claim that
   assert.deepEqual(events, [ids[0]], "only the renewed item has a renew event");
 });
 
-test("store.blocks.claim-all-or-none: clause 1: a member whose bar cannot freeze refuses before any member is written, and a member whose write fails under the lock rolls back the earlier members, so a block claim takes every member or none [C7]", t => {
+test('store.blocks.claim-all-or-none: clause 1: a member whose bar cannot freeze refuses before any member is written, and a member whose write fails under the lock rolls back the earlier members, so a block claim takes every member or none [C7]', t => {
   const { board, ids } = twoItems(t);
   addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
   const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
