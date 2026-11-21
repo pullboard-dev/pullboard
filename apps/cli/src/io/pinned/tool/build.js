@@ -166,11 +166,26 @@ export function readToolBuild(location) {
   return value;
 }
 
+/** Create the private tool-build folder when it is missing. */
+function privateDirectory(directory) {
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
+}
+
+/** Atomically publish one small file in the tool-build folder; readers see the old or the new file, never a part. */
+function publishFile(directory, name, text) {
+  privateDirectory(directory);
+  const temporary = join(directory, `.${name}-${randomUUID()}`);
+  try {
+    writePrivate(temporary, text, 'wx');
+    fs.rename(temporary, join(directory, name));
+  } finally { fs.rm(temporary, { force: true }); }
+}
+
 /** Export an exact immutable commit into a private cache, publishing only a completed installation. */
 export function installToolBuild(location, build) {
   const target = join(location.directory, build.commit);
   if (fs.exists(target)) return target;
-  fs.mkdir(location.directory, { recursive: true, mode: 0o700 });
+  privateDirectory(location.directory);
   const temporary = fs.mkdtemp(join(location.directory, '.install-'));
   try {
     if (git(location.root, ['rev-parse', `${build.commit}^{tree}`]) !== build.tree) {
@@ -199,20 +214,75 @@ function writePrivate(path, data, flag = 'w') {
 /** Atomically publish a validated build; readers already running retain their installation. */
 export function writeToolBuild(location, build) {
   installToolBuild(location, build);
-  const temporary = join(location.directory, `.current-${randomUUID()}`);
-  try {
-    writePrivate(temporary, `${JSON.stringify(build)}\n`, 'wx');
-    fs.rename(temporary, join(location.directory, 'current.json'));
-  } finally { fs.rm(temporary, { force: true }); }
+  publishFile(location.directory, 'current.json', `${JSON.stringify(build)}\n`);
   return build;
 }
 
-/** Select at command entry only; the immutable module root also pins all subsequent runner imports. The policy is read once: each read is a Git spawn on every command's path [C7]. */
+/** Resolve a ref's commit id from loose or packed refs in Git's own files; null when only Git can answer. */
+function refCommit(dirs, name) {
+  try {
+    for (const dir of dirs) if (fs.exists(join(dir, name))) return fs.readFile(join(dir, name), 'utf8').trim();
+    const packed = join(dirs[dirs.length - 1], 'packed-refs');
+    if (!fs.exists(packed)) return null;
+    const line = fs.readFile(packed, 'utf8').split('\n').find(row => row.endsWith(` ${name}`));
+    return line ? line.split(' ')[0] : null;
+  } catch { return null; }
+}
+
+/**
+ * The cross-process cache key: the primary checkout's pinned commit, main's tip, this checkout's HEAD commit and the
+ * published selection's stamp, all read from files. Null when any cannot be read without Git, so Git answers [C7].
+ */
+function lookupKey(location) {
+  try {
+    const marker = join(location.root, '.git');
+    let gitDir = marker;
+    if (!fs.stat(marker).isDirectory()) gitDir = resolve(location.root, /^gitdir:\s*(.+)$/mu.exec(fs.readFile(marker, 'utf8'))[1].trim());
+    const head = fs.readFile(join(gitDir, 'HEAD'), 'utf8').trim();
+    const name = /^ref: (.+)$/u.exec(head)?.[1];
+    const dirs = gitDir === location.commonDir ? [location.commonDir] : [gitDir, location.commonDir];
+    const checkedOut = name ? refCommit(dirs, name) : head;
+    const pinned = refCommit([location.commonDir], 'refs/main-worktree/HEAD');
+    const tip = refCommit([location.commonDir], 'refs/heads/main');
+    if (!checkedOut || (!pinned && !tip)) return null;
+    let published = 'none';
+    try { const stat = fs.stat(join(location.directory, 'current.json')); published = `${stat.mtimeMs}:${stat.size}`; } catch { /* None published. */ }
+    return [pinned, tip, checkedOut, published].join('\0');
+  } catch { return null; }
+}
+
+/** The cached answer for this key, or undefined on a miss: unreadable, another key, or a refresh now due. */
+function cachedLookup(location, key, now) {
+  try {
+    const cached = JSON.parse(fs.readFile(join(location.directory, 'lookup-cache.json'), 'utf8'));
+    if (cached.key !== key || now >= cached.expiresAt) return undefined;
+    if (cached.commit === null) return null;
+    return OID.test(cached.commit) && fs.exists(join(location.directory, cached.commit)) ? cached.commit : undefined;
+  } catch { return undefined; }
+}
+
+/** Remember an answer for later processes; a failed write only costs the next start its Git reads. */
+function rememberLookup(location, key, commit, expiresAt) {
+  try { publishFile(location.directory, 'lookup-cache.json', JSON.stringify({ key, commit, expiresAt })); }
+  catch { /* Best effort. */ }
+}
+
+/** Select at command entry only; the immutable module root also pins all subsequent runner imports. The policy is read once: each read is a Git spawn on every command's path. A later process at the same main tip and HEAD reuses the answer with no Git [C7]. */
 export async function selectedToolEntry(cwd, entry, { now = Date.now() } = {}) {
   const location = toolBuildLocation(cwd);
   if (!location) return null;
+  const key = lookupKey(location);
+  const hit = key ? cachedLookup(location, key, now) : undefined;
+  if (hit !== undefined) {
+    if (hit === null) return null;
+    const reused = join(location.directory, hit, 'apps/cli/pullboard.js');
+    return resolve(reused) === resolve(entry) ? null : reused;
+  }
   const policy = toolBuildPolicy(location);
-  if (!policy.enabled) return null;
+  if (!policy.enabled) {
+    if (key) rememberLookup(location, key, null, Number.MAX_SAFE_INTEGER);
+    return null;
+  }
   let build = readToolBuild(location);
   if (!build || now - Date.parse(build.promotedAt) >= policy.refreshMs) {
     const { refreshToolBuild } = await import('./publish.js');
@@ -220,6 +290,9 @@ export async function selectedToolEntry(cwd, entry, { now = Date.now() } = {}) {
   }
   if (!build) throw new Refused('TOOL_BUILD_REQUIRED', 'pinned tools are enabled but no gated build is published; coordinator: run pullboard tool-build promote <commit> --gate-receipt <gate-id>');
   const selected = join(installToolBuild(location, build), 'apps/cli/pullboard.js');
+  // Re-read the key: a refresh may have republished the selection.
+  const after = key && lookupKey(location);
+  if (after) rememberLookup(location, after, build.commit, Date.parse(build.promotedAt) + policy.refreshMs);
   return resolve(selected) === resolve(entry) ? null : selected;
 }
 

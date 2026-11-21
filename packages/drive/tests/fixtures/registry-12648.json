@@ -1,0 +1,30 @@
+{
+  "drive.pull.measured-execution-context": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a pulled test records the actual Node executable and content-addressed trusted archive and exact bootstrap and entry"
+    },
+    "why": "An unmeasured or mismatched execution cannot support reuse.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/tests/io/pull/runner-code.test.js",
+      "packages/drive/src/io/pull/execution-context.js"
+    ]
+  },
+  "drive.pull.measured-execution-context-mismatch": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "missing or mismatched independent runtime and tooling pins cannot match"
+    },
+    "why": "An unmeasured or mismatched execution cannot support reuse.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/tests/io/pull/runner-code.test.js",
+      "packages/drive/src/io/pull/execution-context.js"
+    ]
+  }
+}

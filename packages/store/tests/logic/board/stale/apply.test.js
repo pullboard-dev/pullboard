@@ -36,6 +36,8 @@ function submitted(t) {
   const gate = `gate:${id}:0123456789ab:fixture`;
   job(gate, 'gate', 'done');
   for (let index = 1; index <= 32; index += 1) job(`${gate}:shard:${index}`, 'gate-shard', 'offered');
+  box.board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'offered', ?, ?)")
+    .run(gate, JSON.stringify({ request: { submit: { agentId: builder } } }), at);
   const heartbeatAt = box.clock.now().toISOString();
   const pass = () => {
     const observedAt = box.clock.now().toISOString();

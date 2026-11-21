@@ -1,0 +1,4 @@
+{
+  "cli.io-status-clock.prints-invariant": {"proves":{"specs":["B4","C7"],"claim":"pullboard status prints the clock line (items without owner+deadline, overdue with the oldest age, the pass age, stale after 3 minutes) from the stored clock.health document."},"why":"Without it, the clock invariant would be computed but never visible in status.","kind":"journey","inputs":["apps/cli/tests/io/status/clock.test.js","apps/cli/src/io/status/clock.js","apps/cli/src/io/commands/status.js"]},
+  "cli.io-status-clock.absent-and-json": {"proves":{"specs":["B4","C7"],"claim":"With no stored clock document status prints 'clock: no pass yet', and status --json carries the stored document as clock, null when absent."},"why":"Without it, a board that never ran a pass would print a broken line or machine readers would lose the document.","kind":"journey","inputs":["apps/cli/tests/io/status/clock.test.js","apps/cli/src/io/status/clock.js","apps/cli/src/io/commands/status.js"]}
+}

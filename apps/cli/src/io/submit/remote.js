@@ -147,7 +147,10 @@ async function remoteCells(encoded) {
   };
   const git = (...args) => run('git', ['--no-replace-objects', ...args]);
   // Generic projects have no cells plan or Pullboard's own checker modules. Match the local no-plan result on the runner.
-  if (!git('ls-tree', '--name-only', input.main, '--', 'packages/codemap/data/plan/cells.json').toString().trim()) {
+  // A project opts into cells by naming a plan in the accepted pullboard.json (cells.plan); no key means generic.
+  let plan = null;
+  try { const value = JSON.parse(git('show', `${input.main}:pullboard.json`).toString('utf8'))?.cells?.plan; plan = typeof value === 'string' && value.trim() ? value : null; } catch { plan = null; }
+  if (!plan) {
     process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify({ acceptedMain: input.main, source: input.source,
       cells: [], existingCuts: [], problems: [], warnings: [], reorg: null }) + '\n');
     return;
@@ -214,8 +217,22 @@ process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n')
 }
 
 /**
+ * The cells plan path the accepted commit's pullboard.json names under cells.plan; null for a generic project.
+ *
+ * @param {string} root - Absolute repository root.
+ * @param {string} commit - The pinned accepted commit.
+ * @returns {string|null}
+ */
+function acceptedCellsPlan(root, commit) {
+  try {
+    const value = JSON.parse(git(root, ['show', `${commit}:pullboard.json`]))?.cells?.plan;
+    return typeof value === 'string' && value.trim() ? value : null;
+  } catch { return null; }
+}
+
+/**
  * The accepted commits whose cells inventory a submit's cell analysis reads: main, plus the candidate's merge base
- * when main changed a file that needs a full census since that base. Empty when main has no cells plan.
+ * when main changed a file that needs a full census since that base. Empty when main's pullboard.json names no cells.plan.
  *
  * @param {string} root - Absolute repository root.
  * @param {string} main - The pinned accepted main.
@@ -223,7 +240,7 @@ process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n')
  * @returns {string[]}
  */
 export function inventoryCommits(root, main, source) {
-  if (!git(root, ['ls-tree', '--name-only', main, '--', 'packages/codemap/data/plan/cells.json']).trim()) return [];
+  if (!acceptedCellsPlan(root, main)) return [];
   const commits = [main];
   if (source) {
     const base = git(root, ['merge-base', main, source]).trim();

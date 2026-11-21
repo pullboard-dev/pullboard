@@ -1,0 +1,44 @@
+{
+ "gate.io-board-writers.refuses-stray-write": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "the static check refuses BEGIN IMMEDIATE, a board-table write or a writable board.sqlite open outside the sequencer folder, naming the rule, file and line"
+  },
+  "why": "Without this case a stray board write outside the sequencer would pass the gate unnoticed.",
+  "kind": "cell unit",
+  "inputs": [
+   "packages/gate/tests/io/board-writers.test.js",
+   "packages/gate/src/io/board-writers.js"
+  ]
+ },
+ "gate.io-board-writers.baseline-only-shrinks": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "the per-file board-writer ceiling refuses a new site or a raised count and accepts a lowered one"
+  },
+  "why": "Without this case the ceiling could rise and the sequencer fix would never converge.",
+  "kind": "cell unit",
+  "inputs": [
+   "packages/gate/tests/io/board-writers.test.js",
+   "packages/gate/src/io/board-writers.js"
+  ]
+ },
+ "gate.io-board-writers.registered": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "the static check registry runs board-write-outside-sequencer"
+  },
+  "why": "Without this case the rule could be dropped from the registry and stop running on every commit and gate.",
+  "kind": "cell unit",
+  "inputs": [
+   "packages/gate/tests/io/board-writers.test.js",
+   "packages/gate/src/io/board-writers.js"
+  ]
+ }
+}

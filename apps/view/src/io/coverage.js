@@ -4,6 +4,8 @@ import { lex } from "../../../../packages/kernel/browser.js";
 import { lineAt } from "../../../../packages/kernel/browser.js";
 import { freeWindowOffsets } from "../logic/offsets.js";
 
+const MAIN_TEST = 'apps/view/tests/logic/main.test.js';
+
 /** Reviewed renderer coverage; a journey never substitutes for these data-in/HTML-out witnesses. */
 export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/logic/needs/actions.js', names: ['agentApprovalActionsHtml', 'needsActionsHtml'], tests: ['apps/view/tests/logic/needs/actions.test.js'] },
@@ -17,29 +19,30 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/logic/segmented.js', names: ['segmentedToggle'], tests: ['apps/view/tests/logic/segmented.test.js'] },
   { module: 'apps/view/src/logic/panel/model.js', names: ['agentsPanelModel', 'shoutsModel'], tests: ['apps/view/tests/logic/panel/model/pure.test.js'] },
   { module: 'apps/view/src/logic/panel/render.js', names: ['agentsPanelHtml', 'shoutsHtml'], tests: ['apps/view/tests/logic/panel/model/pure.test.js'] },
-  { module: 'apps/view/src/logic/timeline/body.js', names: ['timelineBodyHtml'], tests: ['apps/view/tests/logic/main.test.js'] },
-  { module: 'apps/view/src/logic/timeline/render.js', names: ['timelineHtml'], tests: ['apps/view/tests/logic/main.test.js'] },
-  { module: 'apps/view/src/logic/selection.js', names: ['selectItemsView'], tests: ['apps/view/tests/logic/main.test.js'] },
-  { module: 'apps/view/src/logic/rules.js', names: ['ruleListModel'], tests: ['apps/view/tests/logic/main.test.js'] },
+  { module: 'apps/view/src/logic/panel/render.js', names: ['flowPanelHtml'], tests: ['apps/view/tests/logic/panel/render.test.js'] },
+  { module: 'apps/view/src/logic/timeline/body.js', names: ['timelineBodyHtml'], tests: [MAIN_TEST] },
+  { module: 'apps/view/src/logic/timeline/render.js', names: ['timelineHtml'], tests: [MAIN_TEST] },
+  { module: 'apps/view/src/logic/selection.js', names: ['selectItemsView'], tests: [MAIN_TEST] },
+  { module: 'apps/view/src/logic/rules.js', names: ['ruleListModel'], tests: [MAIN_TEST] },
   { module: 'apps/view/src/logic/component.js', names: ['sharedRowHtml'], tests: ['apps/view/tests/logic/component.test.js'] },
   { module: 'packages/spec/light.js', names: ['personNeeds'], tests: ['apps/view/tests/logic/needs/summary/data.test.js'] },
   { module: 'apps/view/src/io/held.js', names: ['heldNote', 'heldChip'], tests: ['apps/view/tests/logic/needs/summary/data.test.js'] },
   { module: 'apps/view/src/logic/home.js', names: ['homeCapacity'], tests: ['apps/view/tests/logic/home.test.js'] },
-  { module: 'apps/view/src/logic/row.js', names: ['recordRowHtml'], tests: ['apps/view/tests/logic/main.test.js'] },
-  { module: 'apps/view/src/logic/pipeline/render.js', names: ['pipelineHtml'], tests: ['apps/view/tests/logic/main.test.js'] },
+  { module: 'apps/view/src/logic/row.js', names: ['recordRowHtml'], tests: [MAIN_TEST] },
+  { module: 'apps/view/src/logic/pipeline/render.js', names: ['pipelineHtml'], tests: [MAIN_TEST] },
   { module: 'apps/view/src/logic/lifecycle/chart.js', names: ['lifecycleChart'], tests: ['apps/view/tests/logic/lifecycle/chart.test.js'] },
-  { module: 'apps/view/src/logic/lifecycle/diagram.js', names: ['lifecycleDiagramHtml'], tests: ['apps/view/tests/logic/main.test.js'] },
+  { module: 'apps/view/src/logic/lifecycle/diagram.js', names: ['lifecycleDiagramHtml'], tests: [MAIN_TEST] },
 
   { module: 'apps/view/src/io/dashboard/model.js', names: ['dashboardModel'], tests: ['apps/view/tests/io/dashboard/model.test.js'] },
   { module: 'apps/view/src/logic/render/dashboard.js', names: ['dashboardHtml'], tests: ['apps/view/tests/logic/render/dashboard.test.js'] },
   { module: 'apps/view/src/logic/activity/model.js', names: ['activityModel'], tests: ['apps/view/tests/logic/activity/model/sentences.test.js'] },
   { module: 'apps/view/src/logic/activity/render.js', names: ['activityHtml', 'activityFilters'], tests: ['apps/view/tests/logic/activity/model/sentences.test.js'] },
   { module: 'apps/view/src/logic/activity/words.js', names: ['activityWords'], tests: ['apps/view/tests/logic/activity/model/sentences.test.js'] },
-  { module: 'apps/view/src/logic/needs/panel.js', names: ['needsPanelModel', 'needsPanelHtml', 'itemsNeedsModel', 'itemsNeedsHtml'], tests: ['apps/view/tests/logic/main.test.js'] },
-  { module: 'apps/view/src/logic/needs/list.js', names: ['needsEntries', 'renderNeedsRow'], tests: ['apps/view/tests/logic/main.test.js'] },
-  { module: 'apps/view/src/logic/summary/roadmap.js', names: ['roadmapSummary', 'roadmapHeaders'], tests: ['apps/view/tests/logic/main.test.js'] },
-  { module: 'apps/view/src/io/roadmap/block.js', names: ['roadmapBlock'], tests: ['apps/view/tests/logic/main.test.js'] },
-  { module: 'apps/view/src/logic/home.js', names: ['homeRules'], tests: ['apps/view/tests/logic/main.test.js'] },
+  { module: 'apps/view/src/logic/needs/panel.js', names: ['needsPanelModel', 'needsPanelHtml', 'itemsNeedsModel', 'itemsNeedsHtml'], tests: [MAIN_TEST] },
+  { module: 'apps/view/src/logic/needs/list.js', names: ['needsEntries', 'renderNeedsRow'], tests: [MAIN_TEST] },
+  { module: 'apps/view/src/logic/summary/roadmap.js', names: ['roadmapSummary', 'roadmapHeaders'], tests: [MAIN_TEST] },
+  { module: 'apps/view/src/io/roadmap/block.js', names: ['roadmapBlock'], tests: [MAIN_TEST] },
+  { module: 'apps/view/src/logic/home.js', names: ['homeRules'], tests: [MAIN_TEST] },
   { module: 'apps/view/src/logic/agent/floor/model.js', names: ['agentFloorModel'], tests: ['apps/view/tests/logic/agent/floor/model.test.js'] },
   { module: 'apps/view/src/logic/agent/floor/render.js', names: ['agentFloorHtml'], tests: ['apps/view/tests/logic/agent/floor/model.test.js'] },
 ]);

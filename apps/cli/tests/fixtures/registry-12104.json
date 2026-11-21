@@ -1,0 +1,3 @@
+{
+  "cli.edit.specs-flag": {"proves": {"specs": ["C7"], "claim": "edit --specs G2,K3 --reason replaces an open item's cited spec rows and show reports the new rows."}, "why": "Without it a wrong spec row on a filed item cannot be corrected from the command line.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/edit.js", "apps/cli/tests/io/commands/edit.test.js"]}
+}

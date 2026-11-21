@@ -42,6 +42,23 @@ test('stats.timeline.item-rows: clause 1: events, a gate job and its steps becom
   assert.deepEqual(unmapped, [{ kind: 'fact', count: 1 }], 'an event kind no stage names is reported, not dropped');
 });
 
+test('stats.timeline.gate-wait-reasons: clause 1: gate-queue snapshots split one queued stretch into QUEUE_DEPTH(3), NO_RUNNER_SLOT, RUNNER_DOWN and SERVE_RESTART with exact lengths [C7,#12153]', () => {
+  const gate = job('gate:7', 'gate', 10 * SEC, [['claimed', 50 * SEC]]);
+  const snap = (offset, detail) => ({ at: T0 + offset, detail });
+  const snapshots = [
+    snap(12 * SEC, { queued: ['a', 'b', 'c', 'gate:7'], leased: 0, runnersSeen: ['r1'], serveStartedAt: 1 }),
+    snap(20 * SEC, { queued: ['gate:7'], leased: 2, runnersSeen: ['r1', 'r2'], serveStartedAt: 1 }),
+    snap(30 * SEC, { queued: ['gate:7'], leased: 0, runnersSeen: [], serveStartedAt: 1 }),
+    snap(40 * SEC, { queued: ['gate:7'], leased: 0, runnersSeen: ['r1'], serveStartedAt: 2 }),
+  ];
+  const result = timelineOf({ events: [event(1, 0, 'add'), event(2, 10 * SEC, 'submit')], jobs: [gate.job], steps: gate.steps, gateQueue: snapshots });
+  const reasons = result.rows.filter(row => row.stage === 'gate-queued' && row.reason).map(row => row.reason);
+  assert.deepEqual(reasons, ['QUEUE_DEPTH(3)', 'NO_RUNNER_SLOT', 'RUNNER_DOWN', 'SERVE_RESTART']);
+  assert.deepEqual(Object.fromEntries(Object.entries(result.summary.waits).filter(([, ms]) => ms)), {
+    'QUEUE_DEPTH(3)': 8 * SEC, NO_RUNNER_SLOT: 10 * SEC, RUNNER_DOWN: 10 * SEC, SERVE_RESTART: 10 * SEC,
+  });
+});
+
 test('stats.timeline.submit-offered: clause 1: an item whose events hold a submit_offered followed 90 s later by a submit gets one submitted row, at the submit_offered [C7,#12214]', () => {
   const { rows, unmapped } = timelineOf({ events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit_offered'), event(4, 10 * MIN + 90 * SEC, 'submit')], jobs: [], steps: [] });
   assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'submitted']);

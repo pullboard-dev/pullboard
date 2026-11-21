@@ -23,7 +23,6 @@ import { formatTestOutcomes } from '../../../../../packages/gate/heavy.js';
 import { checkoutCommonDir } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { fileKey } from '../../../../../packages/landing/index.js';
-import { planLandingShards } from '../../../../../packages/landing/index.js';
 import { runLandingShards } from '../../../../../packages/landing/index.js';
 import { FILE_TIME_LINE } from '../../../../../packages/landing/index.js';
 import { shardFileTimes } from '../../../../../packages/landing/index.js';
@@ -35,7 +34,6 @@ import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { censusRecordFileTimesEnabled } from '../../../../../packages/config/index.js';
 import { censusRerunNonGreenEnabled } from '../../../../../packages/config/index.js';
 import { censusRerunOnSettleEnabled } from '../../../../../packages/config/index.js';
-import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
 import { censusSkipUnchangedEnabled } from '../../../../../packages/config/index.js';
 import { censusFileKillSeconds } from '../../../../../packages/config/index.js';
 import { censusSoloFileSeconds } from '../../../../../packages/config/index.js';
@@ -60,6 +58,7 @@ import { censusIdleLine } from '../../logic/census.js';
 import { censusPhases } from '../../logic/census.js';
 import { censusPhaseLine } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
+import { rowPackedJobs } from '../../logic/census.js';
 import { shardFileKillMs } from '../../logic/census.js';
 import { previousShardMs } from '../../logic/census.js';
 import { selfTunedJobMinutes } from '../../logic/census-tune.js';
@@ -84,12 +83,39 @@ function cleanHead(root) {
   return git(['rev-parse', 'HEAD']).stdout.trim();
 }
 
-/** The census plan, cut by measured time behind census.balanceByTime and by the landing planner otherwise; the dispatcher and the row writer both cut it here so a label names the same files [C7]. */
-const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), (list = files) => planLandingShards(list, count, times, root), timed ? jobMinutesFor(root) : null, censusSoloFileSeconds()); };
+/** The census plan, cut by each file's measured seconds (the previous census's rows, then the recorded time) unless census.jobMinutes decides; the dispatcher and the row writer both cut it here so a label names the same files [C7]. */
+const cutPlan = (root, files, count, timed = true) => { const times = TIMING.get(root) ?? readFileTimes(root); return censusPlan(files, count, times, false, (list = files) => rowPackedJobs(list, count, PRIOR.get(root) ?? [], times), timed ? jobMinutesFor(root) : null, censusSoloFileSeconds()); };
 
+/** One accepted timing map shared by both census planners for each checkout [C7]. */
+const TIMING = new Map();
+/** The previous output-specific report rows, so count-packed jobs can preserve their earlier grouping [C7]. */
+const PRIOR = new Map();
 /** The job length a self-tuning census chose for each checkout, so the dispatcher and the row writer cut the same plan [C7,U151]. */
 const TUNED = new Map();
 const jobMinutesFor = root => censusJobMinutes() ?? TUNED.get(root) ?? null;
+
+/**
+ * The rows of the newest earlier census in `dir` (never `out`), or null when there is none.
+ *
+ * @param {string} dir - The folder holding census JSONL files.
+ * @param {string} out - This census's own file, never read as the earlier one.
+ * @returns {object[] | null}
+ */
+export function earlierCensusRows(dir, out) {
+  let names;
+  try { names = readdirSync(dir).filter(name => name.endsWith('.jsonl')).map(name => join(dir, name)).filter(path => resolve(path) !== resolve(out)); } catch { return null; }
+  const newest = names.map(path => { try { return { path, at: statSync(path).mtimeMs }; } catch { return null; } }).filter(Boolean).sort((a, b) => b.at - a.at)[0];
+  if (!newest) return null;
+  const rows = [];
+  try { for (const line of readFileSync(newest.path, 'utf8').split('\n')) { if (line) { try { rows.push(JSON.parse(line)); } catch { /* a torn line is skipped */ } } } } catch { return null; }
+  return rows;
+}
+
+/** Prior report times override the recorded table; files absent from that report retain their recorded time [C7]. */
+export function censusTimingInputs(dir, out, recorded = {}) {
+  const rows = earlierCensusRows(dir, out) ?? [];
+  return { rows, times: { ...recorded, ...rowFileTimes(rows) } };
+}
 
 /**
  * The job length, in minutes, a pulled census cuts by: the typed census.jobMinutes when set, else with census.selfTune on the
@@ -104,12 +130,8 @@ const jobMinutesFor = root => censusJobMinutes() ?? TUNED.get(root) ?? null;
 export function censusJobMinutesFrom(dir, out, { selfTune = censusSelfTuneEnabled(), typed = censusJobMinutes() } = {}) {
   if (typed) return typed;
   if (!selfTune) return null;
-  let names;
-  try { names = readdirSync(dir).filter(name => name.endsWith('.jsonl')).map(name => join(dir, name)).filter(path => resolve(path) !== resolve(out)); } catch { return null; }
-  const newest = names.map(path => { try { return { path, at: statSync(path).mtimeMs }; } catch { return null; } }).filter(Boolean).sort((a, b) => b.at - a.at)[0];
-  if (!newest) return null;
-  const rows = [];
-  try { for (const line of readFileSync(newest.path, 'utf8').split('\n')) { if (line) { try { rows.push(JSON.parse(line)); } catch { /* a torn line is skipped */ } } } } catch { return null; }
+  const rows = earlierCensusRows(dir, out);
+  if (!rows) return null;
   return selfTunedJobMinutes(previousShardMs(rows));
 }
 
@@ -229,10 +251,10 @@ function pulledCensus(ctx, io, values = {}) {
  * @param {object} io
  * @param {{ info: { root: string } }} ctx
  * @param {{ out?: string, json?: boolean, 'no-file-limit'?: boolean }} values
- * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards, clock?: () => number }} [options] - `clock` reads the time in milliseconds for the phase seconds; `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
+ * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards, clock?: () => number, trustedTooling?: Function }} [options] - `clock` reads the time in milliseconds for the phase seconds; `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
  * @returns {Promise<number>}
  */
-export async function runCensus(io, ctx, values, { shards, prefixes = [], run, clock = Date.now } = {}) {
+export async function runCensus(io, ctx, values, { shards, prefixes = [], run, clock = Date.now, trustedTooling } = {}) {
   const root = ctx.info.root;
   const sha = cleanHead(root);
   const tracked = await trackedTests(root);
@@ -241,14 +263,20 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run, c
   const out = resolve(root, values.out ?? join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
   mkdirSync(dirname(out), { recursive: true });
   // Read the earlier census before this run empties its own file.
-  const tuned = censusJobMinutesFrom(join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out);
+  const reportDir = dirname(out);
+  const tuned = censusJobMinutesFrom(reportDir, out);
   if (tuned) TUNED.set(root, tuned); else TUNED.delete(root);
-  // Opt-in: files whose declared inputs did not change since a green earlier census keep that row, marked carried [C7,#10383].
-  const carry = censusSkipUnchangedEnabled() ? censusCarry(root, { files: everyFile, sha, dir: join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out }) : { run: everyFile, carried: [], from: null };
+  const { rows: previousRows, times } = censusTimingInputs(reportDir, out, readFileTimes(root));
+  TIMING.set(root, times);
+  PRIOR.set(root, previousRows);
+  // Pull census receipts have case frames and ledger keys but no authenticated full-result packet in the controller store.
+  const pulled = !run && runnerDispatchMode() === 'pull';
+  // Keep authenticated completed-file proofs while the timing map drives timed packing [C7,#10383].
+  const carry = censusSkipUnchangedEnabled() && !pulled
+    ? await censusCarry(root, { files: everyFile, sha, runners: loadMachineSettings().runners, trustedTooling })
+    : { run: everyFile, carried: [] };
   const files = carry.run;
   writeFileSync(out, carry.carried.map(row => `${JSON.stringify(row)}\n`).join(''));
-  // A pull board offers each shard as a job; the landing path's in-process controller custody is never taken (#7602).
-  const pulled = !run && runnerDispatchMode() === 'pull';
   const dispatch = run ?? (pulled ? pulledCensus(ctx, io, values) : runLandingShards);
   // A settle rerun asks for the usual per-file kill, so the census's no-file-limit flag does not reach it (#9283).
   const settleReruns = censusRerunOnSettleEnabled() && dispatch !== runLandingShards;
@@ -326,7 +354,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run, c
   const phases = censusPhases({ ...marks, end: clock() }), seconds = phases.wallSecs;
   const idleSlots = censusIdleSlots(rows.values(), censusStart.getTime());
   io.result?.({ out, sha, files: everyFile.length, carried: carry.carried.length, shards: plan.length, seconds, phases, idleSlots, counts });
-  io.say(`census of ${everyFile.length} files${carry.carried.length ? ` (${carry.carried.length} carried from ${carry.from.slice(0, 10)})` : ''} at ${sha.slice(0, 10)} in ${seconds}s over ${plan.length} shards: ${Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ')}; rows in ${out}`);
+  io.say(`census of ${everyFile.length} files${carry.carried.length ? ` (${carry.carried.length} carried proofs, ${files.length} fresh)` : ''} at ${sha.slice(0, 10)} in ${seconds}s over ${plan.length} shards: ${Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ')}; rows in ${out}`);
   io.say(censusPhaseLine(phases));
   const idleLine = censusIdleLine(idleSlots);
   if (idleLine) io.say(idleLine);

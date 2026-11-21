@@ -11,7 +11,6 @@ import * as machineRules from '../../../../packages/state/index.js';
 import { policyRepository } from '../../tests/fixtures/board/submit.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -19,7 +18,11 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { heartbeatSeat } from '../../../../packages/store/index.js';
 import { recordSubmitHandoff } from '../../../../packages/jobs/index.js';
-import { openBoard } from '../../../lib/index.js';
+import { openKitBoard } from '../../tests/fixtures/board.js';
+import { openFixtureComposition } from '../../tests/fixtures/board.js';
+import { cellSeat } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
+import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 import { fixtureBoard } from '../../tests/fixtures/board.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { HELP } from '../../index.js';
@@ -194,12 +197,12 @@ const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
  * @returns {{ file: string, board: any, raw: () => DatabaseSync, done: () => void }}
  */
 function boardOnDisk(clock) {
-  const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-machine-'));
+  const dir = privateFixtureFiles('pullboard-machine-').root;
   const file = join(dir, 'board.sqlite');
-  const board = openBoard(file, clock, { gitRoot: policyRepository(dir) });
-  store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
-  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
-  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
+  const board = openKitBoard(file, clock, { gitRoot: policyRepository(dir) });
+  cellSeat(board, { lane: 'coordinator', path: '/repo', family: 'human' });
+  cellSeat(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
+  cellSeat(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
   const handles = [board.db];
   return {
     file,
@@ -225,9 +228,9 @@ function boardOnDisk(clock) {
 /** A logic-only board uses the shared memory contract; raw connections stay in boardOnDisk. */
 function memoryBoardLab(t, clock, { reviewerFamily = 'review-vendor' } = {}) {
   const board = fixtureBoard(t, { clock });
-  store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
-  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
-  store.register(board, { lane: 'web', path: '/repo-web-2', family: reviewerFamily });
+  cellSeat(board, { lane: 'coordinator', path: '/repo', family: 'human' });
+  cellSeat(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
+  cellSeat(board, { lane: 'web', path: '/repo-web-2', family: reviewerFamily });
   return { board };
 }
 
@@ -239,7 +242,7 @@ function memoryBoardLab(t, clock, { reviewerFamily = 'review-vendor' } = {}) {
  * @returns {number}
  */
 function submittedItem(board, options = {}) {
-  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', ...options });
+  const id = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page', ...options }).item_id;
   store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
   submitFixture(board, id, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
   return id;
@@ -376,7 +379,7 @@ test('cli.journeys-verify-machine.accept-and-reject-hold-a-verifier: accept and 
 test('cli.journeys-verify-machine.the-board-file-refuses-written-by: the board file refuses, written by hand: an unknown state, an undeclared move, an unproven verified, a reasonless withdrawal, an edited record [M3]', () => {
   const lab = boardOnDisk();
   try {
-    const open = store.addItem(lab.board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const open = cellItem(lab.board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
     const built = submittedItem(lab.board);
     const raw = lab.raw();
     const refused = (sql, args, code) => assert.throws(() => raw.prepare(sql).run(...args), new RegExp(code), sql);
@@ -421,7 +424,7 @@ test('cli.journeys-verify-machine.every-move-the-board-makes-passes: every move 
   store.release(board, rejected, 'web-1', 'Release the rework fixture before escalation.', undefined, 'OTHER');
   store.escalate(board, rejected, { agentId: 'coordinator', note: 'two tries stayed red' });
   store.refreeze(board, rejected, { agentId: 'coordinator', freeze });
-  const dropped = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' });
+  const dropped = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' }).item_id;
   store.claim(board, dropped, { agentId: 'web-2', lane: 'web', leaseMs: 7_200_000, freeze });
   store.withdraw(board, dropped, { agentId: 'coordinator', reason: 'superseded' });
   assert.deepEqual([accepted, rejected, dropped].map((id) => store.getItem(board, id).item_status), ['verified', 'open', 'withdrawn']);
@@ -430,7 +433,7 @@ test('cli.journeys-verify-machine.every-move-the-board-makes-passes: every move 
 test('cli.journeys-verify-machine.an-older-board-gets-the-triggers: an older board gets the triggers quietly on its next open; one dropped by hand comes back, and the log says so [M3]', () => {
   const lab = boardOnDisk();
   try {
-    const id = store.addItem(lab.board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const id = cellItem(lab.board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
     const every = machineRules.storeTriggers().map(({ name }) => name).sort();
     assert.deepEqual(triggerNames(lab.board), every);
     store.closeBoard(lab.board);
@@ -442,7 +445,7 @@ test('cli.journeys-verify-machine.an-older-board-gets-the-triggers: an older boa
     older.prepare("UPDATE item SET item_status = 'open' WHERE item_id = ?").run(id);
     older.close();
 
-    const upgraded = openBoard(lab.file);
+    const upgraded = openKitBoard(lab.file);
     assert.deepEqual(triggerNames(upgraded), every);
     assert.equal(upgraded.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'guards'").get().n, 0, 'an older board gets them quietly');
     store.closeBoard(upgraded);
@@ -454,7 +457,7 @@ test('cli.journeys-verify-machine.an-older-board-gets-the-triggers: an older boa
     tampered.exec('PRAGMA user_version = 3'); // current, so drifted and left alone on open; behind it is refused (#7767)
     tampered.close();
 
-    const restored = openBoard(lab.file);
+    const restored = openKitBoard(lab.file);
     try { store.guardStore(restored); // the install that audits a hand-dropped guard, as a migration runs it
       assert.deepEqual(triggerNames(restored), every);
       const logged = restored.db.prepare("SELECT event_by, event_detail FROM event WHERE event_kind = 'guards'").all();
@@ -495,10 +498,10 @@ test('cli.journeys-verify-machine.a-field-a-state-needs-cannot: a field a state 
   const lab = boardOnDisk();
   try {
     const { board } = lab;
-    const withdrawn = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' });
+    const withdrawn = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' }).item_id;
     store.withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'superseded' });
-    const fresh = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Another' });
-    const claimed = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const fresh = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Another' }).item_id;
+    const claimed = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
     store.claim(board, claimed, { agentId: 'web-2', lane: 'web', leaseMs: 7_200_000, freeze });
     const built = submittedItem(board);
     const raw = lab.raw();
@@ -529,8 +532,8 @@ test('cli.journeys-verify-machine.claim-refuses-in-the-declared-order: claim ref
   const lab = boardOnDisk();
   try {
     const { board } = lab;
-    const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
-    const strong = store.register(board, { lane: 'web', path: '/repo-web-strong' });
+    const light = cellSeat(board, { lane: 'web', path: '/repo-web-light', route: 'light' }).id;
+    const strong = cellSeat(board, { lane: 'web', path: '/repo-web-strong' }).id;
     // The target expects 45 build minutes: a 60-minute budget admits it, and the board's 30-minute default peels buildScopeFits.
     const claimAs = (id, agentId, lane, freezer = retiredFreeze, buildBudgetMinutes = 60) => outcome(() => store.claim(board, id, { agentId, lane, leaseMs: 7_200_000, freeze: freezer, buildBudgetMinutes }));
     const done = submittedItem(board);
@@ -538,9 +541,9 @@ test('cli.journeys-verify-machine.claim-refuses-in-the-declared-order: claim ref
     // A reject reopens to anyone (REJECT_OPEN_ENGINE); a failed landing still waits for its builder first.
     verdictOn(board, returned, 'web-2', 'ACCEPT');
     store.reopen(board, returned, { agentId: 'coordinator', reopenFirstRefusalMinutes: 30, note: `test/page.test.js: failed case; merge commit ${SHA_B}` });
-    const dependency = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    const target = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', after: [dependency], expectedBuildMinutes: 45 });
-    const spare = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const dependency = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
+    const target = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page', after: [dependency], expectedBuildMinutes: 45 }).item_id;
+    const spare = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
     const raw = lab.raw();
     holdByHand(raw, target, 'web-2');
     store.claim(board, spare, { agentId: strong, lane: 'web', leaseMs: 7_200_000, freeze });
@@ -581,9 +584,9 @@ test('cli.journeys-verify-machine.claim-refuses-in-the-declared-order: claim ref
 test('cli.journeys-verify-machine.submit-accept-and-reject-refuse-in: submit, accept and reject refuse in the declared order, one failure peeled at a time [M1, M2]', t => {
   const lab = memoryBoardLab(t, undefined, { reviewerFamily: 'REQUIRED REVIEW' }); // Declared once: a family is one derived value (#1783).
   const { board } = lab;
-  const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
+  const light = cellSeat(board, { lane: 'web', path: '/repo-web-light', route: 'light' }).id;
   const submitAs = (id, agentId, commit) => outcome(() => submitFixture(board, id, { agentId, commit, tree: 'tree' }));
-  const piece = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const piece = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
   const submits = [submitAs(999, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_A)];
   store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
   submits.push(submitAs(piece, 'web-2', SHA_A));
@@ -600,25 +603,25 @@ test('cli.journeys-verify-machine.submit-accept-and-reject-refuse-in: submit, ac
   submitFixture(board, piece, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
   verdictOn(board, piece, 'web-2', 'REJECT');
   store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
-  const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Part', parentId: piece });
+  const child = cellItem(board, { by: 'web-1', lane: 'web', title: 'Part', parentId: piece }).item_id;
   submits.push(submitAs(piece, 'web-1', SHA_A));
   store.withdraw(board, child, { agentId: 'coordinator', reason: 'folded into the parent' });
   submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
   assert.deepEqual(submits, [...declaredBoardOrder(machineRules, PRECHECKED, 'submit'), 'ok']);
 
   // A family is one derived value since #1783, so each vendor role is its own seat rather than a rewritten column.
-  const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
-  const otherVendor = store.register(board, { lane: 'web', path: '/repo-web-other-vendor', family: 'BUILDER-VENDOR' });
-  const otherRequired = store.register(board, { lane: 'web', path: '/repo-web-other-required', family: 'required review' });
+  const other = cellSeat(board, { lane: 'web', path: '/repo-web-other' }).id;
+  const otherVendor = cellSeat(board, { lane: 'web', path: '/repo-web-other-vendor', family: 'BUILDER-VENDOR' }).id;
+  const otherRequired = cellSeat(board, { lane: 'web', path: '/repo-web-other-required', family: 'required review' }).id;
   for (const verb of ['accept', 'reject']) {
     const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
-    store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
+    cellSeat(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
     const built = submittedItem(board, { reviewFamily: 'Required Review' });
     const vendorOnly = submittedItem(board, { sensitive: true });
     const landed = submittedItem(board);
     verdictOn(board, landed, 'web-2', 'ACCEPT');
     store.merged(board, landed, { agentId: 'coordinator', commit: SHA_A });
-    const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const open = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
     const pending = gatePendingItem(board);
     store.reserveReview(board, built, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
     const judge = (id, agentId, fields) =>
@@ -653,15 +656,15 @@ test('cli.journeys-verify-machine.submit-accept-and-reject-refuse-in: submit, ac
 test('cli.journeys-verify-machine.reserve-refuses-in-the-declared-order: reserve refuses in the declared order, one failure peeled at a time [V15, M1, M2]', t => {
   const lab = memoryBoardLab(t, undefined, { reviewerFamily: 'REQUIRED REVIEW' }); // Declared once: a family is one derived value (#1783).
   const { board } = lab;
-  const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
-  const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
+  const light = cellSeat(board, { lane: 'web', path: '/repo-web-light', route: 'light' }).id;
+  const other = cellSeat(board, { lane: 'web', path: '/repo-web-other' }).id;
   // A family is one derived value since #1783, so each vendor role is its own seat rather than a rewritten column.
-  const otherVendor = store.register(board, { lane: 'web', path: '/repo-web-other-vendor', family: 'BUILDER-VENDOR' });
-  const otherRequired = store.register(board, { lane: 'web', path: '/repo-web-other-required', family: 'required review' });
-  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
+  const otherVendor = cellSeat(board, { lane: 'web', path: '/repo-web-other-vendor', family: 'BUILDER-VENDOR' }).id;
+  const otherRequired = cellSeat(board, { lane: 'web', path: '/repo-web-other-required', family: 'required review' }).id;
+  cellSeat(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
   const built = submittedItem(board, { reviewFamily: 'Required Review' });
   const vendorOnly = submittedItem(board, { sensitive: true });
-  const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const open = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
   const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
   const pending = gatePendingItem(board);
   const cooling = submittedItem(board);
@@ -679,7 +682,7 @@ test('cli.journeys-verify-machine.a-reserved-review-refuses-every-other: a reser
   let at = Date.parse('2026-10-06T12:00:00.000Z');
   const lab = memoryBoardLab(t, { now: () => new Date(at) });
   const { board } = lab;
-  const third = store.register(board, { lane: 'web', path: '/repo-web-3', family: 'review-vendor' });
+  const third = cellSeat(board, { lane: 'web', path: '/repo-web-3', family: 'review-vendor' }).id;
   const id = submittedItem(board);
   const minutes = (count) => {
     at += count * 60_000;
@@ -752,18 +755,18 @@ test('cli.journeys-verify-machine.next-verify-looks-outside-the-lock: next --ver
   const others = [];
   try {
     const id = submittedItem(lab.board);
-    const third = store.register(lab.board, { lane: 'web', path: '/repo-web-3', family: 'review-vendor' });
-    const fourth = store.register(lab.board, { lane: 'web', path: '/repo-web-4', family: 'review-vendor' });
+    const third = cellSeat(lab.board, { lane: 'web', path: '/repo-web-3', family: 'review-vendor' }).id;
+    const fourth = cellSeat(lab.board, { lane: 'web', path: '/repo-web-4', family: 'review-vendor' }).id;
     // A reservation that has already lapsed, so the look has a lease to read the clock for.
     store.reserveReview(lab.board, id, { agentId: fourth, leaseMs: 1, policy: 'any' });
-    const rival = openBoard(lab.file);
+    const rival = openKitBoard(lab.file);
     rival.db.exec('PRAGMA busy_timeout = 0');
     let armed = false;
     let rivalSaw = null;
     // web-2's own connection. Its clock runs a minute ahead, so the lapsed lease is plainly lapsed,
     // and the first time the look reads it, a rival verifier on another connection reserves the
     // same review. The look holds no write lock (#3156), so the rival's write lands mid-look.
-    const looking = openBoard(lab.file, {
+    const looking = openKitBoard(lab.file, {
       now: () => {
         if (armed && rivalSaw === null) {
           try {
@@ -806,8 +809,8 @@ test('cli.journeys-verify-machine.the-two-conditional-guards-behave-as: the two 
   assert.match(machineRules.MACHINE.guards.find((guard) => guard.id === 'laneOpen').when, /renewing its own live claim/);
   assert.match(machineRules.MACHINE.guards.find((guard) => guard.id === 'rowsInForce').when, /where the criterion freezes/);
 
-  const mine = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-  const theirs = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const mine = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
+  const theirs = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
   assert.equal(claimAs(mine, 'web-1', freeze), 'ok');
   store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
   assert.equal(claimAs(mine, 'web-1', freeze), 'ok', 'its holder renews a live claim in a held lane');
@@ -827,7 +830,7 @@ test('cli.journeys-verify-machine.the-two-conditional-guards-behave-as: the two 
 test('cli.journeys-verify-machine.the-board-refuses-a-status-written: the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {
   const lab = memoryBoardLab(t);
   const { board } = lab;
-  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const id = cellItem(board, { by: 'coordinator', lane: 'web', title: 'Page' }).item_id;
   store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
   const column = ['item', 'status'].join('_');
   for (const sql of ["update item set item_status = 'open' where item_id = ?", `UPDATE item SET ${column} = 'claimed' WHERE item_id = ?`]) {
@@ -844,14 +847,14 @@ test('cli.journeys-verify-machine.the-board-refuses-a-status-written: the board 
 });
 
 test('cli.journeys-verify-machine.a-helper-added-to-the-board: a helper added to the board that changes a status outside moveItem is refused when it runs [M1]', async () => {
-  const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-planted-'));
+  const dir = privateFixtureFiles('pullboard-planted-').root;
   try {
     copyPackageFiles(join(import.meta.dirname, '../../../..'), dir);
     const boardFile = join(dir, 'packages/store/index.js');
     fs.appendFileSync(boardFile, `\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n`);
     const copy = await import(pathToFileURL(boardFile).href);
     const copyNative = await import(pathToFileURL(join(dir, 'apps', 'lib', 'index.js')).href);
-    const board = copyNative.openBoard(':memory:');
+    const board = openFixtureComposition(copyNative);
     copy.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
     copy.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
     const id = copy.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });

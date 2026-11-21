@@ -1,0 +1,32 @@
+{
+  "cli.io-remote-moves.claim-starts-beater": {
+    "proves": {
+      "specs": [
+        "P7",
+        "B3"
+      ],
+      "claim": "A remote claim the served board accepts launches the claim beater once with the remote binding, and a refused claim launches none."
+    },
+    "why": "Without it, a URL-joined seat's claim could be swept two minutes after it is taken, with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/remote/moves.js",
+      "apps/cli/src/io/beater.js"
+    ]
+  },
+  "cli.io-remote-moves.submit-stops-beater": {
+    "proves": {
+      "specs": [
+        "P7",
+        "B3"
+      ],
+      "claim": "A remote submit or release that succeeds removes the beater lock, so the beater stops."
+    },
+    "why": "Without it, a beater could keep beating a seat that no longer holds a claim.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/remote/moves.js",
+      "apps/cli/src/io/beater.js"
+    ]
+  }
+}

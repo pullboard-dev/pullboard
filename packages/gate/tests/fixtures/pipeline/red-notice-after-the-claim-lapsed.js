@@ -7,7 +7,6 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
@@ -17,6 +16,8 @@ import { writeStep } from '../../../../jobs/index.js';
 import { from } from './kit.js';
 import { hopCheck } from './kit.js';
 
+const { cellBoard } = await from('packages/board/tests/fixtures/cell-board.js');
+
 // The notice is the store's own; it is not on the store front door, so the harness loads it by path like the other pipeline harnesses.
 const { sayQueuedReds } = await from('packages/store/src/io/queued/red.js');
 const START = Date.parse('2026-11-12T10:00:00.000Z');
@@ -24,9 +25,9 @@ const LEASE_MS = 60_000;
 
 /** A claimed item whose queued gate went red, on a board whose clock the test moves. */
 function redClaim(t) {
-  const repo = cellRepo(t);
+  const repo = cellRepo(t, { real: true });
   const clock = { at: START, now() { return new Date(this.at); } };
-  const board = cellBoard(t, repo.boardFile, clock, { gitRoot: repo.root });
+  const board = cellBoard(t, repo.boardFile, clock, { gitRoot: repo.root, real: true });
   const seat = cellSeat(board, { lane: 'web', path: repo.root });
   const item = cellItem(board, { lane: 'web', title: 'Red page', criterion: 'The page renders.', specIds: ['G1'], check: 'true' });
   cellClaim(board, item.item_id, seat, { root: repo.root, leaseMs: LEASE_MS });
