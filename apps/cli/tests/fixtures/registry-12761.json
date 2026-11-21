@@ -1,0 +1,28 @@
+{
+ "cli.io-commands-next-wait.fake-clock-idle": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "A next --wait 2 against a fake clock the test advances returns its idle answer only once the fake clock has passed 2 minutes."
+  },
+  "why": "Without it, the wait deadline reads real time and a test can only prove it by waiting real minutes.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/cli/src/io/commands/next.js"
+  ]
+ },
+ "cli.io-commands-next-wait.fake-clock-wake": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "A wake from a newly filed item returns the waiting next at once whatever its fake clock says."
+  },
+  "why": "Without it, a driven clock could hide a wait that ignores board wakes.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/cli/src/io/commands/next.js"
+  ]
+ }
+}
