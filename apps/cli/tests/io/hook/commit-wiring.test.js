@@ -41,7 +41,8 @@ async function project(inProcess) {
   assert.equal(added.code, 0, added.err);
   const claimed = await box.runLocal(box.web, 'claim', String(JSON.parse(added.out).item.item_id));
   assert.equal(claimed.code, 0, claimed.err);
-  if (inProcess) fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  // The fixture default is on, so the off project says so explicitly [C7,#12653].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: inProcess } });
   return { box, marks, started: () => (existsSync(marks) ? readFileSync(marks, 'utf8').split('\n').filter(Boolean) : []) };
 }
 
