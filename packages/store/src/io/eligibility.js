@@ -2,7 +2,8 @@ import * as store from "./board.js";
 import { nextWithReleaseCooldown } from "./cooldown.js";
 import { heldClaim } from "./claim.js";
 import { submitHandoff } from "./submit/handoff/records.js";
-import { cellOfPath, heldCells } from "./cells.js";
+import { cellOfPath } from "./cells.js";
+import { heldCells } from "./cells.js";
 import { itemFiles } from "../../../items/index.js";
 
 /**

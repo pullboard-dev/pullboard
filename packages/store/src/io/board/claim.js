@@ -47,7 +47,8 @@ import {
   now,
   reviewHolder,
 } from "./query.js";
-import { itemFiles, outsideBuildProblem } from "../../../../items/index.js";
+import { itemFiles } from "../../../../items/index.js";
+import { outsideBuildProblem } from "../../../../items/index.js";
 import { barReadyProblem } from "../../../../verify/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
@@ -71,7 +72,8 @@ import { CLAIM_RETURNS_ENGINE } from "../../../../state/index.js";
 import { claimProblem } from "../../../../seats/index.js";
 import { randomUUID } from 'node:crypto';
 import { claimDecision } from "./claim-table.js";
-import { cellOfPath, heldCells } from "../cells.js";
+import { cellOfPath } from "../cells.js";
+import { heldCells } from "../cells.js";
 import { availableParallelism } from 'node:os';
 import { withLocalSeatPresence } from "../presence.js";
 import {
