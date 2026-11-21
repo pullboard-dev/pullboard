@@ -395,7 +395,7 @@ function itemHasNoEvents(root, id) {
  *
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, clock, statePorts, machineName = viewMachineName, projects } = {}) {
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, clock, statePorts, machineName = viewMachineName, projects, readFlow = null } = {}) {
   requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
@@ -687,7 +687,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null, milestoneDelta: loadMachineSettings().state?.milestoneDelta === true ? { forecast: milestoneForecast } : null }));
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, readFlow, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null, milestoneDelta: loadMachineSettings().state?.milestoneDelta === true ? { forecast: milestoneForecast } : null }));
       // One item's timeline, read only, for the item page's strip: the very document `pullboard timeline <id> --json` prints, run through the CLI the view is given.
       const timelineRoute = req.method === 'GET' ? /^\/item-timeline\/(\d+)$/u.exec(url.pathname) : null;
       if (timelineRoute) {
