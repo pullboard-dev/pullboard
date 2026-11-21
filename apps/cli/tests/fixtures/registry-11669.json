@@ -1,0 +1,28 @@
+{
+ "cli.io-commands-resume.coordinator-needs-judgement": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "With next.returnedFirst on, the coordinator resume carries needsJudgement from the store reader and prints one line per entry."
+  },
+  "why": "Without it the coordinator cannot see which items wait on a judgement from the resume card.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/cli/tests/io/commands/resume.test.js"
+  ]
+ },
+ "cli.io-commands-resume.needs-judgement-coordinator-only": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "A builder seat card, and the coordinator card with next.returnedFirst off or unset, carry no needsJudgement and print today's lines."
+  },
+  "why": "Without it every seat card would grow a coordinator-only list.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/cli/tests/io/commands/resume.test.js"
+  ]
+ }
+}
