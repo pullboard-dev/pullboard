@@ -1,0 +1,28 @@
+{
+  "cli.io-submit-touched-cells-folder.c7-policyscope-reads-no-plan-stays-or-rows": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "[C7] a plan stay or cells.json row edit no longer widens the touched set."
+    },
+    "why": "Without it, a regression where [C7] a plan stay or cells.json row edit no longer widens the touched set would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/touched-cells-folder.test.js"
+    ]
+  },
+  "cli.io-submit-touched-cells-folder.c7-the-real-caller-keeps-its-cells-on-the-submit-gate": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "[C7] shared policy still names every cell the folders show, through the four arguments."
+    },
+    "why": "Without it, a regression where [C7] shared policy still names every cell the folders show, through the four arguments would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/touched-cells-folder.test.js"
+    ]
+  }
+}
