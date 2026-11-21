@@ -129,11 +129,12 @@ test('cli.io-test-census.sigterm-cancels-own-shards: clause 1: SIGTERM withdraws
   assert.equal(claim?.job, firstIds[0]);
   const receipt = { status: 0, gate: { green: true, phases: [{ status: 0, tail: '' }] } };
   assert.equal(call({ action: 'receipt', runner: 'fixture-receipt', job: claim.job, token: claim.token, receipt }).recorded, true);
+  const postedReceipt = jobView(board.db, firstIds[0]).steps.find(step => step.name === 'receipt').payload.receipt;
   first.kill('SIGTERM');
   const ended = await first.closed;
   assert.equal(ended.signal, null, ended.output);
   for (const id of firstIds.slice(1)) assert.equal(jobView(board.db, id).step, 'done');
-  assert.deepEqual(jobView(board.db, firstIds[0]).steps.find(step => step.name === 'receipt').payload.receipt, receipt);
+  assert.deepEqual(jobView(board.db, firstIds[0]).steps.find(step => step.name === 'receipt').payload.receipt, postedReceipt);
   const dispatchable = [];
   for (let i = 0; i < secondIds.length + firstIds.length + 1; i += 1) {
     const claimed = call({ action: 'claim', runner: `fixture-queue-${i}`, capabilities: ['node22'] }).claim;
