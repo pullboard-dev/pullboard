@@ -87,7 +87,7 @@ test('cli.io-worktree-maintenance-claim-ended.dirty-kept-then-removed: clause 2:
   const folder = fx.itemFolder(`${path}-item-${id}`, id);
   writeFileSync(join(folder.path, 'unfinished.txt'), 'untracked work\n');
   writeFileSync(join(folder.path, `item-${id}.txt`), 'edited\n');
-  store.release(board, id, agent, 'handing the item back');
+  store.release(board, id, agent, 'handing the item back', undefined, 'OTHER');
   const ports = { ...maintenanceCommandPorts(ctx, 'coordinator'), archiveVolume: fx.ports.archiveVolume, workingDirectories: () => [] };
   const report = await runWorktreeMaintenance(fx.repo, fx.config, ports, { now: Date.now() });
   const row = report.entries.find(entry => entry.path === folder.path);
