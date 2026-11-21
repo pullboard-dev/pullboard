@@ -621,9 +621,10 @@ function changeStamp(file) {
 /**
  * This command's one list of a worktree's edited and untracked paths. The list is kept in the checkout's own Git
  * directory with a fingerprint: HEAD, the index file's stamp, and the stamp of every kept path plus every file in
- * `named`, the files an open item names. A matching fingerprint reuses the kept list and launches no Git; any
- * change reads the status again and keeps the new list. An edit to a tracked file that no item names can be missed
- * until the next status, and cannot change which item is picked [C7,#10859].
+ * `named`, the files an open item names, and the stamps of the checkout's top folder and of the folders of those paths.
+ * A matching fingerprint reuses the kept list and launches no Git; any change reads the status again and keeps the
+ * new list. An edit to a tracked file that no item names, or a new file in a folder none of the paths is in, can be
+ * missed until the next status; neither can change which item is picked [C7,#10859].
  *
  * @param {string} root
  * @param {string[]} [named] - Files whose first edit must reach the list.
@@ -636,7 +637,9 @@ export function worktreePaths(root, named = []) {
     const head = checkoutHead(root);
     if (!location || !head) return read();
     const index = join(location.gitDir, 'index'), file = join(location.gitDir, 'pullboard-worktree-paths.json');
-    const fingerprint = (paths, more) => JSON.stringify([head, changeStamp(index), [...new Set([...paths, ...more])].sort().map(path => [path, changeStamp(join(root, path))])]);
+    const fingerprint = (paths, more) => JSON.stringify([head, changeStamp(index), [...new Set([...paths, ...more])].sort().map(path => [path, changeStamp(join(root, path))]),
+      // A new file changes its directory's stamp: the checkout's top and the folders of the known paths are watched.
+      [...new Set(['.', ...[...paths, ...more].map(path => dirname(path))])].sort().map(dir => [dir, changeStamp(join(root, dir))])]);
     let kept;
     try { kept = JSON.parse(fs.readFile(file, 'utf8')); } catch { /* No list kept yet, or a crash left one half written. */ }
     const more = [...new Set([...(Array.isArray(kept?.named) ? kept.named : []), ...named])];
