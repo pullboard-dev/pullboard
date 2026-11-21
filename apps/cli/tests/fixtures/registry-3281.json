@@ -1,0 +1,4 @@
+{
+  "cli.io-pinned-tool-build.repeat-read-no-git": {"proves":{"specs":["C7"],"claim":"a second command start at the same main tip and HEAD asks for the pinned tool build with no git call and the same answer"},"why":"Without it every command start would pay two git processes for an answer that has not changed.","kind":"journey","inputs":["apps/cli/src/io/pinned/tool/build.js","apps/cli/tests/io/pinned/tool/build.test.js"]},
+  "cli.io-pinned-tool-build.tip-moves-rereads": {"proves":{"specs":["C7"],"claim":"after main or HEAD moves the next start asks git again and picks the new answer"},"why":"Without it a cached answer could outlive the commit it was read at and pin a stale build.","kind":"journey","inputs":["apps/cli/src/io/pinned/tool/build.js","apps/cli/tests/io/pinned/tool/build.test.js"]}
+}

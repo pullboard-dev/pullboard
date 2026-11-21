@@ -1,0 +1,4 @@
+{
+  "store.io-board-withdraw.system-actor-as-met-names-commit": {"proves":{"specs":["C7"],"claim":"a system-actor withdraw citing a main commit that carries the work is written as met and the withdrawn record names the commit."},"why":"Without this test, a system-actor withdraw as met would leave no record of the commit that met it, or the store would never admit it.","kind":"cell unit","inputs":["packages/store/index.js"]},
+  "store.io-board-withdraw.refuses-uncited-or-off-main": {"proves":{"specs":["C7"],"claim":"a seat withdraw and a system-actor withdraw citing no commit or a commit that does not carry the work are refused and write nothing."},"why":"Without this test, a withdraw as met could be written with no commit, or one that is not on main, and close an item whose work never landed.","kind":"cell unit","inputs":["packages/store/index.js"]}
+}

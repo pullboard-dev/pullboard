@@ -61,6 +61,8 @@ const REQUIRED = Object.freeze({
 });
 
 const HIDDEN = /[­͏؜ᅟᅠ឴឵᠋-᠎​-‏‪-‮⁠-⁯ㅤ︀-️﻿ﾠ]/u;
+/** Unicode tag characters, interlinear annotation marks and control characters other than tab and line ends: invisible or terminal-steering text a reader or an agent would not see. */
+const INVISIBLE_MORE = /[\u{E0000}-\u{E007F}\uFFF9-\uFFFB\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/u;
 const KEY = /^[a-z][a-z_]*$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u;
 
@@ -104,6 +106,7 @@ function checkBytes(text) {
   if (typeof text !== 'string') throw refuse('CONTRIB_INPUT', 'record', 'the machine part must be text', 'pass the YAML block of the record as a string');
   if (Buffer.byteLength(text, 'utf8') > MAX_RECORD_BYTES) throw refuse('CONTRIB_SIZE', 'record', `the record is over ${MAX_RECORD_BYTES} bytes`, 'cut the record to 16 KB; keep constraints in fields and shorten the prose');
   if (HIDDEN.test(text)) throw refuse('CONTRIB_HIDDEN', 'record', 'bidirectional, zero-width and invisible characters are not allowed anywhere', 'delete the invisible characters and retype the line');
+  if (INVISIBLE_MORE.test(text)) throw refuse('CONTRIB_HIDDEN', 'record', 'tag characters and control characters are not allowed anywhere', 'delete the invisible characters and retype the line');
   if (text.includes('\0')) throw refuse('CONTRIB_HIDDEN', 'record', 'null bytes are not allowed', 'remove the null bytes');
 }
 

@@ -2,11 +2,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import * as store from '../../../../../../packages/store/index.js';
 import { heartbeatSeat } from '../../../../../../packages/store/index.js';
 import { submitFixture } from '../../../fixtures/board/submit.js';
 import { cli } from '../../../fixtures/next/take.js';
 import { fixture } from '../../../fixtures/next/take.js';
+import { machineSettingsFile } from '../../../../../../packages/config/index.js';
+import { freezer } from '../../../../src/io/claim.js';
 
 /** The frozen rule: same-family review is allowed once two submissions lack an available other-family reviewer. */
 const FROZEN = JSON.stringify({ policy: { verify: { family: 'require', familyRelaxAt: 2 } } });
@@ -78,4 +82,49 @@ test('cli.journeys-show-review-tier.an-eligible-reviewer-that-is-joined-2: claus
   assert.equal(late.code, 1, `the idle reviewer has a live heartbeat, so the rule holds: ${late.out}${late.err}`);
   assert.equal(late.document.error.code, 'NOTHING_FREE');
   for (const id of [first, second]) assert.equal(store.getItem(box.board, id).item_review_by, null, `#${id} stays unreserved`);
+});
+
+/**
+ * File an item that requires a reviewer family no seat has, claim it as the builder with the CLI's own criterion freezer plus
+ * the frozen backlog threshold a relaxation witness is checked against, and submit it at the builder's head. The real verify
+ * recomputes the same digest, so its criterion check passes.
+ */
+function submittedForFamily(box, title) {
+  const id = box.add(title, { reviewFamily: 'Family Gamma', sensitive: false });
+  const seat = box.seats.builder;
+  const head = box.git(seat.path, 'rev-parse', 'HEAD');
+  const real = freezer({ info: { root: seat.path, isMain: false }, config: box.config }, { board: box.board });
+  store.claim(box.board, id, { agentId: seat.id, lane: seat.lane, leaseMs: 3_600_000, head, freeze: item => {
+    const text = JSON.stringify({ ...JSON.parse(real(item).text), policy: { verify: { familyRelaxAt: 2 } } });
+    return { text, digest: createHash('sha256').update(text).digest('hex') };
+  } });
+  submitFixture(box.board, id, { agentId: seat.id, commit: head, tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
+  return id;
+}
+
+test('cli.journeys-show-review-tier.review-family-item-widens-after-20-minutes: clause 1: with review.relaxRequiredFamily on, an item filed with --review-family and no live eligible seat of that family for 20 minutes is offered by the real next --verify to a seat of another session; clause 2: the real verify records that the required family was widened and why; clause 3: the real CLI next --verify and verify run end to end against a real board, nothing stubbed [V1,H16]', async t => {
+  const box = await fixture(t);
+  const settings = machineSettingsFile();
+  writeFileSync(settings, JSON.stringify({ ...JSON.parse(readFileSync(settings, 'utf8')), review: { relaxRequiredFamily: true } }));
+  const first = submittedForFamily(box, 'Review needs a family nobody has');
+  const reviewer = box.seats.outside;
+
+  const early = await cli(box, reviewer.path, ['next', '--verify']);
+  assert.equal(early.code, 1, early.out + early.err);
+  assert.equal(early.document.error.code, 'NOTHING_FREE', 'with one review waiting, below the threshold, the required family holds');
+
+  const second = submittedForFamily(box, 'A second review waits too');
+  box.advance(20 * 60_000);
+  for (const seat of Object.values(box.seats)) heartbeatSeat(box.board, seat.id);
+  const late = await cli(box, reviewer.path, ['next', '--verify']);
+  assert.equal(late.code, 0, late.out + late.err);
+  const offered = late.document.item.item_id;
+  assert.ok([first, second].includes(offered), `offered #${offered}`);
+  assert.equal(store.getItem(box.board, offered).item_review_by, reviewer.id);
+
+  const verdict = await cli(box, reviewer.path, ['verify', String(offered), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The real fixture succeeds.', '--note', 'inspected the change; the heading is missing']);
+  assert.equal(verdict.code, 0, verdict.out + verdict.err);
+  const note = box.board.db.prepare('SELECT verdict_note FROM verdict WHERE item_id=?').get(offered).verdict_note;
+  assert.match(note, /review family relaxed at reservation: 2 waiting, threshold 2/u);
+  assert.match(note, /required reviewer family Family Gamma widened: no live eligible seat of the family for 20 minutes/u);
 });
