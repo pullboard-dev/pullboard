@@ -1,19 +1,18 @@
-/** @pullboard-test-input source-cell store */
 /** A board that has the gate hop table opens current on every path: the fenced hop's table never reads as a change made outside pullboard [C7,#8465]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { closeBoard } from '../../../index.js';
-import { register } from '../../../index.js';
-import { ensureGateHopTable } from '../../../src/io/board/hop.js';
-import { GATE_HOP_SCHEMA_SQL } from '../../../src/io/board/hop.js';
-import { boardStanding } from '../../../src/io/board/migrate.js';
-import { SCHEMA_DIGEST } from '../../../src/io/board/schema/source.js';
-import { SCHEMA_VERSION } from '../../../src/io/board/schema/source.js';
-import { openKitBoard } from '../../fixtures/cell.js';
-import { temporaryDirectory } from '../../fixtures/tmp.js';
+import { closeBoard } from '../../../../../store/index.js';
+import { register } from '../../../../../store/index.js';
+import { ensureGateHopTable } from '../../../../../store/index.js';
+import { GATE_HOP_SCHEMA_SQL } from '../../../../../store/index.js';
+import { boardStanding } from '../../../../../store/index.js';
+import { SCHEMA_DIGEST } from '../../../../../store/index.js';
+import { SCHEMA_VERSION } from '../../../../../store/index.js';
+import { openKitBoard } from '../../../fixtures/cell-board.js';
+import { temporaryDirectory } from '../../../../../store/tests/fixtures/tmp.js';
 
 /** A real, current board file with one registered seat, as trunk code leaves it. */
 function currentBoard(t) {

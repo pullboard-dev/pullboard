@@ -1,0 +1,4 @@
+{
+  "verify.review.retry-manifests.compose": {"proves":{"specs":["C7"],"claim":"review retry composes rows in the version-one plan index and test tiers in either branch order, with stable bytes and original schema metadata."},"why":"The real retry path must preserve the source manifest formats while admitting independent rows deterministically.","kind":"contract","inputs":["packages/verify/index.js","packages/codemap/data/plan/cells.json","packages/gate/data/tests/tiers.json"]},
+  "verify.review.retry-manifests.shared-row": {"proves":{"specs":["C7"],"claim":"review retry refuses competing edits to the same plan-index cell or test-tier file row and names that row in either branch order."},"why":"A retry must not choose one contributor's edit to a shared manifest row.","kind":"contract","inputs":["packages/verify/index.js","packages/codemap/data/plan/cells.json","packages/gate/data/tests/tiers.json"]}
+}
