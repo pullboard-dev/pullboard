@@ -84,8 +84,30 @@ export function waitForMarker(marker, pollMs = 500, maxMs = 150_000) {
 /** What a cold call waits on: the detached build's exit, or the marker appearing from another run's build. */
 let pending = null;
 
-/** Same result as generateStressBoard, but copied from the runner's cache; removeStressBoard cleans the copy. */
-export function cachedStressBoard(inputs) {
+/** Detached build of one cache folder; resolves when the child exits. */
+function spawnBuild(inputs, cache, lock) {
+  const child = spawn(process.execPath, [join(HERE, 'stress-cache-build.mjs'), JSON.stringify(inputs), cache, lock], { detached: true, stdio: 'ignore' });
+  return new Promise(resolve => child.once('exit', resolve));
+}
+
+/**
+ * Take the build lock: true when this run owns it (taken fresh, or an abandoned one older than ten minutes), false when
+ * another run's build holds it. A lock that vanishes between the failed mkdir and the stat was just released by a finished
+ * build, so the lock is retried once instead of letting the stat throw ENOENT [C7].
+ */
+function takeLock(lock, stat) {
+  try { mkdirSync(lock); return true; } catch { /* held or released: look */ }
+  try { return Date.now() - stat(lock).mtimeMs > 600_000; } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  try { mkdirSync(lock); return true; } catch { return false; }
+}
+
+/**
+ * Same result as generateStressBoard, but copied from the runner's cache; removeStressBoard cleans the copy.
+ * `seams` lets a test stand in for the lock stat and the detached build.
+ */
+export function cachedStressBoard(inputs, seams = {}) {
   // Returns null while a cold build runs; the caller waits with awaitStressBoard.
   const cache = join(stressCacheRoot(), cacheKey(inputs));
   const marker = join(cache, 'complete');
@@ -93,14 +115,8 @@ export function cachedStressBoard(inputs) {
     // A cold runner builds the board in a detached process: a test run killed at its file budget must not kill the build,
     // so the next run finds the cache. This run waits for it as long as it can.
     const lock = `${cache}.lock`;
-    let fresh = false;
-    try { mkdirSync(lock); fresh = true; } catch { fresh = Date.now() - statSync(lock).mtimeMs > 600_000; }
-    if (fresh) {
-      const child = spawn(process.execPath, [join(HERE, 'stress-cache-build.mjs'), JSON.stringify(inputs), cache, lock], { detached: true, stdio: 'ignore' });
-      pending = new Promise(resolve => child.once('exit', resolve));
-    } else {
-      pending = waitForMarker(marker);
-    }
+    if (takeLock(lock, seams.stat ?? statSync)) pending = (seams.build ?? spawnBuild)(inputs, cache, lock);
+    else pending = waitForMarker(marker);
     return null;
   }
   const built = readFileSync(marker, 'utf8').trim(), source = join(cache, basename(built));
