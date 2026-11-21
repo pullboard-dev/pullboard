@@ -654,11 +654,6 @@ export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
 }
 
-/** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
-export function docsRegenerateOnCommit() {
-  return loadMachineSettings().docs?.regenerateOnCommit === true;
-}
-
 /** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
 export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
