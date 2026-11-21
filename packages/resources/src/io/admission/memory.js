@@ -1,8 +1,9 @@
 /** Machine memory reading and the admission verdict behind the resource front door [C7,CD60,CD64]. */
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
-import { readlink } from 'node:fs/promises';
 import { basename } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const MEMORY_CACHE_MS = 2_000;
 const MEMORY_COMMAND_TIMEOUT_MS = 2_000;
@@ -76,7 +77,7 @@ async function readBiggestProcesses(platform, run, readLink, count = 3) {
  * @param {{ platform?: string, processes?: boolean, run?: (file: string, args: string[]) => Promise<string>, readText?: (file: string) => Promise<string>, readLink?: (file: string) => Promise<string> }} [options]
  * @returns {Promise<{ checked: true, pressure: string, availableBytes: number, totalBytes: number, processes?: object[] } | { checked: false, platform: string, reason: string }>}
  */
-export async function readMachineMemory({ platform = process.platform, processes = false, run = readCommand, readText = (file) => readFile(file, 'utf8'), readLink = readlink } = {}) {
+export async function readMachineMemory({ platform = process.platform, processes = false, run = readCommand, readText = (file) => fs.promises.readFile(file, 'utf8'), readLink = fs.promises.readlink } = {}) {
   try {
     let reading;
     if (platform === 'darwin') reading = await readDarwinMemory(run);
