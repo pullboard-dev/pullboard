@@ -1,0 +1,18 @@
+{
+  "cli.journeys-verify-machine-walk.verdict-decision-arms": {
+    "proves": {
+      "specs": [
+        "C7",
+        "M1"
+      ],
+      "claim": "the refusal walk attributes a guarded accept refusal only to accept and a planted reject-arm refusal only to reject"
+    },
+    "why": "A shared verify entry must not attribute one verdict arm to the other.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/verify/walk.test.js",
+      "apps/cli/src/io/commands/verify.js",
+      "packages/state/src/logic/machine/move/accept.js"
+    ]
+  }
+}

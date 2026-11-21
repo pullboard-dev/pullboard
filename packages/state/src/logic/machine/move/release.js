@@ -14,6 +14,7 @@ export const MOVES = [
     // Exit handoff appends its summary through the ordinary fact guards in this atomic release.
     alsoRefuses: [
       PATCH_METADATA_REFUSAL, SOURCE_STATE_REFUSAL,
+      { code: 'LINE_SETTING_RANGE', rule: 'gone-seat release reads a valid recorded line setting', next: 'read the allowed range with pullboard settings line, then record an in-range value or off with its reason and window numbers' },
       { code: 'S10', rule: 'a per-item criterion never requires the full suite or CI to pass', next: 'remove the full-suite or CI sentence from the criterion: pullboard edit <id> --criterion "<per-item outcome>"' },
       { code: 'DIAGNOSIS_WRONG', rule: 'a wrong-diagnosis release names what was wrong and returns a diagnosed claim the caller holds', next: 'claim the diagnosed item, then release it with --reason DIAGNOSIS_WRONG --note "<what was wrong>"' },
       { code: 'BAD_DEPENDENCIES', rule: 'release dependency ids are valid local item identifiers before the release is recorded', next: 'pass one or more existing local item ids with --on, or omit --on' },

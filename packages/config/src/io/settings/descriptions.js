@@ -58,7 +58,7 @@ const ROWS = [
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['health.adviceThroughNext', 'Builder advice comes through next', 'When enabled, builder advice that is sent as a shout is delivered in the output of next instead; off (default), advice stays in shouts.', 'Order', 'on/off'],
-  ['health.derivedState', 'Derived item state', 'When enabled, an item state is derived from its board records instead of being stored; off (default), item state is exactly as before, and nothing reads this setting yet.', 'Order', 'on/off'],
+  ['health.derivedState', 'Derived item state', 'When enabled (on by default), an item state is derived from its board records instead of being stored; off, item state is read exactly as before the sweep existed.', 'Order', 'on/off'],
   ['health.diskFloorGb', 'Health warns on low disk', 'When above 0, pullboard health warns when the disk holding this board has less free space than this many gigabytes; 0 (default) never warns.', 'Order', 'gigabytes'],
   ['health.lapsedSweep', 'The sentinel expires lapsed claims', 'When enabled, the View\'s sentinel expires claims whose lease lapsed every minute, so none waits for a command to run; off (default), lapsed claims are expired by the ten-minute sweep and before each write.', 'Order', 'on/off'],
   ['holds.liftSettled', 'Lift settled holds', 'When enabled (default), a hold whose reason names only landed items, and a parent hold whose children are all done, lifts when main moves, and a hold naming a withdrawn item is rewritten for a re-bar instead; when off, holds stay until someone lifts them.', 'Order', 'on/off'],
@@ -231,7 +231,7 @@ const ROWS = [
   // This repo: Project
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
-  ['inbox.batchedMarks', 'Batch inbox marks', 'Off (default) writes each inbox delivery mark as the inbox is read. On queues the marks and writes them in one batch.', 'Project', 'on/off'],
+  ['inbox.batchedMarks', 'Batch inbox marks', 'On (default) queues inbox delivery marks and writes them in one batch. Off writes each mark as the inbox is read.', 'Project', 'on/off'],
   ['inbox.tokenBudget', 'Inbox size', 'The most an inbox response may hold, in bytes of text.', 'Project', 'bytes'],
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],

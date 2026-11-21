@@ -44,7 +44,7 @@ function submitting(box, title) {
 }
 
 test('cli.journeys-next-take.a-free-seat-is-handed-one: a free seat is handed one eligible item without screening [N2,V1,B3]', async t => {
-  const box = await fixture(t, { route: 'light' });
+  const box = await fixture(t, { route: 'light', seats: ['actor', 'builder'] });
   const future = box.add('Older item in a future release', { route: 'light' });
   const wrongLane = box.add('Wrong lane', { lane: 'docs', route: 'light' });
   const strong = box.add('Wrong route', { route: 'strong' });

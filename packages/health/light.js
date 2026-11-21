@@ -6,3 +6,5 @@ export const REVIEW_COVER_PAUSE_TAIL = 'new builds wait for independent review c
 
 /** The clock table: owner, deadline and default move for every non-terminal item state [B4,C7]. */
 export { CLOCK_TABLE, CLOCK_TERMINAL, clockRow, clockDue } from './src/logic/clock/table.js';
+/** Read the derived board state without loading the health cell's full index. */
+export { readDerivedState } from './src/io/derived.js';

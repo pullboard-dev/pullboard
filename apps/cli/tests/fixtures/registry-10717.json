@@ -1,0 +1,30 @@
+{
+  "cli.io-cells-submit-checks.plan-identity-edits-raise-no-problem-but-a-vanished-path-map-row-does": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "policyProblems takes two path maps and the candidate root; a plan shard order, root or front door change raises no problem while a disappeared accepted path-map row still does."
+    },
+    "why": "Without it, a regression that reads the plan again would refuse items for plan identity edits, or a plan-free policy could drop the path-map row guard.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/cells-submit-checks.test.js",
+      "apps/cli/tests/fixtures/cells/snapshot.js"
+    ]
+  },
+  "cli.io-cells-submit-checks.a-new-import-through-a-shim-is-still-refused-from-path-map-rows": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A new import through a compatibility shim is refused when the shim owners are built from the path maps, and an import of the moved module is accepted."
+    },
+    "why": "Without it, dropping the plan would silently disable the shim ratchet.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/cells-submit-checks.test.js",
+      "apps/cli/tests/fixtures/cells/snapshot.js"
+    ]
+  }
+}

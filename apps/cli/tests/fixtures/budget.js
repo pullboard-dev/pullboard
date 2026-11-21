@@ -177,7 +177,7 @@ export async function assertStartupBudgets(t, sink = {}, options = {}) {
       for(const name of Object.keys(samples)) {
       const thin=name==='list thin';
       const args=name==='version'?['--version','--json']:name==='show'?['show','4','--json']:[thin?'list':name,'--json'];
-      if(thin||name==='list'){ mkdirSync(join(root,'private-machine'),{recursive:true}); writeFileSync(settingsFile,JSON.stringify({list:{thinRead:thin}})); }
+      if(thin||name==='list'){ mkdirSync(join(root,'private-machine'),{recursive:true}); writeFileSync(settingsFile,JSON.stringify({list:{thinRead:thin},...(thin?{health:{derivedState:false}}:{})})); }
       const {result,wallMs:milliseconds,cpuMs}=measuredSpawn([code,...args],{cwd:root,encoding:'utf8',env:childEnvironment,maxBuffer:16*1024*1024});
       if(thin||name==='list') unlinkSync(settingsFile);
       assert.equal(result.status,0,`${name} round ${round}: ${result.error?.message ?? result.stderr ?? result.stdout}`);

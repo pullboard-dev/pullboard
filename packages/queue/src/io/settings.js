@@ -1,9 +1,6 @@
 /** The gate queue's machine settings, read from the file the caller names [O5]. */
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { environmentAdapter } from '../../../env/index.js';
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import { Refused } from '../../../kernel/light.js';
 import { LINE_SETTING_DEFINITIONS } from '../logic/definitions.js';
 import { validateKnownLineSetting } from '../logic/definitions.js';
@@ -27,10 +24,11 @@ export function carriedBrowserByLaunch() {
  * (machineSettingsFile() in the resources cell's machine-home.js), so the queue cell never reaches up into config.
  *
  * @param {string} file - The machine settings file the caller resolved.
+ * @param {ReturnType<typeof fileSystemAdapter>} [fs] - The file-system adapter, injectable where a test needs a fake.
  * @returns {object|null}
  */
-export function readMachineSettingsFile(file) {
-  return parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file);
+export function readMachineSettingsFile(file, fs = fileSystemAdapter()) {
+  return parseMachineSettings(fs.exists(file) ? fs.readFile(file, 'utf8') : null, file);
 }
 
 /**

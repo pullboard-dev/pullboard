@@ -27,6 +27,28 @@ export function shardReuse(posted) {
   return { reused: summary ? Number(summary[2]) : null, files: [...tail.matchAll(new RegExp(REUSED_FILE.source, 'gmu'))].map(row => row[1]) };
 }
 
+/**
+ * The proof files that declare an exclusive timing runner: a git grep over the proof's own files in the merged checkout for the leading-comment line (a comment line before the file's first code line). It never reaches the gate door, which would pull the CLI into this cell.
+ *
+ * @param {string} root
+ * @param {string[]} files
+ * @returns {Promise<string[]>}
+ */
+export async function timingFilesOf(root, files) {
+  const found = new Set();
+  for (let at = 0; at < files.length; at += 200) {
+    const read = tryGit(root, ['grep', '-n', '-E', '^[ \\t]*(//|/?\\*+)[ \\t]*@pullboard-test-timing[ \\t]*\\r?$', '--', ...files.slice(at, at + 200)]);
+    for (const line of read.stdout.split('\n')) {
+      const [file, row] = line.split(':');
+      if (!file) continue;
+      // The first line that is not a comment or blank ends the leading comments; a declaration must come before it.
+      const code = tryGit(root, ['grep', '-n', '-v', '-m', '1', '-E', '^[ \\t]*(//|/\\*|\\*|$)', '--', file]).stdout.split('\n')[0].split(':');
+      if (code.length < 3 || Number(row) < Number(code[1])) found.add(file);
+    }
+  }
+  return files.filter(file => found.has(file));
+}
+
 /** Sleep without leaving a timer behind once the wait ends. */
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -79,22 +101,24 @@ function pinMerged(root, { remote, job, options = [] }) {
  *
  * @param {{ runner: string, files: string[], ledger?: object | null }} proof
  * @param {{ job: string, remote: string, cores: number, gate: { run: string[], entry: string },
- *   offer: (request: { merged: string, ref: string, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits: string[] } }) => Promise<{ sharded: boolean, shards: string[] }> | { sharded: boolean, shards: string[] },
+ *   offer: (request: { merged: string, ref: string, plan: { runner: string, files: string[], cores: number, timing?: string[] }, gate: { run: string[], entry: string, commits: string[] } }) => Promise<{ sharded: boolean, shards: string[] }> | { sharded: boolean, shards: string[] },
  *   receipts: (shards: string[]) => Promise<{ job: string, posted: object | null }[]> | { job: string, posted: object | null }[],
- *   pushOptions?: () => string[], pollMs?: number, wait?: (ms: number) => Promise<void>, now?: () => number,
+ *   timingFiles?: (root: string, files: string[]) => Promise<string[]> | string[], pushOptions?: () => string[], pollMs?: number, wait?: (ms: number) => Promise<void>, now?: () => number,
  *   deadline?: () => { at: number, ms: number } | null }} shard
  * @param {(root: string) => Promise<object>} local - Runs the whole proof on this runner.
  * @returns {(context: { root: string, base: string, renew?: () => Promise<boolean> | boolean }) => Promise<object>}
  */
 export function shardedProofCheck(proof, shard, local) {
-  const { job, remote, cores, gate, offer, receipts, pushOptions = () => [], pollMs = POLL_MS, wait = pause, now = Date.now, deadline = () => null, reuseGate = false } = shard;
+  const { job, remote, cores, gate, offer, receipts, pushOptions = () => [], pollMs = POLL_MS, wait = pause, now = Date.now, deadline = () => null, reuseGate = false, timingFiles = timingFilesOf } = shard;
   return async context => {
     const merged = tryGit(context.root, ['rev-parse', 'HEAD']).stdout;
-    if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(merged) || proof.files.length <= cores) return local(context);
+    // A declared timing file is offered as shards even when the files fit the cores, so the board can give it an exclusive runner; a board that does not split them answers sharded: false and the proof runs here.
+    const timing = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(merged) ? await timingFiles(context.root, proof.files) : [];
+    if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(merged) || (proof.files.length <= cores && !timing.length)) return local(context);
     const pinned = pinMerged(context.root, { remote, job, options: pushOptions() });
     if (!pinned.ok) return local(context);
     let offered;
-    try { offered = await offer({ merged, ref: landingRef(job), ...(reuseGate ? { reuse: true } : {}), plan: { runner: proof.runner, files: proof.files, cores }, gate: { run: gate.run, entry: gate.entry, commits: [context.base] } }); } catch { return local(context); }
+    try { offered = await offer({ merged, ref: landingRef(job), ...(reuseGate ? { reuse: true } : {}), plan: { runner: proof.runner, files: proof.files, cores, ...(timing.length ? { timing } : {}) }, gate: { run: gate.run, entry: gate.entry, commits: [context.base] } }); } catch { return local(context); }
     if (!offered?.sharded || !Array.isArray(offered.shards) || !offered.shards.length) return local(context);
     const posted = new Map(), total = offered.shards.length;
     const counts = { files: proof.files.length, reused: 0, ran: proof.files.length, shards: total };

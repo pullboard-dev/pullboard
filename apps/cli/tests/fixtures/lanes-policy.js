@@ -79,8 +79,9 @@ export async function nativePlanRowFixture(t, { mainFile } = {}) {
   if (process.env.PULLBOARD_RUNNER_PRELOAD) box.env.PULLBOARD_RUNNER_PRELOAD = process.env.PULLBOARD_RUNNER_PRELOAD;
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('src/');
-  fixtureProjectPolicy(box.repo, { config });
   const indexPath = 'packages/codemap/data/plan/cells.json';
+  config.cells = { ...config.cells, plan: indexPath };
+  fixtureProjectPolicy(box.repo, { config });
   const shardPath = 'packages/codemap/data/plan/01-x.json';
   const index = { version: 1, stays: [], cells: [{ file: shardPath, name: 'x', order: 1 }] };
   const shard = { order: 1, name: 'x', root: 'packages/x', paths: [], reexports: [], cuts: [] };

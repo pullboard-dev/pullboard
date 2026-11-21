@@ -10,6 +10,7 @@ import { healthReport } from '../../../../../health/index.js';
 import { defaults } from '../../../../../config/index.js';
 import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 import { configProblems } from '../../../../../config/index.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 
 /** Observe actual health against the fixture's immutable source and injected native clock. */
 function health(box, config = box.config) {
@@ -18,7 +19,7 @@ function health(box, config = box.config) {
 }
 
 test('moves.reserve-next-review-starve.an-eligible-idle-agent-gets-an-eleven-minute: an eligible idle agent gets an eleven-minute strict review before a build while its builder gets the build [C7,N2,V1]', async t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const waiting = box.add('Strict review waiting eleven minutes', { reviewFamily: 'Family Beta' });
   box.submit(waiting);
   const build = box.add('Separate available build', { brief: 'Files: web/other.js\nTest: a genuinely independent build remains open.' });
@@ -40,7 +41,7 @@ test('moves.reserve-next-review-starve.an-eligible-idle-agent-gets-an-eleven-min
 });
 
 test('moves.reserve-next-review-starve.a-free-seat-takes-the-oldest-eligible: clause 1: a free seat takes the oldest eligible review after two minutes regardless of the build ratio [C7,#3077]', async t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const oldest = box.add('Oldest review waiting two minutes');
   box.submit(oldest);
   box.advance(60_000);
@@ -56,7 +57,7 @@ test('moves.reserve-next-review-starve.a-free-seat-takes-the-oldest-eligible: cl
 });
 
 test('moves.reserve-next-review-starve.health-names-the-exact-native-check-when: health names the exact native check when every joined seat is excluded from a starved review [C7,A6,V1]', t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const waiting = box.add('Strict review with policy blocking its outside seats', { reviewFamily: 'Family Beta' });
   box.submit(waiting);
   box.advance(11 * 60_000);
@@ -70,7 +71,7 @@ test('moves.reserve-next-review-starve.health-names-the-exact-native-check-when:
 });
 
 test('moves.reserve-next-review-starve.a-review-starved-finding-listing-500-seats-keeps: clause 1: a REVIEW_STARVED finding listing 500 seats keeps a why under the 8192 receipt cap and states the omitted seats [C7,A6,V1]', t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const waiting = box.add('Strict review with five hundred excluded seats', { reviewFamily: 'Family Beta' });
   box.submit(waiting);
   for (let n = 0; n < 500; n++) {
@@ -91,7 +92,7 @@ test('moves.reserve-next-review-starve.a-review-starved-finding-listing-500-seat
 });
 
 test('moves.reserve-next-review-starve.configured-starvation-waits-select-the-oldest-eligible: configured starvation waits select the oldest eligible review for a held builder after a reservation expires [C7,N2,V1]', t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const oldest = box.add('Oldest strict review', { reviewFamily: 'Family Beta' });
   box.submit(oldest);
   store.reserveReview(box.board, oldest, { agentId: box.seats.outside.id, leaseMs: 1_000, policy: 'any' });
