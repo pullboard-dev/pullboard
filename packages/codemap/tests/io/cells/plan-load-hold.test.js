@@ -63,3 +63,40 @@ test('codemap.plan-load-hold.off-runs: clause 3: with the hold off the same comm
   assert.ok(seen.stderr.length + seen.stdout.length > 0 || seen.exited, 'the command ran and said something or finished');
   assert.doesNotMatch(seen.stderr, /waits in the local resource line/u);
 });
+
+test('codemap.plan-load-hold.verification-order: clause 1: live owned imports and prerequisites produce a deterministic order without rewriting history [C7,D3]', async () => {
+  const { verificationOrder } = await import('../../../src/io/cells/plan.js');
+  const plan = { cells: [
+    { name: 'alpha', order: 1, paths: [], cuts: [{ cell: 'beta', imports: 1 }], item: { after: ['gamma'], criterion: 'issued bar' } },
+    { name: 'beta', order: 2, paths: [], cuts: [], item: { after: [] } },
+    { name: 'gamma', order: 3, paths: [], cuts: [], item: { after: [] } },
+  ] };
+  const before = JSON.stringify(plan);
+  const edges = new Map([
+    ['packages/alpha/src/a.js', [{ target: 'packages/beta/index.js' }]],
+    ['packages/beta/src/b.js', [{ target: 'packages/gamma/index.js' }, { target: 'packages/alpha/index.js' }]],
+  ]);
+  assert.deepEqual(verificationOrder(plan, edges), ['gamma', 'beta', 'alpha']);
+  assert.deepEqual(verificationOrder(plan, new Map([...edges].reverse())), ['gamma', 'beta', 'alpha']);
+  assert.equal(JSON.stringify(plan), before, 'history and declared cuts remain untouched');
+  const { readPlan, cellInventory, importsIn, commonJsIn } = await import('../../../index.js');
+  const root = fileURLToPath(new URL('../../../../..', import.meta.url));
+  const live = readPlan(root), liveBefore = JSON.stringify(live);
+  const { edges: currentEdges } = cellInventory(root, { importsIn, commonJsIn });
+  const order = verificationOrder(live, currentEdges);
+  assert.equal(order.length, live.cells.length);
+  assert.equal(new Set(order).size, live.cells.length);
+  assert.ok(order.indexOf('health') < order.indexOf('api'), 'the real api to health import is ordered leaf-first');
+  assert.equal(JSON.stringify(live), liveBefore, 'the current plan is not changed');
+});
+
+test('codemap.plan-load-hold.verification-cycle: clause 2: an uncut live cycle is refused with its participating cells [C7,D3]', async () => {
+  const { verificationOrder } = await import('../../../src/io/cells/plan.js');
+  const plan = { cells: ['alpha', 'beta', 'gamma'].map(name => ({ name, paths: [], cuts: [], item: { after: [] } })) };
+  const edges = new Map([
+    ['packages/alpha/src/a.js', [{ target: 'packages/beta/index.js' }]],
+    ['packages/beta/src/b.js', [{ target: 'packages/alpha/index.js' }]],
+    ['packages/gamma/src/c.js', [{ target: 'packages/alpha/index.js' }]],
+  ]);
+  assert.throws(() => verificationOrder(plan, edges), error => error.code === 'CELLS_PLAN_ORDER_CYCLE' && /alpha -> beta -> alpha/u.test(error.message) && !error.message.includes('gamma'));
+});
