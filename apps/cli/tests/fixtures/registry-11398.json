@@ -1,0 +1,41 @@
+{
+  "cli.logic-check-shape.flags-hidden-output-or-masked-exit": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "checkHidesResult is true for a check that sends its output to /dev/null or masks its exit, and false for a plain node test-runner command over named test files."
+    },
+    "why": "Without it a check that can never fail would be claimed and pass the gate unproven.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/logic/check-shape.js"
+    ]
+  },
+  "cli.io-claim.check-shape-refuses-hidden": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with claim.checkCeiling on, claim refuses CHECK_UNSOUND for a check that hides its output or masks its exit, before any baseline is read, leaving the item open and unclaimed."
+    },
+    "why": "Without it an item whose check can never show a failure is claimed and built for nothing.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/claim.js"
+    ]
+  },
+  "cli.io-claim.check-shape-claims-when-off": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with claim.checkCeiling off or unset, an item whose check hides its output is claimed as today."
+    },
+    "why": "Without it the new refusal would change claims on boards that did not opt in.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/claim.js"
+    ]
+  }
+}
