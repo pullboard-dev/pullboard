@@ -21,6 +21,7 @@ import { primaryCheckoutRoot } from '../worktree.js';
 import { unfinishedFolderMessage } from '../unfinished.js';
 import { unfinishedItemFolders } from '../unfinished.js';
 import { unfinishedOperation } from '../unfinished.js';
+import { restoreWip } from './wip.js';
 import { writeItemMarker } from './folder/identity.js';
 export { itemFolderIdentity, itemFolderPath } from './folder/identity.js';
 import { itemFolderPath } from './folder/identity.js';
@@ -657,10 +658,12 @@ async function openFolder(ctx, me, id, options = {}) {
   const exists = branchExists(root, ref);
   if (exists && await recoverPriorFolder(ctx, me, id, path, ref, options)) {
     writeItemMarker(path, me.id, id);
+    restoreWip(path, id);
     return path;
   }
   if (await reuseIdleFolder(ctx, me, id, path, ref, exists, options)) {
     writeItemMarker(path, me.id, id);
+    restoreWip(path, id);
     return path;
   }
   // A prepared spare is moved into place and switched to the branch; only without one is every file written (#5776).
@@ -669,6 +672,7 @@ async function openFolder(ctx, me, id, options = {}) {
     git(root, [...workers, ...(exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunk])]);
   }
   writeItemMarker(path, me.id, id);
+  restoreWip(path, id);
   await prepareSpareFolder(root, seat, trunk, workers);
   return path;
 }

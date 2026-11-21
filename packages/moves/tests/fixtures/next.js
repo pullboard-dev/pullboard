@@ -7,7 +7,6 @@ import { loadConfig } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { CELL_CONFIG } from '../../../store/tests/fixtures/cell.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
@@ -35,10 +34,10 @@ export function counted(t, seam, after = {}) {
 /**
  * A real repo and board with an actor seat at the repo root and a peer builder in the same lane, and plain ports in
  * place of the command line's: board work on the open board, the current seat as this seat, claims through the claim
- * move, and no item folders. With `reviewers`, the coordinator and three review-lane seats join too (sibling,
+ * move, and no item folders. `boardFrom` is the board opener (the board fixture's cellBoard), passed in by the calling test. With `reviewers`, the coordinator and three review-lane seats join too (sibling,
  * sameFamily, outside), `family` and `policy` set the project's review rules, and `lanes` adds lanes to the config. `box.as(name)` makes another seat the one that runs next.
  */
-export function fixture(t, { reviewers = false, family, policy, route = 'strong', lanes } = {}) {
+export function fixture(t, { boardFrom, reviewers = false, family, policy, route = 'strong', lanes } = {}) {
   const config = {};
   if (family || policy) config.verify = { policy: policy ?? 'any', family: family ?? 'off' };
   if (reviewers) config.lanes = { ...CELL_CONFIG.lanes, review: { owns: [] } };
@@ -46,7 +45,7 @@ export function fixture(t, { reviewers = false, family, policy, route = 'strong'
   const project = cellProject(t, { real: true, config });
   let at = Date.parse('2026-10-25T10:00:00.000Z');
   const clock = { now: () => new Date(at) };
-  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
+  const board = boardFrom(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
   const builderPath = join(project.dir, 'builder');
   mkdirSync(builderPath);
   const seats = { actor: cellSeat(board, { lane: 'web', path: project.repo, family: 'Family Alpha', route }),

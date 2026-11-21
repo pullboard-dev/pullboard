@@ -7,7 +7,6 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
@@ -17,6 +16,8 @@ import { writeStep } from '../../../../jobs/index.js';
 import { from } from './kit.js';
 import { hopCheck } from './kit.js';
 
+const { cellBoard } = await from('packages/board/tests/fixtures/cell-board.js');
+
 // Neither is on the store front door, so the harness loads them by path like the other pipeline harnesses.
 const { returnedRecord, gateAtHead } = await from('packages/store/src/io/board/next.js');
 const OLD = 'a'.repeat(40);
@@ -24,8 +25,8 @@ const NEW = 'b'.repeat(40);
 
 /** A claimed item with a red gate recorded at the OLD commit, and the item's own submitted commit set by the caller. */
 function redAt(t, itemCommit) {
-  const repo = cellRepo(t);
-  const board = cellBoard(t, repo.boardFile, undefined, { gitRoot: repo.root });
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { gitRoot: repo.root, real: true });
   const seat = cellSeat(board, { lane: 'web', path: repo.root });
   const item = cellItem(board, { lane: 'web', title: 'Red page', criterion: 'The page renders.', specIds: ['G1'], check: 'true' });
   const id = item.item_id;

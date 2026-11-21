@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
+import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { fixtureCommittedGraph } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
@@ -169,6 +170,14 @@ test('cli.journeys-imports-closure-budget.cold-status-trimmed-modules: a cold pu
   assert.deepEqual(loadedDrops, [], `a cold status loaded ${loadedDrops.join(', ')}: the fallback reclaim loads the drive step machinery only when a gate job has lapsed`);
 });
 
+test('cli.journeys-imports-closure-budget.cold-list-maintenance-no-gate: clause 2: a cold pullboard list, whose after-command worktree maintenance imports the scheduler and tool/build.js, loads no module of the gate package [C7,#12595]', () => {
+  const run = commandLoads('list');
+  const gate = new URL('packages/gate/', `file://${ROOT}`).href;
+  const loadedGate = [...run.urls].filter(url => url.startsWith(gate));
+  assert.ok(run.urls.size > 0, run.stderr);
+  assert.deepEqual(loadedGate.slice(0, 5), [], `a cold list loaded ${loadedGate.length} gate modules: apps/cli/src/io/tool/build.js must not import the gate package`);
+});
+
 test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a cold claim never loads apps/cli/src/io/spec.js: claim imports coordinatorFile from its own file [C7]', () => {
   const run = commandLoads('claim 1');
   const spec = new URL('apps/cli/src/io/spec.js', `file://${ROOT}`).href;
@@ -184,6 +193,18 @@ test('cli.journeys-imports-closure-budget.cold-show-trimmed-modules: a cold pull
   assert.match(run.stdout, /^#1 +claimed /u, "a cold show 1 still prints the item line");
   assert.deepEqual(loadedDrops, [], `a cold show loaded ${loadedDrops.join(', ')}: the comparison loads the review-retry composition only when its base run fails`);
   assert.ok(run.urls.size <= 525, `a cold show 1 loaded ${run.urls.size} modules, over the 525 the env adapter slices need: keep the retry composition out of the cold path`);
+});
+
+test('cli.journeys-imports-closure-budget.derived-state-on-show-and-list-within-rows: with health.derivedState on, a cold pullboard show 1 and a cold pullboard list each load no more modules than their rows plus headroom [C7,#12608]', () => {
+  const home = seat.env.PULLBOARD_MACHINE_HOME;
+  fixtureSettledMachine(home, { health: { derivedState: true } });
+  try {
+    for (const command of ['show 1', 'list']) {
+      const run = commandLoads(command);
+      assert.equal(run.status, 0, run.stderr);
+      assert.ok(run.urls.size <= budgets[command] + headroom(budgets[command]), `a cold pullboard ${command} with health.derivedState on loaded ${run.urls.size} modules, over its row ${budgets[command]} plus ${headroom(budgets[command])} headroom: read derived state through the health light door and verdictTrunk through the verify read door`);
+    }
+  } finally { fixtureSettledMachine(home); }
 });
 
 test('cli.journeys-imports-closure-budget.headroom-is-five-or-five-percent: clause 1: headroom(ceiling) = max(5, ceil(5% of ceiling)), and the over-ceiling message names each module the change added, capped at 40 [C7]', () => {

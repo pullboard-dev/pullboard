@@ -8,8 +8,8 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { from } from './kit.js';
 import { hopCheck } from './kit.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { lapsedGateJobs } from '../../../../drive/index.js';
 import { reclaimPass } from '../../../../drive/index.js';
 import { LEASE_MS } from '../../../../jobs/index.js';
@@ -18,6 +18,8 @@ import { jobView } from '../../../../jobs/index.js';
 import { reclaimLapsed } from '../../../../jobs/index.js';
 import { takeJob } from '../../../../jobs/index.js';
 import { writeStep } from '../../../../jobs/index.js';
+
+const { cellBoard } = await from('packages/board/tests/fixtures/cell-board.js');
 
 // Ten minutes: past every two-minute lease, short of the 20 minutes with no step that ends a gate job as infrastructure.
 const SLEPT = 10 * 60_000;

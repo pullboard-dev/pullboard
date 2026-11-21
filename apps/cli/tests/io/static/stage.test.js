@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { rmSync } from 'node:fs';
 import { runStaticStage } from '../../../src/io/static/stage.js';
 import { runStaticStageAdmitted } from '../../../src/io/static/stage.js';
+import { runCliInProcess } from '../../fixtures/process.js';
 import { staticCheckSlots } from '../../../../../packages/config/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureMachineSettings } from '../../fixtures/testkit.js';
@@ -33,6 +34,14 @@ test('cli.io-static-stage.the-local-static-stage-prints-each-finding: clause 1: 
   assert.deepEqual(said, RED.map(row => `STATIC_RED ${row}`));
   assert.deepEqual(results[0].findings.map(row => [row.rule, row.file, row.line]),
     [['STATIC_RED', 'packages/api/tests/io/ledger.test.js', 8], ['STATIC_RED', 'packages/api/tests/io/ledger.test.js', 9], ['STATIC_RED', 'packages/api', 1]]);
+});
+
+test('cli.io-static-stage.the-normal-gate-entry-runs-a-real-static-stage: clause 1: pullboard gate --static reaches the configured real static command and reports green [C7,#12572]', async () => {
+  const { NODE_TEST_CONTEXT: _parent, ...env } = process.env;
+  const ran = await runCliInProcess(['gate', '--static'], { cwd: process.cwd(), env });
+  const output = `${ran.stdout}${ran.stderr}`;
+  assert.equal(ran.status, 0, output.slice(-6000));
+  assert.match(output, /static stage green/u);
 });
 
 test('cli.io-static-stage.a-green-static-stage-exits-0-and: clause 1: a green static stage exits 0 and says the gate will not return STATIC_RED [C7]', () => {

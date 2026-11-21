@@ -15,6 +15,7 @@ import { getItem } from '../../../../../packages/store/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 import { endedSubmitHandoff } from '../../../../../packages/store/index.js';
 import { fixtureAdd } from '../testkit.js';
+import { fixtureMachineSettings } from '../testkit.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -58,7 +59,7 @@ export function gateJob(box) {
 export function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Build a native project whose frozen check waits for a real release file, not a timing margin. */
-export function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false, fourth = false, perSeat = firstFolder ? 2 : null } = {}) {
+export async function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false, fourth = false, perSeat = firstFolder ? 2 : null, inProcessHooks } = {}) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   // Isolate admission before init and commit hooks, as well as the nested queued worker.
@@ -66,6 +67,10 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   let box;
   try { box = helpers.project('true', isolated); }
   catch (error) { helpers.cleanup(); throw error; }
+  if (inProcessHooks !== undefined) {
+    const settings = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+    fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, test: { ...settings.test, inProcessHooks } });
+  }
   const armed = join(box.dir, 'armed');
   const release = join(box.dir, 'release');
   const releases = [release];
@@ -115,7 +120,7 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   const source = firstFolder ? claim.itemFolder : box.web;
   // B5: with a second live claim, the commit hook must still stamp the folder's own item.
   const secondFolder = firstFolder ? document(box.runSync(box.web, 'claim', String(second), '--json')).itemFolder : null;
-  assert.equal(helpers.commitFile(box, source, 'web/snapshot.txt', result + '\n', 'feat(web): captured candidate [G1]').status, 0);
+  assert.equal((await helpers.commitFile(box, source, 'web/snapshot.txt', result + '\n', 'feat(web): captured candidate [G1]')).status, 0);
   const commit = box.git(source, 'rev-parse', 'HEAD');
   writeFileSync(armed, 'armed\n');
   t.after(async () => {

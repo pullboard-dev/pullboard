@@ -6,9 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { criterionCells } from '../../index.js';
+import { criterionSize } from '../../index.js';
 import { requirePlannedSource } from '../../index.js';
 import { fixture } from '../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../landing/tests/fixtures/plan.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 test('items.criterion.handoff-passes-placement: a handoff whose source lacks the newest trunk commit still passes placement [C7]', t => {
   const { root, put } = fixture(t);
@@ -30,4 +33,15 @@ test('items.criterion.infra-read-not-red: an infrastructure Git read stopping th
     { cwd: join(import.meta.dirname, '../../../..'), encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'NODE_TEST_CONTEXT')) });
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /^# pass 1$/mu, 'the handoff completion fixture really ran');
+});
+
+test('items.io-criterion.cells-from-folders: clause 1: criterionCells lists cells from the package and app folders and criterionSize counts two cells for a criterion naming files in two cell folders, on a temp tree with no plan folder [C7,#2467]', () => {
+  const { root, write } = privateFixtureFiles('pullboard-criterion-cells-');
+  for (const file of ['packages/alpha/index.js', 'packages/beta/index.js', 'apps/tool/index.js']) write(file, '');
+  const cells = criterionCells(root);
+  assert.deepEqual(cells.map(cell => [cell.name, cell.root]), [['alpha', 'packages/alpha'], ['beta', 'packages/beta'], ['app:tool', 'apps/tool']]);
+  assert.deepEqual(criterionCells(join(root, 'missing')), [], 'a root with no folders lists no cells and refuses nothing');
+  const two = criterionSize('1. packages/alpha/src/a.js and packages/beta/src/b.js change [test]', cells);
+  assert.deepEqual(two.cells, ['alpha', 'beta']);
+  assert.equal(criterionSize('packages/alpha/src/a.js and apps/tool/src/t.js', cells).cells.length, 2);
 });
