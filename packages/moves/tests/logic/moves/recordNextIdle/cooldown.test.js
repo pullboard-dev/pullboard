@@ -6,6 +6,7 @@ import { configFromSource } from '../../../../../config/index.js';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
 import { take } from '../../../fixtures/next.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 
 /** Claim an item for the actor seat and release it, as a seat that gives work back does. */
 function claimAndRelease(box, id) {
@@ -14,7 +15,7 @@ function claimAndRelease(box, id) {
 }
 
 test('moves.record-next-idle-cooldown.a-seat-that-released-item-a-is: a seat that released item A is offered item B, and A once the cooldown passes [B3,N2]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const a = box.add('Item A');
   const b = box.add('Item B');
   claimAndRelease(box, a);
@@ -28,7 +29,7 @@ test('moves.record-next-idle-cooldown.a-seat-that-released-item-a-is: a seat tha
 });
 
 test('moves.record-next-idle-cooldown.plain-next-the-command-seats-loop-on: plain next, the command seats loop on, also offers item B after item A was released [B3,N2]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const a = box.add('Item A');
   const b = box.add('Item B');
   claimAndRelease(box, a);
@@ -38,7 +39,7 @@ test('moves.record-next-idle-cooldown.plain-next-the-command-seats-loop-on: plai
 });
 
 test('moves.record-next-idle-cooldown.with-only-the-released-item-open-the: with only the released item open, the seat is offered it [B3,N2]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const a = box.add('Item A');
   claimAndRelease(box, a);
   const offered = await take(box);

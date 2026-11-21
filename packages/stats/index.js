@@ -228,4 +228,4 @@ export { itemRunnerCost } from './src/io/cost/runner.js';
 export { readMaxAgentsSeries, maxAgentsLines } from './src/io/max-agents.js';
 export { allowanceWarning } from './src/logic/allowance.js';
 export { fleetSummary, timelineOf, TIMELINE_STAGES, TIMELINE_BUCKETS, WAIT_REASONS, UNACCOUNTED, UNACCOUNTED_OVER_MS, TIMELINE_JOB_KINDS } from './src/logic/timeline.js';
-export { readFleetTimelines, readItemTimeline } from './src/io/timeline.js';
+export { GATE_QUEUE_SQL, readFleetTimelines, readItemTimeline } from './src/io/timeline.js';
