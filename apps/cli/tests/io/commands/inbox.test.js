@@ -1,12 +1,14 @@
 /** @pullboard-test-input source-cell apps/cli */
 /** With inbox.batchedMarks on, a pullboard inbox read prints the interrupt and unread shouts without writing through the inbox command [C7,#8943]. */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { runCliInProcess } from '../../fixtures/process.js';
-import { fileFixtureItem, fixtureProjectPolicy } from '../../fixtures/testkit.js';
+import { fileFixtureItem } from '../../fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 /** One CLI call answered in this process with the box's environment. */
 async function cli(box, cwd, ...args) {
