@@ -86,6 +86,29 @@ test('cli.io-test-pull.authenticated-outcome-retention-origin: clause 2: a packe
   assert.equal(completePacketEntries([entry(run), entry(null)], args), false, 'entry without origin request');
 });
 
+test('cli.io-test-pull.authenticated-outcome-retention-guard: clause 3: the record-only pulled request env neither fires nor skips the completed-entry guard [C7,#12643]', { timeout: 300_000 }, () => {
+  const repo = fixtureCommittedGraph('pull-test-guard-'), scratch = privateFixtureFiles('pull-test-guard-runner-');
+  const runner = join(scratch.root, 'runner'), one = join(runner, 'pull', 'one'), two = join(runner, 'pull', 'two'), three = join(runner, 'pull', 'three');
+  const counter = join(scratch.root, 'executions');
+  repo.put('package.json', '{"type":"module"}\n');
+  repo.put('test/proof.test.js', `import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('proof', () => appendFileSync(${JSON.stringify(counter)}, 'x'));\n`);
+  const commit = repo.commit();
+  mkdirSync(join(runner, 'pull'), { recursive: true });
+  for (const path of [one, two, three]) runFixtureGit(['clone', '-q', repo.root, path]);
+  const entry = join(scratch.root, 'entry.mjs');
+  writeFileSync(entry, testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''));
+  const base = { main: commit, source: commit, files: ['test/proof.test.js'], command: `${process.execPath} ${focusedRunnerPath()} ./test/proof.test.js` };
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PULLBOARD_(TEST_|LEDGER_HITS|TIMING_RUN_ID)/u.test(key)));
+  const run = (root, runId, extra = {}) => runPulledEntry(entry, root, { ...base, runId }, { ...env, ...extra });
+  assert.equal(run(one, '11111111-2222-3333-4444-555555555555').status, 0);
+  const second = run(two, '66666666-2222-3333-4444-555555555555');
+  assert.match(second.stdout, /# reused /u, 'a pulled request id does not make reuse demand a completed entry');
+  assert.equal(readFileSync(counter, 'utf8'), 'x');
+  const guarded = run(three, '77777777-2222-3333-4444-555555555555', { PULLBOARD_TEST_RESULT_REQUEST: '88888888-2222-3333-4444-555555555555' });
+  assert.doesNotMatch(guarded.stdout, /# reused /u, 'the fleet request env still demands a completed entry');
+  assert.equal(readFileSync(counter, 'utf8'), 'xx');
+});
+
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
   const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
   const runner = join(scratch.root, 'runner'), one = join(runner, 'pull', 'one'), two = join(runner, 'pull', 'two');
