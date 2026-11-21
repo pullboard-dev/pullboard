@@ -10,6 +10,11 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { takeResource } from '../../../../../packages/resources/index.js';
 import { staticCheckSlots } from '../../../../../packages/config/index.js';
 import { staticMemoOn } from '../../../../../packages/config/index.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { runnerDispatchMode } from '../../../../../packages/config/index.js';
+import { setTimeout as pause } from 'node:timers/promises';
+import { HOOK_RUNNER_CLAIM_MS } from '../hook/runner.js';
+import { HOOK_RUNNER_ANSWER_MS } from '../hook/runner.js';
 
 /** The rule code the gate reports a red static stage under. */
 export const STATIC_RULE = 'STATIC_RED';
@@ -48,6 +53,96 @@ export function runStaticStage(io, root, { command = mainPolicy(root).config.sta
 /** The machine pool name every local static run shares. */
 export const STATIC_POOL = 'static-checks';
 
+// Reuse #12570's bounded runner budgets: a free runner gets a short take window and a claimed runner a bounded answer.
+const STATIC_RUNNER_POLL_MS = 1_000;
+
+/** Whether this clean, committed static check can be offered to a registered pulled runner. */
+function staticRunnerWanted(root) {
+  if (runnerDispatchMode() !== 'pull' || !(loadMachineSettings().runners ?? []).length) return false;
+  const status = tryGit(root, ['status', '--porcelain', '--untracked-files=normal']);
+  return status.status === 0 && !status.stdout && tryGit(root, ['rev-parse', '--verify', 'HEAD']).status === 0;
+}
+
+/** Read a static runner receipt only when it proves the exact offered source and accepted main. */
+function staticRunnerAnswer(view, { commit, main }) {
+  const posted = [...(view?.steps ?? [])].reverse().find(step => step.name === 'receipt');
+  if (!posted) return { answered: false, findings: null };
+  const outer = posted.payload?.receipt ?? {};
+  const gate = outer.gate ?? {};
+  const phase = gate.phases?.[0] ?? null;
+  if (gate.source !== commit || gate.main !== main || !phase || ![0, 1].includes(phase.status)) return { answered: true, findings: null };
+  const findings = findingRows(phase.tail ?? '');
+  return { answered: true, findings: { green: outer.status === 0 && gate.green === true && phase.status === 0, rows: findings,
+    failure: phase.status !== 0 && !findings.length ? String(phase.tail ?? '').trim().slice(-1500) : '' } };
+}
+
+/** Offer the configured static command as one normal pulled job; null means the local command must run. */
+async function staticOnRunner(io, root, { command, main, claimMs = HOOK_RUNNER_CLAIM_MS, answerMs = HOOK_RUNNER_ANSWER_MS,
+  now = Date.now, wait = pause, offer, read, settle, commit: getCommit } = {}) {
+  if (!staticRunnerWanted(root)) return null;
+  const ctx = (await import('../context.js')).context(io);
+  const policy = mainPolicy(root);
+  const acceptedMain = policy.commit;
+  const config = policy.config;
+  const source = getCommit ? getCommit(root) : tryGit(root, ['rev-parse', 'HEAD']).stdout.trim();
+  if (!source || main && main !== acceptedMain) return null;
+  command ??= config.staticChecks?.trim();
+  if (!command) return null;
+  const pull = await import('../test/pull.js');
+  const api = await import('../../../../../packages/api/index.js');
+  const contextPorts = await import('../context.js');
+  if (!ctx.nativeBoard) ctx.nativeBoard = await (io.loadNativeBoard ?? (await import('../ports/process.js')).loadNativeBoard)();
+  const runs = pull.testRunsHolder(ctx);
+  const built = await pull.testJobRow(ctx, { item: undefined, commit: source, main: acceptedMain, command, files: [] });
+  let offered;
+  try {
+    offered = offer ? await offer(ctx, built, runs) : (() => {
+      const job = runs ? pull.offerTestRow(api.offerJob, { runs }, built.row)
+        : contextPorts.withBoard(ctx, board => pull.offerTestRow(api.offerJob, { board }, built.row));
+      return { job: job.id, ref: built.ref };
+    })();
+  } catch (error) {
+    try { tryGit(root, ['update-ref', '-d', built.ref]); } catch { /* an unpinned commit is harmless */ }
+    io.say?.(`static runner unavailable (${error?.code ?? error?.message}); running the static stage here`);
+    return null;
+  }
+  const started = now();
+  let answer = null, claimed = false;
+  try {
+    while (now() - started < answerMs && (claimed || now() - started < claimMs)) {
+      const view = read ? await read(ctx, offered) : runs ? pull.readTestRow({ runs }, offered.job)
+        : contextPorts.withBoardRead(ctx, board => pull.readTestRow({ board }, offered.job));
+      const posted = staticRunnerAnswer(view, { commit: source, main: acceptedMain });
+      if (posted.answered) { answer = posted.findings; break; }
+      if (view?.leaseOwner) claimed = true;
+      await wait(STATIC_RUNNER_POLL_MS);
+    }
+  } catch (error) {
+    io.say?.(`static runner could not return a receipt (${error?.code ?? error?.message}); running the static stage here`);
+  } finally {
+    try {
+      if (settle) await settle(ctx, offered, { cancel: answer === null });
+      else {
+        if (answer === null) {
+          const { runsPort } = await import('../../../../../packages/store/index.js');
+          try { if (runs) runsPort(runs).cancel(offered.job, { reason: 'static stage ran on the host' });
+            else contextPorts.withBoard(ctx, board => runsPort(board).cancel(offered.job, { reason: 'static stage ran on the host' })); } catch { /* fallback remains bounded if cancellation is unavailable */ }
+        }
+        tryGit(root, ['update-ref', '-d', offered.ref]);
+      }
+    } catch { /* cleanup is best effort; the runner wait is already bounded */ }
+  }
+  if (answer === null) {
+    io.say?.(`no runner ${claimed ? 'answered' : 'took the static job'} within ${Math.round((claimed ? answerMs : claimMs) / 1000)} s; running the static stage here`);
+    return null;
+  }
+  io.result?.({ green: answer.green, findings: answer.rows, runner: true });
+  for (const row of answer.rows) io.say(`${row.rule} ${row.file}${row.line === null ? '' : `:${row.line}`}: ${row.text}`);
+  if (answer.green) io.say('static stage green: the gate will not return STATIC_RED for this tree');
+  else if (!answer.rows.length) io.say(`${STATIC_RULE} the static stage failed with no file:line finding:\n${answer.failure}`);
+  return answer.green ? 0 : 1;
+}
+
 /**
  * Run the static stage behind a machine-wide admission slot: at most gate.staticSlots (default 2) run at once on this
  * machine, and a further run waits in line. Why: about 14 concurrent runs of ~50 s of full-CPU work drove a Mac to load
@@ -57,10 +152,10 @@ export const STATIC_POOL = 'static-checks';
  * @param {string} root - The item folder or checkout to judge.
  * With gate.staticMemo on, a green run is kept for its exact clean tree and main, and a rerun on that tree answers at once.
  *
- * @param {{ command?: string, main?: string, slots?: () => number, run?: Function, memo?: () => boolean }} [options] - `slots` and `memo` replace the machine settings; `run` replaces the stage.
+ * @param {{ command?: string, main?: string, slots?: () => number, run?: Function, memo?: () => boolean, runner?: Function }} [options] - `slots` and `memo` replace machine settings; `run` replaces the host stage and `runner` the bounded runner attempt.
  * @returns {Promise<number>} The stage's exit code.
  */
-export async function runStaticStageAdmitted(io, root, { slots = staticCheckSlots, run = runStaticStage, memo = staticMemoOn, ...stage } = {}) {
+export async function runStaticStageAdmitted(io, root, { slots = staticCheckSlots, run = runStaticStage, memo = staticMemoOn, runner = staticOnRunner, ...stage } = {}) {
   const key = memo() ? keptStaticKey(root, stage) : null;
   if (key && readAnalysisMemo(key)) {
     io.result?.({ green: true, findings: [], kept: true });
@@ -82,6 +177,8 @@ export async function runStaticStageAdmitted(io, root, { slots = staticCheckSlot
     },
   });
   try {
+    const remote = await runner(io, root, stage);
+    if (remote !== null) return remote;
     const code = await run(io, root, stage);
     if (code === 0 && key) writeAnalysisMemo(key, { green: true });
     return code;
