@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import * as store from '../../store/index.js';
 import { fixture } from './fixtures/next.js';
 import { next } from './fixtures/next.js';
+import { cellBoard } from '../../board/tests/fixtures/cell-board.js';
 
 /** Create a review seat with an explicit independent parent, so session guards do not mask lease behavior. */
 function independentReviewer(box, name) {
@@ -27,7 +28,7 @@ function forgetHeartbeat(box, id) {
 }
 
 test('moves.review.stale-heartbeat-available: clause 1: a review reservation with no heartbeat for two minutes is available to the next reviewer [C7,V15]', async t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const id = box.add('Review reservation whose owner went away');
   box.submit(id);
   const holder = independentReviewer(box, 'holder-expiring');
@@ -46,7 +47,7 @@ test('moves.review.stale-heartbeat-available: clause 1: a review reservation wit
 });
 
 test('moves.review.fresh-heartbeat-held: clause 2: a reviewer heartbeat within two minutes keeps its reservation held [C7,V15]', async t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const id = box.add('Review reservation whose owner remains active');
   box.submit(id);
   const holder = independentReviewer(box, 'holder-live');
@@ -63,7 +64,7 @@ test('moves.review.fresh-heartbeat-held: clause 2: a reviewer heartbeat within t
 });
 
 test('moves.review.no-heartbeat-releases: clause 1: a reviewer with no heartbeat record releases its reservation before the lease expires [C7,V15]', async t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const id = box.add('Review reservation whose owner process exited');
   box.submit(id);
   const holder = independentReviewer(box, 'holder-exited');

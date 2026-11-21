@@ -8,9 +8,10 @@ import { counted } from '../../../fixtures/next.js';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
 import { nextSelection } from '../../../../index.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 
 test('moves.record-next-idle-once.next-calls-its-selection-and-default-loop-review: next calls its selection and default-loop review offer once each [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const first = box.add('First open item');
   const second = box.add('Second open item');
   // The seat took and returned a claim before, as the command fixture's next --take did.
@@ -25,7 +26,7 @@ test('moves.record-next-idle-once.next-calls-its-selection-and-default-loop-revi
 });
 
 test('moves.record-next-idle-once.a-holding-seat-returns-its-claim-from: a holding seat returns its claim from next without another selection [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const held = box.add('Already held');
   box.add('Another open item');
   box.claim(held, box.seats.actor);
@@ -37,7 +38,7 @@ test('moves.record-next-idle-once.a-holding-seat-returns-its-claim-from: a holdi
 });
 
 test('moves.record-next-idle-once.next-the-write-runs-only-the-chosen: next: the write runs only the chosen item claim guards and selects again only when they refuse [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const raced = box.add('Raced by a peer');
   const spare = box.add('Still free', { brief: 'Files: web/spare.js\nTest: the real board claims the spare item.' });
   // A peer claims the chosen item after the read selection and before the write's claim guards run.
