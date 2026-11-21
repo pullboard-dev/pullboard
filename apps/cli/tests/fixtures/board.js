@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { openBoard } from '../../../lib/index.js';
 import { nativeBoardPorts } from '../../../lib/index.js';
 import { openBoardForRead } from '../../../lib/index.js';
+import { recordFlakeObservation } from '../../../lib/index.js';
+import { draftSpecRow } from '../../../lib/index.js';
 import { moveArgs } from '../../../../packages/person/index.js';
 import { receiveCommits } from '../../../../packages/pin/index.js';
 import {
@@ -36,4 +38,4 @@ export { fixtureBoard, fixtureOpenBoard, openKitBoard, withFixtureBoard } from '
 export { temporaryDirectory } from '../../../../packages/store/tests/fixtures/tmp.js';
 
 /** Bind the actual native openers at API fixture roots, never inside API projection code. */
-export const apiBoardOpeners = Object.freeze({ moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
+export const apiBoardOpeners = Object.freeze({ recordFlakeObservation, draftSpecRow, moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
