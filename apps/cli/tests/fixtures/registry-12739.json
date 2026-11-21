@@ -1,0 +1,3 @@
+{
+  "cli.io-run-priority.injected-set-priority-gets-test-nice": {"proves":{"specs":["C7"],"claim":"lowerTestPriority calls an injected setPriority once with the pid and TEST_NICE, so the proof holds on a runner already at nice 10."},"why":"Without it, the nice proof depends on the runner's own starting nice value and a regression could pass unnoticed on a niced runner.","kind":"cell unit","inputs":["apps/cli/tests/io/run/priority.test.js"]}
+}
