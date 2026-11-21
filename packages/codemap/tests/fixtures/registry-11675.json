@@ -1,0 +1,5 @@
+{
+  "codemap.io-shim-lifecycle.first-parent-date": {"proves":{"specs":["C7"],"claim":"a shim keeps the date of its first-parent introduction when its source changes later"},"why":"A filesystem timestamp or a later edit must not reset shim age.","kind":"cell unit","inputs":["packages/codemap/tests/io/shim/lifecycle.test.js"]},
+  "codemap.io-shim-lifecycle.exact-selected-commit": {"proves":{"specs":["C7"],"claim":"lifecycle history is read from the selected commit and excludes later shims"},"why":"History results must match the snapshot being inspected.","kind":"cell unit","inputs":["packages/codemap/tests/io/shim/lifecycle.test.js"]},
+  "codemap.io-shim-lifecycle.removal-item-choice": {"proves":{"specs":["C7"],"claim":"missing and removed shims are excluded and the best native removal item is selected"},"why":"Removal advice must refer to extant shims and actionable work.","kind":"cell unit","inputs":["packages/codemap/tests/io/shim/lifecycle.test.js"]}
+}
