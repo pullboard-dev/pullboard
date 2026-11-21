@@ -7,7 +7,7 @@
  */
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../../index.js';
 import assert from 'node:assert/strict';
-import { workingSourceInventory } from '../../../../../packages/gate/src/io/scan.js';
+import { workingSourceInventory } from '../../../../../packages/gate/index.js';
 import { packageFiles } from '../../../../../packages/runners/index.js';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';

@@ -144,7 +144,7 @@ test('cli.journeys-lanes-main.lane-hook-accepts-a-deleted-shim: lane hook accept
 
 
 test('cli.journeys-lanes-main.cross-lane-import-edits-follow-only: cross-lane import edits follow only same-item moves or removed forwarding shims [L3]', async () => {
-  const { movedImportOnlyChange, movedImportTargets } = await import('../../../../../../packages/commits/src/logic/import-only-change.js');
+  const { movedImportOnlyChange, movedImportTargets } = await import('../../../../../../packages/commits/index.js');
   const diff = 'R100\0api/old.js\0api/new.js\0D\0api/shim.js\0';
   const moves = movedImportTargets(diff, path => path === 'api/shim.js' ? "export { value } from './new.js';\n" : null, path => path === 'api/new.js');
   const before = "import { value } from '../api/old.js';\nexport const result = value;\n";

@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../../../../packages/store/index.js';
-import { openBoard } from '../../../../../lib/index.js';
+import { openBoard } from '../../../../../../packages/board/index.js';
 import { runCliInProcess } from '../../../fixtures/process.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
 

@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { regenerateStagedDocs } from '../../../index.js';
-import { openBoard } from '../../../../lib/index.js';
+import { openBoard } from '../../../../../packages/board/index.js';
 import { GENERATED_DOC_PATHS } from '../../../../../packages/merge/index.js';
 import { docsRepository } from '../../fixtures/generated/docs.js';
 import { addDocumentedCommand } from '../../fixtures/generated/docs.js';
