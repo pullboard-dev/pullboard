@@ -3197,7 +3197,7 @@ test/board-command-budget.test.js	packages/gate/tests/io/board/budget.test.js
 test/board-composition-root.test.js	apps/lib/tests/logic/native/root.test.js
 test/board-file-guard.test.js	packages/gate/tests/io/board/baseline/guard.test.js
 test/board-fixture.js	apps/cli/tests/fixtures/board.js
-test/board-hold-log.test.js	apps/cli/journeys/stats/log.test.js
+test/board-hold-log.test.js	apps/cli/tests/io/commands/stats/log.test.js
 test/board-hold-receipt-move.test.js	apps/cli/journeys/status/board/move.test.js
 test/board-io-boundary.test.js	apps/cli/journeys/fact/board/boundary.test.js
 test/board-link-fixture.js	apps/cli/tests/fixtures/board/link.js
@@ -3260,7 +3260,7 @@ test/claim-adopts-idle-folder.test.js	apps/cli/journeys/claim/adopts/folder.test
 test/claim-hygiene.test.js	apps/cli/journeys/claim/hygiene.test.js
 test/claim-no-foreign-git.test.js	apps/cli/journeys/claim/git.test.js
 test/claim-overlap.test.js	apps/cli/journeys/claim/overlap.test.js
-test/claim-policy-detached.test.js	apps/cli/journeys/claim/policy/detached.test.js
+test/claim-policy-detached.test.js	apps/cli/tests/io/claim/detached.test.js
 test/claim-progress-static.test.js	apps/cli/journeys/claim/static.test.js
 test/claim-refreshes-lane-policy.test.js	apps/cli/journeys/claim/policy.test.js
 test/claim-snapshot-race.test.js	apps/cli/journeys/claim/race.test.js
@@ -3449,13 +3449,13 @@ test/durable-switch-land.test.js	apps/cli/journeys/land/switch.test.js
 test/durable-wire.test.js	apps/lib/tests/logic/native/wire.test.js
 test/e2e-audit.test.js	apps/cli/journeys/fact/e2e/audit.test.js
 test/e2e-board.test.js	apps/cli/journeys/list/board.test.js
-test/e2e-cli.test.js	apps/cli/journeys/resume/e2e.test.js
+test/e2e-cli.test.js	apps/cli/tests/io/resume/e2e.test.js
 test/e2e-fixture-join.test.js	apps/cli/journeys/fact/e2e/join.test.js
-test/e2e-gate-slot.test.js	apps/cli/journeys/gate/slot.test.js
+test/e2e-gate-slot.test.js	apps/cli/tests/io/commands/gate/slot.test.js
 test/e2e-helpers.js	apps/cli/tests/fixtures/e2e.js
 test/e2e-items.test.js	apps/cli/journeys/spec/e2e.test.js
 test/e2e-model-names.test.js	apps/cli/journeys/release/model.test.js
-test/e2e-policy.test.js	apps/cli/journeys/show/policy/e2e.test.js
+test/e2e-policy.test.js	apps/cli/tests/io/commands/show/e2e.test.js
 test/e2e-private-checks.test.js	apps/cli/journeys/verify/checks.test.js
 test/e2e-runner.test.js	apps/cli/journeys/runner/e2e.test.js
 test/e2e-tour.test.js	apps/cli/tests/io/commands/fact/e2e-tour.test.js
@@ -3565,7 +3565,7 @@ test/health.test.js	apps/cli/journeys/health/main.test.js
 test/heartbeat-claims.test.js	apps/cli/journeys/heartbeat/claims.test.js
 test/heartbeat-presence-only.test.js	apps/cli/journeys/heartbeat/presence.test.js
 test/help-examples.test.js	apps/cli/journeys/help/examples.test.js
-test/help.test.js	apps/cli/journeys/help/main.test.js
+test/help.test.js	apps/cli/tests/io/commands/help.test.js
 test/history.test.js	apps/cli/journeys/ledger/history.test.js
 test/hook-commit-msg-no-queue.test.js	apps/cli/journeys/hook/commit/queue.test.js
 test/hook-no-slot.test.js	apps/cli/journeys/hook/slot.test.js
@@ -3592,7 +3592,7 @@ test/init.test.js	apps/cli/journeys/init/main.test.js
 test/inspection-clauses.test.js	apps/cli/journeys/settings/clauses.test.js
 test/inspection-submit-ticks.test.js	apps/cli/journeys/submit/ticks.test.js
 test/intake-fixture.js	apps/cli/tests/fixtures/intake.js
-test/intake.test.js	apps/cli/journeys/intake/main.test.js
+test/intake.test.js	apps/cli/tests/io/commands/intake/main.test.js
 test/item-folder-keeps-seat.test.js	apps/cli/journeys/fact/item/seat.test.js
 test/item-folder-seat-binding.test.js	apps/cli/journeys/release/binding.test.js
 test/item-folder-seat-once.test.js	apps/lib/tests/logic/native/once.test.js
@@ -3783,7 +3783,7 @@ test/next-you-hold.test.js	apps/cli/journeys/next/hold.test.js
 test/no-auto-claim-outside-lane.test.js	apps/cli/journeys/lane/outside.test.js
 test/no-local-tests-on-coordinator.test.js	apps/cli/journeys/resources/coordinator.test.js
 test/no-wait-defaults.test.js	apps/cli/journeys/init/defaults.test.js
-test/no-wait-refusals.test.js	apps/cli/journeys/resume/refusals.test.js
+test/no-wait-refusals.test.js	apps/cli/tests/io/resume/refusals.test.js
 test/node-version.test.js	apps/cli/journeys/version/node.test.js
 test/outbox-ports.test.js	apps/cli/journeys/fact/ports.test.js
 test/output-budget.test.js	apps/cli/journeys/inbox/budget.test.js
@@ -3977,7 +3977,7 @@ test/resources-runner-only-fixture.js	packages/gate/tests/fixtures/resources/run
 test/resources-verify-fixture.js	packages/gate/tests/fixtures/resources/verify.js
 test/resume-flow.test.js	apps/cli/journeys/resume/flow.test.js
 test/review-capacity-wake.test.js	apps/cli/journeys/capacity/wake.test.js
-test/review-companions.test.js	apps/cli/journeys/companion/companions/review.test.js
+test/review-companions.test.js	apps/cli/tests/io/commands/companion/review.test.js
 test/review-comparison-dead-worker.test.js	apps/cli/journeys/show/review/worker.test.js
 test/review-eligibility.test.js	apps/cli/journeys/show/review/eligibility.test.js
 test/review-family-cover-replay.json	apps/cli/tests/fixtures/review/family/replay.json
@@ -3993,7 +3993,7 @@ test/review-queue.test.js	apps/cli/journeys/queue/review-queue.test.js
 test/review-request-clause.test.js	apps/cli/journeys/request/clause.test.js
 test/review-reservation.test.js	apps/cli/journeys/init/review/reservation.test.js
 test/review-tier-default.test.js	apps/cli/journeys/init/review/default.test.js
-test/review-tier.test.js	apps/cli/journeys/show/review/tier.test.js
+test/review-tier.test.js	apps/cli/tests/io/commands/show/tier.test.js
 test/reviews-first-next.test.js	apps/cli/journeys/next/reviews/reviews-first-next.test.js
 test/rigor-auto.test.js	apps/cli/journeys/rigor/auto.test.js
 test/rigor-broadcasts.test.js	apps/cli/journeys/rigor/broadcasts.test.js
@@ -4107,7 +4107,7 @@ test/shout-readable.test.js	apps/cli/journeys/shout/readable.test.js
 test/shout-report-refusal.test.js	apps/cli/journeys/shout/refusal.test.js
 test/shout-routing.test.js	apps/cli/journeys/shout/routing.test.js
 test/shout.test.js	apps/cli/journeys/shout/main.test.js
-test/show-check.test.js	apps/cli/journeys/show/check.test.js
+test/show-check.test.js	apps/cli/tests/io/commands/show/check.test.js
 test/show.test.js	apps/cli/journeys/show/main.test.js
 test/signoff.test.js	apps/cli/journeys/spec/signoff.test.js
 test/skills.test.js	apps/cli/journeys/skills/main.test.js

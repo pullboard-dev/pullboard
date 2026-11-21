@@ -1,5 +1,5 @@
 /** @pullboard-test-input apps/cli/journeys/doctrine/readme.test.js */
-/** @pullboard-world-pin: clause 2 reads the committed doctrine/readme journey source to count that it still has all 19 cases. */
+/** @pullboard-world-pin: clause 2 reads the committed doctrine/readme journey source to count that it still has all 20 cases. */
 /**
  * The parity check for the doctrine/readme journey (U149): one representative case runs twice, once with every CLI call a real
  * process and once in-process, and the exit codes, JSON results and board state must agree. One file per journey, so each has its
@@ -18,8 +18,8 @@ test('gate.parity-doctrine-readme.sample-doctrine-readme-journey-gives: clause 1
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('gate.parity-doctrine-readme.doctrine-readme-journey-keeps-all: clause 2: the doctrine/readme journey keeps all 19 of its cases, each green in this run [C7]', () => {
+test('gate.parity-doctrine-readme.doctrine-readme-journey-keeps-all: clause 2: the doctrine/readme journey keeps all 20 of its cases, each green in this run [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/journeys/doctrine/readme.test.js', import.meta.url), 'utf8');
-  assert.equal(source.match(/^test\(/gmu).length, 19, 'no case was dropped');
+  assert.equal(source.match(/^test\(/gmu).length, 20, 'no case was dropped');
   assert.doesNotMatch(source, /\btest\.(?:skip|todo)\(|\bskip: true/u, 'no case is skipped');
 });

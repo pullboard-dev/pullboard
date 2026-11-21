@@ -6,10 +6,11 @@ import { REVIEW_COVER_WAIT_MS } from '../../../../../health/index.js';
 import { submitFixture } from '../../../../../store/tests/fixtures/submit.js';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 
 /** Three green same-family submissions with no independent reviewer, aged past the old pause deadline. */
 function backlogFixture(t) {
-  const box = fixture(t, { family: 'require', reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, family: 'require', reviewers: true });
   box.advance(11 * 60_000);
   const head = box.git('rev-parse', 'HEAD');
   const tree = box.git('rev-parse', `${head}^{tree}`);

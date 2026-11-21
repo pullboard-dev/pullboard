@@ -1,0 +1,30 @@
+{
+  "health.io-stale-state.stalled-job-heartbeat": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A claim past its lease and stale interval whose only fresh heartbeat and job lease come from a test run with no step progress is captured and released with its handoff pin, keeping the commit."
+    },
+    "why": "Without it a waiter running old code keeps a dead claim alive by renewing a stalled job's lease, as 22 claims showed on the live board.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/health/src/io/stale/state/capture.js",
+      "packages/store/src/logic/red/return.js"
+    ]
+  },
+  "health.io-stale-state.progressing-job-keeps-claim": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A lapsed claim with a queued or running gate job, a test job that progressed inside the stale interval, or a recent event from its seat is never captured for release."
+    },
+    "why": "Without it the progress rule could release a claim whose holder is really working.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/health/src/io/stale/state/capture.js",
+      "packages/store/src/logic/red/return.js"
+    ]
+  }
+}

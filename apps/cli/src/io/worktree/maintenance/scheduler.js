@@ -101,7 +101,7 @@ export async function scheduleWorktreeMaintenance(ctx) {
     const current = await canonical(ctx);
     if (!current) return { scheduled: false, reason: 'disabled-on-main' };
     stage = 'register';
-    const files = timerFiles(current.common, true, TIMER);
+    const files = await timerFiles(current.common, true, TIMER);
     return await withFileLock(files.guard, async () => {
       stage = 'lookup';
       const old = readTimer(files.file, TIMER);
@@ -147,7 +147,7 @@ export async function runScheduledMaintenance(ctx, key) {
   if (!TOKEN.test(key ?? '')) return { ran: false, reason: 'unregistered' };
   const identity = processIdentity(process.pid);
   if (!identity || identity.zombie) throw new Error('maintenance timer cannot observe its own identity');
-  const files = timerFiles(fs.realpath(ctx.info.commonDir), false, TIMER);
+  const files = await timerFiles(fs.realpath(ctx.info.commonDir), false, TIMER);
   let owner;
   // The parent records the spawned PID/start after spawn; never act before that exact registration arrives.
   const registrationDeadline = Date.now() + 5000;
@@ -185,9 +185,9 @@ export async function runScheduledMaintenance(ctx, key) {
 }
 
 /** Read existing timer identity and last completed run without creating, replacing or signalling anything. */
-export function maintenanceTimerHealth(common) {
+export async function maintenanceTimerHealth(common) {
   try {
-    const files = timerFiles(fs.realpath(common), false, TIMER), owner = readTimer(files.file, TIMER);
+    const files = await timerFiles(fs.realpath(common), false, TIMER), owner = readTimer(files.file, TIMER);
     return { state: owner ? timerState(owner) : 'absent', key: owner ? createHash('sha256').update(owner.token).digest('hex') : null,
       pid: owner?.pid ?? null, dueAt: owner?.dueAt ?? null, lastRun: readMaintenanceLastRun(common) };
   } catch (error) {

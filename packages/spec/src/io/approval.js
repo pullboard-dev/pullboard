@@ -1,9 +1,12 @@
 /** Approval provenance: a status word is not a person's decision [S1,B26,P6]. */
 import { fileSystemAdapter } from '../../../fs/index.js';
 const disk = fileSystemAdapter();
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import {
+  boardFolderFile,
   gitReadSignature,
+  plainTrunkRef,
   tryGit,
 } from '../../../git/index.js';
 import { personNeeds } from '../logic/row/replacement.js';
@@ -19,13 +22,65 @@ import {
 
 const ORIGIN_CACHE_LIMIT = 32;
 const originCache = new Map();
+const ORIGIN_FILE = 'spec-row-origins.jsonl';
+const ORIGIN_FILE_LIMIT = 262144;
+
+/** The main tip and HEAD commit ids that key the cross-process origins; null when either is unreadable. */
+function originTips(root) {
+  const trunk = plainTrunkRef(root) ?? 'main';
+  const result = tryGit(root, ['rev-parse', 'HEAD', `refs/heads/${trunk}`]);
+  const tips = result.status === 0 ? result.stdout.trim().split('\n') : [];
+  return tips.length === 2 && tips.every(tip => /^[0-9a-f]{40,64}$/u.test(tip)) ? tips : null;
+}
+
+/** The newest stored rows for one key; a torn, damaged or foreign line is only a miss. */
+function readOriginFile(file, diskKey) {
+  let text;
+  try { text = disk.readFile(file, 'utf8'); } catch { return undefined; }
+  const lines = text.split('\n');
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (lines[index] === '') continue;
+    try {
+      const stored = JSON.parse(lines[index]);
+      if (stored?.key === diskKey) return stored.rows;
+    } catch { /* A torn line is skipped. */ }
+  }
+  return undefined;
+}
+
+/**
+ * Append one line beside the board's other caches under the git common dir, never in the work tree. An oversized
+ * file is dropped whole (it is only a cache), so no rewrite is ever needed; failure is a miss.
+ */
+function writeOriginFile(file, diskKey, origins) {
+  try {
+    disk.mkdir(dirname(file), { recursive: true, mode: 0o700 });
+    if (disk.exists(file) && disk.lstat(file).size > ORIGIN_FILE_LIMIT) disk.rm(file);
+    disk.appendFile(file, `${JSON.stringify({ key: diskKey, rows: [...origins] })}\n`, { mode: 0o600 });
+  } catch { /* An unwritable cache never blocks a read. */ }
+}
+
+/** Revive stored origins only when every row has the exact shape this module writes. */
+function reviveOrigins(rows) {
+  if (!Array.isArray(rows)) return null;
+  const origins = new Map();
+  for (const row of rows) {
+    const [line, origin] = Array.isArray(row) ? row : [];
+    if (!Number.isInteger(line) || typeof origin?.agent !== 'string' || typeof origin.attribution !== 'string'
+      || !(origin.commit === null || typeof origin.commit === 'string') || !(origin.approvedAt === null || typeof origin.approvedAt === 'string')) return null;
+    origins.set(line, { commit: origin.commit, approvedAt: origin.approvedAt, agent: origin.agent, attribution: origin.attribution });
+  }
+  return origins;
+}
 
 /**
  * Read each line's actual commit and Git author; neither identifies a person approval. Given lines, blame only
  * those lines: a whole-file blame of the spec took over a second on every show [C7].
  */
-function rowOrigins(root, file, lines = null) {
+export function rowOrigins(root, file, lines = null) {
   const signature = () => gitReadSignature(root, [file, '.mailmap'], { attribution: true });
+  // Another process's lock and cache files move directory stats, so the cross-process key ignores directory churn.
+  const stable = () => gitReadSignature(root, [file, '.mailmap'], { attribution: true, directories: false });
   const before = signature();
   const key = before === null ? null : JSON.stringify([root, file, before, lines]);
   if (key !== null && originCache.has(key)) {
@@ -33,6 +88,20 @@ function rowOrigins(root, file, lines = null) {
     originCache.delete(key);
     originCache.set(key, cached);
     return cached;
+  }
+  // A new process reuses the last process's blame when the file, .mailmap, main tip and HEAD are all unchanged.
+  const stableBefore = key === null ? null : stable();
+  const tips = stableBefore === null ? null : originTips(root);
+  const diskKey = tips === null ? null : JSON.stringify([root, file, stableBefore, lines, tips]);
+  let store = null;
+  if (diskKey !== null) {
+    try { store = boardFolderFile(root, ORIGIN_FILE); } catch { store = null; }
+    const revived = store === null ? null : reviveOrigins(readOriginFile(store, diskKey));
+    if (revived !== null) {
+      originCache.set(key, revived);
+      while (originCache.size > ORIGIN_CACHE_LIMIT) originCache.delete(originCache.keys().next().value);
+      return revived;
+    }
   }
   const ranges = (lines ?? []).flatMap(line => ['-L', `${line},${line}`]);
   const result = tryGit(root, ['blame', '--line-porcelain', ...ranges, '--', file]);
@@ -55,6 +124,9 @@ function rowOrigins(root, file, lines = null) {
   if (key !== null && result.status === 0 && before === signature()) {
     originCache.set(key, origins);
     while (originCache.size > ORIGIN_CACHE_LIMIT) originCache.delete(originCache.keys().next().value);
+    if (store !== null && diskKey !== null && stable() === stableBefore && originTips(root)?.join() === tips.join()) {
+      writeOriginFile(store, diskKey, origins);
+    }
   }
   return origins;
 }

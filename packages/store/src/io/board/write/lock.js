@@ -18,6 +18,40 @@ const pending = new WeakMap();
 let ownIdentity;
 let identityPrepared = false;
 const LONG_WRITE_MS = 2_000;
+const WRITE_HOLD_OVER_1S = 1_000;
+
+/** Append a machine-local violation and keyed counter after a completed slow write. */
+function recordWriteHoldViolation(record, heldMs, outcome) {
+  if (heldMs <= WRITE_HOLD_OVER_1S) return;
+  const key = 'WRITE_HOLD_OVER_1S';
+  const common = { key, move: label(record.move ?? record.command, 'unknown'), seat: label(record.seat, 'unknown'),
+    pid: Number.isSafeInteger(record.pid) && record.pid > 0 ? record.pid : null, heldMs, outcome: label(outcome, 'released') };
+  let fd;
+  try {
+    const directory = machineHome();
+    fs.mkdir(directory, { recursive: true, mode: 0o700 });
+    fd = fs.open(boardWriteLog(), fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW, 0o600);
+    if (!fs.fstat(fd).isFile()) throw new Error('board write log is not a regular file');
+    fs.write(fd, JSON.stringify({ type: 'violation', ...common }) + '\n');
+    fs.write(fd, JSON.stringify({ type: 'counter', ...common, value: 1 }) + '\n');
+  } catch {
+    try { fs.write(2, 'pullboard: board write violation log unavailable; original transaction outcome retained\n'); }
+    catch { /* Optional diagnostics cannot change a completed transaction. */ }
+  } finally {
+    if (fd !== undefined) try { fs.close(fd); } catch { /* Optional log cleanup cannot change a completed transaction. */ }
+  }
+}
+
+/** Read counter rows by key for machine status readers; malformed lines are ignored. */
+export function boardWriteCounterRows(key, file = boardWriteLog()) {
+  if (typeof key !== 'string' || !/^[A-Z0-9_]{1,100}$/u.test(key)) return [];
+  try {
+    return fs.readFile(file, 'utf8').split('\n').filter(Boolean).flatMap(line => {
+      try { const row = JSON.parse(line); return row?.type === 'counter' && row.key === key ? [row] : []; }
+      catch { return []; }
+    });
+  } catch { return []; }
+}
 
 /** Run one bounded PID-only query, without reading or changing any other process's arguments or state. */
 function identities(pids) {
@@ -118,6 +152,9 @@ export function beginBoardWrite(db, context = {}, marker = null) {
   return record;
 }
 
+/** Per connection, the time already spent in phases nested inside each open phase. */
+const nestedPhaseMs = new WeakMap();
+
 /**
  * Account a named synchronous part of the active writer without performing diagnostic I/O.
  * A call that passes `move` is the move body: the record names the move, and the slowest phase measured
@@ -131,6 +168,9 @@ export function beginBoardWrite(db, context = {}, marker = null) {
  */
 export function measureBoardWritePhase(db, name, work, move) {
   const started = performance.now();
+  // Phases nest (a slow statement inside logEvent inside an outer part); the step takes the part's own time, so the innermost slow part names the hold [C7,#12676].
+  const open = nestedPhaseMs.get(db) ?? nestedPhaseMs.set(db, []).get(db);
+  open.push(0);
   if (move) for (const record of pending.get(db) ?? []) {
     if (record.complete) continue;
     record.move = move;
@@ -138,10 +178,13 @@ export function measureBoardWritePhase(db, name, work, move) {
   }
   try { return work(); } finally {
     const elapsed = performance.now() - started;
+    const nested = open.pop() ?? 0;
+    const own = elapsed - nested;
+    if (open.length) open[open.length - 1] += elapsed;
     for (const record of pending.get(db) ?? []) {
       if (record.complete) continue;
       if (move) record.moveDepth = Math.max(0, (record.moveDepth ?? 1) - 1);
-      else if (record.moveDepth > 0 && elapsed > (record.stepMs ?? 0)) { record.step = name; record.stepMs = elapsed; }
+      else if (record.moveDepth > 0 && own > (record.stepMs ?? 0)) { record.step = name; record.stepMs = own; }
       record.workAccountedMs = (record.workAccountedMs ?? 0) + elapsed;
       if (elapsed > (record.phaseMs ?? 0)) { record.phase = name; record.phaseMs = elapsed; }
     }
@@ -174,6 +217,7 @@ export function finishBoardWrite(record, released, outcome = 'released') {
   }
   recordBoardHold({ ...record, durationMs, outcome });
   recordBoardHold({ ...record, durationMs, outcome, allWrites: true });
+  recordWriteHoldViolation(record, durationMs, outcome);
   if (record.marker) try { fs.unlink(record.marker); } catch { /* Optional advisory cleanup. */ }
   pending.get(record.db)?.delete(record);
 }

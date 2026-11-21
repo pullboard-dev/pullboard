@@ -483,6 +483,7 @@ import { writeFileTimes } from './src/io/test/shards.js';
 import { lex } from './src/io/scan.js';
 import { report } from './src/io/scan.js';
 import { walk } from './src/io/scan.js';
+import { workingSourceInventory } from './src/io/scan.js';
 import { acceptedCellsIdentity } from './src/io/inventory.js';
 import { toolingIsPinned } from './src/io/inventory.js';
 import { readAcceptedCells } from './src/io/inventory.js';
@@ -558,5 +559,5 @@ export { gateHealthLines, gateHealthSummary, redNow, gateHealthReport, runnerTim
 export { maintainPartsStore, prunePartsStore, firstChangedInput, recordInputParts, ledgerFromOutput, phaseLedger, FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV };
 export { LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards };
 export { printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly, writeFileTimes, lex };
-export { report, walk, acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure };
+export { report, walk, workingSourceInventory, acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure };
 export { waitForAcceptedCells, runJourneyCheck, unregisteredNewTests };

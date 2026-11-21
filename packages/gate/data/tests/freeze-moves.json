@@ -3,7 +3,7 @@
   "moved": [
     {
       "from": "apps/cli/journeys/gate/red-state.test.js",
-      "to": "apps/cli/tests/journeys/gate/red-state.test.js",
+      "to": "apps/cli/tests/io/commands/gate/red.test.js",
       "action": "convert",
       "because": "cites a spec id no cell unit or contract test cites",
       "idsFollowed": true
@@ -17,7 +17,7 @@
     },
     {
       "from": "apps/cli/journeys/verify/clause-refusal.test.js",
-      "to": "apps/cli/tests/journeys/verify/clause-refusal.test.js",
+      "to": "apps/cli/tests/io/commands/verify/refusal.test.js",
       "action": "convert",
       "because": "runs in process, so the journey folder is not needed",
       "idsFollowed": true
@@ -7291,7 +7291,7 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/show/review/tier.test.js",
+      "file": "apps/cli/tests/io/commands/show/tier.test.js",
       "specs": [
         "B26",
         "C7",
@@ -7774,7 +7774,7 @@
       "generatedBy": "packages/moves/tests/logic/table/submit-generated.test.js"
     },
     {
-      "file": "apps/cli/tests/io/submit/compose.test.js",
+      "file": "apps/cli/journeys/submit/compose.test.js",
       "specs": [
         "C7",
         "L3",

@@ -1,0 +1,3 @@
+{
+  "cli.io-test-pull.same-runner-complete-proof": {"proves":{"specs":["C7"],"claim":"separate pulled test checkouts reuse complete same-runner proof and fresh or changed input executes"},"why":"Pulled jobs must share only valid complete runner-owned proof without skipping changed or fresh checks.","kind":"journey","inputs":["apps/cli/tests/io/test/pull.test.js"]}
+}
