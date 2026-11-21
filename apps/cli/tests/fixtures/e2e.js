@@ -104,8 +104,9 @@ export function parityRecord({ dir, env, cwd, args, result }) {
     const db = new DatabaseSync(file, { readOnly: true });
     try {
       // api_stall records a slow machine, not a product result: the parity runs share a loaded machine, so it is left out.
+      // gate-queue is a fleet snapshot a runner's pull claim appends only when the queue differs from the last one, so how many land by this read depends on poll timing, not on the call.
       board = { items: db.prepare('SELECT item_id, item_status, item_lane FROM item ORDER BY item_id').all().map(row => ({ ...row })),
-        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind <> 'api_stall' AND NOT (event_kind = 'fact' AND event_detail LIKE '%Review comparison:%') GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
+        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind NOT IN ('api_stall', 'gate-queue') AND NOT (event_kind = 'fact' AND event_detail LIKE '%Review comparison:%') GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
     } finally { db.close(); }
   }
   // Mask string values only: a bare number of 7 or more digits would read as a hash and break the JSON it sits in.
