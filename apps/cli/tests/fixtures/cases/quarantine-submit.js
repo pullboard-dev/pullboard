@@ -40,6 +40,8 @@ export function fixture(t, deterministic = false, companion = false) {
   config.affectedTests = 'node apps/cli/src/io/run/tests.js';
   delete config.submitGate;
   delete config.submitDeferAbove;
+  // A project with no cells plan names none in its config; that key, not the plan file, makes a project generic.
+  if (config.cells) delete config.cells.plan;
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config) + '\n');
   // Remove only the consumer's generated cells plan; keep the shipped runtime manifest and modules intact.
   rmSync(join(box.root, 'packages/codemap/data/plan/cells.json'), { force: true });

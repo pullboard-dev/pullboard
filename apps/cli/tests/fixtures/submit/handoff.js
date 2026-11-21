@@ -97,7 +97,8 @@ export async function fixture(t, { enabled = true, result = 'green', companion =
   // A first-folder seat claims its second build beside the first, and a journey that holds several builds names its cap [B5];
   // the journey projects pin one claim per seat otherwise.
   const twoClaims = perSeat && !cells ? { claims: { ...config.claims, perSeat } } : {};
-  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...cellsPolicy, ...twoClaims }, null, 2) + '\n');
+  const cellsPlan = cells ? { cells: { ...config.cells, plan: 'packages/codemap/data/plan/cells.json' } } : {};
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...cellsPolicy, ...twoClaims, ...cellsPlan }, null, 2) + '\n');
   if (cells) {
     mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
     writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');

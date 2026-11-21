@@ -15,7 +15,7 @@ const files = root => git(root, 'ls-files').split('\n').sort();
 
 test('cli.io-cells-submit-checks.the-snapshot-pair-differs-only-by-the: clause 1: the snapshot pair differs only by the edit it is given, and an unchanged candidate is identical to main [C7,#10939]', (t) => {
   const same = cellsSnapshotPair(t);
-  assert.deepEqual(files(same.main.root), ['packages/codemap/data/plan/01-demo.json', 'packages/codemap/data/plan/cells.json', 'packages/demo/index.js']);
+  assert.deepEqual(files(same.main.root), ['packages/codemap/data/plan/01-demo.json', 'packages/codemap/data/plan/cells.json', 'packages/demo/index.js', 'pullboard.json']);
   assert.deepEqual(files(same.candidate.root), files(same.main.root));
   assert.equal(git(same.candidate.root, 'rev-parse', 'HEAD^{tree}'), git(same.main.root, 'rev-parse', 'HEAD^{tree}'), 'an unchanged candidate holds main\'s tree');
   const edited = cellsSnapshotPair(t, put => put('packages/demo/index.js', "export const demo = 'edited';\n"));
