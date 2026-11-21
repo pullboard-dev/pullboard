@@ -14,6 +14,20 @@ import { declarationDocBlocks } from './declarations.js';
 
 const files = fileSystemAdapter();
 
+/** The engine page of the formats doc: headings held here, its table rendered from the event declarations [C7]. */
+export function engineFirstPage(blocks) {
+  return [
+    '# Event log kinds',
+    '',
+    'Generated from `apps/cli/src/io/documentation/events` by `docs/formats/generate.mjs`; edit the declarations, then regenerate. The prose around this table stays in the Event log section of `docs/formats.md`.',
+    '',
+    '<!-- events:start -->',
+    blocks.events.trimEnd(),
+    '<!-- events:end -->',
+    '',
+  ].join('\n');
+}
+
 /** Render every generated copy without touching a repository board or rewriting authored prose. */
 export function generatedDocs(root = fileURLToPath(new URL('../../../../../', import.meta.url)), { openBoard } = {}) {
   const board = openBoard(':memory:');
@@ -40,6 +54,7 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
   return new Map([
     ['docs/formats.md', formats], ['docs/formats/spec.md', spec], ['docs/formats/static-view.md', staticView], ['docs/api.md', api],
+    ['docs/formats/engine-first.md', engineFirstPage(blocks)],
     ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)],
   ]);
 }
