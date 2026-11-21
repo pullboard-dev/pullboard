@@ -54,7 +54,6 @@ export const SUBMIT_REACHED_REFUSALS = [
   { code: 'IMPORT_SCHEMA', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'point the command at a valid board or import the message names, then run it again' },
   { code: 'IMPORT_VERSION', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'point the command at a valid board or import the message names, then run it again' },
   { code: 'ITEM_HELD', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
-  { code: 'ITEM_SIZE_PLAN', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'JOB_CAPABILITY', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the job or gate evidence the message names, repair it, then run the command again' },
   { code: 'JOB_FIELDS', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the job or gate evidence the message names, repair it, then run the command again' },
   { code: 'JOB_LEASED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the job or gate evidence the message names, repair it, then run the command again' },

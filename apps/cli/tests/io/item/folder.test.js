@@ -16,6 +16,7 @@ import { openItemFolder } from '../../../src/io/item/folder.js';
 import { parallelCheckout } from '../../../src/io/item/folder.js';
 import { itemFolderPath } from '../../../src/io/item/folder.js';
 import { removeIdleFolder } from '../../../src/io/item/folder.js';
+import { snapshotWip } from '../../../src/io/item/wip.js';
 import { gitPath } from '../../../../../packages/git/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
@@ -285,4 +286,45 @@ test('cli.item-folder.live-folder-no-launch: clause 1: liveFolderRefusal launche
   const none = await countingGit(() => liveFolderRefusal(ctx, null, me, 6));
   assert.equal(none.result, null);
   assert.equal(none.launches, 0, `an item with no folder and no checkout launched ${none.launches} git processes`);
+});
+
+/** A folder a dead seat left dirty: one tracked file edited and one new file, snapshotted at `date`, then the folder removed so only the refs remain. */
+async function deadSeatWork(t, id, date) {
+  const { primary, ctx } = repository(t);
+  const path = await openItemFolder(ctx, ME, id);
+  const tracked = runFixtureGit(['ls-files'], { cwd: path }).split('\n')[0];
+  writeFileSync(join(path, tracked), 'edited by the dead seat\n');
+  writeFileSync(join(path, 'dead-seat-new.txt'), 'new work\n');
+  const before = process.env.GIT_COMMITTER_DATE;
+  if (date) process.env.GIT_COMMITTER_DATE = date;
+  try { if (date) snapshotWip(path, id); } finally {
+    if (before === undefined) delete process.env.GIT_COMMITTER_DATE; else process.env.GIT_COMMITTER_DATE = before;
+  }
+  const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: path });
+  runFixtureGit(['worktree', 'remove', '--force', path], { cwd: primary });
+  return { ctx, path, tracked, head };
+}
+
+test('cli.item-folder.reoffer-starts-from-wip: clause 1: a re-offered item folder restores a newer wip snapshot as uncommitted work on the unchanged branch head [C7,#12568]', async t => {
+  const hourAhead = `${Math.floor(Date.now() / 1000) + 3600} +0000`;
+  const { ctx, path, tracked, head } = await deadSeatWork(t, 41, hourAhead);
+  assert.equal(await openItemFolder(ctx, ME, 41), path);
+  assert.equal(readFileSync(join(path, tracked), 'utf8'), 'edited by the dead seat\n');
+  assert.equal(readFileSync(join(path, 'dead-seat-new.txt'), 'utf8'), 'new work\n');
+  assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: path }), head, 'the snapshot is never a commit on the branch');
+  const status = runFixtureGit(['status', '--porcelain'], { cwd: path });
+  assert.match(status, new RegExp(`${tracked.replace('.', '\\.')}`, 'u'));
+  assert.match(status, /dead-seat-new\.txt/u);
+});
+
+test('cli.item-folder.reoffer-without-wip: clause 2: with no snapshot, or one not newer than the branch head, the new folder starts clean from the branch [C7,#12568]', async t => {
+  const none = await deadSeatWork(t, 42, null);
+  assert.equal(await openItemFolder(none.ctx, ME, 42), none.path);
+  assert.equal(runFixtureGit(['status', '--porcelain'], { cwd: none.path }), '');
+  assert.equal(existsSync(join(none.path, 'dead-seat-new.txt')), false);
+  const hourBehind = `${Math.floor(Date.now() / 1000) - 3600} +0000`;
+  const old = await deadSeatWork(t, 43, hourBehind);
+  assert.equal(await openItemFolder(old.ctx, ME, 43), old.path);
+  assert.equal(runFixtureGit(['status', '--porcelain'], { cwd: old.path }), '');
+  assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: old.path }), old.head);
 });
