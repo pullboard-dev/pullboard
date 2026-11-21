@@ -1,0 +1,14 @@
+{
+  "cli.io-next-claim-substeps.profiled-claimOrdered": {
+    "proves": { "specs": ["C7", "N2"], "claim": "with PULLBOARD_NEXT_PROFILE set, next --take reports a timed row for each ordered claim sub-step." },
+    "why": "Without named rows, a slow claim write gives no evidence about which guard, snapshot, admission, move or checkpoint takes the time.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/claim.js", "apps/cli/tests/io/next/claim-substeps.test.js"]
+  },
+  "cli.io-next-claim-substeps.default-claim-output-and-event": {
+    "proves": { "specs": ["C7", "N2"], "claim": "without PULLBOARD_NEXT_PROFILE, next --take omits profile output and records the normal claim event." },
+    "why": "Without a default-path check, claim profiling could leak into ordinary output or change the event a claim records.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/claim.js", "apps/cli/tests/io/next/claim-substeps.test.js"]
+  }
+}
