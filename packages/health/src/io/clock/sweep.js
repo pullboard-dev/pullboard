@@ -97,7 +97,10 @@ export function clockSweep(board, { now, dryRun = false, moves = CLOCK_MOVES, fa
   const result = { version: CLOCK_SWEEP_VERSION, at: new Date(at).toISOString(), dryRun: dryRun === true, applied: [], pending: [], waiting: [] };
   for (const item of listItems(board)) {
     if (!['open', 'claimed', 'submitted'].includes(item.item_status)) continue;
-    const row = clockRow({ ...boardFacts(board, item, getItem), ...(facts ? facts(board, item) : {}) });
+    let row;
+    // An item no row covers has no move to make; the health document names it and the alarm shouts it.
+    try { row = clockRow({ ...boardFacts(board, item, getItem), ...(facts ? facts(board, item) : {}) }); }
+    catch { continue; }
     const history = events(board, { itemId: item.item_id });
     const { since, evidence, deadlineMinutes } = timing(item, row, history);
     const base = { item: item.item_id, rule: row.rule, state: row.state, move: row.move, since, evidence };
