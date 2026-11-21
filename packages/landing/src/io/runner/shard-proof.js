@@ -28,17 +28,25 @@ export function shardReuse(posted) {
 }
 
 /**
- * The proof files that declare an exclusive timing runner, read from the merged checkout through the gate door; none when the door does not have the reader yet (#11958).
+ * The proof files that declare an exclusive timing runner: a git grep over the proof's own files in the merged checkout for the leading-comment line (a comment line before the file's first code line). It never reaches the gate door, which would pull the CLI into this cell.
  *
  * @param {string} root
  * @param {string[]} files
  * @returns {Promise<string[]>}
  */
 export async function timingFilesOf(root, files) {
-  try {
-    const gate = await import('../../../../gate/index.js');
-    return typeof gate.timingTestFiles === 'function' ? [...gate.timingTestFiles(root, files)] : [];
-  } catch { return []; }
+  const found = new Set();
+  for (let at = 0; at < files.length; at += 200) {
+    const read = tryGit(root, ['grep', '-n', '-E', '^[ \\t]*(//|/?\\*+)[ \\t]*@pullboard-test-timing[ \\t]*\\r?$', '--', ...files.slice(at, at + 200)]);
+    for (const line of read.stdout.split('\n')) {
+      const [file, row] = line.split(':');
+      if (!file) continue;
+      // The first line that is not a comment or blank ends the leading comments; a declaration must come before it.
+      const code = tryGit(root, ['grep', '-n', '-v', '-m', '1', '-E', '^[ \\t]*(//|/\\*|\\*|$)', '--', file]).stdout.split('\n')[0].split(':');
+      if (code.length < 3 || Number(row) < Number(code[1])) found.add(file);
+    }
+  }
+  return files.filter(file => found.has(file));
 }
 
 /** Sleep without leaving a timer behind once the wait ends. */
