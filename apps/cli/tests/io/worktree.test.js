@@ -53,6 +53,7 @@ test('cli.io-worktree.primary-root-falls-back-to-git: clause 2: a repository wit
   const separate = join(box.dir, 'git-data');
   const clone = join(box.dir, 'separate-clone');
   box.git(box.dir, 'clone', '-q', `--separate-git-dir=${separate}`, box.repo, clone);
+  box.git(separate, 'config', 'core.worktree', clone);
   const calls = [];
   const details = info(clone, box.env);
   const found = withGitContractAdapter(observingGit(calls), () => primaryCheckoutRoot(details));
