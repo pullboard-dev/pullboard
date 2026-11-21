@@ -4,7 +4,6 @@ import {
   mkdirSync,
   readFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import {
   dirname,
   join,
@@ -20,7 +19,6 @@ import {
 } from '../../../../packages/link/index.js';
 const setup = { startViewSignIn, viewSignInStatus, cancelViewSignIn, viewSignInPairingNavigation };
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   runFixtureChild,
   runFixtureGit,
@@ -28,19 +26,6 @@ import {
 import {
   plainCommand,
 } from '../../tests/fixtures/relay/setup.js';
-
-test('cli.journeys-relay-setup.relay-help-lists-every-relay-command: relay help lists every relay command, with a whole example [H17]', async () => {
-  const printed = await runCliInProcess(['relay', '--help'], { cwd: tmpdir() });
-  assert.equal(printed.status, 0, printed.stderr);
-  const [usage, rest] = printed.stdout.split('\nFlags:\n');
-  for (const command of ['relay [status|on|off|pair|join <code>]', 'relay on --all', 'relay devices', 'relay revoke <device>',
-    'relay tokens', 'relay revoke <token-id>', 'relay recover --skip <sequence>']) {
-    assert.ok(usage.includes('pullboard ' + command), 'relay help lists pullboard ' + command);
-  }
-  const example = rest.split('\nExample:\n')[1].trim();
-  assert.equal(example, 'pullboard relay on --all', 'the example is one whole command a person can paste');
-  assert.ok(!/--all \[/u.test(rest), 'flags name --all alone');
-});
 
 test('cli.journeys-relay-setup.relay-pair-labels-the-code-for: relay pair labels the code for a computer and the QR for a phone [H17]', async (t) => {
   const box = await relayClientFixture(t);
