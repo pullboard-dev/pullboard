@@ -54,7 +54,7 @@
     "apps/cli/journeys/relay/sealed.test.js",
     "apps/cli/journeys/show/review/eligibility.test.js",
     "apps/cli/journeys/init/review/reservation.test.js",
-    "apps/cli/journeys/show/review/tier.test.js",
+    "apps/cli/tests/io/commands/show/tier.test.js",
     "packages/runners/tests/io/run/tests.test.js",
     "packages/landing/tests/logic/hold/spec.test.js",
     "apps/cli/journeys/runner/policy.test.js",

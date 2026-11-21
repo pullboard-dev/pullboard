@@ -779,7 +779,7 @@
   "apps/lib/tests/durable/runner.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/resume/e2e.test.js": {
+  "apps/cli/tests/io/resume/e2e.test.js": {
     "hand-policy": 5
   },
   "apps/cli/tests/fixtures/e2e.js": {
@@ -803,15 +803,15 @@
     "raw-board": 1,
     "model": 10
   },
-  "apps/cli/journeys/show/policy/dependency.test.js": {
+  "apps/cli/tests/io/commands/show/dependency.test.js": {
     "hand-policy": 1,
     "raw-board": 1
   },
-  "apps/cli/journeys/show/policy/e2e.test.js": {
+  "apps/cli/tests/io/commands/show/e2e.test.js": {
     "hand-policy": 3,
     "raw-board": 2
   },
-  "apps/cli/journeys/show/policy/refs.test.js": {
+  "apps/cli/tests/io/commands/show/refs.test.js": {
     "hand-policy": 1,
     "raw-board": 2
   },
@@ -1332,7 +1332,7 @@
     "raw-board": 3,
     "model": 2
   },
-  "apps/cli/journeys/resume/refusals.test.js": {
+  "apps/cli/tests/io/resume/refusals.test.js": {
     "model": 1,
     "hand-policy": 1
   },
@@ -1407,7 +1407,7 @@
   "apps/cli/tests/fixtures/presence.js": {
     "raw-board": 4
   },
-  "apps/cli/journeys/resume/presence/heartbeat.test.js": {
+  "apps/cli/tests/io/resume/heartbeat.test.js": {
     "raw-board": 14,
     "tempdir": 2
   },
@@ -2000,7 +2000,7 @@
     "tempdir": 4,
     "repo-read": 1
   },
-  "apps/cli/journeys/show/check.test.js": {
+  "apps/cli/tests/io/commands/show/check.test.js": {
     "tempdir": 1,
     "env-spread": 1,
     "hand-policy": 2,
