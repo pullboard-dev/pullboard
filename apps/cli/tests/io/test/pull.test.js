@@ -17,9 +17,12 @@ import { runFixtureGit } from '../../../../../packages/gate/tests/fixtures/child
 import { fixtureCommittedGraph } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { storeTestResult } from '../../../../../packages/gate/src/io/test/store.js';
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
   const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
@@ -41,11 +44,26 @@ test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled che
   assert.equal(second.status, 0);
   assert.match(second.stdout, /# reused /u);
   assert.equal(readFileSync(counter, 'utf8'), 'x', 'only first checkout executed');
+  assert.equal(run(two, { TZ: 'Pacific/Honolulu' }).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xx', 'different runtime context executes');
+  const store = join(runner, 'test-results', 'pull-gate');
+  const entries = readdirSync(join(store, 'green')).map(name => {
+    const path = join(store, 'green', name);
+    return { path, value: JSON.parse(readFileSync(path, 'utf8')) };
+  });
+  // Poison every observed context so neither one can accidentally satisfy the next request.
+  for (const { value } of entries) assert.equal(storeTestResult(store, { ...value, status: 'fail' }), true);
+  assert.equal(run(two).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxx', 'previously red key executes');
+  for (const { value } of entries) rmSync(join(store, 'red', value.key), { force: true });
+  for (const { path, value } of entries) writeFileSync(path, JSON.stringify({ ...value, tap: undefined }));
+  assert.equal(run(two).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxx', 'incomplete outcome executes');
   assert.equal(run(two, { PULLBOARD_TEST_REUSE: '0' }).status, 0);
-  assert.equal(readFileSync(counter, 'utf8'), 'xx', 'fresh-only executes');
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxxx', 'fresh-only executes');
   writeFileSync(join(two, 'test/proof.test.js'), readFileSync(join(two, 'test/proof.test.js'), 'utf8') + '\n// changed input\n');
   assert.equal(run(two).status, 0);
-  assert.equal(readFileSync(counter, 'utf8'), 'xxx', 'changed input executes');
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxxxx', 'changed input executes');
 });
 
 const SHELL = { PATH: '/usr/bin', HOME: '/home/user', NODE_OPTIONS: '--require ./evil.js', FIXTURE_ONE: '1', PULLBOARD_FIXTURE_INPROCESS_HOOKS: '1', PULLBOARD_FIXTUREX: 'no', MY_FIXTURE_A: 'no' };
