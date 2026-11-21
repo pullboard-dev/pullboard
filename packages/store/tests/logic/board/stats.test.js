@@ -40,3 +40,60 @@ test('store.logic-board-stats.finished-once: clause 2: recordNextIdle with a fin
   assert.equal(eventsOf(board, 'next-finished')[0].detail.lane, 'core');
   assert.throws(() => store.board_recordNextIdle(board, { agentId: 'ghost-9', finished: true }), error => error?.code === 'NOT_JOINED');
 });
+
+/** Every SELECT a call prepares on the board's connection, with its query plan rows. */
+function plannedStatements(board, run) {
+  const prepare = board.db.prepare.bind(board.db), seen = [];
+  board.db.prepare = sql => { seen.push(sql); return prepare(sql); };
+  try { run(); } finally { board.db.prepare = prepare; }
+  return seen.filter(sql => /^\s*SELECT/iu.test(sql)).map(sql => ({ sql, plan: prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map(row => row.detail) }));
+}
+
+/** Give a seat `count` earlier events of other kinds, written as the board's own rows. */
+function seatHistory(board, seat, count) {
+  const event = board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
+  const now = board.clock.now().getTime();
+  board.db.exec('BEGIN');
+  try { for (let index = 0; index < count; index += 1) event.run(new Date(now - 3_600_000 + index).toISOString(), seat, index % 2 ? 'heartbeat' : 'fact', null, '{}'); board.db.exec('COMMIT'); }
+  catch (error) { board.db.exec('ROLLBACK'); throw error; }
+}
+
+/** The median milliseconds of an idle record that finds the seat's answer unchanged, each sample a batch of calls. */
+function unchangedIdleMs(board, seat, samples = 20, batch = 10) {
+  const observation = { agentId: seat, reason: 'nothing-eligible' };
+  store.board_recordNextIdle(board, observation);
+  const times = [];
+  for (let sample = 0; sample < samples; sample += 1) {
+    const started = performance.now();
+    for (let call = 0; call < batch; call += 1) assert.equal(store.board_recordNextIdle(board, observation).unchanged, true);
+    times.push((performance.now() - started) / batch);
+  }
+  return times.sort((a, b) => a - b)[Math.floor(samples / 2)];
+}
+
+test('store.logic-board-stats.idle-check-seeks-latest-event: clause 1: the idle check reads a seat\'s latest event with one index seek, never sorting or scanning the seat\'s events [C7]', (t) => {
+  const board = cellBoard(t, ':memory:');
+  const seat = cellSeat(board, { lane: 'core', path: '/fixture/core-1' }).id;
+  seatHistory(board, seat, 50);
+  store.board_recordNextIdle(board, { agentId: seat, reason: 'nothing-eligible' });
+  const statements = plannedStatements(board, () => store.board_recordNextIdle(board, { agentId: seat, reason: 'nothing-eligible' }));
+  const eventReads = statements.filter(({ sql }) => /\bFROM event\b/u.test(sql));
+  assert.ok(eventReads.some(({ sql }) => /ORDER BY event_id DESC/u.test(sql)), 'the idle check reads the seat\'s latest event');
+  for (const { sql, plan } of eventReads) {
+    assert.ok(!plan.some(detail => /USE TEMP B-TREE/u.test(detail)), `an idle read sorts events: ${sql} -> ${plan.join('; ')}`);
+    assert.ok(!plan.some(detail => /^SCAN event\b/u.test(detail)), `an idle read scans events: ${sql} -> ${plan.join('; ')}`);
+  }
+});
+
+test('store.logic-board-stats.idle-check-flat-with-history: clause 2: with 18,187 earlier events on the seat, an unchanged idle record stays under 200 ms and within 2x of a seat with 10 [C7]: 1:10 of the coordinator\'s live history', (t) => {
+  const board = cellBoard(t, ':memory:');
+  const small = cellSeat(board, { lane: 'core', path: '/fixture/core-1' }).id;
+  const large = cellSeat(board, { lane: 'core', path: '/fixture/core-2' }).id;
+  seatHistory(board, small, 10);
+  seatHistory(board, large, 18_187);
+  unchangedIdleMs(board, small, 3, 3); unchangedIdleMs(board, large, 3, 3);
+  const base = unchangedIdleMs(board, small);
+  const loaded = unchangedIdleMs(board, large);
+  assert.ok(loaded < 200, `median ${loaded.toFixed(3)} ms with history`);
+  assert.ok(loaded <= Math.max(2 * base, base + 0.1), `median ${loaded.toFixed(3)} ms with history against ${base.toFixed(3)} ms with 10 events`);
+});

@@ -26,6 +26,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { servedModuleMoved } from '../../../../../packages/drive/index.js';
+import { startBeat } from '../../../../../packages/drive/index.js';
 import { startLoopWatchdog } from '../../../../../packages/drive/index.js';
 import { announceListening } from '../../../../../packages/drive/index.js';
 import { catchListeners } from '../../../../../packages/drive/index.js';
@@ -174,7 +175,7 @@ export async function serveHere(io, values) {
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
   const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument, pullRoute: pullRoute ?? undefined,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
-    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog }));
+    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog, gateMaintenanceBeat: startBeat }));
   const api = listening.value;
   if (inherited) announceListening();
   traceServeStartup('serve-listen-ready');
@@ -306,7 +307,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
   providePostLandPullOut(startPostLandPullOut);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
-    refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
+    refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog, gateMaintenanceBeat: startBeat });
   const boards = () => {
     const unread = projects().filter(project => !ids.has(project.root));
     if (unread.length) for (const board of apiBoards(() => unread, ctx.allowSchemaUpgrade, openers)) ids.set(board.root, board.id);

@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runScheduledClaimWatchdog } from '../../../index.js';
 import { sweepClaims } from '../../../index.js';
+import { recordClaimSilence } from '../../../index.js';
+import { readClaimSilence } from '../../../index.js';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { readBoardMeta } from '../../../../store/index.js';
+import { addItem } from '../../../../store/index.js';
+import { claim } from '../../../../store/index.js';
+import { logEvent } from '../../../../store/index.js';
+import { register } from '../../../../store/index.js';
+import { listItems } from '../../../../store/index.js';
+import { release } from '../../../../store/index.js';
+import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
+import { closeCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 
 const T0 = Date.parse('2026-11-04T12:00:00.000Z');
@@ -61,4 +75,69 @@ test('health.sweep.stalled-reaches-watchdog: a claim already marked stalled stil
   });
   assert.deepEqual(order, ['record', 'no-new-stale-action', 'watchdog-capture', 'watchdog']);
   assert.equal(result, null);
+});
+
+/** A real board file with one item claimed at T0 by a seat whose item folder holds no commit, and a clock the test moves. */
+function silentClaim(t) {
+  const directory = privateFixtureFiles('pullboard-silence-').root;
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'board.sqlite');
+  const clock = { at: T0, now: () => new Date(clock.at) };
+  const board = openCellBoard(file, clock);
+  const seat = register(board, { lane: 'core', path: join(directory, 'seat'), route: 'strong' });
+  const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Silent work', criterion: 'Work' });
+  claim(board, id, { agentId: seat, lane: 'core', leaseMs: 86_400_000, freeze: () => ({ text: 'Work', digest: 'bar' }) });
+  const count = (at, ports = { seats: () => [] }) => {
+    clock.at = T0 + at * 60_000;
+    recordClaimSilence(board, listItems(board), clock.at, ports);
+    return readClaimSilence(board, id)?.sweeps ?? 0;
+  };
+  return { board, clock, file, seat, id, count, directory };
+}
+
+test('health.io-claim-sweep.counts-silent-sweeps: recordClaimSilence counts one per sweep for an hour of silence, stores it in board_meta, restarts on a new episode and on any sign of life, and survives a fresh board handle [C7,#12091,clause 1]', t => {
+  const { board, clock, file, seat, id, count } = silentClaim(t);
+  assert.equal(count(59), 0, 'under 60 minutes is not silence');
+  assert.equal(count(60), 1);
+  assert.equal(count(70), 2);
+  const stored = JSON.parse(readBoardMeta(board.db, `claim_silence:${id}`));
+  assert.deepEqual(stored, { episode: stored.episode, since: new Date(T0).toISOString(), sweeps: 2 });
+  closeCellBoard(board);
+  const reopened = openCellBoard(file, clock);
+  t.after(() => { try { closeCellBoard(reopened); } catch { /* closed below */ } });
+  assert.equal(readClaimSilence(reopened, id).sweeps, 2, 'the count lives on the board, not in memory');
+  recordClaimSilence(reopened, listItems(reopened), T0 + 80 * 60_000, { seats: () => [] });
+  assert.equal(readClaimSilence(reopened, id).sweeps, 3);
+  reopened.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify({ episode: 0, since: 'x', sweeps: 9 }), `claim_silence:${id}`);
+  recordClaimSilence(reopened, listItems(reopened), T0 + 90 * 60_000, { seats: () => [] });
+  assert.equal(readClaimSilence(reopened, id).sweeps, 1, 'a new claim episode restarts the count');
+  clock.at = T0 + 95 * 60_000;
+  logEvent(reopened, seat, 'fact', id, { id: 'alive', kind: 'note', text: 'still here', ref: null, supersedes: null });
+  recordClaimSilence(reopened, listItems(reopened), T0 + 100 * 60_000, { seats: () => [] });
+  assert.equal(readClaimSilence(reopened, id), null, 'an event by the seat ends the silence');
+  recordClaimSilence(reopened, listItems(reopened), T0 + 160 * 60_000, { seats: () => [] });
+  assert.equal(readClaimSilence(reopened, id).sweeps, 1, 'an hour after that event the count starts again');
+});
+
+test('health.io-claim-sweep.sign-of-life-ends-silence: a heartbeat or an item-folder commit also ends the silence [C7,#12091,clause 1]', t => {
+  const { board, id, seat, count } = silentClaim(t);
+  assert.equal(count(61), 1);
+  assert.equal(count(70, { seats: (_board, owners) => owners.map(seat => ({ ...seat, heartbeatAt: new Date(T0 + 65 * 60_000).toISOString() })) }), 0);
+  assert.equal(count(130, { seats: () => [], commitAt: () => new Date(T0 + 100 * 60_000).toISOString() }), 0);
+  assert.equal(count(161, { seats: () => [], commitAt: () => new Date(T0 + 100 * 60_000).toISOString() }), 1);
+  release(board, id, seat, 'finished', undefined, 'OTHER');
+  assert.equal(count(170), 0, 'a claim that ended is no longer counted');
+});
+
+test('health.io-claim-sweep.records-silence: sweepClaims records the silence count once per sweep through the production path [C7,#12091,clause 2]', async t => {
+  const { board, clock, id } = silentClaim(t);
+  clock.at = T0 + 61 * 60_000;
+  const ctx = { clock, config: { health: {} }, io: {} };
+  const ports = { recordClaimWorktrees: () => {}, captureLapsedClaims: () => null,
+    captureClaimWatchdogSnapshot: () => ({ claims: [] }), runScheduledClaimWatchdog: () => {}, silence: { seats: () => [] } };
+  await sweepClaims(ctx, board, 'sentinel', async () => {}, ports);
+  assert.equal(readClaimSilence(board, id).sweeps, 1);
+  clock.at += 10 * 60_000;
+  await sweepClaims(ctx, board, 'sentinel', async () => {}, ports);
+  assert.equal(readClaimSilence(board, id).sweeps, 2);
 });

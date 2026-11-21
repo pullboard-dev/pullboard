@@ -321,11 +321,12 @@ export function readTestRow({ board, runs = null }, job) {
 }
 
 /** Offer one test job for a commit. Returns the job id and the pinned ref. */
-async function offerTestJob(ctx, fields, runs) {
+async function offerTestJob(ctx, fields, runs, onOffer) {
   const { offerJob } = await import('../../../../../packages/api/index.js');
   const ledger = Array.isArray(fields.files) && fields.files.length ? withBoardRead(ctx, board => ledgerHits(board.db, fields.files)) : null;
   const { ref, row } = await testJobRow(ctx, { ...fields, ledger });
   const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
+  onOffer?.(job.id, runs);
   await startLocalRunner(ctx);
   return { job: job.id, ref };
 }
@@ -353,10 +354,11 @@ export async function offerAcceptCheck(ctx, board, { item, commit, main, command
  *
  * @returns {Promise<{ receipt: Record<string, any>, runner: string | null, enqueuedAt: string | null }>}
  */
-async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null }) {
+async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null, signal }) {
   const deadline = Date.now() + gateRunnerWaitMs();
   let beat = 0, claimed = null;
   for (;;) {
+    if (signal?.aborted) throw signal.reason ?? new Error('test job stopped');
     const view = runs ? readTestRow({ runs }, job) : withBoardRead(ctx, board => readTestRow({ board }, job));
     if (!view) throw new Refused('TEST_JOB_MISSING', `test job ${job} is gone from the board; run pullboard test again`);
     const posted = [...view.steps].reverse().find(step => step.name === 'receipt');
@@ -371,7 +373,7 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
       const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
       try { withBoard(ctx, board => heartbeatSeat(board, agent)); } catch (error) { if (!error?.code) throw error; }
     }
-    await wait(pollMs);
+    try { await wait(pollMs, null, signal ? { signal } : undefined); } catch (error) { if (signal?.aborted) throw signal.reason ?? error; throw error; }
   }
 }
 
@@ -379,17 +381,18 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
  * Run one test job to its receipt and drop its pin; the receipt's phase is the run. A queued run's worker (`testRun`)
  * names the job on its run, so the receipt still settles the run if the worker stops before it (#7574).
  */
-async function runJobFor(ctx, fields, { agent, say, testRun }) {
+async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) {
   // The moment a runner took the job, for a census row's claimedAt [C7,#9284].
   let claimedAt = null;
   const noted = say;
   say = line => { if (claimedAt === null && /took test job/u.test(String(line))) claimedAt = new Date().toISOString(); noted?.(line); };
   const runs = testRunsHolder(ctx);
-  const offered = await offerTestJob(ctx, fields, runs);
+  const offered = await offerTestJob(ctx, fields, runs, onOffer);
   if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
-    const { receipt, runner, enqueuedAt } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
+    if (signal?.aborted) throw signal.reason ?? new Error('test job stopped');
+    const { receipt, runner, enqueuedAt } = await receiptOf(ctx, { job: offered.job, agent, say, runs, signal });
     const gate = receipt.gate ?? {};
     const rows = finishLedgerRows(gate);
     if (rows.length) withBoard(ctx, board => recordTestResults(board.db, { receipt: `${offered.job}#0`, origin: `finish:${runner ?? 'unknown'}`, commit: fields.commit, rows }));
@@ -403,6 +406,7 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
       times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,
       caseMs: gate.caseMs && typeof gate.caseMs === 'object' && !Array.isArray(gate.caseMs) ? gate.caseMs : null };
   } finally {
+    onOffer?.(offered.job, runs, true);
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
 }
@@ -436,8 +440,8 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
  * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null, caseMs: Record<string, number> | null }>}
  */
-export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
-  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs, censusPerRunner, censusPerRunnerQuiet }, { say });
+export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null, signal, onOffer }) {
+  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs, censusPerRunner, censusPerRunnerQuiet }, { say, signal, onOffer });
 }
 
 /**

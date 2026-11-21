@@ -347,6 +347,14 @@ function resolveUndoRaw(root, path) {
   return (shared.undo.get(path) ?? []).join('\0');
 }
 
+/** Every path Git's resolve-undo index records, from the one listing conflictedInMerge reads; none outside a pre-commit run. */
+function resolveUndoPaths(root) {
+  const shared = sharedReads(root);
+  if (!shared) return [];
+  resolveUndoRaw(root, '');
+  return [...shared.undo.keys()];
+}
+
 /** Merge bases of HEAD and one merge head, asked once per head. */
 function mergeBasesOf(root, mergeHead) {
   const shared = sharedReads(root);
@@ -518,7 +526,31 @@ export function blockedPaths(paths, protect) {
  * @returns {string[]}
  */
 export function preCommitProblems(context) {
-  return withSharedReads(context.root, stagedPaths(context.root).touched, () => checkStagedChange(context));
+  const checked = checkedStagedPaths(context.root, context.preMergeHook ?? false);
+  return withSharedReads(context.root, checked.touched, () => checkStagedChange({ ...context, checked }));
+}
+
+/**
+ * The staged paths the pre-commit judges. For a merge of accepted main, only the paths whose staged content differs
+ * from that main side (with several main heads, from every one): what the item and the merge resolution changed. A
+ * file that arrives unchanged from main was judged when it landed there. Any other commit is judged in full.
+ * Why: on 20 Nov a stale item branch merging main staged 455-2,138 files, every one went through the shim, blocked-file,
+ * quoted-line and ownership checks, and the hook hit its 120 s timeout on every try (#11358, #12032) [C7].
+ *
+ * @param {string} root
+ * @param {boolean} preMergeHook Whether the CLI was invoked for pre-merge-commit.
+ * @returns {{ touched: string[], written: string[] }}
+ */
+function checkedStagedPaths(root, preMergeHook) {
+  const heads = mainMergeHeads(root, preMergeHook);
+  if (!heads) return stagedPaths(root);
+  const [first, ...others] = heads.map((head) => stagedPaths(root, head));
+  /** Keep the paths of one kind that differ from every main head. */
+  const fromEveryHead = (kind) => others.reduce((paths, other) => {
+    const differs = new Set(other[kind]);
+    return paths.filter((path) => differs.has(path));
+  }, first[kind]);
+  return { touched: fromEveryHead('touched'), written: fromEveryHead('written') };
 }
 
 /**
@@ -534,9 +566,9 @@ function itemFolderOffBranch(root) {
 }
 
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
-function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
+function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {}, checked }) {
   if (!isMain) refuseGrafts(root);
-  const { touched, written } = stagedPaths(root);
+  const { touched, written } = checked;
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
@@ -593,8 +625,10 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   if (readCache) readCache.paths = [...new Set([...readCache.paths, ...mergeTouched])];
   // Keeping either parent's exact content of a foreign file is accepted unchanged; when that file had a real conflict
   // in this merge, the resolution still names its owner (#860).
+  // The checked set leaves out a path resolved to main's exact content, so its conflict is found in resolve-undo instead.
   const kept = mergeHeads && !preMergeHook
-    ? mergeTouched.filter((path) => outside(path).length && unchangedMergePath(root, path, mergeHeads) && conflictedInMerge(root, path))
+    ? [...new Set([...mergeTouched, ...resolveUndoPaths(root).filter((path) => stagedObject(root, path) !== committedObject(root, 'HEAD', path))])]
+      .filter((path) => outside(path).length && unchangedMergePath(root, path, mergeHeads) && conflictedInMerge(root, path))
     : [];
   kept.forEach((path) => onNotice?.(`resolved accepted-main conflict in ${path}; the coordinator owns ${path}`));
   const ownershipTouched = mergeHeads
