@@ -3964,7 +3964,7 @@
   "test/submit-test-tree-cases.js": "apps/cli/tests/fixtures/submit/cases.js",
   "test/submit-tooling-retry.test.js": "apps/cli/journeys/submit/retry.test.js",
   "test/submit-wait-exit.test.js": "apps/cli/journeys/submit/wait/exit.test.js",
-  "test/submit-wait.test.js": "apps/cli/journeys/submit/wait.test.js",
+  "test/submit-wait.test.js": "apps/cli/tests/io/submit/waiting.test.js",
   "test/submit-wrong-branch.test.js": "apps/cli/journeys/submit/branch.test.js",
   "test/sync.test.js": "apps/cli/journeys/sync/main.test.js",
   "test/team-authority-first-pin.test.js": "apps/cli/tests/io/commands/fact/team-pin.test.js",

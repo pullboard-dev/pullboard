@@ -209,7 +209,7 @@
     "why": "Without it, a regression where a second session cannot write in the main checkout until takeover would pass unnoticed.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/agents/session.test.js"
+      "apps/cli/tests/io/claim/session.test.js"
     ]
   },
   "cli.journeys-agents-session.lane-ownership-is-session-scoped-and": {
@@ -223,7 +223,7 @@
     "why": "Without it, a regression where lane ownership is session-scoped and takeover preserves the joined agent would pass unnoticed.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/agents/session.test.js"
+      "apps/cli/tests/io/claim/session.test.js"
     ]
   },
   "cli.journeys-agents-session.no-session-shells-are-one-session": {
@@ -237,7 +237,7 @@
     "why": "Without it, a regression where no-session shells are one session and markerless terminals retain their writes would pass unnoticed.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/agents/session.test.js"
+      "apps/cli/tests/io/claim/session.test.js"
     ]
   },
   "cli.journeys-agents-session-takeover.a-shout-from-the-local-view": {
@@ -281,7 +281,7 @@
     "why": "Without it, a regression where a remote shell is recognized by any SSH marker would pass unnoticed.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/agents/session.test.js"
+      "apps/cli/tests/io/claim/session.test.js"
     ]
   },
   "cli.journeys-agents-takeover-model.a-takeover-of-the-coordinator-seat": {

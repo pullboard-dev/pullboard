@@ -9,6 +9,7 @@ export * from './src/io/home.js';
 export { withEnvironment } from './src/io/environment.js';
 export * from './src/io/recovery.js';
 export * from './src/io/runner/reasons.js';
+export { pickTieredRunner } from './src/io/runner/pick.js';
 export * from './src/io/lock.js';
 export { keepHeartbeatWhileBlocked } from './src/io/heartbeat/blocked.js';
 export { analysisArtifactDescriptor, readAnalysisArtifact, receiveAnalysisArtifact } from './src/io/artifact.js';
