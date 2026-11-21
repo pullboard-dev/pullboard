@@ -1049,6 +1049,11 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now(),
     // A cancelled job (its gate was withdrawn) takes no receipt and stays cancelled, as a receipt after done stores nothing [C7,#3860].
     if (held.step === 'cancelled') return { job, attempt: held.attempt, receipt, recorded: false };
     const { attempt } = held;
+    // A successful multipart post drops its parts; an authenticated retry returns that attempt's stored receipt [C7,#12629].
+    if (receipt.gateParts) {
+      const prior = db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = ?").get(job, attempt);
+      if (prior) return { job, attempt, receipt: readPayload(db, prior.payload).receipt, recorded: false };
+    }
     const whole = receipt.gateParts ? joinedGate(db, job, attempt, receipt) : receipt;
     // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
     if (hop && held.hopEpoch !== undefined) finishClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
