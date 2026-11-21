@@ -46,7 +46,7 @@ export function handlerPoolSize(cores = availableParallelism()) {
  * inside the worker, which cannot be handed functions from the request thread. runnerWorkers: how many workers agent
  * calls leave to runner job calls; at least one worker always stays open to agent calls.
  */
-export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize(), queueMs = QUEUE_MS, callMs = CALL_MS, runnerWorkers = RUNNER_WORKERS, Refused, onFailure }) {
+export function startHandlerPool({ portsModule, isMain, cwd = process.cwd(), size = handlerPoolSize(), queueMs = QUEUE_MS, callMs = CALL_MS, runnerWorkers = RUNNER_WORKERS, Refused, onFailure }) {
   // The worker takes none of this process's preloads, as the state worker does: a test runner's preload run again
   // in a thread claims the file's test slot a second time [C7].
   const { NODE_TEST_CONTEXT: _testContext, ...env } = environmentAdapter().all();
@@ -72,7 +72,7 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
 
   /** Start one worker in a slot; a worker that exits or fails refuses its call and is replaced. */
   function spawn(slot) {
-    const worker = new Worker(new URL('./pool/worker.js', import.meta.url), { workerData: { portsModule, isMain }, execArgv: [], env });
+    const worker = new Worker(new URL('./pool/worker.js', import.meta.url), { workerData: { portsModule, isMain, cwd }, execArgv: [], env });
     slot.worker = worker;
     slot.call = null;
     worker.on('message', (message) => {
