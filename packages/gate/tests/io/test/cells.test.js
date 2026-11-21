@@ -27,15 +27,18 @@ test('gate.io-test-cells.heavy-door-plan-order: clause 1: [C7] a cell test below
 });
 
 test('gate.io-test-path-read-sealing.a-cell-read-by-path-by: clause 1: [C7] a foreign declared reader counts once without unsealing the target, own-cell reads count zero, and the ratchet refuses growth while permitting a lower count', t => {
-  const foreign = '/** @pullboard-test-input source-cell packages/gate/ */\n';
-  const own = '/** @pullboard-test-input source-cell packages/gate/ */\n';
+  const foreign = '/** @pullboard-test-input source-cell packages/gate */\n';
+  const own = '/** @pullboard-test-input source-cell packages/gate */\n';
   const rows = [
     { file: 'packages/gate/tests/cells.test.js', kind: 'cell', cell: 'gate', root: false },
     { file: 'packages/board/tests/reader.test.js', kind: 'cell', cell: 'board', root: false },
   ];
   const cells = ['gate', 'board'];
   assert.deepEqual(declaredReads(foreign, cells), ['gate']);
-  assert.equal(sealedReport(rows, { cells, pathReaders: { 'packages/board/tests/reader.test.js': ['gate'] } }).find(row => row.cell === 'gate').pathReaders, 1);
+  assert.deepEqual(declaredReads(`import { board } from '../../src/board.js';\n${foreign}`, cells), []);
+  const foreignReport = sealedReport(rows, { cells, pathReaders: { 'packages/board/tests/reader.test.js': ['gate'] } }).find(row => row.cell === 'gate');
+  assert.equal(foreignReport.sealed, true);
+  assert.equal(foreignReport.pathReaders, 1);
   assert.equal(sealedReport(rows, { cells, pathReaders: { 'packages/gate/tests/cells.test.js': declaredReads(own, cells) } }).find(row => row.cell === 'gate').pathReaders, 0);
 
   const root = privateFixtureFiles('gate-cell-path-read-').root;
@@ -48,5 +51,6 @@ test('gate.io-test-path-read-sealing.a-cell-read-by-path-by: clause 1: [C7] a fo
   const listing = { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 0, sealed: ['gate'], splits: {}, pathReaders: { gate: 0 } };
   assert.match(testCellsProblems(root, { listing }).find(problem => problem.path === 'packages/gate').text, /1 tests outside cell gate read its files by path, over the ratchet of 0/u);
   listing.pathReaders.gate = 1;
+  writeFileSync(join(root, 'packages/board/tests/reader.test.js'), `import { board } from '../../src/board.js';\n${foreign}`);
   assert.deepEqual(testCellsProblems(root, { listing }), []);
 });
