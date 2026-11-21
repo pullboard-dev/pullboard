@@ -12,7 +12,7 @@ import { runFixtureGit } from '../../../../../cli/tests/fixtures/child.js';
 import {
   acceptedCellsIdentity,
   waitForAcceptedCells,
-} from '../../../../../../packages/gate/index.js';
+} from '../../../../../../packages/gate/heavy.js';
 import { acceptedInventoryKey } from '../../../../../../packages/codemap/index.js';
 import { submitUntilSettled } from '../../../../index.js';
 

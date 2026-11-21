@@ -16,7 +16,7 @@ import {
   nudgeAcceptedCells,
   readAcceptedCells,
   toolingIsPinned,
-} from '../../../../packages/gate/index.js';
+} from '../../../../packages/gate/heavy.js';
 import { acceptedInventoryKey } from '../../../../packages/codemap/index.js';
 import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { cleanupFixtureChildren } from '../../../cli/tests/fixtures/child.js';
@@ -85,7 +85,7 @@ test('lib.rebuild-producer.a-gate-whose-own-checker-files: a gate whose own chec
   // The hand-off worker runs the candidate's tooling: this entry imports the modified copy, never this checkout.
   const entry = join(copy, 'inventory-gate-entry.mjs');
   writeFileSync(entry, `import { acceptedCellsFromJob, closeBoard, openBoard } from './apps/lib/index.js';
-import { toolingIsPinned } from './packages/gate/index.js';
+import { toolingIsPinned } from './packages/gate/heavy.js';
 const [root, commit, file] = process.argv.slice(2);
 const board = openBoard(file);
 try {

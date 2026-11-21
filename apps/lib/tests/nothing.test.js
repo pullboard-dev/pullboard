@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { closeBoard } from '../../../packages/store/index.js';
 import { openBoard } from '../index.js';
 import { refuseProvesNothing } from '../../../packages/verify/index.js';
-import { sayCheckBaseline } from '../../../packages/gate/index.js';
+import { sayCheckBaseline } from '../../../packages/gate/heavy.js';
 
 /** The #849 shape: an item whose whole-suite check is green on main before any work. */
 function provesNothing(overrides = {}) {
