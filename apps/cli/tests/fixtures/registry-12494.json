@@ -1,0 +1,15 @@
+{
+  "cli.logic-census-balance.row-times-pack-to-total-over-shards": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Cut into jobs by the previous census's row times, 2,000 skewed files give a largest job of at most 1.1 times the larger of total/80 and the heaviest file, every file runs once, and with no times jobs differ by at most one file."
+    },
+    "why": "Without it, a regression that cuts a full census by file count again would leave one shard holding minutes of work beside near-empty ones.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/logic/census-balance.test.js"
+    ]
+  }
+}

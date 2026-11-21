@@ -1,13 +1,18 @@
 /** @pullboard-test-input apps/cli/journeys/imports/count.js */
 /** show prints the after-gate ids beside the after line only when the list is not empty, and the measured minutes and rebuilds under it [C7,#11802,#12327]. */
 import assert from 'node:assert/strict';
+import { chmodSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
+import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { pinDerivedStateOff } from '../../fixtures/thin-door.js';
+import { largeBoard } from '../../fixtures/board/large.js';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
@@ -72,8 +77,9 @@ async function shownThin(box, id, on) {
   return { out: shown.out, err: shown.err, code: shown.code };
 }
 
-test('cli.commands-show.thin-equal: clause 1: [C7,#12413] with read.thinCommands on, show of a fixture item with no receipt, refusal or thread prints the same lines and exit code as with it off', async () => {
+test('cli.commands-show.thin-equal: clause 1: [C7,#12413] with read.thinCommands on, show of a fixture item with no receipt, refusal or thread prints the same lines and exit code as with it off', async (t) => {
   const box = helpers.project();
+  t.after(pinDerivedStateOff(box));
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show plain item');
   assert.equal(added.code, 0, added.err);
   assert.ok(await thinShowFacts({ cwd: box.repo, id: 1 }), 'the thin door serves this plain item');
@@ -85,8 +91,9 @@ test('cli.commands-show.thin-equal: clause 1: [C7,#12413] with read.thinCommands
   assert.match(off.out, /Thin show plain item/u);
 });
 
-test('cli.commands-show.thin-null-falls-back: clause 2: [C7,#12413] with read.thinCommands on, show of an item with a receipt or a thread entry prints the full path lines, the thin door returning null', async () => {
+test('cli.commands-show.thin-null-falls-back: clause 2: [C7,#12413] with read.thinCommands on, show of an item with a receipt or a thread entry prints the full path lines, the thin door returning null', async (t) => {
   const box = helpers.project();
+  t.after(pinDerivedStateOff(box));
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show noted item');
   assert.equal(added.code, 0, added.err);
   const noted = await box.runLocal(box.repo, 'fact', '1', 'note', 'a thread entry the thin door leaves to the full path');
@@ -132,4 +139,66 @@ test('cli.commands-show.thin-never-imported-off: clause 3: [C7,#12413] with read
   };
   assert.equal((await seen(false)).some((file) => file.endsWith('apps/cli/src/io/show/thin.js')), false, 'thin.js stays unloaded with the setting off');
   assert.equal((await seen(true)).some((file) => file.endsWith('apps/cli/src/io/show/thin.js')), true, 'thin.js loads with the setting on');
+});
+
+/** The wall-time budget for a warm show on the real-size board, and how many warm runs the median takes. */
+const BUDGET_MS = 500;
+const RUNS = 5;
+
+/** The id of the first seeded item on a large board. */
+function firstSeededId(box) {
+  const db = new DatabaseSync(box.board, { readOnly: true });
+  try { return Number(db.prepare("SELECT item_id AS id FROM item WHERE item_title LIKE 'Seeded item %' ORDER BY item_id LIMIT 1").get().id); } finally { db.close(); }
+}
+
+/** Runs one `show` in this process with a git shim on the PATH, and returns the exit code with the git argument lines the process spawned. */
+async function showCountingGit(box, id) {
+  const files = privateFixtureFiles('show-git-');
+  files.write('git.log', '');
+  const log = `${files.root}/git.log`;
+  const real = box.env.PATH.split(':').map((dir) => `${dir}/git`).find((path) => { try { return readFileSync(path).length > 0; } catch { return false; } });
+  files.write('bin/git', `#!/bin/sh\necho "$@" >> '${log}'\nexec '${real}' "$@"\n`);
+  chmodSync(`${files.root}/bin/git`, 0o755);
+  const before = process.env.PATH;
+  const boxBefore = box.env.PATH;
+  process.env.PATH = `${files.root}/bin:${before}`;
+  box.env.PATH = process.env.PATH;
+  try {
+    const shown = await box.inProcess(box.web, 'show', String(id));
+    return { code: shown.code, err: shown.err, calls: readFileSync(log, 'utf8').split('\n').filter(Boolean) };
+  } finally { process.env.PATH = before; box.env.PATH = boxBefore; }
+}
+
+/** The git calls that are startup policy, pinned-tool-build or rowOrigins reads: a `git show` of a committed file or a `git blame`. */
+function startupReads(calls) {
+  return calls.filter((line) => /(^| )(show|blame) /u.test(line));
+}
+
+test('cli.io-commands-show.startup-reads-cached: clause 1: [C7,#3281] a repeat show at an unchanged main tip and HEAD runs none of the policyGit, pinned-tool-build or rowOrigins git reads', async (t) => {
+  const box = largeBoard(t);
+  const id = firstSeededId(box);
+  const first = await showCountingGit(box, id);
+  assert.equal(first.code, 0, first.err);
+  const second = await showCountingGit(box, id);
+  assert.equal(second.code, 0, second.err);
+  console.log(`# git calls: first show ${first.calls.length}, second show ${second.calls.length}`);
+  assert.deepEqual(startupReads(second.calls), [], 'the second show asks git for no committed file and runs no blame');
+  assert.ok(second.calls.length <= first.calls.length, `the second show makes no more git calls (${second.calls.length}) than the first (${first.calls.length}): ${second.calls.join(' | ')}`);
+});
+
+test('cli.io-commands-show.real-size-under-500ms: clause 2: [C7,#3281] show on the real-size fixture board finishes under 500 ms wall with warm caches', async (t) => {
+  const box = largeBoard(t);
+  const id = firstSeededId(box);
+  const warm = await box.inProcess(box.web, 'show', String(id));
+  assert.equal(warm.code, 0, warm.err);
+  const samples = [];
+  for (let run = 0; run < RUNS; run += 1) {
+    const started = performance.now();
+    const shown = await box.inProcess(box.web, 'show', String(id));
+    samples.push(performance.now() - started);
+    assert.equal(shown.code, 0, shown.err);
+  }
+  const middle = [...samples].sort((a, b) => a - b)[Math.floor(RUNS / 2)];
+  console.log(`# warm show median ${middle.toFixed(0)} ms (${samples.map((ms) => ms.toFixed(0)).join(', ')})`);
+  assert.ok(middle < BUDGET_MS, `warm show median ${middle.toFixed(0)} ms over ${BUDGET_MS} ms`);
 });

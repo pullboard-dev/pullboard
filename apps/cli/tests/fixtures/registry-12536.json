@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-clock.one-pass": {"proves":{"specs":["B4","C7"],"claim":"pullboard clock runs one clock pass for the coordinator, prints the due item's id, rule and move, and a seat is refused COORDINATOR_ONLY."},"why":"Without it the clock command could run for a seat or print nothing of what the pass did, and the board would change unseen.","kind":"journey","inputs":["apps/cli/src/io/commands/clock.js","apps/cli/tests/fixtures/next/take.js","apps/cli/tests/io/commands/clock.test.js"]},
+  "cli.io-commands-clock.dry-run-json": {"proves":{"specs":["B4","C7"],"claim":"pullboard clock --dry-run --json prints clockSweep's versioned document and writes no event."},"why":"Without it a dry run could write clock_move events or print a document other tools cannot parse.","kind":"journey","inputs":["apps/cli/src/io/commands/clock.js","apps/cli/tests/fixtures/next/take.js","apps/cli/tests/io/commands/clock.test.js"]}
+}

@@ -805,6 +805,7 @@ export function validateRunner(value) {
       throw new Refused('BAD_RUNNER', 'runner publicKey must be an enrolled Ed25519 SPKI key; run pullboard runner add <ssh-host>');
     }
   }
+  if (value.runtimeSha256 !== undefined && !/^[a-f0-9]{64}$/u.test(value.runtimeSha256)) throw new Refused('BAD_RUNNER', 'runner runtimeSha256 must be a SHA-256 digest');
   for (const key of ['node', 'root']) {
     if (value[key] !== undefined && (typeof value[key] !== 'string' || /[\u0000-\u001f\u007f]/u.test(value[key])
       || !(value[key].startsWith('/') && value[key].length > 1 || key === 'node' && value[key] === 'node'))) {
@@ -821,6 +822,7 @@ export function validateRunner(value) {
   if (value.cpuLoad !== undefined && !validRunnerCpuLoad(value.cpuLoad)) throw new Refused('BAD_RUNNER', 'runner CPU load requires its own timestamp, busy percentage and three load averages');
   return { host: value.host, ...(value.cpuLoad ? { cpuLoad: value.cpuLoad } : {}), slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
     ...(value.publicKey ? { publicKey: value.publicKey } : {}),
+    ...(value.runtimeSha256 ? { runtimeSha256: value.runtimeSha256 } : {}),
     ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
     ...(value.toolchains && Object.keys(value.toolchains).length ? { toolchains: { ...value.toolchains } } : {}),
     ...(value.fixed === true ? { fixed: true } : {}), ...(value.drain === true ? { drain: true } : {}),
@@ -925,9 +927,9 @@ export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
 }
 
-/** Whether health.derivedState is on (#8974): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+/** Whether health.derivedState is on (#8974): on by default since #11391; only an exact `false` turns it off; it lives here so list reads it through the light door [C7]. */
 export function derivedStateEnabled() {
-  return loadMachineSettings().health?.derivedState === true;
+  return loadMachineSettings().health?.derivedState !== false;
 }
 
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */

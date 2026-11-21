@@ -59,7 +59,7 @@ import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../../state/light.js';
 import { gateReceiptProblem } from '../board.js';
 import { reservedRelaxation } from './review/family.js';
 import { relaxationRecordLine } from './review/family.js';
-import { itemReviewPolicy } from '../../../../verify/index.js';
+import { verdictRelaxableTier } from './review/family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { holdItem } from "./hold/item.js";
 import { persistShout } from "./shout.js";
@@ -188,7 +188,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const reviewHeartbeats = new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
   return atomic(board, () => {
     const relaxedItem = engine >= REVIEW_FAMILY_RELAX_ENGINE ? getItem(board, id) : null;
-    const relaxation = measureBoardWritePhase(board.db, 'verify-relaxation', () => relaxedItem && itemReviewPolicy(board, id).tier === 'standard' ? reservedRelaxation(board, relaxedItem, agentId) : null);
+    const relaxation = measureBoardWritePhase(board.db, 'verify-relaxation', () => relaxedItem && verdictRelaxableTier(board, relaxedItem) ? reservedRelaxation(board, relaxedItem, agentId) : null);
     const relaxationLine = relaxation ? relaxationRecordLine(board, relaxedItem, agentId, relaxation) : null;
     if (relaxation) note += `\n${relaxationLine}`;
     const proofKnown = verdictEvidence(board, id, { agentId, isAccept, engine, review, knownMainFailures, quarantineProofId, enforce: !prechecked });
@@ -198,7 +198,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
     // The verify table decides the verdict event and its follow-ups from the board before the move; where it does not model the call, the original rules below run.
     const decided = newReview ? verifyDecision(board, getItem(board, id), { agentId, decision, reason, note: givenNote, soloLowStakes, rows, checks, relaxation: relaxation ? relaxationLine : null, cause, clause, head, digest, review,
-      companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown }, VERIFY_TABLE_DEPS, verifyFacts) : null;
+      companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown, engine }, VERIFY_TABLE_DEPS, verifyFacts) : null;
     // A builder's own accept passes the notBuilder check only when the verify table, through soloLowStakesHolds, wrote the solo-low-stakes-accept event for it [#966].
     const soloEvents = isAccept ? decided?.events.filter(event => event.kind === 'solo-low-stakes-accept') ?? [] : [];
     const soloAccepted = soloEvents.length > 0;

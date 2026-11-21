@@ -18,6 +18,8 @@ export { reviewFamilyCover, reviewFamilyBuildPause, reviewFamilyBacklog, shoutRe
 
 export { claimHealthProjection, claimHealthSnapshot } from './src/io/claim/projection.js';
 export { runScheduledClaimWatchdog } from './src/io/claim/sweep.js';
+export { clockHealth, CLOCK_HEALTH_KEY, CLOCK_HEALTH_VERSION } from './src/io/clock/health.js';
+export { clockSweep, CLOCK_MOVES, CLOCK_MOVE_EVENT, CLOCK_SWEEP_VERSION } from './src/io/clock/sweep.js';
 export { credentialExpiryFindings } from './src/io/supply.js';
 export { slowHoldLines } from './src/io/holds.js';
 export {

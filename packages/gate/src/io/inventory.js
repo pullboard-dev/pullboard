@@ -183,6 +183,14 @@ export async function retryLockedProduction(work, { retries = INVENTORY_LOCK_RET
   }
 }
 
+/** Read the pinned project's opt-in to cell inventory. */
+function hasAcceptedCellsPlan(root, commit) {
+  try {
+    const plan = JSON.parse(git(root, ['show', `${commit}:pullboard.json`], { env: gitChildEnv(root) }))?.cells?.plan;
+    return typeof plan === 'string' && Boolean(plan.trim());
+  } catch { return false; }
+}
+
 /**
  * Build a verified accepted tree off-path, reusing the nearest compatible completed ancestor where possible.
  * `trunk` is the accepted commit or ref the produced commit must descend into: main's branch on the coordinator, the
@@ -195,7 +203,7 @@ export async function retryLockedProduction(work, { retries = INVENTORY_LOCK_RET
 export async function warmAcceptedCells(root, commit, { withCheckout, withLock, trunk = 'refs/heads/main', lockRetry = {} } = {}) {
   if (typeof withCheckout !== 'function' || typeof withLock !== 'function') throw new TypeError('accepted cells warm needs checkout and lock ports');
   git(root, ['merge-base', '--is-ancestor', commit, trunk], { env: gitChildEnv(root) });
-  if (!git(root, ['ls-tree', '--name-only', commit, '--', 'packages/codemap/data/plan/cells.json'], { env: gitChildEnv(root) })) return { available: false, cause: 'no-cells-plan' };
+  if (!hasAcceptedCellsPlan(root, commit)) return { available: false, cause: 'no-cells-plan' };
   // The pinned commit's checker is recorded here: produceAcceptedCells warms in-process only when the running tooling is
   // the pinned one and otherwise re-runs the app's landing audit from the pinned checkout, so readers find it by the commit alone.
   const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
@@ -239,7 +247,7 @@ function started(pid) {
 export async function nudgeAcceptedCells(root, workerUrl, commit) {
   if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:' || !HASH.test(commit ?? '')) throw new TypeError('accepted cells nudge needs a worker URL and pinned commit');
   git(root, ['merge-base', '--is-ancestor', commit, 'refs/heads/main'], { env: gitChildEnv(root) });
-  if (!git(root, ['ls-tree', '--name-only', commit, '--', 'packages/codemap/data/plan/cells.json'], { env: gitChildEnv(root) })) return null;
+  if (!hasAcceptedCellsPlan(root, commit)) return null;
   const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity), directory = identity.directory;
   return withFileLock(join(directory, `${key}.owner-lock.sqlite`), async () => {
     const artifact = join(directory, `${key}.inventory.gz`), readyFile = join(directory, `${key}.ready.json`), ownerFile = join(directory, `${key}.owner.json`);

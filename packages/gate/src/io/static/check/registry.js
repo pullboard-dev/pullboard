@@ -32,6 +32,7 @@ import { markdownProblems } from '../../../logic/markdown/allowlist.js';
 import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
+import { boardWriterCheck } from '../../board-writers.js';
 import { storeRegistryCheck } from '../../stores.js';
 import { boardFileOpens } from '../../board/files.js';
 import { boardFileGrowth } from '../../board/files.js';
@@ -192,6 +193,8 @@ export const STATIC_CHECKS = Object.freeze([
   } },
   // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
   { name: 'store-registry', run: storeRegistryCheck },
+  // Board writes outside the sequencer folder: BEGIN IMMEDIATE, a board-table write or a writable open past each file's ceiling refuse (#12614).
+  { name: 'board-write-outside-sequencer', run: boardWriterCheck },
   { name: 'wall-clock-margins', run: ({ files, read }) => files.filter(isTestSource).flatMap(file => fixedWallMargins(read(file).source, file)) },
   // Compatibility toggles carry a removeBy date; one past it, or a rising count, turns every submit red until removed [O6,C7].
   // The layout rule counts never rise above the tree's baseline; a whole-tree run, cheap, so the file list is ignored.

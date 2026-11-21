@@ -204,6 +204,11 @@ export async function pullQueue(t, box, { queue } = {}) {
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
+/** Start a real census controller against this fixture board, so a journey can signal it. */
+export function startCensusController(box, out) {
+  return spawn(process.execPath, [BIN, 'test', '--census', '--out', out], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
 /**
  * The environment a served runner starts with: the box's own, with every PULLBOARD_ variable removed so it sees a clean
  * machine, plus `env`. Only when `machineSettings` is given does it also get a machine home of its own holding exactly

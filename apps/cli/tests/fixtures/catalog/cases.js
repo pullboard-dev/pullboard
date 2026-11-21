@@ -38,6 +38,8 @@ import {
 } from 'node:path';
 import { after } from 'node:test';
 import { main } from '../native.js';
+import { assertRequiredShape } from './shapes.js';
+import { parseOneDocument } from './shapes.js';
 import { runCliInProcess } from '../process.js';
 import { whenRunnerSettles } from '../runner/local-start.js';
 import { createLocalApiHandler } from '../../../../../packages/api/index.js';
@@ -293,23 +295,6 @@ function shapeFor(command, subcommand) {
   return JSON_SHAPES.commands[key];
 }
 
-/** Match one catalog field to its declared JSON value type. */
-function hasType(value, type) {
-  if (type.includes('|')) return type.split('|').some((part) => hasType(value, part));
-  if (type === 'array') return Array.isArray(value);
-  if (type === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value);
-  if (type === 'null') return value === null;
-  return typeof value === type;
-}
-
-/** Check one required-field map from JSON_SHAPES. */
-function assertRequiredShape(value, required, label) {
-  for (const [field, type] of Object.entries(required ?? {})) {
-    assert.ok(Object.hasOwn(value, field), `${label} must include ${field}`);
-    assert.ok(hasType(value[field], type), `${label}.${field} must be ${type}`);
-  }
-}
-
 /** Parse a command's sole JSON document and check its public command shape. */
 async function json(box, cwd, command, args = [], subcommand) {
   let result = await box.runLocal(cwd, command, ...args, '--json');
@@ -366,14 +351,6 @@ async function jsonError(box, cwd, command, args, { status, code, message, next 
   assert.deepEqual(document.error, { code, message, next });
   return document;
 }
-
-/** Assert only that output is a single JSON value with no second document. */
-function parseOneDocument(stdout) {
-  const document = JSON.parse(stdout);
-  assert.equal(document.version, 1);
-  return document;
-}
-
 
 catalogCase('[A1] command results match the catalog across roots: reads', [
   'agents',
@@ -1185,10 +1162,10 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   source.env.PATH = `${sshBin}:${source.env.PATH}`;
   const runner = await json(source, source.repo, 'runner', ['add', HOST, '--slots', '2', '--browser', '1']);
   // Registration measures the host over the probe, so the record also carries what the probe observed.
-  const { cores, gui, measuredAt, memoryMB, node, publicKey, ...registered } = runner.runner;
+  const { cores, gui, measuredAt, memoryMB, node, publicKey, runtimeSha256, ...registered } = runner.runner;
   assert.deepEqual(registered, { host: HOST, slots: 2, browser: 1, fixed: true });
   assert.ok(typeof gui === 'boolean' || gui === null, 'gui is what the probe saw, or null when it saw no display');
-  assert.deepEqual([typeof cores, typeof (gui ?? false), typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey], ['number', 'boolean', 'string', 'number', 'string', 'string']);
+  assert.deepEqual([typeof cores, typeof (gui ?? false), typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey, typeof runtimeSha256], ['number', 'boolean', 'string', 'number', 'string', 'string', 'string']);
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
   assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
@@ -1434,6 +1411,23 @@ catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real
   assert.equal(set.field.value, 'high');
 }, ['add', 'field', 'init']);
 
+catalogCase('[A1,C7,#12672] clock dry run reports its pass through real CLI JSON', [], async () => {
+  const box = await project();
+  const pass = await uncataloguedRootJSON(box, box.repo, 'clock', ['--dry-run']);
+  assert.ok(Array.isArray(pass.applied) && Array.isArray(pass.pending) && Array.isArray(pass.waiting), 'a pass lists applied, pending and waiting rows');
+}, ['clock', 'init']);
+
+catalogCase('[A1,C7,#12672] main-red-files prints an empty list through real CLI JSON', [], async () => {
+  const box = await project();
+  assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'main-red-files')).files, [], 'a fresh board lists no main-red file');
+}, ['init', 'main-red-files']);
+
+catalogCase('[A1,C7,#12672] new package writes a cell anatomy through real CLI JSON', [], async () => {
+  const box = await project();
+  const made = await uncataloguedRootJSON(box, box.repo, 'new', ['package', 'catalogcell', '--purpose', 'A cell the catalog fixture writes.']);
+  assert.ok(made.package === 'catalogcell' && made.written.length > 0, 'the anatomy files are listed');
+}, ['init', 'new']);
+
 /**
  * The run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
  * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; separate files run on separate runners.
@@ -1490,7 +1484,9 @@ const CATALOG_GROUPS = {
     '[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing',
     '[A1,C7,#8378] moves reports each move table state through real CLI JSON',
     '[A1,C7,#8916] split files one child per numbered clause through real CLI JSON',
-    '[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON',
+    '[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON',    '[A1,C7,#12672] clock dry run reports its pass through real CLI JSON',
+    '[A1,C7,#12672] main-red-files prints an empty list through real CLI JSON',
+    '[A1,C7,#12672] new package writes a cell anatomy through real CLI JSON',
   ],
 };
 

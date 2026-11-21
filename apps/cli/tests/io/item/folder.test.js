@@ -16,6 +16,7 @@ import { openItemFolder } from '../../../src/io/item/folder.js';
 import { parallelCheckout } from '../../../src/io/item/folder.js';
 import { itemFolderPath } from '../../../src/io/item/folder.js';
 import { removeIdleFolder } from '../../../src/io/item/folder.js';
+import { snapshotWip } from '../../../src/io/item/wip.js';
 import { gitPath } from '../../../../../packages/git/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
@@ -38,14 +39,14 @@ function repository(t) {
   return { primary, seat, ctx: { info, io: {} }, main: runFixtureGit(['rev-parse', 'main'], { cwd: primary }) };
 }
 
-/** Run `work` while every git child this process starts is noted; the number of git launches comes back with the result. */
+/** Run `work` while every git child this process starts is noted; the launches and their arguments come back with the result. */
 async function countingGit(work) {
   const real = Object.fromEntries(APIS.map(api => [api, childProcess[api]]));
-  let launches = 0;
+  const commands = [];
   for (const api of APIS) {
     childProcess[api] = function counted(...args) {
       const command = typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '';
-      if (command.endsWith('git')) launches++;
+      if (command.endsWith('git')) commands.push(args[1]);
       return real[api].apply(this, args);
     };
   }
@@ -55,7 +56,7 @@ async function countingGit(work) {
     for (const api of APIS) childProcess[api] = real[api];
     syncBuiltinESMExports();
   }
-  return { launches, result };
+  return { launches: commands.length, commands, result };
 }
 
 /** What a folder is: its top level, branch, commit and the seat marker its git directory holds. */
@@ -67,6 +68,71 @@ function identity(path) {
     marker: JSON.parse(readFileSync(gitPath(path, 'pullboard-item.json'), 'utf8')),
   };
 }
+
+/** Advance a branch through empty commits so the fixture isolates history from checkout changes. */
+function advanceBranch(primary, branch, count) {
+  const tree = runFixtureGit(['rev-parse', `${branch}^{tree}`], { cwd: primary });
+  const identity = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
+  let tip = runFixtureGit(['rev-parse', branch], { cwd: primary });
+  for (let i = 0; i < count; i++) {
+    tip = runFixtureGit([...identity, 'commit-tree', tree, '-p', tip, '-m', `${branch} ${i}`], { cwd: primary });
+  }
+  runFixtureGit(['update-ref', `refs/heads/${branch}`, tip], { cwd: primary });
+  return tip;
+}
+
+/** Prepare an existing item worktree whose branch holds its own commit and is behind main. */
+async function divergentFolder(t, id, behind) {
+  const { primary, ctx } = repository(t);
+  const path = await openItemFolder(ctx, ME, id);
+  const own = advanceBranch(primary, `core/item-${id}`, 1);
+  advanceBranch(primary, 'main', behind);
+  return { ctx, path, own, id };
+}
+
+test('cli.io-item-folder.claim-skips-main-merge: clause 1: reopening a branch with its own commits skips status and merge, keeps its head and names how far behind main it is [C7,#12577]', async t => {
+  const { ctx, path, own, id } = await divergentFolder(t, 21, 1);
+  const notes = [];
+  const { commands, result } = await countingGit(() =>
+    openItemFolder(ctx, ME, id, { renewed: true, onBehind: line => notes.push(line) }));
+  assert.equal(result, path);
+  assert.deepEqual(commands.filter(args => args?.includes('status') || args?.includes('merge')), [], JSON.stringify(commands));
+  assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: path }), own);
+  assert.equal(notes.length, 1);
+  assert.match(notes[0], /1 commit behind main/u);
+  assert.match(notes[0], /submit merges main/u);
+});
+
+/** Time a renewed claim with a monotonic clock, after the fixture has already opened the folder. */
+async function reopenMs({ ctx, id }) {
+  const start = performance.now();
+  await openItemFolder(ctx, ME, id, { renewed: true, onBehind: () => {} });
+  return performance.now() - start;
+}
+
+test('cli.io-item-folder.claim-cost-flat-with-main-history: clause 2: reopening with 200 commits behind takes at most twice as long as with one, and under one second [C7,#12577]', async t => {
+  const near = await divergentFolder(t, 22, 1);
+  const far = await divergentFolder(t, 23, 200);
+  await reopenMs(near);
+  await reopenMs(far);
+  const nearTimes = [], farTimes = [];
+  for (let i = 0; i < 7; i++) {
+    nearTimes.push(await reopenMs(near));
+    farTimes.push(await reopenMs(far));
+  }
+  const nearMs = nearTimes.sort((a, b) => a - b)[3];
+  const farMs = farTimes.sort((a, b) => a - b)[3];
+  console.log(`# Median item folder reopen: ${nearMs.toFixed(1)} ms at 1 commit behind, ${farMs.toFixed(1)} ms at 200 commits behind`);
+  assert.ok(farMs < 1000 && farMs <= 2 * nearMs, `one commit: ${nearMs} ms; 200 commits: ${farMs} ms`);
+});
+
+test('cli.io-item-folder.claim-fast-forwards-plain-folder: clause 3: reopening a branch with no commits of its own fast-forwards it to main without a merge commit [C7,#12577]', async t => {
+  const { primary, ctx } = repository(t);
+  const path = await openItemFolder(ctx, ME, 25);
+  const tip = advanceBranch(primary, 'main', 2);
+  assert.equal(await openItemFolder(ctx, ME, 25, { renewed: true }), path);
+  assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: path }), tip);
+});
 
 test('cli.item-folder.new-folder-git-launches: clause 1: opening a new item folder with no spare launches at most 3 git processes [C7,#10821]', async t => {
   const { ctx } = repository(t);
@@ -220,4 +286,45 @@ test('cli.item-folder.live-folder-no-launch: clause 1: liveFolderRefusal launche
   const none = await countingGit(() => liveFolderRefusal(ctx, null, me, 6));
   assert.equal(none.result, null);
   assert.equal(none.launches, 0, `an item with no folder and no checkout launched ${none.launches} git processes`);
+});
+
+/** A folder a dead seat left dirty: one tracked file edited and one new file, snapshotted at `date`, then the folder removed so only the refs remain. */
+async function deadSeatWork(t, id, date) {
+  const { primary, ctx } = repository(t);
+  const path = await openItemFolder(ctx, ME, id);
+  const tracked = runFixtureGit(['ls-files'], { cwd: path }).split('\n')[0];
+  writeFileSync(join(path, tracked), 'edited by the dead seat\n');
+  writeFileSync(join(path, 'dead-seat-new.txt'), 'new work\n');
+  const before = process.env.GIT_COMMITTER_DATE;
+  if (date) process.env.GIT_COMMITTER_DATE = date;
+  try { if (date) snapshotWip(path, id); } finally {
+    if (before === undefined) delete process.env.GIT_COMMITTER_DATE; else process.env.GIT_COMMITTER_DATE = before;
+  }
+  const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: path });
+  runFixtureGit(['worktree', 'remove', '--force', path], { cwd: primary });
+  return { ctx, path, tracked, head };
+}
+
+test('cli.item-folder.reoffer-starts-from-wip: clause 1: a re-offered item folder restores a newer wip snapshot as uncommitted work on the unchanged branch head [C7,#12568]', async t => {
+  const hourAhead = `${Math.floor(Date.now() / 1000) + 3600} +0000`;
+  const { ctx, path, tracked, head } = await deadSeatWork(t, 41, hourAhead);
+  assert.equal(await openItemFolder(ctx, ME, 41), path);
+  assert.equal(readFileSync(join(path, tracked), 'utf8'), 'edited by the dead seat\n');
+  assert.equal(readFileSync(join(path, 'dead-seat-new.txt'), 'utf8'), 'new work\n');
+  assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: path }), head, 'the snapshot is never a commit on the branch');
+  const status = runFixtureGit(['status', '--porcelain'], { cwd: path });
+  assert.match(status, new RegExp(`${tracked.replace('.', '\\.')}`, 'u'));
+  assert.match(status, /dead-seat-new\.txt/u);
+});
+
+test('cli.item-folder.reoffer-without-wip: clause 2: with no snapshot, or one not newer than the branch head, the new folder starts clean from the branch [C7,#12568]', async t => {
+  const none = await deadSeatWork(t, 42, null);
+  assert.equal(await openItemFolder(none.ctx, ME, 42), none.path);
+  assert.equal(runFixtureGit(['status', '--porcelain'], { cwd: none.path }), '');
+  assert.equal(existsSync(join(none.path, 'dead-seat-new.txt')), false);
+  const hourBehind = `${Math.floor(Date.now() / 1000) - 3600} +0000`;
+  const old = await deadSeatWork(t, 43, hourBehind);
+  assert.equal(await openItemFolder(old.ctx, ME, 43), old.path);
+  assert.equal(runFixtureGit(['status', '--porcelain'], { cwd: old.path }), '');
+  assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: old.path }), old.head);
 });
