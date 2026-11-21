@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/add/bar-lint.test.js */
+/** @pullboard-test-input apps/cli/tests/io/add/bar-lint.test.js */
 /**
  * The parity check for the add bar-lint and publish agent journeys (#10067, U149 dep52 slice 6): one representative case from each
  * converted journey runs twice, once with every CLI call a real process and once in-process, and the exit codes, JSON results and
@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [
-  { journey: 'apps/cli/journeys/add/bar-lint.test.js', cases: ['clause 3: edit refuses the same faults through the real CLI and leaves the bar as it was [C7]'] },
+  { journey: 'apps/cli/tests/io/add/bar-lint.test.js', cases: ['clause 3: edit refuses the same faults through the real CLI and leaves the bar as it was [C7]'] },
   { journey: 'apps/cli/journeys/publish/agent.test.js', cases: ['pullboard publish from an agent shell pushes the green head [GH25]'] },
 ];
 

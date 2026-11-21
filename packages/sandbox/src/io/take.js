@@ -20,6 +20,8 @@ import {
 import {
   headCommit,
 } from '../../../git/index.js';
+import { mainCheckout } from '../../../git/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 import {
   trunkMerge,
 } from './trusted/policy.js';
@@ -46,7 +48,13 @@ function selected(ctx, board, values, services) {
     && !store.pendingSubmitHandoff(board, item, { fromJobRow: pendingFromJobRow() }));
   const holding = Boolean(ownClaim);
   // One claim per call: a seat holding an unsubmitted claim with a live lease gets that claim back and selects nothing else (#12122).
-  if (ownClaim) return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null, review: false };
+  if (ownClaim) {
+    // A clean claim waiting on an unmet prerequisite still yields to an urgent repair: ask the routing before keeping it (#12465).
+    const preempt = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board).filter(id => !omittedIds.includes(id)), caller: me.id, runnable: values.runnable, routes: values.routes,
+      workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
+    if (preempt?.releaseRequest?.seat === me.id) return { ...preempt, review: false, held: false };
+    return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null, review: false };
+  }
   const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
@@ -98,11 +106,61 @@ export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard
   });
 }
 
+/** The cause key the board's system actor cites when it withdraws an item as met on main [#3961]. */
+const MET_ON_MAIN_CAUSE = 'sentinel:met-on-main';
+
+/** The newest `Merge #N onto main` commit per item id on main's first-parent line: id to { commit, at } [#3961]. */
+function mergesOnMain(root, main) {
+  const log = gitSpawnSync(['log', main, '--first-parent', '--format=%H%x09%cI%x09%s', '--grep=^Merge #[0-9]* onto main'],
+    { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const merges = new Map();
+  if (log.status !== 0) return merges;
+  for (const line of String(log.stdout).split('\n')) {
+    const [commit, at, subject] = line.split('\t');
+    const id = /^Merge #(\d+) onto main/u.exec(subject ?? '')?.[1];
+    if (id && !merges.has(Number(id))) merges.set(Number(id), { commit, at: Date.parse(at) });
+  }
+  return merges;
+}
+
+/**
+ * Withdraw, as met, every open or claimed item whose own `Merge #N onto main` commit is on main, so next never offers it again.
+ * Why: five landed items stayed open and were offered to builders again; the work was already on main. The system actor cites the
+ * main commit and the board checks that the commit is on main. An item reopened after its merge is left alone: its new work is not on main.
+ */
+export async function withdrawMetOnMain(ctx, { withBoard, withBoardRead, ordered }) {
+  const root = ctx.info.root;
+  const main = mainCheckout(root)?.commit;
+  if (!main) return [];
+  const open = withBoardRead(ctx, board => store.listItems(board).filter(item => ['open', 'claimed'].includes(item.item_status))
+    .map(item => ({ id: item.item_id, reopened: Date.parse(board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind = 'reopen'").get(item.item_id)?.at ?? '') || 0 })));
+  if (!open.length) return [];
+  const merges = mergesOnMain(root, main);
+  const met = open.filter(item => merges.has(item.id) && merges.get(item.id).at >= item.reopened);
+  if (!met.length) return [];
+  const carriesWork = commit => gitSpawnSync(['merge-base', '--is-ancestor', commit, main], { cwd: root }).status === 0;
+  const done = [];
+  await withBoard(ctx, async board => {
+    for (const { id } of met) {
+      const { commit } = merges.get(id);
+      try {
+        await ordered(ctx, board, 'withdraw', [id, { agentId: 'sentinel', cause: MET_ON_MAIN_CAUSE, metCommit: commit, commitCarriesWork: carriesWork,
+          reason: `met on main: Merge #${id} onto main is commit ${commit.slice(0, 12)}; withdrawn as met so next does not offer it` }]);
+        done.push(id);
+      } catch (error) {
+        // A refused withdraw (the item moved since the read) must never stop the seat it only tidies for.
+        if (!(error instanceof Refused)) throw error;
+      }
+    }
+  });
+  return done;
+}
+
 /** Claim refusals of a bar no build can satisfy: next and next --take pass over the item instead of stopping (#5709, #5786). */
 export const UNBUILDABLE = new Set(['BAR_PATH_MISSING', 'CRITERION_PROVES_NOTHING']);
 
 /**
- * Tell the coordinator once that next passed over an item no builder can satisfy [B7,B25,C7].
+ * Tell the coordinator once that next passed over an item no builder can satisfy, and hold it for a re-bar [B7,B25,C7].
  *
  * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on
  * the refusal keeps the report to one per bar, and an edit that changes what is missing is a new episode (#5709).
@@ -112,6 +170,11 @@ export async function reportUnbuildableOnce(ctx, board, item, holder, refusal, o
   if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
   try {
     await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
+    // Hold the item for a re-bar so no seat is offered it again; a hold already on it is left as it is [B7,C7].
+    if (!store.itemHold(board, item.item_id)) {
+      await ordered(ctx, board, 'holdItem', [item.item_id, { agentId: COORDINATOR,
+        reason: `re-bar: ${refusal.code}: ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}` }]);
+    }
     await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
       // Short: the refusal's paste-ready next step can exceed a shout's length, and pullboard show <id> prints it.
       text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}; pullboard show ${item.item_id}` }]);

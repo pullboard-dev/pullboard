@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/journeys/imports/count.js */
 /** With list.thinRead on, the thin list door loads neither the board barrel nor the outbox barrel; the failure names each importing file [C7,#9278]. @pullboard-test-input source-cell apps/cli packages/board packages/outbox packages/store packages/git packages/sandbox */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -29,6 +30,7 @@ before(async () => {
   const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const settings = JSON.parse(readFileSync(file, 'utf8'));
   settings.list = { thinRead: true };
+  settings.health = { derivedState: false };
   writeFileSync(file, JSON.stringify(settings));
 });
 

@@ -388,7 +388,7 @@ function forecast(graph, fit, capacity, seats, parameters, random, identities) {
 function finite(value) { return Number.isFinite(value) ? value : null; }
 
 /** Project a bounded, seeded empirical planner without Git, clocks, board writes or raw-history reads. */
-export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed = 0, simulate = true }) {
+export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed = 0, simulate = true, eligibleReady, pendingReviews = 0 }) {
   const graph = graphFor(items);
   const unknown = [...graph.unknown];
   if (!Number.isFinite(timeOf(now))) unknown.push('invalid observation clock');
@@ -409,6 +409,11 @@ export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed =
   if (empty) estimate = { work: 0, critical: 0, tail: 0, landing: 0, infinity: 0, recommended: 0, finish: 0 };
   else if (!unknown.length) estimate = evaluate(graph, width, baseline);
   if (!empty && !estimate) unknown.push('completed route, review, rework or landing measurements are insufficient');
+  // With no cost estimate the advice falls back to what ready work alone can use; it is labelled so it is never read as measured.
+  const fallback = !empty && !estimate && fit?.available === true && fit.samples > 0 && !graph.unknown.length && readyWidth !== null ? Math.min(readyWidth, graph.supply) : null;
+  // A board-computed eligible ready count (routingCapacity) is the fleet size: that many builders plus one reviewer per 20 pending reviews.
+  const reviewers = Number.isSafeInteger(pendingReviews) && pendingReviews > 0 ? Math.ceil(pendingReviews / 20) : 0;
+  const eligible = Number.isSafeInteger(eligibleReady) && eligibleReady >= 0 ? eligibleReady + reviewers : null;
   const seats = Number.isSafeInteger(liveSeats) && liveSeats >= 0 ? liveSeats : Number.isSafeInteger(liveSeats?.total) && liveSeats.total >= 0 ? liveSeats.total : null;
   const identities = Array.isArray(liveSeats?.ids) && liveSeats.ids.length === seats && new Set(liveSeats.ids).size === seats
     && liveSeats.ids.every(id => typeof id === 'string' && id) ? liveSeats.ids : null;
@@ -443,7 +448,7 @@ export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed =
   }
   return { version: 1, available: Boolean(estimate), readyWidth, asOf: Number.isFinite(timeOf(now)) ? new Date(now).toISOString() : null, source: { sequence: sequence ?? null, fitFrom: fit?.from ?? null, fitTo: fit?.to ?? null, samples: fit?.samples ?? 0 },
     workHours: estimate?.work ?? independentWork, bounds: { criticalPathHours: estimate?.critical ?? null, stragglerHours: estimate?.tail ?? null, landingHours: estimate?.landing ?? null },
-    tInfinityHours: estimate?.infinity ?? null, agents: { recommended: estimate?.recommended ?? null, lower: empty ? 0 : finite(quantile(ks, 0.1)), upper: empty ? 0 : finite(quantile(ks, 0.9)) },
+    tInfinityHours: estimate?.infinity ?? null, agents: { recommended: eligible ?? estimate?.recommended ?? fallback, ...(fallback === null ? {} : { basis: 'ready' }), lower: empty ? 0 : finite(quantile(ks, 0.1)), upper: empty ? 0 : finite(quantile(ks, 0.9)) },
     finishHours: { lower: empty ? 0 : finite(quantile(times, 0.1)), upper: empty ? 0 : finite(quantile(times, 0.9)) },
     binding: { kind: binding, text: binding === 'unknown' ? 'Not enough measured data.' : `${binding} limits useful concurrency.` }, lever: { kind: levers[binding][0], text: levers[binding][1] },
     needsYou: graph.pending.filter(item => item.needsYou).map(item => item.id).sort((a, b) => a - b), curve, unknown: [...new Set([...unknown, ...(fit?.unknown ?? [])])],
@@ -485,7 +490,8 @@ export function capacityLines(planner) {
   /** Format hours or counts without printing a missing measurement as zero. */
   function show(value) { return typeof value === 'number' && Number.isFinite(value) ? String(Math.round(value * 100) / 100) : 'unknown'; }
   const needs = Array.isArray(planner.needsYou) ? planner.needsYou : null;
-  return [`Max useful agents now: ${show(planner.agents.recommended)} (${show(planner.agents.lower)}-${show(planner.agents.upper)}).`,
+  return [planner.agents.basis === 'ready' ? `Max useful agents now: ${show(planner.agents.recommended)} from ready work only.`
+      : `Max useful agents now: ${show(planner.agents.recommended)} (${show(planner.agents.lower)}-${show(planner.agents.upper)}).`,
     ...(Number.isSafeInteger(planner.readyWidth) ? [`${planner.readyWidth} ${planner.readyWidth === 1 ? 'item can' : 'items can'} be built at once now.`] : []),
     typeof planner.finishHours.lower === 'number' && typeof planner.finishHours.upper === 'number'
       ? `Finish in about ${show(planner.finishHours.lower)}-${show(planner.finishHours.upper)} h.` : 'Finish time: unknown.',

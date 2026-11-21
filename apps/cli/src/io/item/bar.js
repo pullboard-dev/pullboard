@@ -10,6 +10,9 @@ import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 /** The coordinator's lane and seat id: laneOf names it for every path no lane owns. */
 export const COORDINATOR = 'coordinator';
 
+/** The longest --after chain add and edit accept, the new item itself counted. */
+export const MAX_CHAIN_DEPTH = 3;
+
 /**
  * The paths a bar names that the build cannot reach on main: absent from main and owned by no lane, such as the test/ and
  * bin/ layout the Cells move retired, which no seat may recreate. Why: 284 live items named such paths and every core
@@ -99,6 +102,43 @@ export function requireRegistryRecord(tracked, named, isTest) {
   }
 }
 
+const FILE_REMOVAL = /\b(?:delet(?:e|es|ed|ing)|remov(?:e|es|ed|ing)|mov(?:e|es|ed|ing)|renam(?:e|es|ed|ing)|git mv)\b/iu;
+
+/**
+ * Refuse a lane bar that asks to delete, remove, move or rename a file on main that an approved must row of the spec names in
+ * its gate list, naming the row ids and the split (#11742).
+ * Why: pre-commit demands each such row point at a new home and the spec is coordinator-owned, so a lane builder can never
+ * satisfy the bar; 43 rows named the two files of #11199 and #11201. The callers pass the spec cell's parseSpec and gateFiles, so
+ * this module takes no new cell import.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any bar.
+ * @param {boolean} exempt A coordinator or person filer, who may name any path and repoint rows themselves.
+ * @param {{ parseSpec: Function, gateFiles: Function }} spec The spec cell's readers, passed in by add and edit.
+ */
+export async function requireSpecGateRows(ctx, bar, on, exempt, { parseSpec, gateFiles }) {
+  if (!on || exempt) return;
+  const clauses = String(bar.criterion ?? '').split(/\n|(?<=[.;])\s+(?=\d+\.\s)/u).filter(clause => FILE_REMOVAL.test(clause));
+  if (!clauses.length) return;
+  const trunk = trunkBranch(ctx.info.root);
+  const spec = tryGit(ctx.info.root, ['show', `${trunk}:${ctx.config.spec}`]);
+  if (spec.status !== 0) return;
+  const rows = parseSpec(spec.stdout).rows.filter(row => row.status === 'approved' && row.tier === 'must');
+  const named = [...new Set(clauses.flatMap(clause => pathTokens(clause)))].filter(path => !path.endsWith('/'));
+  if (!named.length) return;
+  const present = onTrunk(ctx.info.root)(named);
+  const hits = [];
+  for (const path of named) {
+    if (!present.has(path)) continue;
+    const ids = rows.filter(row => gateFiles(row.gate).includes(path)).map(row => row.id);
+    if (ids.length) hits.push({ path, ids });
+  }
+  if (!hits.length) return;
+  throw new Refused('SPEC_GATE_ROW', `the bar deletes, removes, moves or renames ${hits.map(hit => `${hit.path} (named by ${hit.ids.join(', ')})`).join('; ')}; those approved must rows name it in their gate list, pre-commit refuses the change until each row points at a new home, and the spec is coordinator-owned`,
+    'split the bar: the lane piece, then the coordinator piece filed --after it to repoint those rows (pullboard add --split-coordinator)');
+}
+
 /** The item branch names (`<lane>/item-<id>`) present in the repository, as a set. */
 function itemBranches(root) {
   const listed = tryGit(root, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']);
@@ -141,6 +181,46 @@ export function requireAfterNeeded(ctx, bar, { on, after = [], self = null, item
   const ids = waits.map(wait => wait.id).sort((a, b) => a - b);
   throw new Refused('AFTER_NEEDED', `the bar names ${waits.map(wait => `${wait.paths.join(', ')} (added by the unmerged branch of #${wait.id})`).join('; ')}, missing from main`,
     `rerun with --after ${ids.join(',')}`);
+}
+
+/** The deepest chain an open item waits on, itself first, as ids; a closed or unknown id is no chain (a cycle stops where it repeats). */
+export function chainDepthOf(items) {
+  const rows = new Map(items.map(row => [String(row.item_id), row]));
+  const open = row => row.item_status === 'open' || row.item_status === 'claimed' || row.item_status === 'submitted' || (row.item_status === 'verified' && !row.item_merged_commit);
+  const afterOf = row => (Array.isArray(row.item_after) ? row.item_after : String(row.item_after ?? '').split(',')).map(id => String(id).trim().replace(/^.*#/u, '')).filter(Boolean);
+  const chain = (id, seen) => {
+    const row = rows.get(String(id));
+    if (!row || !open(row) || seen.has(String(id))) return [];
+    const next = new Set(seen).add(String(id));
+    let deepest = [];
+    for (const parent of afterOf(row)) {
+      const found = chain(parent, next);
+      if (found.length > deepest.length) deepest = found;
+    }
+    return [row.item_id, ...deepest];
+  };
+  return id => chain(id, new Set());
+}
+
+/**
+ * Refuse a new --after list whose longest chain through open items is deeper than MAX_CHAIN_DEPTH, itself counted, CHAIN_TOO_DEEP.
+ * Why: deep --after chains stall behind their slowest link; filing interface-first pieces keeps each one buildable now.
+ * Existing deep chains are not touched: only the item being added or edited is measured.
+ *
+ * @param {Array<string|number>|string|undefined} after the item's own --after list
+ * @param {(id: string) => Array<string|number>} depthOf the deepest chain an open item waits on, itself first; empty for a closed item
+ * @param {number|null} [self] the edited item, which never counts as its own link
+ */
+export function requireChainDepth(after, depthOf, self = null) {
+  const parents = (Array.isArray(after) ? after : String(after ?? '').split(',')).map(id => String(id).trim().replace(/^.*#/u, '')).filter(id => id && id !== String(self));
+  let deepest = [];
+  for (const parent of parents) {
+    const found = depthOf(parent);
+    if (found.length > deepest.length) deepest = found;
+  }
+  if (deepest.length + 1 <= MAX_CHAIN_DEPTH) return;
+  throw new Refused('CHAIN_TOO_DEEP', `the --after chain is ${deepest.length + 1} deep (the item, then ${deepest.map(id => `#${id}`).join(' -> ')}); the limit is ${MAX_CHAIN_DEPTH}`,
+    'split interface-first: file the contract piece with no --after, and let each later piece wait on it alone');
 }
 
 /**

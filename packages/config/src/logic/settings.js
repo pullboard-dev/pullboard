@@ -100,8 +100,8 @@ function validateBudget(budget, file) {
  */
 export function validateServe(serve, file) {
   if (serve === undefined) return;
-  if (!serve || typeof serve !== 'object' || Array.isArray(serve) || Object.keys(serve).some(key => key !== 'address' && key !== 'port' && key !== 'pullRoute')) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `serve in ${file} holds only address, port and pullRoute; remove it to serve on loopback`);
+  if (!serve || typeof serve !== 'object' || Array.isArray(serve) || Object.keys(serve).some(key => key !== 'address' && key !== 'port' && key !== 'pullRoute' && key !== 'restartTrial')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve in ${file} holds only address, port, pullRoute and restartTrial; remove it to serve on loopback`);
   }
   const octets = typeof serve.address === 'string' ? serve.address.split('.') : [];
   if (serve.address !== undefined && (octets.length !== 4 || octets.some(part => !/^(?:0|[1-9]\d{0,2})$/u.test(part) || Number(part) > 255) || serve.address === '0.0.0.0')) {
@@ -109,6 +109,9 @@ export function validateServe(serve, file) {
   }
   if (serve.pullRoute !== undefined && typeof serve.pullRoute !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `serve.pullRoute in ${file} must be true or false`);
+  }
+  if (serve.restartTrial !== undefined && typeof serve.restartTrial !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.restartTrial in ${file} must be true or false`);
   }
   if (serve.port !== undefined && (!Number.isSafeInteger(serve.port) || serve.port < 0 || serve.port > 65535)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `serve.port in ${file} must be a port from 0 to 65535; 0 chooses a free one`);
@@ -179,6 +182,9 @@ export function loadMachineSettings() {
   }
   if (value.gate?.postLandSuite !== undefined && typeof value.gate.postLandSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.postLandSuite in ${file} must be true or false`);
+  }
+  if (value.gate?.excuseMainRedFiles !== undefined && typeof value.gate.excuseMainRedFiles !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.excuseMainRedFiles in ${file} must be true or false`);
   }
   if (value.gate?.excuseMainTimingReds !== undefined && typeof value.gate.excuseMainTimingReds !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.excuseMainTimingReds in ${file} must be true or false`);
@@ -799,6 +805,7 @@ export function validateRunner(value) {
       throw new Refused('BAD_RUNNER', 'runner publicKey must be an enrolled Ed25519 SPKI key; run pullboard runner add <ssh-host>');
     }
   }
+  if (value.runtimeSha256 !== undefined && !/^[a-f0-9]{64}$/u.test(value.runtimeSha256)) throw new Refused('BAD_RUNNER', 'runner runtimeSha256 must be a SHA-256 digest');
   for (const key of ['node', 'root']) {
     if (value[key] !== undefined && (typeof value[key] !== 'string' || /[\u0000-\u001f\u007f]/u.test(value[key])
       || !(value[key].startsWith('/') && value[key].length > 1 || key === 'node' && value[key] === 'node'))) {
@@ -815,6 +822,7 @@ export function validateRunner(value) {
   if (value.cpuLoad !== undefined && !validRunnerCpuLoad(value.cpuLoad)) throw new Refused('BAD_RUNNER', 'runner CPU load requires its own timestamp, busy percentage and three load averages');
   return { host: value.host, ...(value.cpuLoad ? { cpuLoad: value.cpuLoad } : {}), slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
     ...(value.publicKey ? { publicKey: value.publicKey } : {}),
+    ...(value.runtimeSha256 ? { runtimeSha256: value.runtimeSha256 } : {}),
     ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
     ...(value.toolchains && Object.keys(value.toolchains).length ? { toolchains: { ...value.toolchains } } : {}),
     ...(value.fixed === true ? { fixed: true } : {}), ...(value.drain === true ? { drain: true } : {}),
@@ -919,9 +927,9 @@ export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
 }
 
-/** Whether health.derivedState is on (#8974): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+/** Whether health.derivedState is on (#8974): on by default since #11391; only an exact `false` turns it off; it lives here so list reads it through the light door [C7]. */
 export function derivedStateEnabled() {
-  return loadMachineSettings().health?.derivedState === true;
+  return loadMachineSettings().health?.derivedState !== false;
 }
 
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */

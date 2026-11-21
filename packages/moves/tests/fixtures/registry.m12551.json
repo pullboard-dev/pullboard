@@ -1,0 +1,5 @@
+{
+  "moves.withdraw.system-actor-as-met": {"proves":{"specs":["C7"],"claim":"The system actor's withdraw as met is admitted with a sentinel cause and a cited main commit at WITHDRAW_AS_MET_ENGINE, and refused without one."},"why":"A regression here must fail a named, registered test.","kind":"cell unit","inputs":["packages/moves/tests/logic/table/withdraw-generated.test.js"]},
+  "moves.withdraw.seat-refusals-unchanged": {"proves":{"specs":["C7"],"claim":"Every seat withdraw refusal stays as before; a cited commit never admits a seat."},"why":"A regression here must fail a named, registered test.","kind":"cell unit","inputs":["packages/moves/tests/logic/table/withdraw-generated.test.js"]},
+  "moves.withdraw-replay.history-before-withdraw-as-met-replays-unchanged": {"proves":{"specs":["C7"],"claim":"A withdraw history recorded before WITHDRAW_AS_MET_ENGINE replays with zero disagreements."},"why":"A regression here must fail a named, registered test.","kind":"cell unit","inputs":["packages/moves/tests/logic/table/withdraw-replay.test.js"]}
+}

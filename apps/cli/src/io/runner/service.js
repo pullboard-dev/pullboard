@@ -7,6 +7,7 @@
  * The hint is what install-serve says to log when the board stays unreachable: the likely macOS block and its fix.
  */
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,13 +35,34 @@ async function codePort(cache) {
   return runnerCodeRefresh({ app: resolve(import.meta.dirname, '../../../../..'), store: join(cache, 'git') });
 }
 
+/** The launchd label of the GUI-session copy of this service, the one a daemon-session serve yields to [P7,#10840]. */
+const GUI_LABEL = 'dev.pullboard.runner-serve';
+
+/** Run a command and answer its exit status and standard output; a failure to start it throws. */
+function execFile(file, args) {
+  const result = spawnSync(file, args, { encoding: 'utf8' });
+  if (result.error) throw result.error;
+  return { status: result.status, stdout: result.stdout };
+}
+
+/**
+ * Whether the GUI-session copy of the runner service is running: launchctl print of its label exits 0 and says state = running.
+ * A nonzero exit or a launchctl that cannot run answers false, so a daemon serve then claims as it did before [P7,#10840].
+ */
+export function guiRunning({ exec = execFile, uid = process.getuid?.() } = {}) {
+  try {
+    const result = exec('launchctl', ['print', `gui/${uid}/${GUI_LABEL}`]);
+    return result.status === 0 && /state = running/u.test(result.stdout ?? '');
+  } catch { return false; }
+}
+
 /**
  * Serve until stopped and return the exit code: 0 when serveRunner asked for a restart onto new runner code (the service
  * manager's KeepAlive starts it) or stopped plainly, 1 on a refusal, and 1 before serving when PULLBOARD_RUNNER_JOBS is unset.
  * The cache folder's lock is taken first, so a second service on one runner root refuses RUNNER_ALREADY_RUNNING before it serves [P7].
  */
 export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal, lock = takeRunnerLock, env = process.env } = {}) {
-  const [board, keyFile, cache, hint] = argv;
+  const [board, keyFile, cache, hint, enrolledHost, enrolledKey] = argv;
   const say = line => out(`${new Date().toISOString()} ${line}\n`);
   // The installed service takes its slot count from install-serve, so a start without it would fall to a cores-based default and starve gates [P7].
   if (env.PULLBOARD_RUNNER_JOBS === undefined || env.PULLBOARD_RUNNER_JOBS === '') {
@@ -52,13 +74,23 @@ export async function runService(argv, { serve = serveRunner, port = codePort, o
     held = lock(cache);
     say(`runner serve pulling from ${board}`);
     const runnerCode = await port(cache);
-    const served = await serve({ board, key: fileSystemAdapter().readFile(keyFile).trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint,
+    // With runners.oneServePerHost on, a daemon-session serve claims nothing while the GUI-session copy runs; off, no peer is passed [P7,#10840].
+    const peer = runnerSettingOn(machineSettingsFile(), 'runners.oneServePerHost') ? { session: env.PULLBOARD_RUNNER_SESSION === 'gui' ? 'gui' : 'daemon', guiRunning: () => guiRunning() } : null;
+    let signCompletion = null;
+    if (enrolledHost && enrolledKey) {
+      try {
+        const { runnerCompletionSigner } = await import('../../../../runner/light.js');
+        const { processMachineHome } = await import('../../../../../packages/kernel/light.js');
+        signCompletion = runnerCompletionSigner(enrolledHost, enrolledKey, processMachineHome());
+      } catch { say('runner completion signing unavailable; ordinary jobs remain enabled'); }
+    }
+    const served = await serve({ board, key: fileSystemAdapter().readFile(keyFile).trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint, ...(signCompletion ? { signCompletion } : {}),
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'), handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable'),
       postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), jobWorkerFactor: runnerSettingNumber(machineSettingsFile(), 'runners.jobWorkerFactor', 2),
       pulledProfilePaths: (await import('../../../../../packages/config/index.js')).pulledProfilePathsEnabled(),
-      ...(runnerCode ? { runnerCode } : {}) });
+      ...(runnerCode ? { runnerCode } : {}), ...(peer ? { peer } : {}) });
     if (served?.restart) say(`runner code changed to ${served.restart}; exiting so the service manager starts it`);
     return 0;
   } catch (error) {

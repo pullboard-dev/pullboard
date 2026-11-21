@@ -1,6 +1,9 @@
 /** Tests generated from the reclaim table: every guard and outcome row over thousands of seeded maintenance observations, checked against the rules restated here, and metamorphic breaks that must refuse or must not matter [C7,#8560]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { RECLAIM_LIMITS } from '../../../index.js';
+import { boardReleaseEngine } from '../../../index.js';
+import { boardSubmitEngine } from '../../../index.js';
 import { RECLAIM_RULES } from '../../../index.js';
 import { RECLAIM_TABLE } from '../../../index.js';
 import { runTable } from '../../../index.js';
@@ -18,8 +21,8 @@ const run = (snapshot, move) => runTable(RECLAIM_TABLE, RECLAIM_RULES, structure
 const LIMITS = { claim: 30 * MIN, review: 30 * MIN, dependency: 60 * MIN };
 const HANDOFF = { pin: `refs/pullboard/handoffs/${ID}/a`, head: 'ab'.repeat(20), changedFiles: ['a.js'], changedCount: 1 };
 
-/** The quiet an idle claim must reach, in words restated here: a stall 20 minutes, a release 40 (30 when its work is pinned), a dependency its own limit. */
-const QUIET = { stall: 20 * MIN, release: 40 * MIN, dependency: LIMITS.dependency };
+/** The quiet an idle claim must reach, in words restated here: a stall 20 minutes, a release 30, a dependency its own limit. */
+const QUIET = { stall: 20 * MIN, release: 30 * MIN, dependency: LIMITS.dependency };
 
 /** A held item, the seat's last claim, and the move to reclaim it as `idle`; `extra` completes the kind's own captured facts. */
 function idle(kind, g) {
@@ -28,7 +31,7 @@ function idle(kind, g) {
   const m = { kind: 'idle', maintainer: 'm1', observedAt: NOW, limits: LIMITS, row };
   if (['stall', 'release', 'dependency'].includes(kind)) {
     if (kind === 'release') s.pinned = g.pick([true, false]);
-    const quiet = (kind === 'release' && s.pinned ? 30 * MIN : QUIET[kind]) + g.int(4) * MIN;
+    const quiet = QUIET[kind] + g.int(4) * MIN;
     Object.assign(row, { idleMs: quiet, workActivity: ago(quiet) });
     if (kind === 'dependency') Object.assign(s, { waiters: [{ id: 50 }], lastWork: row.workActivity }), Object.assign(row, { dependents: [{ id: 50 }], resourceQuiet: true });
   }
@@ -280,7 +283,7 @@ test('moves.reclaim.gate-settled-decides: clause 2: the same observations with g
 const released = (c, boardCodes) => run(c.s, boardCodes ? { ...c.m, boardCodes: true } : c.m).events.at(-1).detail;
 const CODES = { 'seat-gone': 'SEAT_GONE', waiting: 'BLOCKED', progress: 'NO_PROGRESS', release: 'BUILDER_SILENT', dependency: 'BUILDER_SILENT', lapsed: 'LEASE_LAPSED', review: 'REVIEW_IDLE', 'review-lapse': 'REVIEW_LEASE_LAPSED' };
 
-test('moves.table.release-board-codes: clause 1: a move carrying boardCodes releases with BUILDER_SILENT, SEAT_GONE, BLOCKED when waiting, NO_PROGRESS on progress, LEASE_LAPSED, REVIEW_IDLE and REVIEW_LEASE_LAPSED, each with its prose reason unchanged [C7]', () => {
+test('moves.table.release-board-codes: clause 1: a move carrying boardCodes releases with BUILDER_SILENT, SEAT_GONE, BLOCKED when waiting, NO_PROGRESS on progress, LEASE_LAPSED, REVIEW_IDLE and REVIEW_LEASE_LAPSED, each with its prose reason unchanged, red-to-board GATE_REFUSED, none counting toward release-twice, and a seat release with one refused [C7]', () => {
   const seen = new Set();
   for (const c of accepted.filter(each => each.label !== 'stall')) {
     const on = released(c, true), off = released(c, false);
@@ -289,6 +292,35 @@ test('moves.table.release-board-codes: clause 1: a move carrying boardCodes rele
     seen.add(c.label);
   }
   for (const kind of ['seat-gone', 'waiting', 'progress', 'release', 'lapsed', 'review', 'review-lapse']) assert.ok(seen.has(kind), `no accepted ${kind} case`);
+  // The submit table's red-to-board row, the fifth board-written release, as the production submit engine runs it.
+  const row = Object.values(boardSubmitEngine().tables).flatMap(table => table.outcomes).find(each => each.id === 'red-to-board');
+  assert.ok(row, 'the submit table has a red-to-board row');
+  const red = (boardCodes) => row.events({ handoff: { agentId: 'w1', commit: 'c1' } }, { id: ID, returnToBoard: true, ...(boardCodes ? { boardCodes } : {}), result: { code: 1, error: { code: 'GATE_RED' } } })[0];
+  assert.equal(red(true).detail.reasonCode, 'GATE_REFUSED');
+  assert.equal(red(true).detail.reason, red(false).detail.reason, 'the prose reason stays beside the code');
+  assert.equal(red(false).detail.reasonCode, 'OTHER');
+  boardCodesStayOutOfTwice();
+});
+
+/** A release by its holder, run through the production release table: the snapshot of a claimed item and its history, and the move. */
+const RELEASE = boardReleaseEngine();
+const HOLDER = 'core-1', SEAT = '/seats/core-1';
+function holderRelease(history, reason) {
+  const s = { revision: 3, item: { id: ID, status: 'claimed', owner: HOLDER, route: 'strong', after: [], leaseUntil: ahead(MIN), holdReason: null, holdBy: null, reviewer: null },
+    actor: { id: HOLDER, route: 'strong', joined: true }, owner: null, diagnosed: false, firstRefusalBuilder: null, items: { [ID]: { status: 'claimed', after: [] } },
+    history: [...history, { id: history.length + 1, kind: 'claim', by: HOLDER, detail: {} }], ownerLastClaimId: 50, ownerLastLease: null, ownerRegisteredPath: SEAT,
+    lastClaim: { id: history.length + 1, kind: 'claim', by: HOLDER, detail: {} }, io: { checkoutOwner: null, sessionSeats: [] } };
+  return runTable(RELEASE.table, RELEASE.rules, structuredClone(s), { id: ID, actor: HOLDER, root: SEAT, reason, note: 'stuck on fixtures', now: NOW });
+}
+const earlier = (reasonCode) => [{ id: 1, kind: 'claim', by: HOLDER, detail: {} }, { id: 2, kind: 'release', by: HOLDER, detail: { reasonCode, reason: 'earlier' } }];
+const BOARD_CODES = ['BUILDER_SILENT', 'SEAT_GONE', 'NO_PROGRESS', 'LEASE_LAPSED', 'REVIEW_IDLE', 'REVIEW_LEASE_LAPSED', 'GATE_REFUSED'];
+
+test('moves.table.release-board-codes-replay: clause 2: a release recorded before the engine leaf (move without boardCodes) replays as OTHER, or BLOCKED for a waiting claim, and the same observation at the leaf differs only in reasonCode [C7]', () => {
+  for (const c of accepted.filter(each => each.label !== 'stall')) {
+    const recorded = released(c, false), now = released(c, true);
+    assert.equal(recorded.reasonCode, c.label === 'waiting' ? 'BLOCKED' : 'OTHER', `seed ${c.seed}: ${c.label} replays as before`);
+    assert.deepEqual({ ...now, reasonCode: null }, { ...recorded, reasonCode: null }, `seed ${c.seed}: only the code differs`);
+  }
 });
 
 test('moves.table.release-board-codes-off: clause 2: with no boardCodes in the move every one of those releases still carries OTHER, or BLOCKED for a waiting claim, exactly as before [C7]', () => {
@@ -296,3 +328,31 @@ test('moves.table.release-board-codes-off: clause 2: with no boardCodes in the m
     assert.equal(released(c, false).reasonCode, c.label === 'waiting' ? 'BLOCKED' : 'OTHER', `seed ${c.seed}: ${c.label}`);
   }
 });
+
+test('moves.logic-table-reclaim-generated.idle-release-30: clause 1: RECLAIM_LIMITS.idleReleaseMs is 30 minutes, and an idle release row quiet for 30 minutes is accepted while one quiet for 29 is refused BAD_STALE_STATE; clause 2: the limit comes from RECLAIM_LIMITS through the front door [C7]', () => {
+  assert.equal(RECLAIM_LIMITS.idleReleaseMs, 30 * 60_000);
+  const g = { pick: list => list[list.length - 1], int: () => 0 };
+  const at = quietMs => {
+    const c = idle('release', g);
+    c.s.pinned = false;
+    Object.assign(c.m.row, { idleMs: quietMs, workActivity: ago(quietMs) });
+    return run(c.s, c.m);
+  };
+  assert.equal(at(30 * MIN).refused, undefined, 'a release quiet for 30 minutes is accepted');
+  const short = at(29 * MIN);
+  assert.deepEqual([short.refused?.row, short.refused?.code], ['idle-proven', 'BAD_STALE_STATE']);
+});
+
+/** No board code counts toward the release-twice rule, and a seat releasing with one is refused RELEASE_REASON. */
+function boardCodesStayOutOfTwice() {
+  const control = holderRelease(earlier('INELIGIBLE'), 'INELIGIBLE');
+  assert.equal(control.refused, undefined, 'a chosen release is accepted');
+  assert.ok(control.via.includes('released-twice'), 'one earlier chosen INELIGIBLE and this one make two');
+  for (const code of BOARD_CODES) {
+    const counted = holderRelease(earlier(code), 'INELIGIBLE');
+    assert.equal(counted.refused, undefined, code);
+    assert.ok(!counted.via.includes('released-twice'), `${code} before a chosen release does not make two`);
+    const refused = holderRelease([], code);
+    assert.equal(refused.refused?.code, 'RELEASE_REASON', `a seat releasing with ${code} is refused`);
+  }
+}

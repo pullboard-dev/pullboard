@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/show/policy/dependency.test.js */
+/** @pullboard-test-input apps/cli/tests/io/commands/show/dependency.test.js */
 /** @pullboard-world-pin: clause 2 reads the journey source to count its cases. */
 /**
  * The parity check for the show/policy/dependency journey (U149): its one case runs twice, once with every journey CLI call a real
@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/show/policy/dependency.test.js', cases: ["clause 2: a dependency's own verified dependency admits its files [N16,V4]"] }];
+const SAMPLES = [{ journey: 'apps/cli/tests/io/commands/show/dependency.test.js', cases: ["clause 2: a dependency's own verified dependency admits its files [N16,V4]"] }];
 
 test('gate.journey-parity-show-policy-dependency.a-sample-of-the-show-policy-dependency: clause 1: a sample of the show/policy/dependency journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
@@ -18,7 +18,7 @@ test('gate.journey-parity-show-policy-dependency.a-sample-of-the-show-policy-dep
 });
 
 test('gate.journey-parity-show-policy-dependency.the-show-policy-dependency-journey-keeps-all: clause 2: the show/policy/dependency journey keeps all 1 of its cases, and the sampled case is that one [C7]', () => {
-  const source = readFileSync(new URL('../../../apps/cli/journeys/show/policy/dependency.test.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../../apps/cli/tests/io/commands/show/dependency.test.js', import.meta.url), 'utf8');
   // A title may hold an escaped quote and carry a stable-ID prefix (`area.file.slug: `): read the literal whole, then drop the prefix.
   const cases = [...source.matchAll(/^test\((["'`])((?:\\.|(?!\1).)*)\1/gmu)]
     .map(match => match[2].replace(/\\(.)/gu, '$1').replace(/^[a-z][\w-]*(?:\.[\w-]+)+: /u, ''));

@@ -10,6 +10,7 @@ import { privateFixtureFiles } from '../../fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { openKitBoard } from '../../fixtures/board.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { pinDerivedStateOff } from '../../fixtures/thin-door.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { declareItemField } from '../../../../../packages/store/index.js';
 import { events } from '../../../../../packages/store/index.js';
@@ -31,6 +32,7 @@ async function plainProject(t, count = 1) {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
+  t.after(pinDerivedStateOff(box));
   for (let n = 1; n <= count; n++) {
     const added = await fixtureAdd(box.runLocal, box.repo, 'web', `Thin show item ${n}`);
     assert.equal(added.code, 0, added.err);
@@ -57,6 +59,27 @@ test('cli.io-show-thin.plain-item-facts: clause 1: thinShowFacts returns { item,
   const expected = onBoard(box, board => ({ agents: listAgents(board), history: events(board, { itemId: 1 }) }));
   assert.deepEqual(JSON.parse(JSON.stringify(thin.agents)), JSON.parse(JSON.stringify(expected.agents)));
   assert.deepEqual(JSON.parse(JSON.stringify(thin.history)), JSON.parse(JSON.stringify(expected.history)));
+});
+
+test('cli.io-show-thin.plain-item-extra-facts: clause 1: thinShowFacts calls each supplied reader once with the open board and the projected item, returns what they returned, and calls none for an item that steps aside [C7,#12444]', async (t) => {
+  const box = await plainProject(t, 2);
+  const calls = [];
+  const reader = name => (board, item) => { calls.push({ name, board, item }); return { reader: name, id: item.item_id }; };
+  const reads = { progress: reader('progress'), machine: reader('machine'), independence: reader('independence'), cost: reader('cost') };
+  const thin = await thinShowFacts({ cwd: box.repo, id: 1, reads });
+  assert.deepEqual(Object.keys(thin).sort(), ['agents', 'cost', 'history', 'independence', 'item', 'machine', 'progress']);
+  for (const name of ['progress', 'machine', 'independence', 'cost']) assert.deepEqual(thin[name], { reader: name, id: 1 });
+  assert.deepEqual(calls.map(call => call.name), ['progress', 'machine', 'independence', 'cost']);
+  for (const call of calls) {
+    assert.equal(call.item.item_id, 1, `${call.name} got the projected item`);
+    assert.equal(typeof call.board.db.prepare, 'function', `${call.name} got the open board handle`);
+  }
+  const plain = await thinShowFacts({ cwd: box.repo, id: 1 });
+  assert.deepEqual(Object.keys(plain).sort(), ['agents', 'history', 'item']);
+  calls.length = 0;
+  onBoard(box, board => board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('after_gate:2', 'x'));
+  assert.equal(await thinShowFacts({ cwd: box.repo, id: 2, reads }), null, 'a heavy item steps aside');
+  assert.equal(calls.length, 0, 'no reader ran for it');
 });
 
 /** Prove the door serves item `id`, put a row on the board that makes the full show read a heavy section for it, and prove the door now steps aside: the row alone made it. Events only ever append, so each case has its own item. */

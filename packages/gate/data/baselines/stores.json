@@ -737,14 +737,6 @@
       "kind": "json",
       "owner": "apps/cli/src/io/disk/use.js"
     },
-    "dispatcher-idle.jsonl": {
-      "kind": "jsonl",
-      "owner": "packages/resources/src/io/handoff/worker/cap.js"
-    },
-    "dispatcher.json": {
-      "kind": "json",
-      "owner": "packages/resources/src/io/handoff/worker/cap.js"
-    },
     "event-moves.json": {
       "kind": "repo-data",
       "owner": "apps/cli/src/io/generated/declarations.js"
@@ -825,7 +817,11 @@
     "keys.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/test/action/cache.js"
+    },    "lookup-cache.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/pinned/tool/build.js"
     },
+
     "landing-file-times.json": {
       "kind": "json",
       "owner": "apps/view/src/io/live/read.js"
@@ -911,6 +907,10 @@
       "owner": "packages/codemap/src/io/no-runtime-assumptions.js"
     },
     "golden.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/manifest.js"
+    },
+    "moved-journeys.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
     },
@@ -1010,6 +1010,10 @@
       "kind": "json",
       "owner": "packages/seats/src/io/agent/session.js"
     },
+    "pullboard-policy-cache.json": {
+      "kind": "json",
+      "owner": "packages/sandbox/src/io/trusted/policy/committed.js"
+    },
     "pullboard-pruned-refs.jsonl": {
       "kind": "jsonl",
       "owner": "packages/runners/src/io/source/cache.js"
@@ -1029,10 +1033,6 @@
     "pure-roots.json": {
       "kind": "repo-data",
       "owner": "apps/cli/src/io/static/view.js"
-    },
-    "queue.json": {
-      "kind": "json",
-      "owner": "packages/resources/src/io/handoff/owner.js"
     },
     "receipt.json": {
       "kind": "json",
@@ -1202,6 +1202,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/module/imports.js"
     },
+    "spec-row-origins.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/spec/src/io/approval.js"
+    },
     "starting.json": {
       "kind": "json",
       "owner": "packages/drive/src/io/local.js"
@@ -1221,6 +1225,10 @@
     "storage-quota.sqlite": {
       "kind": "sqlite",
       "owner": "apps/relay/src/io/quota.js"
+    },
+    "board-writers.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/board-writers.js"
     },
     "store-homes.json": {
       "kind": "json",
@@ -1682,10 +1690,6 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/static/registry.js"
     },
-    "worker-cap.json": {
-      "kind": "json",
-      "owner": "packages/resources/src/io/handoff/worker/cap.js"
-    },
     "worker-imports.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/static/worker-imports.js"
@@ -1713,6 +1717,10 @@
     "table:push_subscription": {
       "kind": "table",
       "owner": "apps/relay/src/io/push/subscriptions.js"
+    },
+    "runs.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/conformance-rows.js"
     }
   },
   "exceptions": [],

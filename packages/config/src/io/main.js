@@ -88,10 +88,10 @@ export function defaults() {
     // next.idleMinutes bounds how long a seat's next waits with nothing for it; the person sets it, no agent flag [C7,#12041].
     next: { wholeItemsFirst: false, idleMinutes: 10 },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
-    cells: { cache: false, shimMaxAgeDays: 7 },
+    cells: { cache: false, shimMaxAgeDays: 7, plan: null },
     agents: { names: 'suffix' },
-    // Off by default: inbox.batchedMarks queues inbox delivery marks for one batched write instead of writing each inline [C7].
-    inbox: { tokenBudget: 8192, batchedMarks: false },
+    // On by default: inbox.batchedMarks queues inbox delivery marks for one batched write instead of writing each inline [C7].
+    inbox: { tokenBudget: 8192, batchedMarks: true },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, returnToBoard: false, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
     // On by default: laneMode off is the switch slices 2 and 3 of #2830 read; the "lanes" key stays the lane map [C7].
@@ -297,7 +297,8 @@ export function configProblems(config, root) {
       || Object.keys(config.flakes).some(key => !['rerun', 'quarantine'].includes(key)))) problems.push('"flakes" has only the optional booleans "rerun" and "quarantine", each off by default');
   if (config.cells !== undefined && (notPlain(config.cells)
       || typeof config.cells.cache !== 'boolean' || !Number.isSafeInteger(config.cells.shimMaxAgeDays) || config.cells.shimMaxAgeDays < 0
-      || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays'].includes(key)))) problems.push('"cells" has only boolean "cache" and nonnegative whole-number "shimMaxAgeDays" (default 7)');
+      || config.cells.plan !== null && (typeof config.cells.plan !== 'string' || !config.cells.plan.trim())
+      || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays', 'plan'].includes(key)))) problems.push('"cells" has only boolean "cache", nonnegative whole-number "shimMaxAgeDays" (default 7) and "plan", the nonempty path of the cells plan (absent means a project with no cells)');
   if (config.rigor !== undefined && (notPlain(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
       || config.rigor.autoDraft !== undefined && typeof config.rigor.autoDraft !== 'boolean'
@@ -315,7 +316,7 @@ export function configProblems(config, root) {
     problems.push('"inbox.tokenBudget" is a whole number of at least 1024 UTF-8 bytes; 8192 by default');
   }
   if (config.inbox?.escalateAfterMinutes !== undefined && (!Number.isSafeInteger(config.inbox.escalateAfterMinutes) || config.inbox.escalateAfterMinutes < 1)) problems.push('"inbox.escalateAfterMinutes" is a whole number of minutes, off by default; with inbox.keepUntilActed on, an entry unacted this long goes to the coordinator, and twice as long to the person');
-  if (config.inbox?.batchedMarks !== undefined && typeof config.inbox.batchedMarks !== 'boolean') problems.push('"inbox.batchedMarks" is true or false, off by default; true queues inbox delivery marks for one batched write');
+  if (config.inbox?.batchedMarks !== undefined && typeof config.inbox.batchedMarks !== 'boolean') problems.push('"inbox.batchedMarks" is true or false, on by default; false writes inbox delivery marks inline');
   if (config.inbox?.keepUntilActed !== undefined && typeof config.inbox.keepUntilActed !== 'boolean') problems.push('"inbox.keepUntilActed" is a boolean, off by default; true keeps each inbox entry listed until an action its kind allows is recorded');
   if (typeof config.itemBuildBudgetMinutes !== 'number' || !Number.isFinite(config.itemBuildBudgetMinutes) || config.itemBuildBudgetMinutes <= 0) {
     problems.push('"itemBuildBudgetMinutes" is positive finite minutes; 30 by default');

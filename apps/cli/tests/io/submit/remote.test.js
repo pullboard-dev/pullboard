@@ -9,6 +9,9 @@ import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
+import { privateFixtureFiles } from '../../fixtures/child.js';
+import { fixtureCommitAll } from '../../fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 import { join } from 'node:path';
 import { remoteSubmitCells } from '../../../src/io/submit/remote.js';
 import { submitCellsRemoteCommand } from '../../../src/io/submit/remote.js';
@@ -25,6 +28,7 @@ test('cli.io-submit-remote.remote-cells-loads-pinned-main-tooling-and: remote ce
     git('init', '--quiet');
     put('package.json', '{"type":"module"}\n');
     put('packages/codemap/data/plan/cells.json', '{"version":1,"cells":[]}\n');
+    put('pullboard.json', '{"cells":{"plan":"packages/codemap/data/plan/cells.json"}}\n');
     const trustedGate = 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }; export function readAcceptedCells(){}; export function warmAcceptedCells(){}\n';
     put('packages/gate/heavy.js', "export * from './index.js';\n");
     put('packages/gate/index.js', trustedGate);
@@ -110,5 +114,49 @@ test('cli.io-submit-remote.remote-cell-analysis-accepts-a-generic-project: remot
     assert.equal(result.source, main);
     assert.deepEqual(result.cells, []);
     assert.deepEqual(result.existingCuts, []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('cli.io-submit-remote.remote-cell-analysis-keys-on-the-config-not-the-plan: clause 1: a generic project carrying a stray cells.json but no cells.plan key gets the empty no-cells result [C7,V4]', () => {
+  const root = privateFixtureFiles('cells-remote-nokey-').root;
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].includes(key)) delete env[key];
+  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8' }).trim();
+  const put = (path, body) => { const file = join(root, path); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, body); };
+  try {
+    put('packages/codemap/data/plan/cells.json', '{"version":1,"cells":[]}\n');
+    fixtureProjectPolicy(root, { config: { cells: { cache: true } } });
+    fixtureCommitAll(root);
+    const main = git('rev-parse', 'HEAD');
+    const command = submitCellsRemoteCommand({ main, source: main, criterion: 'fixture', cutRows: [] });
+    const output = execFileSync('/bin/sh', ['-c', command], { cwd: root, env, encoding: 'utf8' });
+    const result = JSON.parse(output.match(/^PULLBOARD_CELLS_RESULT (.*)$/mu)[1]);
+    assert.deepEqual(result, { acceptedMain: main, source: main, cells: [], existingCuts: [], problems: [], warnings: [], reorg: null });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('cli.io-submit-remote.remote-cell-analysis-runs-for-a-keyed-project-without: clause 2: a project whose config names cells.plan runs the cells check even with no cells.json file [C7,V4]', () => {
+  const root = privateFixtureFiles('cells-remote-keyed-').root;
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].includes(key)) delete env[key];
+  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8' }).trim();
+  const put = (path, body) => { const file = join(root, path); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, body); };
+  try {
+    put('package.json', '{"type":"module"}\n');
+    fixtureProjectPolicy(root, { config: { cells: { plan: 'packages/codemap/data/plan/cells.json' } } });
+    put('packages/gate/heavy.js', 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }; export function readAcceptedCells(){}; export function warmAcceptedCells(){}\n');
+    put('packages/landing/index.js', 'export function withMainCheckout(){}\n');
+    put('apps/cli/src/io/cells/cache.js', 'export {};\n');
+    put('bin/cells-submit-checks.js', "export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: ['check-ran'], existingCuts: [] }; }\n");
+    fixtureCommitAll(root);
+    const main = git('rev-parse', 'HEAD');
+    const command = submitCellsRemoteCommand({ main, source: main, criterion: 'fixture', cutRows: [] });
+    const output = execFileSync('/bin/sh', ['-c', command], { cwd: root, env, encoding: 'utf8' });
+    const result = JSON.parse(output.match(/^PULLBOARD_CELLS_RESULT (.*)$/mu)[1]);
+    assert.deepEqual(result.cells, ['check-ran']);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

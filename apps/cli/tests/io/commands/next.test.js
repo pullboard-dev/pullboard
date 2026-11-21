@@ -1,6 +1,9 @@
+/** @pullboard-test-input source-cell apps/cli */
+/** @pullboard-world-pin the landing-at-call-time case reads next.js source text and writes nothing [C7,#12392]. */
 /** pullboard next --stuck "<why>" releases the one held claim as BLOCKED through the release move and answers as next does [C7,#11700]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -82,4 +85,15 @@ test('cli.io-commands-next.done-refusal-stops: clause 2: when submit refuses, ne
   assert.equal(none.code, 1, none.out + none.err);
   assert.equal(none.document.error.code, 'USAGE');
   assert.equal(store.getItem(box.board, other).item_owner, null, 'no new item was handed out without a claim');
+});
+
+test('cli.io-commands-next.landing-loads-at-call-time: clause 1: next.js has no static import of packages/landing, and each landing helper is a sync wrapper over one call-time requireModule of the landing front door [C7,#12392]', () => {
+  const source = readFileSync(new URL('../../../src/io/commands/next.js', import.meta.url), 'utf8');
+  const imports = source.split(/\r?\n/u).filter((line) => /^\s*import\b/u.test(line) || /^\s*\}\s*from\s/u.test(line));
+  assert.deepEqual(imports.filter((line) => line.includes('packages/landing')), [], 'no static import reaches packages/landing');
+  for (const name of ['mainRedReviewItems', 'mainRedReworkItems', 'passingMainRedItems', 'computedReturnArgs']) {
+    const wrapper = `const ${name} = (...args) => requireModule('../../../../../packages/landing/index.js').${name}(...args);`;
+    assert.ok(source.includes(wrapper), `${name} forwards its arguments to the landing front door at call time`);
+  }
+  assert.ok(source.includes('mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs'), 'the wrappers are still passed to takeServices');
 });

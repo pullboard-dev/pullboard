@@ -18,7 +18,10 @@ export const coordinatorHelp = `Coordinator
   pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
   pullboard hold <id> "reason" [--until verified|landed]  hold until the next named event on this item
   pullboard hold <id> "reason" --owner <seat|lane|person> [--deadline <ISO time>]  name who answers for the hold; the deadline defaults to a day out (holds.requireOwner makes --owner required)
+  pullboard hold --list --owner <seat|lane|person>  list the open holds that name that owner, oldest deadline first
   pullboard hold <lane|id> --off        lift a lane or item hold
+  pullboard clock [--dry-run] [--json] [--watch]  one clock pass: apply each due item's registered default move and log it as a clock_move event
+  pullboard main-red-files [set <path> [<path> ...] | --clear]  print, replace or clear the gate's main-red file list (sorted, deduplicated repo paths)
   pullboard expedite <id> --reason "..."  mark an item expedited; at most jobs.expediteMax (default 3) at once, and an item stops counting when its gate settles
 
 `;

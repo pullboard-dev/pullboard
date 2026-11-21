@@ -54,7 +54,7 @@ export async function run(io, { values = {}, statfs } = {}) {
   if (ctx.config.worktreeMaintenance?.enabled === true) {
     const { maintenanceHealth } = await import('../worktree/maintenance.js');
     const { readMaintenanceSnapshot } = await import('../worktree/maintenance/command.js');
-    report.maintenanceTimer = maintenanceTimerHealth(ctx.info.commonDir);
+    report.maintenanceTimer = await maintenanceTimerHealth(ctx.info.commonDir);
     report.dirtyWorktrees = maintenanceHealth(ctx.info.commonDir, await readMaintenanceSnapshot(ctx), ctx.clock.now().getTime());
   }
   report.machineLoad = machineLoadVerdict(loadMachineSettings());

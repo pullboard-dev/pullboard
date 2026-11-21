@@ -133,7 +133,7 @@ export function testRunItem({ named, folder = null, claims = [] }) {
  *
  * @param {any} ctx
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
- * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean, noFileLimit?: boolean }} run
+ * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, diagnose?: boolean, compareMain?: boolean, noFileLimit?: boolean }} run
  * @param {{ launch?: typeof spawn, now?: number, bin?: string, runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on (boardRunsHolder); the run's job rows go to its handle and not to the board [P7,#9080]. `bin`: the CLI entry the worker runs, the build
  *   that queued it; the caller names it so this package names no app [C7].
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
@@ -144,14 +144,14 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
   const log = workerLog(ctx, id);
   withBoard(board => {
     createJob(runs?.db ?? board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
-    writeStep(runs?.db ?? board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
+    writeStep(runs?.db ?? board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true, diagnose: run.diagnose === true,
       compareMain: run.compareMain === true, noFileLimit: run.noFileLimit === true, root: ctx.info.root, log }, { now });
   });
   disk.mkdir(dirname(log), { recursive: true, mode: 0o700 });
   const out = disk.open(log, 'a', 0o600);
   try {
     const args = [bin, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
-      ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : []), ...(run.noFileLimit ? ['--no-file-limit'] : [])];
+      ...(run.affected ? ['--affected'] : []), ...(run.diagnose ? ['--diagnose'] : []), ...(run.compareMain ? ['--compare-main'] : []), ...(run.noFileLimit ? ['--no-file-limit'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
       env: { ...environmentAdapter().all(), PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
@@ -396,7 +396,14 @@ function viewState(db, view, now) {
  */
 export function ownTestRuns(board, agent, now = Date.now(), { runs = null } = {}) {
   const jobs = runs?.db ?? board.db;
-  return jobs.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_step <> ? ORDER BY job_created, job_id').all(TEST_RUN_KIND, DELIVERED)
+  // Why the agent filter in SQL: a board holds tens of thousands of finished runs of seats that never called next again,
+  // and reading each one's steps before filtering cost every next about 2 s (20 Nov). A queued payload kept in the blob
+  // store shows no agent to SQL, so it still goes through the agent check below.
+  return jobs.prepare(`SELECT job.job_id FROM job LEFT JOIN job_step queued ON queued.job_step_job = job.job_id
+    AND queued.job_step_name = 'queued' AND queued.job_step_seq = 0
+    WHERE job.job_kind = ? AND job.job_step <> ?
+      AND (json_extract(queued.job_step_payload, '$.agent') = ? OR json_extract(queued.job_step_payload, '$.agent') IS NULL)
+    ORDER BY job.job_created, job.job_id`).all(TEST_RUN_KIND, DELIVERED, agent)
     .map(row => viewState(jobs, jobView(jobs, row.job_id), now)).filter(run => run && run.agent === agent);
 }
 

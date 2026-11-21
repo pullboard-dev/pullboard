@@ -37,7 +37,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/logic/grammar.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `278` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `280` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -321,6 +321,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout` | `shout_evidence_commit` | `TEXT` | `nullable` |
 | `shout` | `shout_request` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
 | `shout` | `shout_request_outcome` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
+| `shout` | `shout_answered_at` | `TEXT` | `nullable` |
 | `test_result` | `test_result_id` | `INTEGER` | `PRIMARY KEY` |
 | `test_result` | `test_result_file` | `TEXT` | `NOT NULL`; `UNIQUE` |
 | `test_result` | `test_result_input_key` | `TEXT` | `NOT NULL` |
@@ -355,6 +356,8 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_archive_fact_unknown_v2` | `event_archive` | `event_id` | no |
 | `event_archive_item_id_event_id` | `event_archive` | `item_id`, `event_id` | no |
 | `event_by_at` | `event` | `event_by`, `event_at` | no |
+| `event_by_id` | `event` | `event_by`, `event_id` | no |
+| `event_by_kind_id` | `event` | `event_by`, `event_kind`, `event_id` | no |
 | `event_fact_identity_v2` | `event` | `(expression)`, `event_id` | no |
 | `event_fact_malformed_v2` | `event` | `event_id` | no |
 | `event_fact_unknown_v2` | `event` | `event_id` | no |
@@ -362,6 +365,8 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
 | `item_owner_status` | `item` | `item_owner`, `item_status` | no |
+| `item_status_id` | `item` | `item_status`, `item_id` | no |
+| `item_verified_unmerged` | `item` | `item_id` | no |
 | `job_kind_created` | `job` | `job_kind`, `job_created` | no |
 | `job_kind_item` | `job` | `job_kind`, `job_item` | no |
 | `job_lease_live` | `job` | `job_lease_until` | no |
@@ -374,6 +379,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
+| `shout_open_coordinator_callout` | `shout` | `shout_id` | no |
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
 | `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
@@ -500,7 +506,9 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `person_signing` | enabling agent, or person | engine-76 `signed`, `request`, `presence`, `intent` |
 | `person_proposal` | proposing agent | engine-76 `request`, `verb` |
 | `source_advanced` | coordinator | Exact checked source and native receipt custody: `version`, `board`, `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, `episode`, `reviewEpisode`, `reviewBy`, `reviewUntil`, `verdict`, `head`, `tree`, `mergeTree`, `paths`, `generated`, `selectionDigest`, `phases`. |
+| `next-finished` | idle seat | `version`, `engine`, `lane` (a seat that finished its loop, once per seat) |
 | `next-idle` | idle seat | `version`, `engine`, `reason` (structured next observation; absent historical reasons stay unknown) |
+| `next-idle-timeout` | idle seat | `version`, `engine`, `lane`, `minutes`, `awaited` (a next call that gave up waiting) |
 | `review-default` | board | Review-policy migration: `engine`, `count`, `unfinished`. |
 | `coordinator-usage` | coordinator | `session`, `observedAt`, `records`, `estimate` (one coordinator session's usage, kept under the board key coordinator:session with no item) |
 <!-- events:end -->

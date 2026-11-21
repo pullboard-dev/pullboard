@@ -21,7 +21,10 @@ import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
 import { briefFilesAbsentFromMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireSpecGateRows } from '../item/bar.js';
 import { requireAfterNeeded } from '../item/bar.js';
+import { requireChainDepth } from '../item/bar.js';
+import { chainDepthOf } from '../item/bar.js';
 import { requireBarInLane } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
@@ -74,8 +77,10 @@ import {
   relayCommandReceiptReported,
 } from '../../../../../packages/link/index.js';
 import {
+  gateFiles,
   idProblems,
   loadSpec,
+  parseSpec,
 } from '../../../../../packages/spec/index.js';
 import {
   actOn,
@@ -111,6 +116,20 @@ function mayNameOtherBoard(ctx, item) {
  */
 function addedRoute(board, route) {
   return route === 'light' && (board.executionEngineVersion ?? ENGINE_VERSION) >= TWO_TIER_DIAGNOSIS_ENGINE ? 'mid' : route;
+}
+
+/**
+ * Refuse an --after list that names a withdrawn item: a withdrawn item is never verified, so the item would wait forever [C7,#12125].
+ * The refusal names the move that does go through: name the item that replaced it, or drop the entry.
+ */
+export function refuseWithdrawnAfter(board, after) {
+  for (const entry of after ?? []) {
+    if (!Number.isSafeInteger(entry)) continue;
+    let target;
+    try { target = store.itemById(board, entry); } catch (error) { if (error instanceof Refused) continue; throw error; }
+    if (target?.item_status === 'withdrawn') throw new Refused('AFTER_WITHDRAWN', `--after names #${entry}, which is withdrawn and never verifies, so this item would wait forever`,
+      `name the item that replaced #${entry} in --after, or drop #${entry} from the list`);
+  }
 }
 
 /**
@@ -167,6 +186,7 @@ export async function run(io, args) {
   if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
+  refuseWithdrawnAfter(board, after);
   const afterGate = dependencyValues(idList(values['after-gate']));
   const title = [second, ...rest].filter(Boolean).join(' ') || recorded?.title || '';
   if (recorded && !title) throw new Refused('ACCEPTED_RECORD_NO_TITLE', 'the accepted record names no title and the add gave none', 'name the title: pullboard add <lane> "<title>" --from-record <hash>');
@@ -237,7 +257,9 @@ export async function run(io, args) {
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   briefFilesAbsentFromMain(ctx, { criterion: item.criterion, brief: item.brief }, itemsBarRulesAtAdd());
   await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
+  await requireSpecGateRows(ctx, { criterion: item.criterion }, itemsBarRulesAtAdd(), asPerson || me.id === COORDINATOR, { parseSpec, gateFiles });
   requireAfterNeeded(ctx, { criterion: item.criterion, check: item.check }, { on: itemsBarRulesAtAdd(), after: item.after ?? [], items: () => store.listItems(board, { all: true }) });
+  if (itemsBarRulesAtAdd() && (item.after ?? []).length) requireChainDepth(item.after, chainDepthOf(store.listItems(board, { all: true })));
   requireBarInLane(ctx, me, item, itemsBarRulesAtAdd());
   requireNonEmptyCheck(ctx, { check: item.check }, itemsBarRulesAtAdd(), values['accept-green']);
   await requireCellTestFixture(ctx, { criterion: item.criterion, check: item.check, brief: item.brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || item.by === 'person');

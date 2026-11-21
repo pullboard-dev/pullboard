@@ -73,9 +73,10 @@ export function verifySnapshot(board, item, call, facts, deps) {
   const id = item.item_id;
   return { now: board.clock.now().toISOString(),
     actor: { id: call.agentId, joined: true, route: facts.route, family: facts.family },
-    item: { id, status: item.item_status, merged: Boolean(item.item_merged_commit), commit: item.item_commit, frozenDigest: item.item_frozen_digest, frozen: item.item_frozen,
+    item: { id, status: item.item_status, merged: Boolean(item.item_merged_commit), commit: item.item_commit, tree: item.item_tree ?? null, frozenDigest: item.item_frozen_digest, frozen: item.item_frozen,
       route: item.item_route, lane: item.item_lane, builtBy: item.item_built_by, owner: item.item_owner, reviewBy: item.item_review_by ?? null, reviewUntil: item.item_review_until ?? null,
       effectiveHead: call.sourceAdvanceHead ?? null, outside: null },
+    ...(call.soloLowStakes === true ? { soloLowStakes: true, rows: call.rows, checks: call.checks } : {}),
     history, verdicts, knownItems: call.implies ?? [], actorFlakeObservations: flakes, nativeFlakeEngine: deps.nativeFlakeEngine, lineSettings: { sharpenToPerson },
     nextEventId: facts.nextEventId, nextVerdictId: facts.nextVerdictId,
     // The writer's own checks have all passed by now, so the command-side and board-side facts the table takes from the shell all hold.
@@ -102,7 +103,8 @@ export function verifySnapshot(board, item, call, facts, deps) {
  * @returns {{ events: object[] } | null}
  */
 export function verifyDecision(board, item, call, deps, prepared) {
-  const at = board.executionEngineVersion;
+  // A live board carries no executionEngineVersion of its own; a solo low-stakes call reads the engine the writer ran at, so the table can write its solo event [#966].
+  const at = board.executionEngineVersion ?? (call.soloLowStakes === true ? call.engine : undefined);
   if (at === undefined || at < deps.from || at < board.enginePorts.pipelineCauseEngines().pipeline) return null;
   const id = item.item_id;
   const review = call.review;

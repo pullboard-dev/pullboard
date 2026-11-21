@@ -1,0 +1,3 @@
+{
+  "gate.io-edges-order.upward-reads-the-passed-rule": {"proves":{"specs":["C7"],"claim":"upwardAllowedEdges takes cell order and the grandfathered list from a rule its caller passes, with no plan read, and falls back to the plan when none is passed; cellsEdgeProblems passes its rule through."},"why":"Without this case moving the order and grandfather list out of the plan would go unproven.","kind":"cell unit","inputs":["packages/gate/src/io/edges.js","packages/gate/tests/io/edges/order.test.js"]}
+}

@@ -47,3 +47,14 @@ test('cli.edit.needs-flag: clause 2: edit --needs gui replaces the list and edit
   assert.equal(cleared.code, 0, cleared.err + cleared.out);
   assert.deepEqual(await needsOf(), []);
 });
+
+test('cli.edit.specs-flag: clause 1: edit --specs G2,K3 --reason replaces an open item\'s cited rows and show reports them [C7,#12104]', async () => {
+  const box = helpers.project();
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Specs edit', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = String(JSON.parse(added.out).item.item_id);
+  const edited = await box.inProcess(box.repo, 'edit', id, '--specs', 'G2,K3', '--reason', 'the item cites other rows', '--json');
+  assert.equal(edited.code, 0, edited.err + edited.out);
+  const shown = JSON.parse((await box.inProcess(box.repo, 'show', id, '--json')).out);
+  assert.equal(shown.item_spec_ids, 'G2,K3');
+});

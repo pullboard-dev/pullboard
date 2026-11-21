@@ -1,7 +1,7 @@
 import { runnerPolicyRecord } from '../../../../../packages/sandbox/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../../packages/sandbox/index.js';
-import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
-import { followRenames } from '../../../../../packages/gate/index.js';
+import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/heavy.js';
+import { followRenames } from '../../../../../packages/gate/heavy.js';
 /** Controller-owned private checks: immutable clone, runner protocol and retained sanitized evidence [C7,V4]. */
 import {
   createHash,
@@ -33,14 +33,14 @@ import { scratchFolder } from '../../../../../packages/config/index.js';
 import {
   digestOf,
   writeTimingProfile,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import { sandboxBlockedScanner } from '../../../../../packages/sandbox/index.js';
 import {
   logLines,
   timingFromLog,
   timingFromOutput,
   timingRunner,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   GATE_SLOT_HELD_ENV,
   gateSlotEnvironment,

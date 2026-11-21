@@ -59,6 +59,7 @@ export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptP
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/io/release.js";
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
 export { conformanceResults } from "./src/logic/conformance-setups.js";
+export { conformanceRows } from "./src/io/conformance-rows.js";
 export { importStyleViolations } from "./src/io/static/style.js";
 export { tapTests, committedTest, singleFileTapOutcomes } from "./src/io/tap.js";
 export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, LEDGER_HITS_ENV, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
@@ -129,6 +130,7 @@ export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDIN
 export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';
+export { workingSourceInventory } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
 export { deriveTestRegistries } from './src/io/test/derived.js';
 export { runJourneyCheck } from "./src/io/test/journey-check.js";

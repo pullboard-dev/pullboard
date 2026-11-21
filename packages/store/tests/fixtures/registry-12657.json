@@ -1,0 +1,4 @@
+{
+  "store.io-board-write-event.same-row-as-log-event": {"proves":{"specs":["C7"],"claim":"A prepared event committed by commitPrepared is the row logEvent writes: the next event_id and the same time, author, kind, item and detail, including the seat model."},"why":"The prepared form must keep logEvent's row semantics so the move migrations can swap one for the other without changing history.","kind":"cell unit","inputs":["packages/store/tests/io/board/write/event.test.js"]},
+  "store.io-board-write-event.refuses-before-write": {"proves":{"specs":["C7"],"claim":"An engine-gated event kind is refused while building, as logEvent refuses it, and a failed commit of a prepared event appends no event."},"why":"A refused or failed append must leave the event log untouched, because the build reads and refuses before any transaction opens.","kind":"cell unit","inputs":["packages/store/tests/io/board/write/event.test.js"]}
+}

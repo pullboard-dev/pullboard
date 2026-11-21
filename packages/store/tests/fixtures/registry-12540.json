@@ -1,0 +1,4 @@
+{
+  "store.io-board-state-clock.carries-clock": {"proves":{"specs":["B4","C7"],"claim":"the clock the board state carries equals the document stored in board meta key clock.health."},"why":"Without this case the watch could show a clock that differs from the one the clock pass stored.","kind":"cell unit","inputs":["packages/store/tests/io/board/state/clock.test.js","packages/store/src/io/board/state/clock.js"]},
+  "store.io-board-state-clock.null-when-absent": {"proves":{"specs":["B4","C7"],"claim":"with no stored clock document the board state carries clock null."},"why":"Without this case a board that never ran a clock pass would show a made-up clock.","kind":"cell unit","inputs":["packages/store/tests/io/board/state/clock.test.js","packages/store/src/io/board/state/clock.js"]}
+}

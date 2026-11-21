@@ -8,6 +8,7 @@ export { readCarryingCapacity } from './src/io/carrying.js';
 export { escapeReport, escapeLines } from './src/logic/review/escapes.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
 export { workFreeReleases, readWorkFreeReleases } from './src/logic/work/free.js';
+export { costlyTests } from './src/logic/runners/costly-tests.js';
 export { runnerUtilization, utilizationLines } from './src/logic/runners/utilization.js';
 export { readJobSpans } from './src/io/runners/utilization.js';
 export { buildTimeStats, buildTimeLines } from './src/logic/build/time.js';
@@ -28,6 +29,7 @@ export {
 } from './src/logic/flow/replay/history.js';
 export {
   replayFlow,
+  replayTuned,
 } from './src/logic/flow/replay.js';
 export {
   emptyReportCounter,
@@ -226,4 +228,4 @@ export { itemRunnerCost } from './src/io/cost/runner.js';
 export { readMaxAgentsSeries, maxAgentsLines } from './src/io/max-agents.js';
 export { allowanceWarning } from './src/logic/allowance.js';
 export { fleetSummary, timelineOf, TIMELINE_STAGES, TIMELINE_BUCKETS, WAIT_REASONS, UNACCOUNTED, UNACCOUNTED_OVER_MS, TIMELINE_JOB_KINDS } from './src/logic/timeline.js';
-export { readFleetTimelines, readItemTimeline } from './src/io/timeline.js';
+export { GATE_QUEUE_SQL, readFleetTimelines, readItemTimeline } from './src/io/timeline.js';
