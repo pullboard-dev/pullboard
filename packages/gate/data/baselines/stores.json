@@ -817,7 +817,11 @@
     "keys.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/test/action/cache.js"
+    },    "lookup-cache.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/pinned/tool/build.js"
     },
+
     "landing-file-times.json": {
       "kind": "json",
       "owner": "apps/view/src/io/live/read.js"
@@ -903,6 +907,10 @@
       "owner": "packages/codemap/src/io/no-runtime-assumptions.js"
     },
     "golden.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/manifest.js"
+    },
+    "moved-journeys.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
     },
@@ -1001,6 +1009,10 @@
     "pullboard-parent-session.json": {
       "kind": "json",
       "owner": "packages/seats/src/io/agent/session.js"
+    },
+    "pullboard-policy-cache.json": {
+      "kind": "json",
+      "owner": "packages/sandbox/src/io/trusted/policy/committed.js"
     },
     "pullboard-pruned-refs.jsonl": {
       "kind": "jsonl",
@@ -1189,6 +1201,10 @@
     "sources.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/module/imports.js"
+    },
+    "spec-row-origins.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/spec/src/io/approval.js"
     },
     "starting.json": {
       "kind": "json",

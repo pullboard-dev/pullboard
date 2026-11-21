@@ -225,6 +225,23 @@ export function noteLease(db, job, what, payload, now) {
 }
 
 /**
+ * Append a gate job's note: a `note:` step at the seq after the newest one of that name, so an earlier note of the same
+ * name stays as it was. It never changes the job's current step. Why: a later judgement of a settled gate (#12569) must
+ * add to its step log, never overwrite it [DJ2].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} what - The note name after `note:`.
+ * @param {Record<string, unknown>} payload
+ * @param {number} now
+ */
+export function appendNote(db, job, what, payload, now) {
+  db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at)
+    SELECT job_id, ?, (SELECT COALESCE(MAX(job_step_seq), -1) + 1 FROM job_step WHERE job_step_job = ? AND job_step_name = ?), ?, ? FROM job WHERE job_id = ? AND job_kind = 'gate'`)
+    .run(`note:${what}`, job, `note:${what}`, JSON.stringify(payload), now, job);
+}
+
+/**
  * Write the lapsed step of a takeover: one row per lapsed attempt, in the claim's transaction. It never changes the job's current step, so views still read claimed [C7,#9247].
  *
  * @param {import('node:sqlite').DatabaseSync} db

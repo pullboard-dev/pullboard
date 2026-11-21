@@ -64,6 +64,7 @@ export {
   pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   overlapStaticProofEnabled,
+  excuseMainRedFilesEnabled,
   excuseMainTimingReds,
   pendingFromJobRow,
   recoverFromJobRow,

@@ -396,7 +396,14 @@ function viewState(db, view, now) {
  */
 export function ownTestRuns(board, agent, now = Date.now(), { runs = null } = {}) {
   const jobs = runs?.db ?? board.db;
-  return jobs.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_step <> ? ORDER BY job_created, job_id').all(TEST_RUN_KIND, DELIVERED)
+  // Why the agent filter in SQL: a board holds tens of thousands of finished runs of seats that never called next again,
+  // and reading each one's steps before filtering cost every next about 2 s (20 Nov). A queued payload kept in the blob
+  // store shows no agent to SQL, so it still goes through the agent check below.
+  return jobs.prepare(`SELECT job.job_id FROM job LEFT JOIN job_step queued ON queued.job_step_job = job.job_id
+    AND queued.job_step_name = 'queued' AND queued.job_step_seq = 0
+    WHERE job.job_kind = ? AND job.job_step <> ?
+      AND (json_extract(queued.job_step_payload, '$.agent') = ? OR json_extract(queued.job_step_payload, '$.agent') IS NULL)
+    ORDER BY job.job_created, job.job_id`).all(TEST_RUN_KIND, DELIVERED, agent)
     .map(row => viewState(jobs, jobView(jobs, row.job_id), now)).filter(run => run && run.agent === agent);
 }
 

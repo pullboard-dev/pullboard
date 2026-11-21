@@ -337,7 +337,12 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false, body
       const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? agentRoute?.[1] ?? proofRoute?.[1] ?? trunkRoute?.[1] ?? null;
       const who = await adapter.authenticate(req, { board: boardId, write: req.method === 'POST' });
       // Health answers on the request thread from what it holds, never through a handler, so a busy pool still answers it [A2,C7].
-      if (url.pathname === '/api/v1/health') return json(res, 200, { ok: true, ...(await adapter.health?.(who)) });
+      if (url.pathname === '/api/v1/health') {
+        const report = { ok: true, ...(await adapter.health?.(who)) };
+        // A pool whose workers keep dying answers 503 with its error code, so a keeper polling health can restart the serve (#12610).
+        if (report.pool?.ok === false) return json(res, 503, { ...report, ok: false, error: report.pool.error });
+        return json(res, 200, report);
+      }
       if (url.pathname === '/api/v1/settings') {
         if (req.method !== 'GET') throw new Refused('READ_ONLY', 'settings are read-only here; use the supported settings commands');
         if (typeof adapter.settings !== 'function') throw new Refused('SETTINGS_NOT_AVAILABLE', 'read machine and repository settings from the local API');

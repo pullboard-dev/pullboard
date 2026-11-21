@@ -1,0 +1,30 @@
+{
+  "drive.io-keep-lease.one-renew-for-all-held": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "keepLease sends one renew call per interval for every job a runner holds, carrying each job and its token, so ten held jobs cost one call."
+    },
+    "why": "Ten renew calls per interval per runner loaded the board and slowed every other call.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  },
+  "drive.io-keep-lease.capped-claim-waits": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A claim answer carrying a wait time makes serveRunner wait that time instead of its idle poll."
+    },
+    "why": "A runner at its cap polled claim every 2 seconds and loaded the board for nothing.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  }
+}

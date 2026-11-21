@@ -312,15 +312,15 @@ export function countingTurns(limit) {
  *   fetchGate: asked inside the fetch turn before each fetch; a reason it returns ends the checkout without fetching. onFetch: told each fetch's reason, or null once it worked [#9024].
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), fetchTurn = null, git = null, ref = null, fetchGate = null, onFetch = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), fetchTurn = null, git = null, ref = null, fetchGate = null, onFetch = null, now = () => performance.now() } = {}) {
   if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
   if (main !== null && !SHA.test(String(main))) return { ok: false, reason: `the job names no main commit (${main})` };
-  const phases = { fetchMs: 0, checkoutMs: 0 };
-  let mark = performance.now();
+  const phases = { fetchMs: 0, fetchWaitMs: 0, fetchWorkMs: 0, checkoutMs: 0 };
+  let mark = now();
   /** Charge the time since the last mark to one phase. */
-  const lap = phase => { const now = performance.now(); phases[phase] += Math.round(now - mark); mark = now; };
+  const lap = phase => { const at = now(); phases[phase] += Math.round(at - mark); mark = at; };
   let store = join(cache, 'git');
   if (!disk.exists(join(store, 'HEAD'))) {
     const made = await exclusive(() => objectStore(git, cache));
@@ -332,13 +332,20 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   const present = await Promise.all(wanted.map(async one => SHA.test(String(one ?? '')) && (await git.run(store, ['cat-file', '-e', `${one}^{commit}`])).status === 0));
   const absent = wanted.filter((_, index) => !present[index]);
   if (absent.length) {
+    const queuedAt = now();
     const missing = await (fetchTurn ?? exclusive)(async () => {
-      for (const one of absent) {
-        const refused = fetchGate?.(); if (refused) return refused;
-        const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
-        onFetch?.(reason); if (reason) return reason;
+      const startedAt = now();
+      phases.fetchWaitMs = Math.round(startedAt - queuedAt);
+      try {
+        for (const one of absent) {
+          const refused = fetchGate?.(); if (refused) return refused;
+          const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
+          onFetch?.(reason); if (reason) return reason;
+        }
+        return null;
+      } finally {
+        phases.fetchWorkMs = Math.round(now() - startedAt);
       }
-      return null;
     });
     if (missing) return { ok: false, reason: missing };
   }
@@ -837,7 +844,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   const handled = async (claim, held, workCache, name) => {
     // A handled job (a land job's proof) runs for minutes between its own renew() calls, so the lease is kept in the
     // background as an argv job's is; renew() reads false only once the board refused the renewal (#7815).
-    const lease = keepLease(held);
+    const lease = keepLease(held, claim.kind);
     const renew = async () => {
       if (lease.isLost()) return false;
       let renewed;
@@ -912,7 +919,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (Object.hasOwn(handlers, claim.kind)) { known(); return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) }; }
     // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
     // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
-    const lease = keepLease(held);
+    const lease = keepLease(held, claim.kind);
     try { return await runHeld(claim, trunk, slot, held, lease.isLost, lease.whenLost, claimedAt, self, known); }
     finally { lease.stop(); known(); if (exclusive === claim.job) exclusive = null; }
   };
@@ -921,9 +928,19 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
    * answered every few seconds, past the lease too. Only the board's answer that another runner holds the job loses it,
    * since the board renews a lapsed lease no one claimed (#6546); a handled job is kept the same way (#7815).
    */
-  const keepLease = held => {
+  const keepLease = (held, kind = null) => {
     let lost = false, onLost = () => {}, renewedAt = Date.now(), timer = null, ended = false;
     const lose = () => { if (lost) return; lost = true; onLost(); };
+    // A landing job's renewal carries a landing permit, so it keeps its own renew call; every other job joins the serve's one renew.
+    if (kind !== 'land') {
+      const entry = { held, lose, stamp: () => { renewedAt = Date.now(); }, since: () => renewedAt };
+      shared.set(held.job, entry);
+      if (!sharedTimer) sharedTimer = setTimeout(renewShared, renewMs);
+      return { isLost: () => lost, lose, whenLost: stop => { onLost = stop; }, stop: () => {
+        ended = true; shared.delete(held.job);
+        if (!shared.size && sharedTimer) { clearTimeout(sharedTimer); sharedTimer = null; }
+      } };
+    }
     const renewOnce = () => {
       if (ended || lost) return;
       queueCall(endpoint, { action: 'renew', ...held }, fetchImpl).then(renewed => {
@@ -936,6 +953,31 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     };
     timer = setTimeout(renewOnce, renewMs);
     return { isLost: () => lost, lose, whenLost: stop => { onLost = stop; }, stop: () => { ended = true; clearTimeout(timer); } };
+  };
+  /**
+   * Renew every held job of this serve in one call every renewMs, not one call per job [C7,#12150]: the board names each job's
+   * lease or the refusal code of a job this runner no longer holds, so one moved job loses only itself. An unreachable board
+   * retries after renewRetryMs, past the lease too, as a single job's renewal does.
+   */
+  const shared = new Map();
+  let sharedTimer = null;
+  const renewShared = () => {
+    sharedTimer = null;
+    const entries = [...shared.values()];
+    if (!entries.length) return;
+    const next = ms => { if (shared.size && !sharedTimer) sharedTimer = setTimeout(renewShared, ms); };
+    queueCall(endpoint, { action: 'renew', runner: id, held: entries.map(entry => entry.held) }, fetchImpl).then(answer => {
+      const leases = new Map((Array.isArray(answer.leases) ? answer.leases : []).map(lease => [lease.job, lease]));
+      for (const entry of entries) {
+        const lease = leases.get(entry.held.job);
+        if (lease?.renewed === false) { if (lease.refused === undefined || lease.refused === 'JOB_LEASE_MOVED') { entry.lose(); continue; } say(`renewal of ${entry.held.job} skipped: ${lease.refused}`); continue; }
+        entry.stamp();
+      }
+      next(renewMs);
+    }, error => {
+      const stale = entries.some(entry => Date.now() - entry.since() >= leaseMs);
+      say(`renewal ${stale ? 'still failing past the lease' : 'skipped'}: ${error.message}`); next(renewRetryMs);
+    });
   };
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now(), self = () => null, known = () => {}) => {
@@ -999,7 +1041,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const started = Date.now();
     // Claim-to-command, in phases the receipt carries: the board's request, the commit download (waiting its turn included),
     // the checkout, and whether the slot's warm folder was reused.
-    const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, checkoutMs: checkout.phases.checkoutMs,
+    const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, fetchWaitMs: checkout.phases.fetchWaitMs,
+      fetchWorkMs: checkout.phases.fetchWorkMs, checkoutMs: checkout.phases.checkoutMs,
       reused: checkout.reused, totalMs: started - claimedAt };
     liveEnvironments.add(name);
     const job = jobEnvironment(cache, name, claim.job, environmentAdapter().all(), requestedEnv), tag = randomBytes(8).toString('hex');
@@ -1122,7 +1165,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       });
     } catch (error) {
       if (error.code === 'RUNNER_STOPPED') break;
-      if (!(error instanceof Refused)) { failure = error; break; }
+      // A duplicate runner never serves: the board names it, so the serve ends with that error instead of waiting it out [C7].
+      if (!(error instanceof Refused) || error.code === 'RUNNER_DUPLICATE') { failure = error; break; }
       // A refused claim call is a wait like an unreachable board: said, backed off, tried again; only the signal ends the serve.
       say(`claim refused: [${error.code}] ${error.message}; retrying in ${delay} ms`);
       waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
@@ -1136,7 +1180,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (!answer.claim && !updating) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
       if (once) { say('nothing to claim: the queue is empty'); break; }
-      await Promise.race([wake ? (stopped ? Promise.race([wake.nap(idleMs), stopped]) : wake.nap(idleMs)) : nap(idleMs), ...active]); continue;
+      // A claim a runner's own cap held back carries the time to wait, so a full runner does not poll every idleMs [C7,#12150].
+      const waitMs = Number.isFinite(answer.waitMs) && answer.waitMs > 0 ? answer.waitMs : idleMs;
+      await Promise.race([wake ? (stopped ? Promise.race([wake.nap(waitMs), stopped]) : wake.nap(waitMs)) : nap(waitMs), ...active]); continue;
     }
     if (answer.claim) {
       lastTrunk = answer.trunk;

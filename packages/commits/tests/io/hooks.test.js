@@ -229,3 +229,66 @@ test('commits.io-hooks.pre-commit-refuses-an-added-quote: clause 1: with commits
   const older = quotingChange(t, 'a plain added line');
   assert.deepEqual(quotingProblems(older, ['Sam']), []);
 });
+
+/**
+ * An item folder of #7 on core/item-7 that committed its own change to src/item.js (and, with `resolve`, line 1 of
+ * src/shared.js), merging a main that changed `fillers` other files (and line 5 of src/shared.js), left staged and
+ * uncommitted, as a builder's `git merge main` leaves it for the pre-commit hook.
+ */
+function stagedMainMerge(t, fillers, { resolve = false } = {}) {
+  const graph = fixtureCommittedGraph('pullboard-merge-checked-'), main = graph.root, root = `${main}-item-7`;
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const run = (cwd, args) => runFixtureSetupGit(['-c', 'user.name=Test Agent', '-c', 'user.email=agent@example.com', ...args], { cwd });
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { core: { owns: ['src/'], specs: ['G1'] } } }) + '\n');
+  graph.put('src/item.js', 'export const item = 0;\n');
+  graph.put('src/shared.js', 'a\nb\nc\nd\ne\n');
+  for (let index = 0; index < fillers; index++) graph.put(`src/f${index}.js`, `export const value = ${index};\n`);
+  graph.commit();
+  runFixtureSetupGit(['worktree', 'add', '-b', 'core/item-7', root], { cwd: main });
+  writeFileSync(join(root, 'src/item.js'), 'export const item = 1;\n');
+  if (resolve) writeFileSync(join(root, 'src/shared.js'), 'A\nb\nc\nd\ne\n');
+  run(root, ['commit', '-qam', 'feat: item change']);
+  for (let index = 0; index < fillers; index++) graph.put(`src/f${index}.js`, `export const value = ${index + 1};\n`);
+  if (resolve) graph.put('src/shared.js', 'a\nb\nc\nd\nE\n');
+  graph.commit();
+  run(root, ['merge', '-q', '--no-ff', '--no-commit', 'main']);
+  return root;
+}
+
+/** Run the real pre-commit as the core seat of #7 with a shim port that records the paths it is handed to check. */
+function checkedPaths(root) {
+  const paths = [];
+  const problems = preCommitProblems({ ...FOLDER_OPTIONS, root, agent: { agent_lane: 'core', agent_id: 'seat-1' },
+    shimImports: (options) => { paths.push(...options.paths); return []; } });
+  return { problems, paths: paths.sort() };
+}
+
+test('commits.io-hooks.merge-checks-item-files-only: clause 1: a staged merge of main bringing in N files unchanged from main plus one item-changed file checks only the item-changed file, the same one path at N=5 and N=200 [C7]', (t) => {
+  for (const fillers of [5, 200]) {
+    const { problems, paths } = checkedPaths(stagedMainMerge(t, fillers));
+    assert.deepEqual(problems, []);
+    assert.deepEqual(paths, ['src/item.js'], `N=${fillers}`);
+  }
+});
+
+test('commits.io-hooks.merge-resolution-still-checked: clause 2: a file whose merged content differs from main\'s version, because both sides changed it, is still checked beside the item-changed file [C7]', (t) => {
+  const { problems, paths } = checkedPaths(stagedMainMerge(t, 5, { resolve: true }));
+  assert.deepEqual(problems, []);
+  assert.deepEqual(paths, ['src/item.js', 'src/shared.js']);
+});
+
+test('commits.io-hooks.plain-commit-checked-set-unchanged: clause 3: a plain non-merge commit checks every staged written path, as before [C7]', (t) => {
+  const graph = fixtureCommittedGraph('pullboard-plain-checked-'), main = graph.root, root = `${main}-item-7`;
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { core: { owns: ['src/'], specs: ['G1'] } } }) + '\n');
+  for (const path of ['src/item.js', 'src/f0.js', 'src/f1.js', 'src/f2.js']) graph.put(path, 'export const value = 0;\n');
+  graph.commit();
+  runFixtureSetupGit(['worktree', 'add', '-b', 'core/item-7', root], { cwd: main });
+  for (const path of ['src/item.js', 'src/f0.js', 'src/f1.js']) writeFileSync(join(root, path), 'export const value = 1;\n');
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  const { problems, paths } = checkedPaths(root);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(paths, ['src/f0.js', 'src/f1.js', 'src/item.js']);
+});

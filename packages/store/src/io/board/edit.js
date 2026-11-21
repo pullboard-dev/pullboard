@@ -65,7 +65,7 @@ import { persistShout } from "./shout.js";
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[], afterGate?: number[] }} change
  */
-export function editItem(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen = false }) {
+export function editItem(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, specs, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen = false }) {
   if (preserveFrozen && (agentId !== COORDINATOR || reason !== 'S10 full-suite strip' || criterion === undefined
     || brief !== undefined || route !== undefined || check !== undefined || after !== undefined || afterGate !== undefined || checkBaseline !== undefined
     || correction !== undefined || freeze !== undefined || sensitive !== undefined || reviewFamily !== undefined
@@ -76,7 +76,7 @@ export function editItem(board, id, { agentId, title, brief, route, criterion, c
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen });
+    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, specs, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen });
     if (preserveFrozen) {
       const engine = board.executionEngineVersion ?? ENGINE_VERSION;
       const stripped = stripPerItemFullSuiteCriterion(item.item_criterion);
@@ -135,6 +135,7 @@ export function editItem(board, id, { agentId, title, brief, route, criterion, c
       ...(readinessCommand === undefined ? {} : { readinessCommand: readinessCommand.trim() }),
       ...(needs === undefined ? {} : { needs }),
       ...(next.item_after !== item.item_after ? { after: itemDependencies.dependencyValues(next) } : {}),
+      ...(next.item_spec_ids !== item.item_spec_ids ? { specIds: specs, previousSpecIds: item.item_spec_ids ? item.item_spec_ids.split(',') : [] } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
       ...(pendingRefreeze ? { pendingRefreeze: pendingFields } : {}),
       ...(frozen ? { correctedFrozen: frozen.digest } : {}),
@@ -165,7 +166,7 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen = false }) {
+export function validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, specs, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen = false }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   validateCheckTiming(board, agentId, checkTiming);
   validateItemNeeds(needs);
@@ -189,7 +190,7 @@ export function validateItemEdit(board, id, { agentId, title, brief, route, crit
   }
   const command = editCheck(agentId, check, widened);
   if (title !== undefined && (typeof title !== 'string' || !title.trim())) throw new Refused('USAGE', 'the new title cannot be empty: pass --title "the new title"');
-  if ([title, brief, route, criterion, check, after, afterGate, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs].every((value) => value === undefined)) {
+  if ([title, brief, route, criterion, check, after, afterGate, specs, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --title "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }
   item ??= current(board, itemById(board, id));
@@ -199,6 +200,12 @@ export function validateItemEdit(board, id, { agentId, title, brief, route, crit
   }
   if (agentId !== COORDINATOR && agentId !== item.item_created_by && !widened) {
     throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
+  }
+  if (specs !== undefined) {
+    if (!Array.isArray(specs) || !specs.length || specs.some(id => typeof id !== 'string' || !id.trim() || id.includes(',')) || new Set(specs).size !== specs.length) {
+      throw new Refused('BAD_SPECS', 'spec rows are a nonempty list of distinct row ids: pullboard edit <id> --specs G1,G2 --reason "..."');
+    }
+    if (typeof reason !== 'string' || !reason.trim()) throw new Refused('BAR_REASON', 'replacing the cited spec rows needs --reason saying why the old rows were wrong');
   }
   if (['verified', 'withdrawn'].includes(item.item_status)) {
     throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
@@ -223,15 +230,16 @@ export function validateItemEdit(board, id, { agentId, title, brief, route, crit
     item_check: command === undefined ? item.item_check : command,
     ...(checkTiming === undefined && item.item_check_timing === undefined ? {} : { item_check_timing: checkTiming ?? item.item_check_timing }),
     item_after: after === undefined ? item.item_after : after.join(','),
+    item_spec_ids: specs === undefined ? item.item_spec_ids : specs.map(id => id.trim()).join(','),
   };
   const evidenceWarnings = criterion !== undefined && engine >= CLAUSE_EVIDENCE_ENGINE ? requireCriterionEvidence(next.item_criterion) : [];
   checkRoute(next.item_route);
   const diagnosisProblem = lightDiagnosisProblem(board, { ...item, ...next });
   if (diagnosisProblem) throw diagnosisProblem;
-  const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing'].filter((key) => next[key] !== item[key]);
+  const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing', 'item_spec_ids'].filter((key) => next[key] !== item[key]);
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
     && item.item_status === 'claimed' && (agentId === COORDINATOR || widened)
-    && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after || next.item_check_timing !== item.item_check_timing);
+    && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after || next.item_check_timing !== item.item_check_timing || next.item_spec_ids !== item.item_spec_ids);
   const preservingSubmittedCriterion = preserveFrozen && agentId === COORDINATOR && reason === 'S10 full-suite strip'
     && item.item_status === 'submitted' && next.item_criterion !== item.item_criterion;
   if (moved.length && item.item_status !== 'open' && (next.item_route !== item.item_route || !correctionWhileClaimed && !preservingSubmittedCriterion)) {
@@ -239,6 +247,6 @@ export function validateItemEdit(board, id, { agentId, title, brief, route, crit
   }
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
   checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check }, engine);
-  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_check_timing !== item.item_check_timing || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
+  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_check_timing !== item.item_check_timing || next.item_spec_ids !== item.item_spec_ids || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
   return { item, next, command, unfreeze, evidenceWarnings, bar: barCorrectionFields(board, item, next, { reason, widened }), widened: widened || null };
 }

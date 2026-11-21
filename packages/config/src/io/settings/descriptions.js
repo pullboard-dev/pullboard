@@ -58,7 +58,7 @@ const ROWS = [
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['health.adviceThroughNext', 'Builder advice comes through next', 'When enabled, builder advice that is sent as a shout is delivered in the output of next instead; off (default), advice stays in shouts.', 'Order', 'on/off'],
-  ['health.derivedState', 'Derived item state', 'When enabled, an item state is derived from its board records instead of being stored; off (default), item state is exactly as before, and nothing reads this setting yet.', 'Order', 'on/off'],
+  ['health.derivedState', 'Derived item state', 'When enabled (on by default), an item state is derived from its board records instead of being stored; off, item state is read exactly as before the sweep existed.', 'Order', 'on/off'],
   ['health.diskFloorGb', 'Health warns on low disk', 'When above 0, pullboard health warns when the disk holding this board has less free space than this many gigabytes; 0 (default) never warns.', 'Order', 'gigabytes'],
   ['health.lapsedSweep', 'The sentinel expires lapsed claims', 'When enabled, the View\'s sentinel expires claims whose lease lapsed every minute, so none waits for a command to run; off (default), lapsed claims are expired by the ten-minute sweep and before each write.', 'Order', 'on/off'],
   ['holds.liftSettled', 'Lift settled holds', 'When enabled (default), a hold whose reason names only landed items, and a parent hold whose children are all done, lifts when main moves, and a hold naming a withdrawn item is rewritten for a re-bar instead; when off, holds stay until someone lifts them.', 'Order', 'on/off'],
@@ -121,6 +121,7 @@ const ROWS = [
   ['gate.adapterLintSsh', 'Refuse new SSH runner access outside the adapter', 'When enabled, the static check refuses a source file outside the SSH runner adapter that opens SSH access to a runner directly beyond its recorded count, and names the file, the line and the SSH runner adapter to use; off, it reports nothing.', 'Runners', 'on/off'],
   ['gate.adapterLintTimers', 'Refuse new direct timer use', 'When enabled, the static check refuses a source file that starts or clears a timer outside the clock adapter beyond its recorded count, and names the file, the line and the adapter to use; off, it reports nothing.', 'Runners', 'on/off'],
   ['gate.endStaleJobs', 'End stale gate jobs', 'When enabled, offering a new gate candidate for an item ends its older open gate jobs, and a landed item\'s open gate jobs end, so runners spend no time on candidates that can no longer land.', 'Runners', 'on/off'],
+  ['gate.excuseMainRedFiles', 'Excuse files red on main', 'When enabled, a gate whose only reds are in test files that main also fails with the same inputs (the file and everything it covers unchanged by the item) settles for review and names those files; off (default), every red counts. Only an exact true turns it on.', 'Runners', 'on/off'],
   ['gate.excuseMainTimingReds', 'Excuse timing reds that main shares', 'When enabled, a gate run whose only reds are timing reds that main also has is excused instead of refused; off (default), every red counts. Only an exact true turns it on.', 'Runners', 'on/off'],
   ['gate.failFastShards', 'End remaining gate shards on a red', 'When enabled, a gate whose shard posts a red in a case the item itself changed ends its remaining shards instead of running them; off (default), every shard runs. Only an exact true turns it on.', 'Runners', 'on/off'],
   ['gate.fencedHop', 'Fenced gate hop row', 'When enabled, a gate hop is one row with one owner, written by compare-and-set; a writer that loses the race is refused with the owner named.', 'Runners', 'on/off'],
@@ -201,6 +202,7 @@ const ROWS = [
   // This machine: Background
   ['health.sentinel', 'Health watch', 'The automatic health observer runs on this computer; a board can turn it off for itself too.', 'Background', 'on/off'],
   ['landing.pools', 'Boards this computer lands', 'The boards this computer has agreed to land work for, set with pullboard settings landing.pool.', 'Landing', 'list'],
+  ['update.check', 'Check for new releases', 'When enabled, pullboard checks once a day whether a newer release is out and says so; off (default), it never looks. It is on only after the person says yes.', 'Background', 'on/off'],
   ['view.background', 'Keep the view running', 'Init and resume keep pullboard view running, so pullboard.dev can open this computer\'s boards.', 'Background', 'on/off'],
   ['view.port', 'View port', 'The port this computer\'s local view listens on.', 'Background', 'port'],
   ['watch.quietReads', 'Watch reads main\'s head once a second', 'When enabled, pullboard watch reuses its last read of main\'s head for one second instead of reading it after every board event, so an idle watcher spends less CPU; off (default), it reads the head after every event.', 'Background', 'on/off'],
@@ -229,7 +231,7 @@ const ROWS = [
   // This repo: Project
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
-  ['inbox.batchedMarks', 'Batch inbox marks', 'Off (default) writes each inbox delivery mark as the inbox is read. On queues the marks and writes them in one batch.', 'Project', 'on/off'],
+  ['inbox.batchedMarks', 'Batch inbox marks', 'On (default) queues inbox delivery marks and writes them in one batch. Off writes each mark as the inbox is read.', 'Project', 'on/off'],
   ['inbox.tokenBudget', 'Inbox size', 'The most an inbox response may hold, in bytes of text.', 'Project', 'bytes'],
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],

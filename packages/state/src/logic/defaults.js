@@ -69,6 +69,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   ITEM_FOLDER_UNFINISHED: 'shout the coordinator to finish or abort the operation in that item folder, and build another item meanwhile',
   BROWSER_UNDECLARED: 'make the first line of the named test file // pullboard: browser, then run it again',
   BAD_IDLE_REASON: 'run next again and use its structured idle observation',
+  BAD_IDLE_TIMEOUT: 'record the whole minutes waited and the non-empty thing awaited, at most 200 characters, on the next empty answer',
+  AFTER_WITHDRAWN: 'name a live item in --after, or leave --after off: a withdrawn item never verifies, so this item would wait forever',
   NEXT_TIMEOUT: 'read the named phase and item, inspect your current claim or review with pullboard whoami and pullboard show <id>, then retry next after resolving that blocker',
   CHECK_REQUIRED: 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout',
   ROW_VERIFY_RECEIPT: 'run pullboard spec verify <id> accepted|rejected --reason "why" before applying its verdict',

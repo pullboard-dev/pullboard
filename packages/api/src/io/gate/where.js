@@ -1,4 +1,5 @@
 /** The places a red gate receipt's static checks reported, for the red fact behind gate.redFactLocation [C7,#9083]; and the failing part for a gate job that printed no receipt, for gate.receiptMissingCause [C7,#9925]. */
+import { join } from 'node:path';
 
 const LOCATION = /(?:^|[\s("'])((?:[\w.@-]+\/)*[\w.@-]+\.(?:m?js|cjs|json|md|ts)):(\d+)(?::\d+)?/gu;
 const SHOWN = 3;
@@ -55,4 +56,20 @@ export function missingReceiptPart(error) {
   const output = said.slice(-KEPT_LINES).join(' | ').slice(-KEPT_BYTES);
   const files = names.length ? `; proof files: ${names.slice(0, KEPT_NAMES).join(', ')}${names.length > KEPT_NAMES ? ` (+${names.length - KEPT_NAMES} more)` : ''}` : '';
   return `gate: the gate job printed no PULLBOARD_GATE_RECEIPT line (exit ${found[1]}); worker output ended: ${output || 'nothing'}${files}`;
+}
+
+/**
+ * One red shard's own account: each `not ok` case its TAP printed, by file and name, and the full log its runner kept.
+ * Why: a shard's tail often ends on its passing subtests, so without these no one can name the failing test [C7].
+ */
+export function redShard(part) {
+  const phase = part.phase ?? {};
+  const rows = Array.isArray(phase.errors) && phase.errors.length ? phase.errors : Array.isArray(phase.failures) ? phase.failures : [];
+  const cases = rows.filter(row => typeof row?.name === 'string' && row.name)
+    .map(row => ({ file: typeof row.file === 'string' && row.file ? row.file : null, name: row.name }));
+  const omitted = Math.max(0, (Number(phase.errorCount) || rows.length) - cases.length);
+  const folder = typeof part.output?.folder === 'string' && part.output.folder ? part.output.folder : null;
+  // The proof phase's own log when the gate entry kept one, else the job's whole output the runner kept beside it.
+  const log = folder ? join(folder, typeof phase.kept === 'string' && /^[\w.-]+$/u.test(phase.kept) ? phase.kept : 'job.log') : null;
+  return { job: part.job, runner: part.output?.runner ?? part.runner, log, cases, omitted };
 }

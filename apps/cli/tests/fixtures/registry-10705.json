@@ -1,0 +1,3 @@
+{
+  "cli.io-cells-submit-checks.a-path-mapped-into-a-cell-folder-raises-no-moved-problem": {"proves":{"specs":["C7"],"claim":"cellsSnapshotProblems on a candidate whose path map moves a file into a cell folder returns no --moved problem."},"why":"Without it, a regression where the submit check restores the checkMoved loop would refuse or warn on every item that moves a file into a cell folder.","kind":"cell unit","inputs":["apps/cli/tests/io/cells-submit-checks.test.js","apps/cli/tests/fixtures/cells/snapshot.js"]}
+}

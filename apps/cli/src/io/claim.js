@@ -16,11 +16,17 @@ import { sessionSeatReaders } from './ports/seat.js';
 import { agentSessionDigest } from '../../../../packages/person/index.js';
 import { requireHandoffActive } from '../../../../packages/state/light.js';
 import { requestedCommandMove } from '../../../../packages/state/index.js';
+import { CLAIM_CHECK_CEILING_ENGINE } from '../../../../packages/state/index.js';
+import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { gitSyncLinked } from '../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../packages/config/index.js';
 import { relaxRequiredFamilyEnabled } from '../../../../packages/config/index.js';
 import { nextLightShapedStrong } from '../../../../packages/config/index.js';
 import { lightShaped } from '../../../../packages/seats/index.js';
+import { claimCheckCeilingEnabled } from '../../../../packages/config/index.js';
+import { checkVerdict } from '../../../../packages/config/index.js';
+import { frozenCheckCeilingMs } from '../../../../packages/config/index.js';
+import { itemCheckBaseline } from '../../../../packages/store/light.js';
 
 /**
  * Route a write through Git only once origin accepted the board's first push [C7]; a marker it never
@@ -121,7 +127,7 @@ const LAPSE_MAINTENANCE = new WeakSet();
  */
 export async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor, ports = {}) {
   if (!actor || (ports.lapsedOn ?? lapsedSweepEnabled)() || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
-    || operation === 'release' && args[3]?.staleClaim) return;
+    || operation === 'release' && (args[3]?.staleClaim || args[3]?.checkout)) return;
   // An interrupted relay move owes its caller the original outcome; a maintenance move first would hide it behind RELAY_RETRY_PENDING.
   if ((ports.recovered ?? relayRecovered)(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
@@ -366,6 +372,11 @@ export class MainSpecMerged extends Error {
  */
 export function claimFreezer(ctx, board) {
   return (item) => {
+    // With claim.checkCeiling on, an item whose recorded check measured over its ceiling is refused here; a pending or unmeasured baseline claims as before [C7,#1273].
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_CHECK_CEILING_ENGINE && claimCheckCeilingEnabled()) {
+      const baseline = itemCheckBaseline(board, item);
+      if (baseline) checkVerdict({ measuredMs: typeof baseline.seconds === 'number' ? baseline.seconds * 1000 : undefined, ceilingMs: frozenCheckCeilingMs(ctx.config), remeasurePending: baseline.result === 'pending', strict: false });
+    }
     return freezer(ctx, { board })(item);
   };
 }

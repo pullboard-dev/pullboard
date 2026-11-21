@@ -228,6 +228,35 @@ test('store.io-write-queue-file.publish-order-with-three-hundred-pending: clause
   console.log(`publish-order-with-three-hundred-pending: publish ${Math.round(timing.publish ?? 0)} ms, drain ${Math.round(timing.drain ?? 0)} ms, waiter-settle ${Math.round(timing.settle ?? 0)} ms`);
 });
 
+test('store.io-write-queue-file.drain-reads-each-pending-record-once: clause 1: with 300 writes pending in one queue directory, a drain applies them in publish order, parses each pending record once, and still drops a pending record whose owner is gone or whose result is stored [C7]', async () => {
+  const dir = privateFixtureFiles('pullboard-wqf-drain-').root;
+  const base = Date.now() * 1000;
+  mkdirSync(join(dir, 'pending'), { recursive: true });
+  writeFileSync(join(dir, 'pending', 'dead.pending'), JSON.stringify({ seq: base, pid: 2_147_483_646 }));
+  writeFileSync(join(dir, 'pending', 'answered.pending'), JSON.stringify({ seq: base + 1, pid: process.pid }));
+  writeFileSync(join(dir, 'answered.result'), JSON.stringify({ ok: true, value: 'earlier' }));
+  const timing = {};
+  const queue = createFileWriteQueue(dir, { timing });
+  const ids = Array.from({ length: 300 }, (_, n) => `d${String(n).padStart(3, '0')}`);
+  const applied = [];
+  const parse = JSON.parse;
+  let pendingParses = 0;
+  JSON.parse = (text, ...rest) => {
+    if (typeof text === 'string' && text.includes('"pid"')) pendingParses += 1;
+    return parse(text, ...rest);
+  };
+  let settled;
+  try {
+    settled = await Promise.all(ids.map(id => queue.submit({ id, run: seq => { applied.push(id); return seq; } })));
+  } finally { JSON.parse = parse; }
+  assert.ok(settled.every(outcome => outcome.ok), 'every write succeeded');
+  assert.deepEqual(applied, ids, 'the 300 writes applied in publish order');
+  assert.deepEqual(readdirSync(join(dir, 'pending')), [], 'the dead owner\'s record and the answered record are dropped, and no pending record is left');
+  assert.equal(queue.result('answered').value, 'earlier', 'the stored result of the answered record is kept');
+  assert.ok(pendingParses <= 2 * ids.length + 10, `${pendingParses} pending-record parses for ${ids.length} writes: each record is read once by publish and once by the drain, not once per pass`);
+  console.log(`drain-reads-each-pending-record-once: drain ${Math.round(timing.drain ?? 0)} ms for ${ids.length} writes, publish ${Math.round(timing.publish ?? 0)} ms, waiter-settle ${Math.round(timing.settle ?? 0)} ms, ${pendingParses} parses`);
+});
+
 test('store.io-write-queue-file.two-hundred-waiters-in-order: clause 1: 200 writes submitted in one turn by one process, with transaction ports, each return their own stored result and apply in queue order [C7]', async () => {
   const dir = privateFixtureFiles('pullboard-wqf-many-').root;
   const db = new DatabaseSync(join(dir, 'board.sqlite'));

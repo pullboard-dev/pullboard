@@ -8,6 +8,17 @@ export { WITHDRAW_NEXT } from './next.js';
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const blank = (text) => !(typeof text === 'string' && text.trim());
 
+/** The system actor's id: the one the board already records its own writes under, so no new `by` value enters the state machine. */
+const SYSTEM_ACTOR = 'sentinel';
+
+/** A withdraw as met by the system: the sentinel actor, a sentinel cause key and a cited main commit, at an engine that has the path (an unstamped snapshot reads as current). */
+function systemAsMet(s, m, metEngine) {
+  return Number.isInteger(metEngine) && m.actor === SYSTEM_ACTOR
+    && typeof m.cause === 'string' && m.cause.startsWith('sentinel:')
+    && typeof m.metCommit === 'string' && /^[a-f0-9]{40,64}$/u.test(m.metCommit)
+    && (s.engine === undefined || (Number.isInteger(s.engine) && s.engine >= metEngine));
+}
+
 /** Does the item still match the open frozen Main red an audit observed (the audit's `expected`)? */
 function mainRedMatches(item, expected) {
   let frozen;
@@ -32,9 +43,9 @@ function mainRedFactId(id, expected) {
  * Why: moves may not reach into the state package, and the starting states must stay one source (the machine's withdraw move);
  * the caller passes its `from` list, so there is no second copy to drift.
  * Snapshot: `{ actor: { id, joined }, item: { id, status, title, check, frozen, frozenDigest } | null }`.
- * Move: `{ id, actor, reason, expected }`. Closing the item's asks and ending its hand-off and review lease stay with the shell.
+ * Move: `{ id, actor, reason, expected, cause, metCommit }`; `cause` and `metCommit` (a main commit) only let the system actor withdraw as met, at `board.metEngine`. Closing the item's asks and ending its hand-off and review lease stay with the shell.
  *
- * @param {{ from: readonly string[] }} board
+ * @param {{ from: readonly string[], metEngine?: number }} board
  * @returns {{ rules: Readonly<Record<string, object>>, table: Readonly<object> }}
  */
 export function withdrawEngine(board) {
@@ -43,7 +54,7 @@ export function withdrawEngine(board) {
   }
   const rules = defineRules({
     joined: { says: 'the caller is a joined seat', holds: (s) => s.actor?.joined !== false },
-    coordinator: { says: 'the caller is the coordinator', holds: (s, m) => m.actor === 'coordinator' },
+    coordinator: { says: 'the caller is the coordinator, or the system actor withdrawing as met with a cause and a cited main commit', holds: (s, m) => m.actor === 'coordinator' || systemAsMet(s, m, board.metEngine) },
     reasonGiven: { says: 'the withdrawal says why', holds: (s, m) => !blank(m.reason) },
     itemExists: { says: 'the item exists', holds: (s) => Boolean(s.item) },
     mainRedUnchanged: { says: 'an audit-bound withdrawal still matches the Main red it observed', holds: (s, m) => m.expected === undefined || m.expected === null || mainRedMatches(s.item, m.expected) },
