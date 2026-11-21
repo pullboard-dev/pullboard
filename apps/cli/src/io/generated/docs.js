@@ -13,7 +13,53 @@ import { schemaDocBlocks } from '../../logic/generated/doc/schema.js';
 import { declarationDocBlocks } from './declarations.js';
 
 const files = fileSystemAdapter();
-const SPEC_TABLES = ['id-pattern', 'statuses', 'tiers', 'parser-fields'];
+
+/** A marked generated table as the page holds it. */
+function marked(blocks, name) {
+  return [`<!-- ${name}:start -->`, blocks[name].trimEnd(), `<!-- ${name}:end -->`, ''];
+}
+
+/** A section that only points at its own page, the form the section takes once the page is its only copy. */
+function linkSection(title, sentence) {
+  return [`## ${title}`, '', sentence, ''];
+}
+
+/** The formats guide: headings and the page links held here, its schema, version and event tables rendered from the declarations; the authored prose is dropped [C7]. */
+export function formatsPage(blocks) {
+  const bare = title => [`## ${title}`, ''];
+  const table = (title, name) => [`### ${title}`, '', ...marked(blocks, name)];
+  return [
+    '# File formats',
+    '',
+    'Every table on this page is generated from source declarations by `node docs/tools/update-docs.js`; change the declarations, not the page. `--check` reports a stale copy without writing.',
+    '',
+    ...linkSection('SPEC.md and DOCTRINE.md', 'The row grammar, statuses, tiers, signers and id namespaces are on [docs/formats/spec.md](formats/spec.md).'),
+    ...linkSection('Proposed rulings and resume doctrine notes', 'Standing rulings and the resume doctrine notes are on [docs/formats/rulings.md](formats/rulings.md).'),
+    ...linkSection('Resume release notes', 'The `whatsNew` field and the per-checkout version record are on [docs/formats/resume-notes.md](formats/resume-notes.md).'),
+    ...bare('SQLite board schema'),
+    ...table('Format versions', 'format-versions'),
+    ...table('Upgrade rules', 'upgrade-rules'),
+    ...table('Board columns', 'board-columns'),
+    ...table('Board indexes', 'board-indexes'),
+    ...table('Board triggers', 'board-triggers'),
+    ...table('Temp columns', 'temp-columns'),
+    ...table('Temp triggers', 'temp-triggers'),
+    ...bare('Local board identities and cross-board moves'),
+    '## Event log',
+    '',
+    ...marked(blocks, 'events'),
+    ...bare('Flow report and captured submission size'),
+    ...bare('Submit test selection'),
+    ...linkSection('Static view export', 'The exported files, the replay page and the landing, Rigor and release-receipt engine notes are on [docs/formats/static-view.md](formats/static-view.md).'),
+    ...bare('Native proof provenance'),
+    ...bare('Approval provenance'),
+    ...bare('Offline flow replay'),
+    ...linkSection('Recorded board line settings', 'The eight line settings and their ranges, the ordering and landing engine notes, outside intake and sandbox receipts, capacity decisions, item decision options and signed board membership are on [docs/formats/settings.md](formats/settings.md).'),
+    ...bare('Seat addresses'),
+    ...linkSection('Machine-local runner rate card', 'A runner\'s rate card (`runnerRates`, set with `pullboard settings runnerRates`) is described on [docs/formats/rate-card.md](formats/rate-card.md).'),
+    ...bare('Machine-local relay canary'),
+  ].join('\n').replace(/\n+$/u, '\n');
+}
 
 /** The engine page of the formats doc: headings held here, its table rendered from the event declarations [C7]. */
 export function engineFirstPage(blocks) {
@@ -77,12 +123,6 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   let blocks;
   try { blocks = { ...schemaDocBlocks(board.db), ...declarationDocBlocks(root), 'format-versions': formatTable(root) }; }
   finally { closeBoard(board); }
-  let formats = files.readFile(join(root, 'docs', 'formats.md'), 'utf8');
-  // A table moved to a user page is refreshed there; every other table stays in the guide.
-  for (const [name, table] of Object.entries(blocks)) {
-    if (name === 'snapshot-files' || SPEC_TABLES.includes(name)) continue; // rendered whole into their own pages below
-    formats = replaceDocTable(formats, name, table);
-  }
   let api = files.readFile(join(root, 'docs', 'api.md'), 'utf8');
   const tables = {
     'api-command-shapes': shapeTable(['Command', 'Required top-level fields'], Object.fromEntries(
@@ -93,7 +133,7 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   };
   for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
   return new Map([
-    ['docs/formats.md', formats], ['docs/formats/spec.md', specPage(blocks)], ['docs/formats/static-view.md', staticViewPage(blocks)], ['docs/api.md', api],
+    ['docs/formats.md', formatsPage(blocks)], ['docs/formats/spec.md', specPage(blocks)], ['docs/formats/static-view.md', staticViewPage(blocks)], ['docs/api.md', api],
     ['docs/formats/engine-first.md', engineFirstPage(blocks)],
     ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)],
   ]);
