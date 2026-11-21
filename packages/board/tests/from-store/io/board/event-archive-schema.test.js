@@ -5,11 +5,11 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { closeBoard } from '../../../index.js';
-import { logEvent } from '../../../index.js';
-import { register } from '../../../index.js';
-import { openKitBoard } from '../../fixtures/cell.js';
-import { temporaryDirectory } from '../../fixtures/tmp.js';
+import { closeBoard } from '../../../../../store/index.js';
+import { logEvent } from '../../../../../store/index.js';
+import { register } from '../../../../../store/index.js';
+import { openKitBoard } from '../../../fixtures/cell-board.js';
+import { temporaryDirectory } from '../../../../../store/tests/fixtures/tmp.js';
 
 const EVENT_COLUMNS = ['event_id', 'event_at', 'event_by', 'event_kind', 'item_id', 'event_detail'];
 
