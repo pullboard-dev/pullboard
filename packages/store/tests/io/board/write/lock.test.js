@@ -10,6 +10,10 @@ import { writeFileSync } from 'node:fs';
 import { boardWriteCounterRows } from '../../../../src/io/board/write/lock.js';
 import { boardWriteLog } from '../../../../src/io/board/write/lock.js';
 import { finishBoardWrite } from '../../../../src/io/board/write/lock.js';
+import * as store from '../../../../index.js';
+import { cellBoard } from '../../../fixtures/cell.js';
+import { cellItem } from '../../../fixtures/cell.js';
+import { temporaryRepository } from '../../../fixtures/submit.js';
 
 /** Give this test a private machine home and restore the caller's setting. */
 function withHome(t, body) {
@@ -75,3 +79,43 @@ test('store.io-board-write-lock.hold-alarm-bounded-read: clause 3: on a file ove
   writeFileSync(boardWriteLog(), row(now - 7_000_000).repeat(Math.ceil(70 * 1024 / row(now - 7_000_000).length)) + row(now - 1));
   assert.deepEqual(boardWriteHoldAlarm('WRITE_HOLD_OVER_1S', now, 3_600_000), { count: 1, move: 'submit', heldMs: 1_500, truncated: false });
 }));
+
+/** Sleep the thread, as a table scan over a board of thousands of items does on a loaded machine. */
+const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+test('store.io-board-write-lock.merged-slow-step-held: clause 2: a merged move on a board with 250 held items, where a children lookup that scans the item table costs 15 ms, ends its hold within 2.0 s and the hold row names liftSettledHolds [C7,#12751]', t => {
+  const saved = { home: process.env.PULLBOARD_MACHINE_HOME, all: process.env.PULLBOARD_BOARD_HOLD_LOG_ALL };
+  t.after(() => {
+    for (const [key, value] of [['PULLBOARD_MACHINE_HOME', saved.home], ['PULLBOARD_BOARD_HOLD_LOG_ALL', saved.all]]) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  const repo = temporaryRepository(t, 'pullboard-merged-slow-');
+  const home = join(repo, 'hold-home');
+  mkdirSync(home);
+  mkdirSync(join(repo, '.git', 'pullboard'));
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  process.env.PULLBOARD_BOARD_HOLD_LOG_ALL = '1';
+  const board = cellBoard(t, join(repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date() }, { real: true, gitRoot: repo });
+  store.board_ensureCoordinator(board, repo);
+  const make = title => cellItem(board, { lane: 'core', title, criterion: '1. It works [test]', route: 'mid', brief: 'Files: src/a.js\nTest: proves it', check: 'true' }).item_id;
+  const held = Array.from({ length: 250 }, (_, i) => make(`Held ${i}`));
+  const mover = make('Lands now');
+  for (const id of held) board.db.prepare('UPDATE item SET item_hold_reason=? WHERE item_id=?').run('Waiting for an outside review', id);
+  // A children lookup that SQLite answers by scanning every item row costs what it costs on the live board (about 15 ms at this size); one it answers by index costs nothing.
+  const prepare = board.db.prepare.bind(board.db);
+  board.db.prepare = sql => {
+    const statement = prepare(sql);
+    if (!/item_parent_id/u.test(sql)) return statement;
+    return new Proxy(statement, { get: (target, key) => typeof target[key] === 'function'
+      ? (...args) => {
+        if (prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...args).some(step => /^SCAN item$/u.test(step.detail))) sleep(15);
+        return target[key](...args);
+      } : target[key] });
+  };
+  board.liftSettledHolds = true;
+  store.writeBoardCommand(board, 'merged', [mover, { agentId: 'coordinator', commit: 'a'.repeat(40), forced: 'landed by hand', waiveProof: 'test fixture' }], 'coordinator');
+  const row = readFileSync(join(home, 'board-holds.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(each => each.move === 'merged').at(-1);
+  assert.equal(row.step, 'liftSettledHolds');
+  assert.ok(row.heldMs < 2_000, `the merged move held the board ${row.heldMs} ms in ${row.step}`);
+});

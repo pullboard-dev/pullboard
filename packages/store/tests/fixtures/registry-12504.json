@@ -1,0 +1,3 @@
+{
+  "store.io-board-write-lock.merged-slow-step-held": {"proves":{"specs":["C7"],"claim":"clause 2: a merged move on a board with 250 held items, each scanning children lookup costing 15 ms, ends its hold within 2.0 s and the hold row names liftSettledHolds."},"why":"The slowest merged hold step is liftSettledHolds, whose children lookup scanned every item row once per held item; a hold over 2.0 s stalls every other board writer.","kind":"cell unit","inputs":["packages/store/src/io/board/indexes.js","packages/store/src/io/board/write/lock.js","packages/store/tests/io/board/write/lock.test.js"]}
+}
