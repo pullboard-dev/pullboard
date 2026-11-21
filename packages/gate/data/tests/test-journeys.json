@@ -638,7 +638,7 @@
         "component test helper; moves with its importers"
       ]
     },
-    "apps/cli/journeys/list/board.test.js": {
+    "apps/cli/tests/io/commands/list/board.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -2334,7 +2334,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/release/speed.test.js": {
+    "apps/cli/tests/io/commands/release/speed.test.js": {
       "cells": [
         "app:lib",
         "gate",
