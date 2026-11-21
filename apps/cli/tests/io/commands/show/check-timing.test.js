@@ -10,7 +10,7 @@ after(e2e.cleanup);
 const { project, LIGHT_BRIEF } = e2e;
 const LINE = 'check timing: exclusive gate slot; the gate runs this check alone, so runner load does not decide it';
 
-test('cli.journeys-show-check-timing.show-prints-the-exclusive-slot-line: clause 2: show prints the exclusive gate slot line after the check of a timed item, and no timing line for an untimed one [C7]', async () => {
+test('cli.journeys-show-check-timing.show-prints-the-exclusive-slot-line: clause 1: the migrated case preserves its assertions; clause 2: show prints the exclusive gate slot line after the check of a timed item, and no timing line for an untimed one [C7]', async () => {
   const box = project('true');
   const file = (title, ...extra) => assert.equal(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'the original check passes',
     '--brief', LIGHT_BRIEF, '--check', 'test -d web', ...extra).code, 0);
