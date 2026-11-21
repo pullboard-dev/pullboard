@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/heavy.js';
 import { runFixtureGit } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { temporaryRepository } from '../../../../../packages/store/tests/fixtures/submit.js';
 import { runHandoffStages } from '../../../src/io/handoff.js';
