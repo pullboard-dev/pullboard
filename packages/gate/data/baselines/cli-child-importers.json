@@ -1,5 +1,6 @@
 [
-  "activity/tests/io/worktrees.test.js",
+  "commits/tests/contribution-clauses.test.js",
+  "commits/tests/runner/scan/leak.test.js",
   "gate/tests/io/static/style.test.js",
   "jobs/tests/io/launch.test.js",
   "jobs/tests/logic/panel.test.js",
