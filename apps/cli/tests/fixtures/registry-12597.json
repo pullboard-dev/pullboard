@@ -1,0 +1,34 @@
+{
+  "cli.io-item-wip.snapshot-does-not-block-the-command": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a board call by a claiming seat with a snapshot due returns within 20 ms of the same call with none due, on a dirty item folder"
+    },
+    "why": "Without it every claiming seat's board call pays the snapshot's git cost, about 234 ms, once a minute per item.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/beater.js",
+      "apps/cli/src/io/item/wip-worker.js",
+      "apps/cli/src/io/item/wip.js",
+      "apps/cli/tests/io/item/wip.test.js"
+    ]
+  },
+  "cli.io-item-wip.snapshot-survives-command-exit": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "after the board command has exited, refs/pullboard/wip/<item> holds the folder's uncommitted change"
+    },
+    "why": "Without it moving the snapshot off the command path would lose it when the CLI exits right after main returns.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/beater.js",
+      "apps/cli/src/io/item/wip-worker.js",
+      "apps/cli/src/io/item/wip.js",
+      "apps/cli/tests/io/item/wip.test.js"
+    ]
+  }
+}
