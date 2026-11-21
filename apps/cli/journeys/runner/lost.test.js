@@ -59,7 +59,7 @@ function queue(t) {
 
 // PULLBOARD_LOST_CASES ('ssh', 'held', 'held:yield' or 'held:retry') picks one group of cases, so the journeys can run in
 // separate files inside the file budget [#6734,#6917]; 'held' takes both held cases; unset runs the ssh case, the held
-// cases being lost.pull.held and lost.pull.retry (the controller dispatch that ran them all in one file is gone, #5821).
+// cases being the merged pull-recovery test (the controller dispatch that ran them all in one file is gone, #5821).
 const only = process.env.PULLBOARD_LOST_CASES ?? 'ssh';
 const caseTest = (group, ...args) => (!only || only === group || group.startsWith(`${only}:`) ? test(...args) : undefined);
 
