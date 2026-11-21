@@ -10,7 +10,9 @@ import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 import { gitSpawnSync } from '../../../../../../packages/git/index.js';
 import { maintenanceGit } from './archive.js';
 import { goneMaintenanceSeat } from './classify.js';
+import { claimEnded } from './classify.js';
 import { classifyMaintenanceTree } from './classify.js';
+import { claimEndedKeepRef } from './claim-ended.js';
 import { registeredMaintenanceTrees } from './observation.js';
 import { itemObligation } from './classify.js';
 import { maintenanceAllocatedBytes } from './observation.js';
@@ -49,6 +51,8 @@ function sweepRule(path, { seats, items, takeoverMs }, { now, branch, directorie
   const own = match ? items.find(item => item.item_id === Number(match[1])) : null;
   // A live claim, review or unmerged submission of the folder's own item keeps it, whoever holds it.
   if (own && itemObligation(own, now)) return null;
+  // The claim ended (released or lapsed): the folder goes whoever else the seat holds, as the clock's folder row says.
+  if (own && claimEnded(own, now)) return { rule: 'claim-ended', item: own.item_id };
   const owners = seats.filter(seat => {
     const root = resolve(seat.agent_path ?? seat.path ?? '/');
     return root === path || (ITEM_FOLDER.test(path) && path === `${root}-item-${ITEM_FOLDER.exec(path)[1]}`);
@@ -68,7 +72,7 @@ function sweepRule(path, { seats, items, takeoverMs }, { now, branch, directorie
 }
 
 /** Save the folder's uncommitted work, untracked files included, as a commit at a keep ref; returns the ref. */
-function keepDiff(path, name) {
+function keepDiff(path, name, fresh = false) {
   const gitDir = git(path, ['rev-parse', '--absolute-git-dir']);
   const index = join(gitDir, 'pullboard-keep-index');
   try {
@@ -78,7 +82,7 @@ function keepDiff(path, name) {
     const tree = git(path, ['write-tree'], env);
     const commit = git(path, ['-c', 'user.name=Pullboard', '-c', 'user.email=board@pullboard.invalid', 'commit-tree', tree, '-p', 'HEAD',
       '-m', `keep uncommitted work of ${basename(path)}`]);
-    const ref = `refs/pullboard/keep/${name}`;
+    const ref = fresh ? claimEndedKeepRef(name, candidate => quiet(path, ['rev-parse', '-q', '--verify', candidate]) !== null) : `refs/pullboard/keep/${name}`;
     git(path, ['update-ref', ref, commit]);
     return { ref, commit };
   } finally { if (fs.exists(index)) fs.unlink(index); }
@@ -119,7 +123,22 @@ export async function sweepFinishedFolders(root, entries, { mainRoot, now, confi
       const dirty = dirtyPaths(path);
       if (dirty.length) {
         const name = found.item ?? basename(path);
-        const kept = keepDiff(path, name);
+        const removeAfter = found.rule === 'claim-ended';
+        const kept = keepDiff(path, name, removeAfter);
+        if (removeAfter) {
+          // The fact naming the kept commit lands before the folder goes; a failed record leaves the folder.
+          await ports.recordSweep?.({ action: 'kept', rule: found.rule, path, item: found.item, ref: kept.ref, commit: kept.commit });
+          // Git's forced removal drops ignored files too, which the keep commit does not hold: those stay.
+          if (maintenanceGit(path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])) { entry.reason = `uncommitted changes kept at ${kept.ref}; ignored data are outside folder sweep custody; worktree kept`; entry.keepRef = kept.ref; continue; }
+          maintenanceGit(root, ['worktree', 'remove', '--force', path]);
+          if (fs.exists(path)) { entry.reason = `uncommitted changes kept at ${kept.ref}; worktree kept (rule ${found.rule})`; entry.keepRef = kept.ref; continue; }
+          entry.action = 'swept';
+          entry.keepRef = kept.ref;
+          entry.reason = `dirty folder removed after its diff was kept at ${kept.ref} (rule ${found.rule})`;
+          report.pruned++;
+          await ports.recordSweep?.({ action: 'removed', rule: found.rule, path, item: found.item, ref: kept.ref });
+          continue;
+        }
         entry.reason = `uncommitted changes kept at ${kept.ref}; worktree kept (rule ${found.rule})`;
         entry.keepRef = kept.ref;
         await ports.recordSweep?.({ action: 'kept', rule: found.rule, path, item: found.item, ref: kept.ref, commit: kept.commit });

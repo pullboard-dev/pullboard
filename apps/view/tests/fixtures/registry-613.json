@@ -1,0 +1,28 @@
+{
+  "view.cockpit-live.refused-shows-link-line": {
+    "proves": {
+      "specs": [
+        "N26"
+      ],
+      "claim": "A local view that refuses its own page stops retrying and shows one plain open-the-link-again line."
+    },
+    "why": "Without it a refused local page retried silently and the person never learned to open the link again.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/logic/cockpit/live.test.js"
+    ]
+  },
+  "view.cockpit-live.hosted-refusal-unchanged": {
+    "proves": {
+      "specs": [
+        "N26"
+      ],
+      "claim": "A hosted page with a local session still goes round again on a refusal and shows no refusal line."
+    },
+    "why": "Without it the new local branch could swallow the hosted page's own recovery.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/logic/cockpit/live.test.js"
+    ]
+  }
+}

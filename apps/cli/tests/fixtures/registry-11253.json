@@ -1,0 +1,28 @@
+{
+  "cli.io-claim.check-ceiling-refuses-over": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with claim.checkCeiling on, claim refuses CHECK_OVER_CEILING for an item whose recorded check measured over the frozen ceiling and leaves it open and unclaimed."
+    },
+    "why": "Without it a check too slow for the landing timeout is claimed, built and only fails at the gate.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/claim.js"
+    ]
+  },
+  "cli.io-claim.check-ceiling-claims-pending-or-off": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with the setting on, a pending or unmeasured baseline is claimed, and with it off or unset an over-ceiling item is claimed as today."
+    },
+    "why": "Without it the new refusal could block items it has no measurement for, or change claims on boards that did not opt in.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/claim.js"
+    ]
+  }
+}

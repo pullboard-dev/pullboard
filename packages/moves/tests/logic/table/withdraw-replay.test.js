@@ -95,3 +95,12 @@ test('moves.withdraw-replay.the-reopen-table-refuses-in-the-order: clause 1: the
   assert.equal(refuse({}, { ...record.snapshot, item: { ...record.snapshot.item, status: 'open' } }).message, `item #${record.move.id} is open, not submitted`);
   assert.equal(REOPEN_NEXT.NOT_SUBMITTED.startsWith('see its state'), true);
 });
+
+test('moves.withdraw-replay.history-before-withdraw-as-met-replays-unchanged: clause 2: a history recorded before WITHDRAW_AS_MET_ENGINE replays unchanged, with no engine stamp or an older one [C7,#12551]', () => {
+  const stamped = records.withdraw.map(record => ({ ...structuredClone(record), snapshot: { ...structuredClone(record.snapshot), engine: 1 } }));
+  for (const set of [records.withdraw, stamped]) {
+    const out = replayTable(WITHDRAW.table, WITHDRAW.rules, set, { cut: HISTORY.since });
+    assert.deepEqual(out.disagreements, []);
+    assert.equal(out.agreed, HISTORY.withdraws.length);
+  }
+});
