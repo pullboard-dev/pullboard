@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
 import {
   historicalPaths,
   historyPathMap,
