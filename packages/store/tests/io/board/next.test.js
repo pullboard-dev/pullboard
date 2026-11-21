@@ -435,7 +435,7 @@ test('store.io-board-next.selection-unchanged: clause 2: on the same fixture nex
   // (plus the unfinished blocker, which the dependency cases need) is still open.
   const alone = (key, name) => {
     const fresh = eligibilityBoard(t);
-    for (const [other, id] of Object.entries(fresh.ids)) if (other !== name && other !== 'blocker') fresh.place(id, { item_status: 'withdrawn' });
+    for (const [other, id] of Object.entries(fresh.ids)) if (other !== name && other !== 'blocker') fresh.place(id, { item_status: 'withdrawn', item_withdrawn_reason: 'Fixture withdrawal.' });
     const answer = nextFor(fresh.board, { agentId: fresh.box.seats[key].id, lane: 'web', omitIds: name === 'blocker' ? [] : [fresh.ids.blocker], observeIdle: true });
     return { answer, ...fresh };
   };
