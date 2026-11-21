@@ -116,7 +116,7 @@ export function liftSettledHolds(board, event, logEvent, setItem) {
   if (board.liftSettledHolds !== true || !['main-moved', 'merged', 'withdraw'].includes(event.event_kind)) return;
   const find = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?');
   const kids = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_parent_id=?');
-  const held = board.db.prepare(`SELECT item_id,item_hold_reason FROM item WHERE item_hold_reason IS NOT NULL AND item_hold_reason NOT LIKE 'Released twice%' AND item_hold_reason NOT LIKE 're-bar:%'`).all();
+  const held = board.db.prepare(`SELECT item_id,item_hold_reason FROM item WHERE item_hold_reason IS NOT NULL AND item_hold_reason NOT LIKE 'Released twice%' AND item_hold_reason NOT LIKE 're-bar:%' AND item_hold_reason NOT LIKE 'Coordinator hold:%'`).all();
   for (const item of held) {
     if (item.item_id === event.item_id) continue;
     const rebar = event.event_kind === 'withdraw' ? rebarHoldReason(item.item_hold_reason, id => settledStatus(find.get(Number(id)))) : null;
