@@ -13,7 +13,7 @@ import { sourceDirectories } from '../../../../../../packages/gate/tests/fixture
 import { packageFiles } from '../../../../../../packages/runners/index.js';
 import { assertSyncFacadeAudit } from '../../../../../../packages/gate/tests/fixtures/functions.js';
 import { assertGitFacadeAudit } from '../../../../../../packages/gate/tests/fixtures/functions.js';
-import { workingSourceInventory } from '../../../../../../packages/gate/src/io/scan.js';
+import { workingSourceInventory } from '../../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { assertCommitShimRefusals } from '../../../fixtures/machine/commits.js';
 import { machineSourceModule } from '../../../fixtures/machine/commits.js';
@@ -25,7 +25,6 @@ import { join } from 'node:path';
 import { posix } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
-import { openBoard } from '../../../../../lib/index.js';
 import { loadConfig } from '../../../../../../packages/config/index.js';
 import { Refused } from '../../../../../../packages/kernel/light.js';
 import { runnerControllerCallees } from '../../../fixtures/runner/machine.js';
