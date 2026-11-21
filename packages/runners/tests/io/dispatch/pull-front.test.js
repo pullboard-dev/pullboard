@@ -4,8 +4,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { ownedTransportCompletion } from '../../../../transport/index.js';
-import * as dispatch from '../../../src/io/dispatch.js';
 import { runnerExecutionServices } from '../../../src/io/health.js';
 
 const read = file => readFileSync(new URL(`../../../src/io/${file}`, import.meta.url), 'utf8');
@@ -20,7 +18,6 @@ test('runners.pull-front.runonrunnerasync-in-pull-delegate-js-has: clause 1: run
 test('runners.pull-front.health-js-imports-neither-runonrunnerasync-nor: clause 2: health.js imports neither runOnRunnerAsync nor ownedTransportCompletion from dispatch.js, and its services still compose [C7]', () => {
   const source = read('health.js');
   assert.doesNotMatch(source, /import \{[^}]*(?:runOnRunnerAsync|ownedTransportCompletion)[^}]*\} from '\.\/dispatch\.js'/u, 'health.js takes neither from dispatch.js');
-  assert.equal(dispatch.ownedTransportCompletion, ownedTransportCompletion, 'the transport completion lives in the transport package and stays reachable from dispatch.js');
   const front = { runOnRunner: () => 'sync', runOnRunnerAsync: () => 'async', probeRunnerHealth: () => 'health' };
   const services = runnerExecutionServices(front);
   assert.equal(services.runOnRunnerAsync, front.runOnRunnerAsync, 'the composition root supplies the async front');

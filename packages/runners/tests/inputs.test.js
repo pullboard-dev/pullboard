@@ -26,7 +26,7 @@ const READERS = {
   'packages/runners/tests/neutral-host.test.js': ['packages/runners/**'],
   'packages/runners/tests/refresh.test.js': ['package.json', 'apps/runner/src/io/scripts/worker.js'],
   'packages/runners/tests/version.test.js': ['package.json', 'apps/cli/pullboard.js', 'packages/store/src/io/board/schema/source.js', 'packages/pages/src/io/relay/presentation.js'],
-  'packages/runners/tests/io/dispatch/bridge-module.test.js': ['packages/runners/src/io/bridge.js', 'packages/runners/src/io/dispatch.js'],
+  'packages/runners/tests/io/dispatch/bridge-module.test.js': ['packages/runners/src/io/bridge.js'],
   'packages/runners/tests/io/dispatch/pull-front.test.js': ['packages/runners/src/io/pull/delegate.js', 'packages/runners/src/io/health.js'],
 };
 

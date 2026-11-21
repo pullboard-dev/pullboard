@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { takeResource } from '../../../../resources/index.js';
 import { recordRunnerFailure } from '../../../../resources/index.js';
-import { runnerUnavailableRefusal } from '../../../src/io/dispatch.js';
+import { runnerUnavailableRefusal } from '../../../src/io/bridge.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 const RUNNERS = [{ host: 'fixture-a', slots: 2, browser: 0 }, { host: 'fixture-b', slots: 2, browser: 0 }];

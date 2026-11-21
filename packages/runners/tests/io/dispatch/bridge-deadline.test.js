@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { bridgeDeadlineMs } from '../../../src/io/run-async.js';
-import { bridgeResult } from '../../../src/io/dispatch.js';
+import { bridgeResult } from '../../../src/io/bridge.js';
 
 const PLAIN_NODE_TEST = 'node --test apps/cli/tests/io/commands/cells/seals.test.js';
 
