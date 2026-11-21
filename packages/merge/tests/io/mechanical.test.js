@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { resolveMechanicalIndex } from '../../index.js';
 import { formatJson } from '../../index.js';
+import { mechanicalConflictFiles } from '../../index.js';
 import { fixture } from '../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../landing/tests/fixtures/plan.js';
 
@@ -31,8 +32,15 @@ function conflictIndex(t, baseSource, leftSource, rightSource) {
   });
   git(root, 'checkout', '-q', 'side0');
   assert.throws(() => git(root, 'merge', '--no-commit', '--no-ff', 'side1'), /status: 1/u);
-  return { root };
+  return { root, base, heads };
 }
+
+test('merge.io-mechanical-replay.version-three-versus-four: clause 1: historical receipts keep version-three same-row behavior while version four reports the shard conflict [C7,H16]', t => {
+  const base = shard([row('same')]);
+  const { root, heads } = conflictIndex(t, base, shard([row('same', 'packages/state/src/left.js')]), shard([row('same', 'packages/state/src/right.js')]));
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 3 }), []);
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 4 }), [FILE]);
+});
 
 test('merge.io-plan-shard-conflicts.disjoint-appends: independent rows compose through the real merge index [C7]', t => {
   const base = shard([row('base')]);
