@@ -16,6 +16,8 @@ import { safeLog } from '../../../../../packages/gate/heavy.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { testLoadRerunEnabled } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { verifyRunnerReceipt } from '../../../../../packages/runners/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
@@ -41,6 +43,17 @@ const POLL_MS = 1_000;
 const BEAT_MS = 30_000;
 // Budget: the most failing cases a receipt names; the rest are in the output it carries.
 const CASES = 100;
+
+/** Verify only against the controller's enrolled runner snapshot and the exact offered job. */
+export function authenticatedPullCompletion(envelope, expected, runners) {
+  try {
+    if (!envelope || envelope.version !== 1 || envelope.job !== expected.job || envelope.nonce !== expected.nonce
+      || envelope.source !== expected.source || envelope.tree !== expected.tree || envelope.outputSha256 !== expected.outputSha256
+      || envelope.status !== expected.status || envelope.signal !== expected.signal) return false;
+    const matches = (runners ?? []).filter(row => row.host === envelope.host && typeof row.publicKey === 'string');
+    return matches.length === 1 && verifyRunnerReceipt(envelope, matches[0].publicKey);
+  } catch { return false; }
+}
 
 /**
  * The test job's entry, written into accepted main's archive by the gate bootstrap: it runs the named files with the
@@ -282,10 +295,11 @@ export async function testJobRow(ctx, { item, commit, main, command, files, runI
   const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
+  const completionNonce = randomBytes(24).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
   const env = testJobEnv(environment);
-  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs, testResults: finishTestResults(runId ?? tag, ledger) }) }, commits: [main] };
+  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: { ...testJobData({ main, commit, command, files, runId, fileBudgetMs, testResults: finishTestResults(runId ?? tag, ledger) }), completionNonce } }, commits: [main] };
   return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}) } };
 }
@@ -333,7 +347,7 @@ async function offerTestJob(ctx, fields, runs, onOffer) {
   const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
   onOffer?.(job.id, runs);
   await startLocalRunner(ctx);
-  return { job: job.id, ref };
+  return { job: job.id, ref, completionNonce: row.request.input.data.completionNonce };
 }
 
 /**
@@ -392,6 +406,9 @@ async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) 
   const noted = say;
   say = line => { if (claimedAt === null && /took test job/u.test(String(line))) claimedAt = new Date().toISOString(); noted?.(line); };
   const runs = testRunsHolder(ctx);
+  let enrolled = [], tree = null;
+  try { enrolled = (loadMachineSettings().runners ?? []).map(({ host, publicKey }) => ({ host, publicKey })); } catch { /* A missing trust snapshot cannot block ordinary execution. */ }
+  try { tree = git(ctx.info.root, ['rev-parse', `${fields.commit}^{tree}`]).trim(); } catch { /* Unavailable identity cannot authenticate a completion. */ }
   const offered = await offerTestJob(ctx, fields, runs, onOffer);
   if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
@@ -405,7 +422,8 @@ async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) 
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, load: gate.load && typeof gate.load === 'object' ? gate.load : null, output: String(output), outputBytes: phase?.bytes ?? null, failures: Array.isArray(phase?.failures) ? phase.failures : null,
+    const authenticated = authenticatedPullCompletion(receipt.signedCompletion, { job: offered.job, nonce: offered.completionNonce, source: fields.commit, tree, outputSha256: receipt.outputSha256, status: receipt.status, signal: receipt.signal }, enrolled);
+    return { job: offered.job, runner, green, authenticated, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, load: gate.load && typeof gate.load === 'object' ? gate.load : null, output: String(output), outputBytes: phase?.bytes ?? null, failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
       times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,

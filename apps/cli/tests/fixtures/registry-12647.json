@@ -1,0 +1,3 @@
+{
+  "cli.io-test-pull.signed-completion": {"proves":{"specs":["C7"],"claim":"a real pulled completion verifies only against its enrolled runner and exact fresh request"},"why":"Unsigned, replayed, tampered or wrongly signed completions must not authenticate.","kind":"journey","inputs":["apps/cli/tests/io/test/pull.test.js"]}
+}
