@@ -143,6 +143,7 @@ const OPTIONS = {
   take: { type: 'string' },
   stuck: { type: 'string' },
   done: { type: 'boolean' },
+  'no-wait': { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },

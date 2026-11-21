@@ -1,0 +1,34 @@
+{
+  "cli.io-commands-next.no-wait-idle-exit-4": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "next --no-wait with nothing for the seat prints the IDLE_TIMEOUT line and exits 4 at once, a held review still refuses REVIEW_HELD, and plain next is unchanged."
+    },
+    "why": "Without it a script or probe that must not wait cannot tell an idle board from a finished one.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/next.js",
+      "apps/cli/src/io/next/steps.js",
+      "apps/cli/src/io/next/say.js",
+      "apps/cli/src/io/cli-main/options.js"
+    ]
+  },
+  "cli.io-commands-next.no-wait-finished-exit-3": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "next --no-wait returns the board-finished line with exit 3 only when every item in the seat lane is verified and at least one was filed."
+    },
+    "why": "Without it a seat cannot learn that its lane is done and keeps asking, or stops while work remains.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/next.js",
+      "apps/cli/src/io/next/steps.js",
+      "apps/cli/src/io/next/say.js",
+      "apps/cli/src/io/cli-main/options.js"
+    ]
+  }
+}

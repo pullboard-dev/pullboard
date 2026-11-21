@@ -22,6 +22,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'done --wait': 'waits for the queued submission to pass the gate before returning',
   'submit --wait': 'waits for the queued submission to pass the gate before returning',
   'edit --wait': 'waits for a new check to run on main; otherwise it runs in the background',
+  'next --no-wait': 'answers at once when nothing is free: the idle line with exit 4, or the board-finished line with exit 3',
   'next --wait': 'waits up to this many minutes for work',
   'run --wait': ['--wait <minutes>', 'waits up to this many minutes for routed work'],
   'test --wait': 'blocks until a queued run finishes',
