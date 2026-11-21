@@ -75,9 +75,9 @@ async function serveLocal(io) {
   }
 }
 
-/** Stop this machine's local runner and wait until it has handed back its job and exited; the next pull submit starts it again. */
+/** Stop this home's local runner (its state file is keyed to PULLBOARD_HOME) and wait until it has handed back its job and exited; the next pull submit starts it again. */
 async function stopLocal(io) {
-  const state = localRunnerState(localRunnerFolder());
+  const state = localRunnerState(localRunnerFolder(), Date.now(), localRunnerHome());
   if (!state) { io.result?.({ stopped: false, running: false }); io.say('no local runner runs on this machine'); return 0; }
   try { process.kill(state.pid, 'SIGTERM'); } catch { /* it exited on its own */ }
   const until = Date.now() + STOP_WAIT_MS;
