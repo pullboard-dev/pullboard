@@ -42,7 +42,7 @@ function twoBranches(t, files) {
   return { root, heads };
 }
 
-test('verify.review.retry-manifests.compose: both authoritative manifest schemas compose with stable bytes and each original row in either branch order [C7]', t => {
+test('verify.review.retry-manifests.compose: clause 1: both authoritative manifest schemas compose with stable bytes and each original row in either branch order [C7]', t => {
   const files = {
     [INDEX]: [index([cell('base', 1)]), index([cell('base', 1), cell('alpha', 2)]), index([cell('base', 1), cell('beta', 3)])],
     [TIERS]: [tiers([tier('base.test.js')]), tiers([tier('base.test.js'), tier('alpha.test.js')]), tiers([tier('base.test.js'), tier('beta.test.js')])],
@@ -61,7 +61,7 @@ test('verify.review.retry-manifests.compose: both authoritative manifest schemas
   assert.equal(composedTiers.version, 1, 'the test tiers keep their original top-level schema');
 });
 
-test('verify.review.retry-manifests.shared-row: competing edits to a shared index or test tier row refuse and name that row in either branch order [C7]', t => {
+test('verify.review.retry-manifests.shared-row: clause 1: competing edits to a shared index or test tier row refuse and name that row in either branch order [C7]', t => {
   for (const [path, base, left, right, identity] of [
     [INDEX, index([cell('shared', 1)]), index([{ ...cell('shared', 1), file: 'packages/left/index.js' }]), index([{ ...cell('shared', 1), file: 'packages/right/index.js' }]), 'cells:shared'],
     [TIERS, tiers([tier('shared.test.js')]), tiers([{ ...tier('shared.test.js'), tier: 'T2' }]), tiers([{ ...tier('shared.test.js'), tier: 'T3' }]), 'files:shared.test.js'],
