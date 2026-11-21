@@ -51,6 +51,7 @@ import { tableReplayEnabled } from '../../../../../packages/config/index.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
 import { ensureLocalRunner } from '../runner/local.js';
+import { wakeRunnerForOffer } from '../runner/local.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { exitLines } from '../../logic/runner/output.js';
 import { specFailureFiles } from '../../logic/runner/output.js';
@@ -696,6 +697,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     return offered;
   });
   mark('pins-and-offer');
+  // The wake goes out as the offer commits, not after the checkpoint, fact and activity writes below: on a loaded host those take longer than the runner's 2 s idle nap, and the claim then comes from its timer, not the wake [C7,#12694].
+  if (!gateRunnerAdmission().runnerOnly && primaryCheckoutRoot(ctx.info)) wakeRunnerForOffer();
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].
   await withBoard(ctx, board => checkpointAfterMove(ctx, board, { agent: me.id, item: id, operation: 'submit' }, { ordered, worker: usageCheckpointWorkerEntrypoint() }));
