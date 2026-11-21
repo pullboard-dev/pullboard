@@ -11,7 +11,6 @@
     "packages/commits/src/io/hooks.js": 2,
     "packages/config/src/io/main.js": 2,
     "packages/gate/src/io/journal/source.js": 1,
-    "packages/gate/src/io/run-tests.js": 11,
     "packages/git/src/io/trunk/guard.js": 1,
     "packages/resources/src/io/home.js": 1,
     "packages/seats/src/io/agent/events.js": 1,
