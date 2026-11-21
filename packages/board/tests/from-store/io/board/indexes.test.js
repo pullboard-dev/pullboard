@@ -1,28 +1,27 @@
-/** @pullboard-test-input source-cell store */
 /** The claimed-by-owner index reaches every board on its next open without a shape-drift line: it is additive, never in SCHEMA [C7,#10876,#11000]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { closeBoard } from '../../../index.js';
-import { register } from '../../../index.js';
-import { openBoardForRead } from '../../../index.js';
-import { boardStanding } from '../../../index.js';
-import { recordSchemaStamp } from '../../../index.js';
-import { schemaDigest } from '../../../index.js';
-import { SCHEMA } from '../../../index.js';
-import { SCHEMA_DIGEST } from '../../../index.js';
-import { SCHEMA_VERSION } from '../../../index.js';
-import { EVENT_LOG_VERSION } from '../../../index.js';
-import { addItem } from '../../../index.js';
-import { getItem } from '../../../index.js';
-import { reserveItem } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
-import { openKitBoard } from '../../fixtures/cell.js';
-import { temporaryDirectory } from '../../fixtures/tmp.js';
+import { closeBoard } from '../../../../../store/index.js';
+import { register } from '../../../../../store/index.js';
+import { openBoardForRead } from '../../../../../store/index.js';
+import { boardStanding } from '../../../../../store/index.js';
+import { recordSchemaStamp } from '../../../../../store/index.js';
+import { schemaDigest } from '../../../../../store/index.js';
+import { SCHEMA } from '../../../../../store/index.js';
+import { SCHEMA_DIGEST } from '../../../../../store/index.js';
+import { SCHEMA_VERSION } from '../../../../../store/index.js';
+import { EVENT_LOG_VERSION } from '../../../../../store/index.js';
+import { addItem } from '../../../../../store/index.js';
+import { getItem } from '../../../../../store/index.js';
+import { reserveItem } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
+import { openKitBoard } from '../../../fixtures/cell-board.js';
+import { temporaryDirectory } from '../../../../../store/tests/fixtures/tmp.js';
 
 /** The exit guard's claimed-by-owner query exactly as requireExitActive runs it. */
 const OWNER_LOOKUP = "SELECT item_id FROM item WHERE item_status = 'claimed' AND item_owner = ?";
