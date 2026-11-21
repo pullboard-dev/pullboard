@@ -9,7 +9,11 @@ import { test } from 'node:test';
 import { ledgerHits } from '../../../../../packages/store/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
+import { fixtureBoard } from '../../../../../packages/board/tests/fixtures/board.js';
+import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
+import { pullTestWanted } from '../../../src/io/test/pull.js';
+import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
@@ -86,6 +90,37 @@ test('cli.io-test-pull.leaves-other-variables-out: clause 2: testJobRow leaves P
   for (const name of ['PATH', 'HOME', 'NODE_OPTIONS', 'PULLBOARD_FIXTUREX', 'MY_FIXTURE_A']) assert.equal(name in row.request.env, false, name);
   const bare = await rowFor(t, { PATH: '/usr/bin' });
   assert.equal('env' in bare.request, false, 'a shell with no fixture variable adds no env map');
+});
+
+test('cli.io-test-pull.runner-dispatch-keeps-affected-diagnose-and-focused-runs-on-runners: clause 1: pullTestWanted selects pull dispatch for --affected, focused --diagnose and ordinary focused runs [C7,P7]', () => {
+  assert.equal(pullTestWanted(1, { affected: true }), true);
+  assert.equal(pullTestWanted(1, { diagnose: true }), true);
+  assert.equal(pullTestWanted(1, {}), true);
+});
+
+test('cli.io-test-pull.runner-job-keeps-candidate-item-and-interactive-priority: clause 1: a pulled test job keeps the requested candidate and item with interactive priority [C7,P7]', async t => {
+  const { root, commit } = cellRepo(t, { real: true });
+  const { row } = await testJobRow({ info: { root } }, { item: 12573, commit, main: commit, command: 'true', files: [] });
+  assert.equal(row.candidate, commit);
+  assert.equal(row.item, 12573);
+  assert.equal(row.priority, 'interactive');
+});
+
+test('cli.io-test-pull.queued-diagnose-reaches-its-worker: clause 1: queueTestRun carries --diagnose through the worker command and records the focused diagnosis flag [C7,P7]', async t => {
+  const board = fixtureBoard(t);
+  const { root } = cellRepo(t, { real: true });
+  const launched = [];
+  queueTestRun({ info: { commonDir: join(root, '.git'), root } }, work => work(board),
+    { agent: 'seat', files: ['apps/cli/tests/io/test/pull.test.js'], diagnose: true },
+    { bin: '/pullboard.js', launch: (_node, args) => { launched.push(args); return { unref() {} }; } });
+  assert.ok(launched[0].includes('--diagnose'), JSON.stringify(launched[0]));
+  const queued = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'queued'").get();
+  assert.equal(JSON.parse(queued.payload).diagnose, true);
+});
+
+test('cli.io-test-pull.diagnose-labels-clipped-receipt-output: clause 1: pulled diagnose preserves red output and reports when the receipt clipped it [C7,P7]', () => {
+  assert.equal(pulledDiagnosisOutput('failure: details\n', 17), 'failure: details\n');
+  assert.equal(pulledDiagnosisOutput('tail\n', 50), '[runner output clipped: showing the last 5 of 50 bytes]\ntail\n');
 });
 
 const KEY_A = 'a'.repeat(64), KEY_B = 'b'.repeat(64), CONTEXT = 'c'.repeat(64);
