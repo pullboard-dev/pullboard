@@ -8,7 +8,6 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { runFixtureGit } from '../child.js';
 import { from } from './kit.js';
@@ -21,13 +20,15 @@ import { renewLease } from '../../../../jobs/index.js';
 import { takeJob } from '../../../../jobs/index.js';
 import { writeStep } from '../../../../jobs/index.js';
 
+const { cellBoard } = await from('packages/board/tests/fixtures/cell-board.js');
+
 // The offer pass is the board API's own; it is not on the api front door, so the harness loads it by path like the other pipeline harnesses.
 const { offerMainTests } = await from('packages/api/src/io/recheck.js');
 const COMMAND = 'node --test --test-reporter=tap';
 
 /** A one-commit trunk, its commit and its tree id. */
 function trunk(t) {
-  const { root, commit } = cellRepo(t);
+  const { root, commit } = cellRepo(t, { real: true });
   return { root, commit, tree: runFixtureGit(['rev-parse', 'HEAD^{tree}'], { cwd: root }) };
 }
 
@@ -40,7 +41,7 @@ function queue(db, id, tree, now) {
 test('a queued main-test job is offered at its main commit, or ended unoffered with why: none is left queued [C7,P7]', async t => {
   await hopCheck('main-test-offered', async () => {
     const main = trunk(t);
-    const board = cellBoard(t, ':memory:', undefined, { gitRoot: main.root });
+    const board = cellBoard(t, ':memory:', undefined, { gitRoot: main.root, real: true });
     const gone = 'f'.repeat(40);
     queue(board.db, 'main-test:on-trunk', main.tree, 1000);
     queue(board.db, 'main-test:off-trunk', gone, 1000);
