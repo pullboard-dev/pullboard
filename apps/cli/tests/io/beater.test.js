@@ -135,3 +135,18 @@ test('cli.io-beater.board-call-snapshots-claimed-folder: clause 2: a board call 
   assert.deepEqual(bare, [], 'a seat with no claim snapshots nothing');
   assert.equal(git('rev-parse', '--verify', '-q', 'HEAD').length > 0, true, 'the folder is a real repository');
 });
+
+test('cli.io-beater.board-call-cost-measured: measurement: a board call adds under 20 ms when no snapshot is due, and the real snapshot cost is printed [C7,#12568]', async (t) => {
+  const { folder } = claimedFolder(t);
+  const { snapshotOnBoardCall } = await import('../../src/io/beater.js');
+  const wip = { seatOf: () => ({ seat: 'core-1', board: '/nowhere/board.sqlite' }), now: () => 9_000_000, claimed: async () => [{ item: 12597, folder }] };
+  const real = process.hrtime.bigint();
+  await snapshotOnBoardCall(folder, wip);
+  const snapshotMs = Number(process.hrtime.bigint() - real) / 1e6;
+  const idle = process.hrtime.bigint();
+  await snapshotOnBoardCall(folder, wip);
+  const idleMs = Number(process.hrtime.bigint() - idle) / 1e6;
+  console.log(`BOARD-CALL-COST no-snapshot-due ${idleMs.toFixed(1)} ms; real-snapshot ${snapshotMs.toFixed(1)} ms`);
+  assert.ok(idleMs < 20, `no snapshot due added ${idleMs.toFixed(1)} ms`);
+  // The real snapshot cost is printed, not asserted: #12746 owns taking it off the command path.
+});

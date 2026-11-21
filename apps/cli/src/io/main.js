@@ -12,6 +12,13 @@ export { asksVersion } from './cli-main/options.js';
  */
 export async function main(argv, streams) {
   try { return await (await import('./cli-main/run.js')).main(argv, streams); }
-  // A board call by the claiming seat snapshots its claimed item folder, once a minute per item; never a failure of the command [C7,#12568].
-  finally { if (streams?.wip || globalThis[Symbol.for('pullboard.boardCall')]) await (await import('./beater.js')).snapshotOnBoardCall(streams?.cwd ?? process.cwd(), streams?.wip); }
+  finally { await snapshotAfterBoardCall(streams); }
+}
+
+/** A board call by the claiming seat snapshots its claimed item folder, once a minute per item; nothing in here can fail the command [C7,#12568]. */
+async function snapshotAfterBoardCall(streams) {
+  try {
+    if (!streams?.wip && !globalThis[Symbol.for('pullboard.boardCall')]) return;
+    await (await import('./beater.js')).snapshotOnBoardCall(streams?.cwd ?? process.cwd(), streams?.wip);
+  } catch { /* a snapshot never fails a command */ }
 }
