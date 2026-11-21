@@ -10,7 +10,7 @@ import { projectState } from '../../../src/io/serve.js';
 import { readLiveRunners } from '../../../src/io/live/read.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 

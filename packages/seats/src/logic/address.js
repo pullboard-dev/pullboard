@@ -1,5 +1,5 @@
 /** A stable seat address identifies a board and recipient; it never grants permission to that board [H2,H16]. */
-import { Refused } from '../../../kernel/light.js';
+import { Refused } from '../../../kernel/browser.js';
 
 /** Encode the persistent board identity and seat id, independently of a checkout path or machine. */
 export function seatAddress(boardId, agentId) {

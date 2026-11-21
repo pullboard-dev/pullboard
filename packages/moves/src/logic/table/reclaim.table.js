@@ -90,10 +90,16 @@ function reviewProblem(s, m) {
   return null;
 }
 
+/** One line naming where a released claim's work was saved: its keep branch and dirty ref, or why nothing was saved [C7,#12116]. */
+function keptText(kept) {
+  if (!kept.branch) return `no work could be kept: ${kept.unsaved ?? 'unknown'}`;
+  return `work kept on ${kept.branch}${kept.dirtyRef ? ` and ${kept.dirtyRef}` : ''}`;
+}
+
 /** The release reason for each idle kind, exactly as the board words it. */
 function idleReason(r) {
   if (r.idle === 'dependency') return `Stale dependency: no commit, test run or fact since ${r.workActivity}, past health.dependencyIdle; ${handoffText(r.handoff)}.`;
-  if (r.idle === 'seat-gone') return `Seat ${r.actor} has no heartbeat for two minutes or its worktree is gone; claim returned to the queue.`;
+  if (r.idle === 'seat-gone') return `Seat ${r.actor} has no heartbeat for two minutes or its worktree is gone; claim returned to the queue${r.kept ? `; ${keptText(r.kept)}` : ''}.`;
   if (r.idle === 'progress') return `Returned after ${r.progress.trigger}; holder ${r.actor}'s notes: ${r.progress.notes.join(', ') || 'none recorded'} (pullboard show ${r.id} --detail); ${handoffText(r.handoff)}.`;
   if (r.idle === 'waiting') return `Waiting on ${r.waitingOn.map(id => `#${id}`).join(', ')}, which has not landed; the item returns to the queue when it lands.`;
   return `Idle ${Math.floor(r.idleMs / 60_000)} minutes: no commit, file change, running check or item move since ${r.workActivity}; ${handoffText(r.handoff)}.`;
@@ -158,7 +164,7 @@ export const RECLAIM_TABLE = Object.freeze({
             ...(r.idle === 'progress' ? { reopenFirstRefusal: { builder: r.actor, otherSeatFirst: true, until: new Date(Date.parse(m.observedAt) + 7_200_000).toISOString() } } : {}),
             reasonCode: m.boardCodes ? idleCode(r.idle) : r.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
             idleClaim: { holder: r.actor, kind: r.idle, lastActivity: r.workActivity ?? null, observedAt: m.observedAt, claimEventId: r.claimEventId,
-              ...(r.idle === 'waiting' ? { waitingOn: r.waitingOn } : { handoff: r.handoff }) } } },
+              ...(r.idle === 'waiting' ? { waitingOn: r.waitingOn } : r.idle === 'seat-gone' ? (r.kept ? { kept: r.kept } : {}) : { handoff: r.handoff }) } } },
         ];
       } },
     { id: 'expire-lapsed-claim', when: 'lapsedClaim', patch: free,
