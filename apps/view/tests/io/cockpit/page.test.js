@@ -89,9 +89,11 @@ test('view.item.timeline-strip-empty: clause 4: an item that exists with no even
   const project = cellProject(t, { real: true, gate: 'true' });
   const clock = { now: () => new Date(Date.parse('2026-11-20T10:00:00Z')) };
   const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
-  const bare = cellItem(board, { lane: 'view', title: 'Item with no events', route: 'mid', criterion: '1. It draws [test].', brief: 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n', check: 'true' }).item_id;
   const logged = cellItem(board, { lane: 'view', title: 'Item with events', route: 'mid', criterion: '1. It draws [test].', brief: 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n', check: 'true' }).item_id;
-  board.db.prepare('DELETE FROM event WHERE item_id = ?').run(bare);
+  // The event log is append-only, so the bare item is a copy of a logged item's row filed under a new id, with no event of its own.
+  const row = board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(logged), columns = Object.keys(row);
+  const bare = logged + 500;
+  board.db.prepare(`INSERT INTO item (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`).run(...columns.map(column => column === 'item_id' ? bare : row[column]));
   const runCommand = async () => 1; // the command refuses for all three items
   const secret = ['strip', 'empty', 'key', '0123456789'].join('-');
   const unused = () => { throw new Error('not used by the timeline route'); };
