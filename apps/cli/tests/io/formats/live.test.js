@@ -1,5 +1,6 @@
 /** @pullboard-test-input docs/formats.md docs/formats/spec.md */
 /** The live-behavior case of the format guide: its schema, versions, event kinds and event detail fields match what the code does, in its own file so each file fits the per-file budget [A5,A10]. */
+import { apiBoardOpeners } from '../../fixtures/board.js';
 import { recordRelayExclusionIntent } from '../../../../../packages/link/index.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -17,9 +18,6 @@ import { reviewDefaultEventContract } from '../../../../../apps/lib/tests/fixtur
 import { pipelineEventContract } from '../../../../../apps/lib/tests/fixtures/generated/doc/pipeline.js';
 import { mainMovedFixture } from '../../fixtures/main/moved.js';
 import { sourceAdvanceEventContract } from '../../../../../packages/runners/tests/fixtures/advance.js';
-import { recordFlakeObservation } from '../../../../../apps/lib/index.js';
-import { openBoard } from '../../../../../apps/lib/index.js';
-import { draftSpecRow } from '../../../../../apps/lib/index.js';
 import { board_recordNextIdle as recordNextIdle } from '../../../../../packages/store/index.js';
 import { addMilestone } from '../../../../../packages/store/index.js';
 import { editMilestoneItems } from '../../../../../packages/store/index.js';
@@ -78,8 +76,9 @@ import { withdraw } from '../../../../../packages/store/index.js';
 import { SPEC_GRAMMAR_VERSION } from '../../../../../packages/spec/index.js';
 import { sha256 } from '../../../../../packages/spec/index.js';
 import { recordSigningEvents } from '../../../../../apps/cli/tests/fixtures/person/passkey.js';
-import { block } from '../../../../lib/tests/fixtures/formats-guide.js';
-import { documentedEvents } from '../../../../lib/tests/fixtures/formats-guide.js';
+import { block } from '../../fixtures/formats-guide.js';
+import { documentedEvents } from '../../fixtures/formats-guide.js';
+const { recordFlakeObservation, openBoard, draftSpecRow } = apiBoardOpeners;
 
 /** Parse table, column, type and rules from the documented live schema. */
 function documentedColumns(start, end) {
