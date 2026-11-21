@@ -6,6 +6,11 @@ import {
   frozenCriterion,
   parseSpec,
 } from '../../index.js';
+import { answerFromText } from '../../light.js';
+import { answerQuestion } from '../../light.js';
+import { CHOICES } from '../../light.js';
+import { MOST_CHOICE_PARTS } from '../../light.js';
+import { positions } from '../../light.js';
 
 const ITEM = { item_title: 'Load twice', item_criterion: 'second load adds nothing', item_spec_ids: 'G1' };
 const specWith = stakes => parseSpec(`# Spec
@@ -34,4 +39,18 @@ test('spec.io-main.team-rows-freeze-unchanged: clause 2: a row at team, written 
     assert.equal(frozen.text, before, `a team row${stakes ? ' written out' : ' by default'} freezes to the same text`);
     assert.equal(frozen.digest, digest);
   }
+});
+
+test('spec.io-main.show-question-boundary: clause 1: answerQuestion and its pure helpers remain available through light with validation and refusal words unchanged [C7]', () => {
+  const pending = 'Which color: blue. Choices: Blue, Green.';
+  assert.equal(CHOICES, '. Choices: ');
+  assert.equal(MOST_CHOICE_PARTS, 12);
+  assert.deepEqual(positions('a:b:c', ':'), [1, 3]);
+  assert.deepEqual(answerQuestion(pending, 'bLuE', 'Q1'), {
+    text: 'Which color: Blue. Choices: Blue, Green.', answer: 'Blue', listed: true,
+  });
+  assert.equal(answerFromText(pending, 'Which color: Blue. Choices: Blue, Green.'), 'Blue');
+  assert.equal(answerFromText(pending, 'Which color: Purple. Choices: Blue, Green, Purple.'), 'Purple');
+  assert.throws(() => answerQuestion('not a question', 'Blue', 'Q1'), error => error.code === 'SPEC_ANSWER' && error.message.startsWith('[SPEC_ANSWER]'));
+  assert.throws(() => answerQuestion(`Q: A. Choices: ${Array.from({ length: 13 }, (_, index) => `C${index}`).join(', ')}.`, 'A', 'Q1'), error => error.code === 'SPEC_ANSWER_CHOICES' && error.message.startsWith('[SPEC_ANSWER_CHOICES]'));
 });
