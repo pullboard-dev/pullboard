@@ -38,7 +38,7 @@ test('moves.reasons.reasons-beyond-5-lines-fold-into: reasons beyond 5 lines fol
 });
 
 test('moves.reasons.own-waiting-lines-in-flight-read: clause 1: ownWaitingLines names a submitted item and a claim in its gate as the whole open list gives, and sends the board no open-items list query [C7,#5329]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const me = box.seats.actor;
   const reviewed = box.add('Submitted and waiting for a reviewer');
   const gated = box.add('Claimed and waiting on its gate');

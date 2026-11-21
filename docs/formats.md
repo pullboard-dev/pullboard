@@ -321,6 +321,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout` | `shout_evidence_commit` | `TEXT` | `nullable` |
 | `shout` | `shout_request` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
 | `shout` | `shout_request_outcome` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
+| `shout` | `shout_answered_at` | `TEXT` | `nullable` |
 | `test_result` | `test_result_id` | `INTEGER` | `PRIMARY KEY` |
 | `test_result` | `test_result_file` | `TEXT` | `NOT NULL`; `UNIQUE` |
 | `test_result` | `test_result_input_key` | `TEXT` | `NOT NULL` |
@@ -355,6 +356,8 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_archive_fact_unknown_v2` | `event_archive` | `event_id` | no |
 | `event_archive_item_id_event_id` | `event_archive` | `item_id`, `event_id` | no |
 | `event_by_at` | `event` | `event_by`, `event_at` | no |
+| `event_by_id` | `event` | `event_by`, `event_id` | no |
+| `event_by_kind_id` | `event` | `event_by`, `event_kind`, `event_id` | no |
 | `event_fact_identity_v2` | `event` | `(expression)`, `event_id` | no |
 | `event_fact_malformed_v2` | `event` | `event_id` | no |
 | `event_fact_unknown_v2` | `event` | `event_id` | no |
@@ -362,6 +365,8 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
 | `item_owner_status` | `item` | `item_owner`, `item_status` | no |
+| `item_status_id` | `item` | `item_status`, `item_id` | no |
+| `item_verified_unmerged` | `item` | `item_id` | no |
 | `job_kind_created` | `job` | `job_kind`, `job_created` | no |
 | `job_kind_item` | `job` | `job_kind`, `job_item` | no |
 | `job_lease_live` | `job` | `job_lease_until` | no |
@@ -374,6 +379,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
+| `shout_open_coordinator_callout` | `shout` | `shout_id` | no |
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
 | `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
