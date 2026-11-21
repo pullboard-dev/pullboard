@@ -18,7 +18,7 @@ const FROM = '2026-11-01T00:00:00.000Z', TO = '2026-11-01T04:00:00.000Z';
 /** Commit one more legacy module so the repo lint inventory has a new finding. */
 function addLegacy(root, name) {
   mkdirSync(join(root, 'src'), { recursive: true });
-  writeFileSync(join(root, 'src', name), 'export const value = 1;\n');
+  writeFileSync(join(root, `src/${name}`), 'export const value = 1;\n');
   git(root, 'add', `src/${name}`);
   git(root, 'commit', '-q', '-m', `add ${name}`);
 }
