@@ -1,7 +1,8 @@
 /** The cells move plan: one move item per cell, leaf-first, from the dry run's path map [D3,CD60,CD64]. */
 import { posix } from 'node:path';
 import { Refused } from '../../../../kernel/index.js';
-import { cellOf, testFile } from '../cell/lint/inventory.js';
+import { cellOf } from '../cell/lint/inventory.js';
+import { testFile } from '../cell/lint/inventory.js';
 
 /** Compute a leaf-first verification order without changing the historical move plan. */
 export function verificationOrder(plan, edges) {

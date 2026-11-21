@@ -79,8 +79,7 @@ test('codemap.plan-load-hold.verification-order: clause 1: live owned imports an
   assert.deepEqual(verificationOrder(plan, edges), ['gamma', 'beta', 'alpha']);
   assert.deepEqual(verificationOrder(plan, new Map([...edges].reverse())), ['gamma', 'beta', 'alpha']);
   assert.equal(JSON.stringify(plan), before, 'history and declared cuts remain untouched');
-  const { readPlan, cellInventory } = await import('../../../index.js');
-  const { importsIn, commonJsIn } = await import('../../../../gate/heavy.js');
+  const { readPlan, cellInventory, importsIn, commonJsIn } = await import('../../../index.js');
   const root = fileURLToPath(new URL('../../../../..', import.meta.url));
   const live = readPlan(root), liveBefore = JSON.stringify(live);
   const { edges: currentEdges } = cellInventory(root, { importsIn, commonJsIn });
