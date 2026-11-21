@@ -31,3 +31,30 @@ export function heldChip(note) {
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
   return '<span class="chip gate held" title="' + escape(note) + '">held</span>';
 }
+
+/**
+ * Why an item waits on a person's judgement: the reason it stopped, its attempts, and the refusal text when it has one.
+ * Null for an item the list does not name, and when the board carries no list (the list exists only while the
+ * return-first flag is on).
+ *
+ * @param {object} item - An item summary from the board state.
+ * @param {{needsJudgement?: {id: number, reason: string, refusalText?: string, attempts?: number}[]}} source - The board.
+ * @returns {string|null}
+ */
+export function judgementNote(item, source) {
+  const row = Array.isArray(source?.needsJudgement) && item ? source.needsJudgement.find(entry => entry.id === item.id) : null;
+  if (!row) return null;
+  const attempts = Number.isInteger(row.attempts) ? row.attempts : 0;
+  return 'needs a judgement: ' + row.reason + ', ' + attempts + ' attempts' + (row.refusalText ? ' (' + row.refusalText + ')' : '');
+}
+
+/**
+ * The needs-judgement chip a roadmap row shows, its note on hover.
+ *
+ * @param {string} note - What judgementNote returned.
+ * @returns {string}
+ */
+export function judgementChip(note) {
+  const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  return '<span class="chip warn judgement" title="' + escape(note) + '">judgement</span>';
+}
