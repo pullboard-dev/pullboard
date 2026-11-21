@@ -4,6 +4,8 @@ import { timelineOf } from '../logic/timeline.js';
 
 /** The job kinds the reader asks for, as the job_kind_item index key. */
 const JOB_KINDS = Object.keys(TIMELINE_JOB_KINDS);
+/** The single indexed read shared by an item or fleet timeline call. */
+export const GATE_QUEUE_SQL = 'SELECT event_id AS id, event_at AS at, event_detail AS detail FROM event WHERE event_kind = ? AND event_id BETWEEN ? AND ? ORDER BY event_id';
 
 /**
  * The rows of one item's timeline, folded by timelineOf.
@@ -21,7 +23,20 @@ export function readItemTimeline(board, id, { now } = {}) {
   const jobs = db.prepare(`SELECT job_id AS id, job_kind AS kind, job_created AS created FROM job WHERE job_kind IN (${JOB_KINDS.map(() => '?').join(', ')}) AND job_item = ? ORDER BY job_created, job_id`).all(...JOB_KINDS, id);
   const stepsOf = db.prepare('SELECT job_step_job AS job, job_step_name AS name, job_step_at AS at, job_step_payload AS payload FROM job_step WHERE job_step_job = ? ORDER BY job_step_at, job_step_id');
   const steps = jobs.flatMap(job => stepsOf.all(job.id));
-  return timelineOf({ item: id, events, jobs, steps, ...(now === undefined ? {} : { now }) });
+  const gateQueue = readGateQueueRows(db);
+  return timelineOf({ item: id, events, jobs, steps, gateQueue, ...(now === undefined ? {} : { now }) });
+}
+
+/** Read gate-queue snapshots through event_kind_id; the fold keeps only rows inside each item's queued stretch. */
+function readGateQueueRows(db) {
+  const latest = db.prepare('SELECT event_id AS high FROM event ORDER BY event_id DESC LIMIT 1').get();
+  if (!latest) return [];
+  return db.prepare(GATE_QUEUE_SQL)
+    .all('gate-queue', 0, latest.high).map(row => {
+      let detail = {};
+      try { detail = JSON.parse(row.detail) ?? {}; } catch { /* damaged advisory data is ignored */ }
+      return { id: row.id, at: Date.parse(row.at), detail };
+    });
 }
 
 /** The first event row at or after an event id, or undefined past the end. */
@@ -65,6 +80,16 @@ export function readFleetTimelines(board, { since, now }) {
       }
     }
   }
-  const timelines = [...touched].sort((a, b) => a - b).map(id => ({ item: id, ...readItemTimeline(db, id, now === undefined ? {} : { now }) }));
+  const gateQueue = readGateQueueRows(db);
+  const timelines = [...touched].sort((a, b) => a - b).map(id => ({ item: id, ...readItemTimelineWithQueue(db, id, gateQueue, now) }));
   return { since, timelines, fleetRows };
+}
+
+/** Read one item's indexed sources while reusing the fleet call's one shared snapshot query. */
+function readItemTimelineWithQueue(db, id, gateQueue, now) {
+  const events = db.prepare('SELECT event_id AS id, event_at AS at, event_by AS by, event_kind AS kind, item_id AS item, event_detail AS detail FROM event WHERE item_id = ? ORDER BY event_id').all(id);
+  const jobs = db.prepare(`SELECT job_id AS id, job_kind AS kind, job_created AS created FROM job WHERE job_kind IN (${JOB_KINDS.map(() => '?').join(', ')}) AND job_item = ? ORDER BY job_created, job_id`).all(...JOB_KINDS, id);
+  const stepsOf = db.prepare('SELECT job_step_job AS job, job_step_name AS name, job_step_at AS at, job_step_payload AS payload FROM job_step WHERE job_step_job = ? ORDER BY job_step_at, job_step_id');
+  const steps = jobs.flatMap(job => stepsOf.all(job.id));
+  return timelineOf({ item: id, events, jobs, steps, gateQueue, ...(now === undefined ? {} : { now }) });
 }
