@@ -49,10 +49,15 @@ test('cli.io-worktree.primary-root-from-files: clause 1: a linked worktree of an
 });
 
 test('cli.io-worktree.primary-root-falls-back-to-git: clause 2: a repository with a separate shared Git directory resolves its primary checkout through Git [C7,#12582]', () => {
-  const box = fixture({ separateGitDir: true });
-  const found = primaryCheckoutRoot(info(box.repo, box.env));
-  assert.equal(found, box.repo);
-  assert.notEqual(info(box.repo, box.env).commonDir.split('/').at(-1), '.git');
+  const box = fixture();
+  const separate = join(box.dir, 'shared.git');
+  const clone = join(box.dir, 'separate-clone');
+  box.git(box.dir, 'clone', '-q', `--separate-git-dir=${separate}`, box.repo, clone);
+  const calls = [];
+  const found = withGitContractAdapter(observingGit(calls), () => primaryCheckoutRoot(info(clone, box.env)));
+  assert.equal(found, clone);
+  assert.notEqual(info(clone, box.env).commonDir.split('/').at(-1), '.git');
+  assert.ok(calls.length > 0, 'non-.git common dir kept the Git fallback');
 });
 
 test('cli.io-worktree.primary-root-cost-flat: clause 3: lookup median stays below 5 ms and at most twice as high with 40 linked worktrees [C7,#12582]', () => {
