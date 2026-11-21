@@ -1,0 +1,80 @@
+{
+  "cli.contribution-redteam.sandbox-escape-words-are-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A check path or command that leaves the repository or reaches a shell is refused by its words."
+    },
+    "why": "Without it, the red-team finding it covers could return and the contribution gate would trust contributor text it should refuse.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/contribution-redteam.test.js"
+    ]
+  },
+  "cli.contribution-redteam.test-overlay-binds-only-test-folders": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Only test-folder paths are overlaid on base, and a test that passes, errors or does not load on base source proves no clause."
+    },
+    "why": "Without it, the red-team finding it covers could return and the contribution gate would trust contributor text it should refuse.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/contribution-redteam.test.js"
+    ]
+  },
+  "cli.contribution-redteam.workflows-never-use-pull-request-target": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "No workflow uses pull_request_target, only the checkout-free post job uses workflow_run, and the contribution gate is read-only with a base-only checkout and no secret."
+    },
+    "why": "Without it, the red-team finding it covers could return and the contribution gate would trust contributor text it should refuse.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/contribution-redteam.test.js"
+    ]
+  },
+  "cli.contribution-redteam.record-text-never-steers-a-reader": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Comments, YAML tricks and bidirectional text in a record never reach a field."
+    },
+    "why": "Without it, the red-team finding it covers could return and the contribution gate would trust contributor text it should refuse.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/contribution-redteam.test.js"
+    ]
+  },
+  "cli.contribution-redteam.invisible-tag-and-control-text-is-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The real contribute check refuses Unicode tag, escape and other control characters in a record as CONTRIB_HIDDEN."
+    },
+    "why": "Without it, the red-team finding it covers could return and the contribution gate would trust contributor text it should refuse.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/contribution-redteam.test.js"
+    ]
+  },
+  "cli.contribution-redteam.url-words-are-not-repository-paths": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A check word that is a URL is refused as a repository path."
+    },
+    "why": "Without it, the red-team finding it covers could return and the contribution gate would trust contributor text it should refuse.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/contribution-redteam.test.js"
+    ]
+  }
+}
