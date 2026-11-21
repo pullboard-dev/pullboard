@@ -75,7 +75,7 @@ test('codemap.io-shim-ratchet.temporary-edge-is-bounded: exact criterion edge an
   assert.equal(stagedShimImportProblems({ paths: [importer], read: wrongCriterion.read, parseImports: parser,
     criterion: `${importer} -> ${frontDoor}` }).length, 1);
   const expired = reader(files({ ':index:packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [
-    { importer, target: shim, contractItem: 12797, expires: '2026-11-20' },
+    { importer, target: shim, contractItem: 12797, expires: '2000-01-01' },
   ] }) }));
   assert.equal(stagedShimImportProblems({ paths: [importer], read: expired.read, parseImports: parser, criterion }).length, 1);
 });
