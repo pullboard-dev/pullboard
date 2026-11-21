@@ -20,6 +20,8 @@ import {
 import {
   headCommit,
 } from '../../../git/index.js';
+import { mainCheckout } from '../../../git/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 import {
   trunkMerge,
 } from './trusted/policy.js';
@@ -102,6 +104,56 @@ export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard
         reason: `${row.file} already passes on main ${row.main.slice(0, 12)} (recorded run ${row.receiptId}); fixed by the landing ${(row.turnedGreen ?? row.main).slice(0, 12)}${row.landing ? ` "${row.landing}"` : ''} that turned it green; closed without a builder` }]);
     }
   });
+}
+
+/** The cause key the board's system actor cites when it withdraws an item as met on main [#3961]. */
+const MET_ON_MAIN_CAUSE = 'sentinel:met-on-main';
+
+/** The newest `Merge #N onto main` commit per item id on main's first-parent line: id to { commit, at } [#3961]. */
+function mergesOnMain(root, main) {
+  const log = gitSpawnSync(['log', main, '--first-parent', '--format=%H%x09%cI%x09%s', '--grep=^Merge #[0-9]* onto main'],
+    { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const merges = new Map();
+  if (log.status !== 0) return merges;
+  for (const line of String(log.stdout).split('\n')) {
+    const [commit, at, subject] = line.split('\t');
+    const id = /^Merge #(\d+) onto main/u.exec(subject ?? '')?.[1];
+    if (id && !merges.has(Number(id))) merges.set(Number(id), { commit, at: Date.parse(at) });
+  }
+  return merges;
+}
+
+/**
+ * Withdraw, as met, every open or claimed item whose own `Merge #N onto main` commit is on main, so next never offers it again.
+ * Why: five landed items stayed open and were offered to builders again; the work was already on main. The system actor cites the
+ * main commit and the board checks that the commit is on main. An item reopened after its merge is left alone: its new work is not on main.
+ */
+export async function withdrawMetOnMain(ctx, { withBoard, withBoardRead, ordered }) {
+  const root = ctx.info.root;
+  const main = mainCheckout(root)?.commit;
+  if (!main) return [];
+  const open = withBoardRead(ctx, board => store.listItems(board).filter(item => ['open', 'claimed'].includes(item.item_status))
+    .map(item => ({ id: item.item_id, reopened: Date.parse(board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind = 'reopen'").get(item.item_id)?.at ?? '') || 0 })));
+  if (!open.length) return [];
+  const merges = mergesOnMain(root, main);
+  const met = open.filter(item => merges.has(item.id) && merges.get(item.id).at >= item.reopened);
+  if (!met.length) return [];
+  const carriesWork = commit => gitSpawnSync(['merge-base', '--is-ancestor', commit, main], { cwd: root }).status === 0;
+  const done = [];
+  await withBoard(ctx, async board => {
+    for (const { id } of met) {
+      const { commit } = merges.get(id);
+      try {
+        await ordered(ctx, board, 'withdraw', [id, { agentId: 'sentinel', cause: MET_ON_MAIN_CAUSE, metCommit: commit, commitCarriesWork: carriesWork,
+          reason: `met on main: Merge #${id} onto main is commit ${commit.slice(0, 12)}; withdrawn as met so next does not offer it` }]);
+        done.push(id);
+      } catch (error) {
+        // A refused withdraw (the item moved since the read) must never stop the seat it only tidies for.
+        if (!(error instanceof Refused)) throw error;
+      }
+    }
+  });
+  return done;
 }
 
 /** Claim refusals of a bar no build can satisfy: next and next --take pass over the item instead of stopping (#5709, #5786). */

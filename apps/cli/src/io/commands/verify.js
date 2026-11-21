@@ -89,6 +89,8 @@ import { outsideVerdict } from '../../../../../packages/items/index.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { loadSpec } from '../../../../../packages/spec/index.js';
+import { parseSpec } from '../../../../../packages/spec/index.js';
+import { raisedStakesRows } from '../../../../../packages/spec/index.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
@@ -364,6 +366,26 @@ export function soloLowStakesFacts(item, enabled, evidence) {
 }
 
 /**
+ * Refuse a builder's self-accept when main now writes a team or critical stakes for a row the item froze lower (#1084).
+ * Why: the solo low-stakes snapshot is sealed on the frozen record, which a stakes raise on main since the claim has outdated.
+ * An unreadable main spec refuses nothing here; the board's own rules still apply.
+ *
+ * @param {string} root
+ * @param {{ spec: string }} config
+ * @param {{ item_frozen?: string | null }} item
+ * @param {string | number} id
+ * @returns {void}
+ */
+export function refuseRaisedStakes(root, config, item, id) {
+  const frozen = soloLowStakesFacts(item, true).rows;
+  if (!frozen) return;
+  let mainRows;
+  try { mainRows = parseSpec(git(root, ['show', `refs/heads/main:${config.spec}`])).rows; } catch { return; }
+  const raised = raisedStakesRows(frozen, mainRows ?? []);
+  if (raised.length) throw new Refused('PENDING_REFREEZE', `main now writes higher stakes for ${raised.join(', ')}, so item #${id} has a pending refreeze and cannot be self-accepted on its old record; run pullboard refreeze ${id}`);
+}
+
+/**
  * The reviewer's stated break for an accept: required on a strict item, kept when given on any other.
  *
  * @param {boolean} required whether the item's pace needs a proven break
@@ -428,6 +450,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     reviewedPace = store.itemPace(item);
     const earlier = earlierHolderProblem(board, item, me.id);
     if (earlier) throw earlier;
+    if (decision === 'ACCEPT' && soloLowStakesEnabled() && item.item_built_by === me.id) refuseRaisedStakes(root, ctx.config, item, id);
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
     // The builder is always refused on its own forced landing, whatever the commit authors say: the claim history names it [V1,H16].
     if (item.item_status === 'withdrawn' && item.item_merged_commit &&

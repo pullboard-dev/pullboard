@@ -1,0 +1,30 @@
+{
+  "cli.io-submit-remote.remote-cell-analysis-keys-on-the-config-not-the-plan": {
+    "proves": {
+      "specs": [
+        "C7",
+        "V4"
+      ],
+      "claim": "A generic project carrying a stray cells.json but no cells.plan key gets the empty no-cells result."
+    },
+    "why": "Without it, a regression where a generic project carrying a stray cells.json but no cells.plan key gets the empty no-cells result would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/remote.test.js"
+    ]
+  },
+  "cli.io-submit-remote.remote-cell-analysis-runs-for-a-keyed-project-without": {
+    "proves": {
+      "specs": [
+        "C7",
+        "V4"
+      ],
+      "claim": "A project whose config names cells.plan runs the cells check even with no cells.json file."
+    },
+    "why": "Without it, a regression where a project whose config names cells.plan runs the cells check even with no cells.json file would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/remote.test.js"
+    ]
+  }
+}

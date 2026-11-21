@@ -10,6 +10,10 @@ import { boardFacts } from './facts.js';
 import { timing } from './facts.js';
 import { CLOCK_MOVE_EVENT } from './facts.js';
 import { CLOCK_ACTOR } from './facts.js';
+import { toRebar } from './moves/hold.js';
+import { toPerson } from './moves/rescope.js';
+import { PERSON_OWNER } from './moves/rescope.js';
+import { recordedHoldMinutes } from './moves/hold.js';
 import { clockHealth } from './health.js';
 import { CLOCK_HEALTH_KEY } from './health.js';
 /** The version of the result document `pullboard clock --json` prints. */
@@ -44,10 +48,12 @@ function existing() {
   return { owner: 'existing-path' };
 }
 
-/** The move registry: a move name to function(board, item, row, now, plan, ports). This slice registers alarm and existing only. */
+/** The move registry: a move name to function(board, item, row, now, plan, ports). Registered: alarm, existing, to-person and to-rebar. */
 export const CLOCK_MOVES = new Map([
   ['alarm', alarm],
   ['existing', existing],
+  ['to-person', toPerson],
+  ['to-rebar', toRebar],
 ]);
 
 /** Whether a clock_move for this rule and state start is already on the item, which makes the pass idempotent. */
@@ -95,14 +101,23 @@ export function clockSweep(board, { now, dryRun = false, moves = CLOCK_MOVES, fa
   const at = now instanceof Date ? now.getTime() : now;
   if (!Number.isFinite(at)) throw new Error('clockSweep: now must be a time in ms or a Date');
   const result = { version: CLOCK_SWEEP_VERSION, at: new Date(at).toISOString(), dryRun: dryRun === true, applied: [], pending: [], waiting: [] };
+  // The open items hidden by a re-scope release, read once per pass through the store's listing when the caller passes it.
+  const rescoped = new Map((typeof ports.allItemsNeedingRescope === 'function' ? ports.allItemsNeedingRescope(board) : []).map(entry => [entry.id, entry]));
   for (const item of listItems(board)) {
     if (!['open', 'claimed', 'submitted'].includes(item.item_status)) continue;
     let row;
     // An item no row covers has no move to make; the health document names it and the alarm shouts it.
-    try { row = clockRow({ ...boardFacts(board, item, getItem), ...(facts ? facts(board, item) : {}) }); }
+    try { row = clockRow({ ...boardFacts(board, item, getItem), rescope: rescoped.has(item.item_id), ...(facts ? facts(board, item) : {}) }); }
     catch { continue; }
     const history = events(board, { itemId: item.item_id });
-    const { since, evidence, deadlineMinutes } = timing(item, row, history);
+    // A person's hold is theirs to decide: the clock never moves it, whatever its deadline.
+    if (row.rule === 'hold' && typeof ports.itemHoldOwner === 'function' && ports.itemHoldOwner(board, item.item_id)?.owner === PERSON_OWNER) {
+      result.waiting.push({ item: item.item_id, rule: row.rule, state: row.state, move: row.move, reason: 'person-owned' });
+      continue;
+    }
+    const timed = timing(item, row, history);
+    const { since, evidence } = timed;
+    const deadlineMinutes = timed.deadlineMinutes ?? (row.rule === 'hold' ? recordedHoldMinutes(board, item, since, ports) : undefined);
     const base = { item: item.item_id, rule: row.rule, state: row.state, move: row.move, since, evidence };
     if (since === null || !(deadlineMinutes ?? row.deadlineMinutes)) {
       result.waiting.push({ ...base, reason: 'deadline-unknown' });
@@ -114,7 +129,8 @@ export function clockSweep(board, { now, dryRun = false, moves = CLOCK_MOVES, fa
       result.waiting.push({ ...base, reason: verdict.waiting ?? 'not-due', deadlineAt: verdict.deadlineAt });
       continue;
     }
-    const plan = { ...base, deadlineAt: since + minutes * MINUTE_MS, unknownWaited: evidence === 'unknown' };
+    const plan = { ...base, deadlineAt: since + minutes * MINUTE_MS, unknownWaited: evidence === 'unknown',
+      ...(row.rule === 'rescope' ? { rescopeReasons: rescoped.get(item.item_id)?.reasons ?? [] } : {}) };
     const apply = moves.get(row.move);
     if (!apply) { result.pending.push(plan); continue; }
     if (alreadyApplied(history, row.rule, since)) { result.waiting.push({ ...base, reason: 'already-applied', deadlineAt: plan.deadlineAt }); continue; }

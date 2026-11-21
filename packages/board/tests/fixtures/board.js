@@ -89,3 +89,8 @@ export function withFixtureBoard(file, body) {
   closeBoard(board);
   return result;
 }
+
+/** Open a copied composition for tests that exercise its own board implementation. */
+export function openFixtureComposition(composition) {
+  return composition.openBoard(':memory:');
+}

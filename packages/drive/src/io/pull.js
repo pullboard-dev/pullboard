@@ -24,6 +24,7 @@ import { childEnvironment } from '../../../kernel/light.js';
 import { environmentAdapter } from '../../../env/index.js';
 import { PROGRESS_ENV } from './progress.js';
 import { keepGateProfiles } from './pull/profiles.js';
+import { measureExecutionContext } from './pull/execution-context.js';
 import { watchProgress } from './progress.js';
 import { pathProcesses } from './leftovers.js';
 import { reapLeftovers } from './leftovers.js';
@@ -312,15 +313,15 @@ export function countingTurns(limit) {
  *   fetchGate: asked inside the fetch turn before each fetch; a reason it returns ends the checkout without fetching. onFetch: told each fetch's reason, or null once it worked [#9024].
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), fetchTurn = null, git = null, ref = null, fetchGate = null, onFetch = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), fetchTurn = null, git = null, ref = null, fetchGate = null, onFetch = null, now = () => performance.now() } = {}) {
   if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
   if (main !== null && !SHA.test(String(main))) return { ok: false, reason: `the job names no main commit (${main})` };
-  const phases = { fetchMs: 0, checkoutMs: 0 };
-  let mark = performance.now();
+  const phases = { fetchMs: 0, fetchWaitMs: 0, fetchWorkMs: 0, checkoutMs: 0 };
+  let mark = now();
   /** Charge the time since the last mark to one phase. */
-  const lap = phase => { const now = performance.now(); phases[phase] += Math.round(now - mark); mark = now; };
+  const lap = phase => { const at = now(); phases[phase] += Math.round(at - mark); mark = at; };
   let store = join(cache, 'git');
   if (!disk.exists(join(store, 'HEAD'))) {
     const made = await exclusive(() => objectStore(git, cache));
@@ -332,13 +333,20 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   const present = await Promise.all(wanted.map(async one => SHA.test(String(one ?? '')) && (await git.run(store, ['cat-file', '-e', `${one}^{commit}`])).status === 0));
   const absent = wanted.filter((_, index) => !present[index]);
   if (absent.length) {
+    const queuedAt = now();
     const missing = await (fetchTurn ?? exclusive)(async () => {
-      for (const one of absent) {
-        const refused = fetchGate?.(); if (refused) return refused;
-        const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
-        onFetch?.(reason); if (reason) return reason;
+      const startedAt = now();
+      phases.fetchWaitMs = Math.round(startedAt - queuedAt);
+      try {
+        for (const one of absent) {
+          const refused = fetchGate?.(); if (refused) return refused;
+          const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
+          onFetch?.(reason); if (reason) return reason;
+        }
+        return null;
+      } finally {
+        phases.fetchWorkMs = Math.round(now() - startedAt);
       }
-      return null;
     });
     if (missing) return { ok: false, reason: missing };
   }
@@ -975,7 +983,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now(), self = () => null, known = () => {}) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null, requestedEnv = null;
+    let run = claim.run ?? [], input = null, pulledInput = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null, requestedEnv = null;
     const requestStart = Date.now();
     if (!run.length) {
       let asked;
@@ -984,7 +992,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       const request = asked?.request;
       if (Array.isArray(request?.run) && request.run.length) {
         run = request.run;
-        input = JSON.stringify(request.input ?? null);
+        pulledInput = request.input ?? null;
+        input = JSON.stringify(pulledInput);
         named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
         ref = typeof request.ref === 'string' ? request.ref : null;
@@ -1034,7 +1043,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const started = Date.now();
     // Claim-to-command, in phases the receipt carries: the board's request, the commit download (waiting its turn included),
     // the checkout, and whether the slot's warm folder was reused.
-    const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, checkoutMs: checkout.phases.checkoutMs,
+    const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, fetchWaitMs: checkout.phases.fetchWaitMs,
+      fetchWorkMs: checkout.phases.fetchWorkMs, checkoutMs: checkout.phases.checkoutMs,
       reused: checkout.reused, totalMs: started - claimedAt };
     liveEnvironments.add(name);
     const job = jobEnvironment(cache, name, claim.job, environmentAdapter().all(), requestedEnv), tag = randomBytes(8).toString('hex');
@@ -1048,6 +1058,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
     // The gate bootstrap judges a project whose main is not Pullboard's tree with this runner's own install (#6265).
     const env = { ...job.env, PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS, [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(jobWorkers(slots, cores, named, jobWorkerFactor)), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    const executionContext = claim.kind === 'test' ? await measureExecutionContext({ git, cwd: checkout.folder, argv: run, input: pulledInput }) : null;
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
       env, keep: kept ? join(kept, 'job.log') : null });
     // An unreachable board only skips a renewal; a moved lease stops the job.
@@ -1079,7 +1090,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const postedCase = outcome => { const named = postedLineNamesCase && outcome.status !== 0 ? firstFailingCase(outcome.tail) : ''; return named ? `; ${named}` : ''; };
     const receipt = { ...exclusiveEvidence, ...(gate ? { ...gateReceipt(result, claim.candidate, Date.now() - started), ...(keptGate ? { gate: keptGate } : {}) }
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
-        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
+        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(claim.kind === 'test' ? { executionContext } : {}), ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
       const answer = await postReceiptCalls(reliably, held, receipt);
       say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}${answer?.applied?.outcome ? `; board: ${answer.applied.outcome}${answer.applied.reason ? ` (${answer.applied.reason})` : ''}` : ''}${postedCase(result)}`);

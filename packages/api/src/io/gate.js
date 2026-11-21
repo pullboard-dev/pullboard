@@ -40,6 +40,7 @@ import { startReceiptScreen } from './gate/screen-start.js';
 import { applyPostLandReceipt } from './gate/post-land-main-test.js';
 import { postLandJob } from './gate/post-land-main-test.js';
 import { queuePostLandMainTest } from './gate/post-land-main-test.js';
+import { queueLandedReviews } from './gate/landed-review.js';
 import { sprintLandable } from './gate/sprint-land.js';
 import { exactTreeGate } from './gate/exact-tree.js';
 import { rebuiltOnTrunk } from './gate/rebuild.js';
@@ -81,7 +82,6 @@ import { shardNote } from './gate/retry.js';
 const fs = fileSystemAdapter();
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
-
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
@@ -1494,7 +1494,7 @@ function applyLandingOutcome(board, { job, receipt }, ports) {
   const moved = merged.filter(id => (receipt.landed ?? []).includes(id));
   if (moved.length) store.logEvent(board, 'coordinator', 'main-moved', null, { sha: receipt.trunk, job, items: moved });
   exact.landed(merged);
-  // A landing of sprint items queues one main-wide test job on the landed tip, from the rows loaded above [V2,M1,#12182].
-  if (moved.length) queuePostLandMainTest(board, { job, trunk: receipt.trunk, items: moved.map(id => rows.get(id)), queue: ports.queue ?? null });
+  // A landing of sprint items queues one main-wide test job on the landed tip [V2,M1,#12182] and each landed sprint item's review job [C7,#12503].
+  if (moved.length) { queuePostLandMainTest(board, { job, trunk: receipt.trunk, items: moved.map(id => rows.get(id)), queue: ports.queue ?? null }); queueLandedReviews(board, { items: moved.map(id => rows.get(id)) }); }
   return { applied: merged.length > 0 || returned.length > 0, outcome: 'landed', merged, returned };
 }

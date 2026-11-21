@@ -2,6 +2,8 @@
 /** A pull serve rebuilds its own runner code once the board reports a newer trunk commit, after its held jobs post [C7,P7,#10800]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
@@ -77,4 +79,62 @@ test('drive.pull.runner-code-lazy: #10872 clause 1: evaluating pull.js resolves 
   try { await import(`${new URL('../../../src/io/pull.js', import.meta.url).href}?lazy-check`); } finally { hooks.deregister(); }
   assert.ok(resolved.length > 5, `pull.js resolved ${resolved.length} imports`);
   assert.deepEqual(resolved.filter(url => url.endsWith('/pull/runner-code.js')), []);
+});
+
+test('drive.pull.measured-execution-context: clause 1: pulled tests measure the running executable and trusted archive with exact bootstrap and entry bytes [C7]', { timeout: 120_000 }, async t => {
+  const { root: trunk } = privateFixtureFiles('pullboard-context-trunk-');
+  const { root: cache } = privateFixtureFiles('pullboard-context-cache-');
+  t.after(() => { rmSync(trunk, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { runFixtureGit } = await import('../../../../gate/tests/fixtures/child.js');
+  const { measureExecutionContext, matchesExecutionContext } = await import('../../../index.js');
+  const sh = (...args) => runFixtureGit(['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', ...args], { cwd: trunk });
+  sh('init', '-q', '-b', 'main');
+  mkdirSync(join(trunk, 'packages/items'), { recursive: true });
+  writeFileSync(join(trunk, 'packages/items/index.js'), 'export const x = 1;\n');
+  sh('add', '.'); sh('commit', '-q', '-m', 'tooling one');
+  const first = sh('rev-parse', 'HEAD');
+  const bootstrap = "const fs=require('node:fs'),cp=require('node:child_process');const input=JSON.parse(fs.readFileSync(0,'utf8'));cp.execFileSync('git',['show',input.main+':packages/items/index.js']);eval(input.entry);";
+  const run = ['node', '-e', bootstrap];
+  const input = { main: first, entry: "console.log('PULLBOARD_GATE_RECEIPT '+JSON.stringify({version:1,green:true}))", data: {} };
+  let received = null, claimed = false;
+  const fetchImpl = async (_url, { body }) => {
+    const call = JSON.parse(body);
+    let reply = { recorded: true, renewed: true };
+    if (call.action === 'claim') { reply = { trunk, claim: claimed ? null : { job: 'test:context', kind: 'test', needs: [], candidate: first, base: first, attempt: 1, token: 'r:1' } }; claimed = true; }
+    if (call.action === 'request') reply = { request: { run, input, commits: [first] } };
+    if (call.action === 'receipt') received = call.receipt;
+    return { status: 200, json: async () => reply };
+  };
+  await serveRunner({ git: pullGit, board: BOARD, runner: 'r-context', capabilities: [], cache, once: true, fetchImpl, trunkPack: async () => {} });
+  const hash = value => createHash('sha256').update(value).digest('hex');
+  const expected = { version: 1, runtime: hash(readFileSync(process.execPath)),
+    tooling: hash(JSON.stringify({ version: 1, archiveTree: sh('rev-parse', `${first}^{tree}`), bootstrap: run.slice(1), entry: input.entry })) };
+  assert.ok(received.gate.green, 'the actual bootstrap read trusted content and executed the entry');
+  assert.deepEqual(received.executionContext, expected, 'the pulled receipt serializes its own execution measurement');
+  assert.deepEqual(await measureExecutionContext({ git: pullGit, cwd: trunk, argv: run, input }), expected);
+  assert.equal(matchesExecutionContext(received.executionContext, structuredClone(expected)), true);
+  const changedEntry = await measureExecutionContext({ git: pullGit, cwd: trunk, argv: run, input: { ...input, entry: input.entry + ' changed' } });
+  assert.notEqual(changedEntry.tooling, expected.tooling);
+  const changedBootstrap = await measureExecutionContext({ git: pullGit, cwd: trunk, argv: [...run, 'changed'], input });
+  assert.notEqual(changedBootstrap.tooling, expected.tooling);
+  const changedRuntime = await measureExecutionContext({ git: pullGit, cwd: trunk, argv: run, input, read: () => Buffer.from('different executable bytes') });
+  assert.notEqual(changedRuntime.runtime, expected.runtime);
+  writeFileSync(join(trunk, 'packages/items/index.js'), 'export const x = 2;\n');
+  sh('add', '.'); sh('commit', '-q', '-m', 'tooling two');
+  const changedTree = await measureExecutionContext({ git: pullGit, cwd: trunk, argv: run, input: { ...input, main: sh('rev-parse', 'HEAD') } });
+  assert.notEqual(changedTree.tooling, expected.tooling);
+});
+
+test('drive.pull.measured-execution-context-mismatch: clause 2: missing or changed pins never match and ordinary execution remains available [C7]', async () => {
+  const { measureExecutionContext, matchesExecutionContext } = await import('../../../index.js');
+  const pin = { version: 1, runtime: 'a'.repeat(64), tooling: 'b'.repeat(64) };
+  assert.equal(matchesExecutionContext(null, pin), false);
+  assert.equal(matchesExecutionContext(pin, null), false);
+  assert.equal(matchesExecutionContext(pin, { ...pin, runtime: 'c'.repeat(64) }), false);
+  assert.equal(matchesExecutionContext(pin, { ...pin, tooling: 'd'.repeat(64) }), false);
+  assert.equal(matchesExecutionContext(pin, { ...pin, tooling: '' }), false);
+  const git = { run: async () => ({ status: 1, stdout: '' }) };
+  assert.equal(await measureExecutionContext({ git, cwd: '.', argv: ['node', '-e', ''], input: { main: 'a'.repeat(40), entry: '' } }), null, 'foreign main and installed-tooling fallback remain unknown');
 });

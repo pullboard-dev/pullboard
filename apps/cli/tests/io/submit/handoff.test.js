@@ -15,8 +15,8 @@ import {
 
 const { openBoard } = apiBoardOpeners;
 
-test('cli.journeys-submit-handoff.queue-preparation-retries-a-real-peer: queue preparation retries a real peer commit and still bounds continuous changes [B2,V4,H16,E18]', t => {
-  const box = fixture(t);
+test('cli.journeys-submit-handoff.queue-preparation-retries-a-real-peer: queue preparation retries a real peer commit and still bounds continuous changes [B2,V4,H16,E18]', async t => {
+  const box = await fixture(t);
   // @pullboard-board-file locking: a second native connection commits while source sealing is outside BEGIN.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   // @pullboard-board-file journey: a second native connection to the fixture board file the real CLI wrote
