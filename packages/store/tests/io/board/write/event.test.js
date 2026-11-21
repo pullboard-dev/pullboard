@@ -27,7 +27,7 @@ function fixture(t) {
   return { board, seat };
 }
 
-const row = (board, id) => board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(id);
+const row = (board, id) => ({ ...board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(id) });
 
 test('store.io-board-write-event.same-row-as-log-event: clause 1: [C7] a prepared event commits the row logEvent writes, with the next event_id, the same fields and the seat model in its detail', t => {
   const { board, seat } = fixture(t);
