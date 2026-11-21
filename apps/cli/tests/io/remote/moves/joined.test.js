@@ -11,6 +11,8 @@ import { runFixtureGit } from '../../../fixtures/child.js';
 import { runCliInProcess } from '../../../fixtures/process.js';
 import { cloneBoard } from '../../../fixtures/api/remote-moves.js';
 import { onRemoteSeats } from '../../../fixtures/api/remote-moves.js';
+import { served } from '../../../fixtures/api/remote-moves.js';
+import { settledRow } from '../../../fixtures/api/remote-moves.js';
 
 test('cli.io-remote-moves.a-seat-joined-by-url-claims-commits: clause 1: a seat joined by URL claims, commits in its own clone and submits, exiting 0 with the clone as the source [P7,C7]', { timeout: 120_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and five CLI calls, not a throughput claim.
 onRemoteSeats(async (seats) => {
@@ -45,4 +47,31 @@ onRemoteSeats(async (seats) => {
   const folders = readdirSync(dirname(seats.box.root)).filter((name) => name.endsWith(`-item-${id}`));
   assert.deepEqual(folders, [], 'no item folder appeared beside the board host checkout');
   assert.equal(cloneBoard(seats.clone), false, 'the claim opened no local board');
+}));
+
+test('cli.io-remote-moves.url-seat-gate-names-clone-commit: clause 2: a seat joined by URL commits in its clone with board.commits bundle, submits, and the host runner pulled gate settles it submitted with its show naming the clone commit, with no EMPTY_SUBMIT [P7,C7]', { timeout: 240_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and the host runner's pulled gate, not a throughput claim.
+onRemoteSeats(async (seats) => {
+  const id = await seats.add('Remote clone gate item');
+  const own = (...args) => runCliInProcess(args, { cwd: seats.clone, env: { ...seats.box.env, PULLBOARD_MACHINE_HOME: seats.machine, PULLBOARD_AGENT: '' } });
+  // The commit transport is off by default: this clone opts in, so its submit carries its commits as a bundle [P7,C7].
+  assert.equal((await own('settings', 'board.commits', 'bundle')).status, 0);
+  const joined = await own('join', 'app', '--model', FIXTURE_MODEL, '--route', 'strong', '--json');
+  assert.equal(joined.status, 0, joined.stdout + joined.stderr);
+  const claimed = await own('claim', String(id), '--json');
+  assert.equal(claimed.status, 0, claimed.stdout + claimed.stderr);
+  mkdirSync(join(seats.clone, 'app'), { recursive: true });
+  writeFileSync(join(seats.clone, 'app', `work-${id}.txt`), `work for #${id}\n`);
+  runFixtureGit(['add', '-A'], { cwd: seats.clone, env: seats.box.env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', `feat: fixture work [G1]\n\nPullboard-Item: #${id}`], { cwd: seats.clone, env: seats.box.env, stdio: 'pipe' });
+  const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: seats.clone, env: seats.box.env, stdio: 'pipe' }).toString().trim();
+  const submitted = await own('submit', String(id));
+  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  assert.doesNotMatch(submitted.stdout + submitted.stderr, /EMPTY_SUBMIT/u);
+  assert.equal((await settledRow(seats, id)).status, 'submitted', 'the host runner posted the pulled gate receipt');
+  const shown = await served(seats.box, seats.box.root, 'show', String(id));
+  const text = JSON.stringify({ queuedSubmit: shown.queuedSubmit, gateJob: shown.gateJob });
+  assert.ok(shown.gateJob, `the host runner posted a gate for #${id}: ${text}`);
+  assert.doesNotMatch(text, /EMPTY_SUBMIT/u);
+  assert.match(text, new RegExp(head.slice(0, 12), 'u'), `the gate names the clone commit ${head}: ${text}`);
+  assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
 }));
