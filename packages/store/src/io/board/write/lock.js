@@ -19,12 +19,14 @@ let ownIdentity;
 let identityPrepared = false;
 const LONG_WRITE_MS = 2_000;
 const WRITE_HOLD_OVER_1S = 1_000;
+const HOLD_ALARM_TAIL_BYTES = 64 * 1024;
 
 /** Append a machine-local violation and keyed counter after a completed slow write. */
 function recordWriteHoldViolation(record, heldMs, outcome) {
   if (heldMs <= WRITE_HOLD_OVER_1S) return;
   const key = 'WRITE_HOLD_OVER_1S';
-  const common = { key, move: label(record.move ?? record.command, 'unknown'), seat: label(record.seat, 'unknown'),
+  const at = Date.now();
+  const common = { key, at, move: label(record.move ?? record.command, 'unknown'), seat: label(record.seat, 'unknown'),
     pid: Number.isSafeInteger(record.pid) && record.pid > 0 ? record.pid : null, heldMs, outcome: label(outcome, 'released') };
   let fd;
   try {
@@ -51,6 +53,38 @@ export function boardWriteCounterRows(key, file = boardWriteLog()) {
       catch { return []; }
     });
   } catch { return []; }
+}
+
+/** Count the write-hold counter rows inside a recent window from the last 64 KiB of the log only; rows with no at are ignored. */
+export function boardWriteHoldAlarm(key, nowMs, windowMs, file = boardWriteLog()) {
+  const empty = { count: 0, move: null, heldMs: 0, truncated: false };
+  if (typeof key !== 'string' || !/^[A-Z0-9_]{1,100}$/u.test(key) || !Number.isFinite(nowMs) || !Number.isFinite(windowMs)) return empty;
+  let fd;
+  try {
+    fd = fs.open(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const stat = fs.fstat(fd);
+    if (!stat.isFile()) return empty;
+    const start = Math.max(0, stat.size - HOLD_ALARM_TAIL_BYTES);
+    const buffer = Buffer.alloc(stat.size - start);
+    const got = buffer.length ? fs.read(fd, buffer, 0, buffer.length, start) : 0;
+    const lines = buffer.toString('utf8', 0, got).split('\n');
+    if (start > 0) lines.shift(); // The first line of a tail may be cut mid-row.
+    const floor = nowMs - windowMs;
+    let oldest = null;
+    const result = { ...empty };
+    for (const line of lines) {
+      let row;
+      try { row = JSON.parse(line); } catch { continue; }
+      if (!Number.isFinite(row?.at)) continue;
+      if (oldest === null || row.at < oldest) oldest = row.at;
+      if (row.type !== 'counter' || row.key !== key || row.at < floor || row.at > nowMs) continue;
+      result.count += 1;
+      if (row.heldMs > result.heldMs) { result.heldMs = row.heldMs; result.move = row.move; }
+    }
+    result.truncated = start > 0 && (oldest === null || oldest >= floor);
+    return result;
+  } catch { return empty; }
+  finally { if (fd !== undefined) try { fs.close(fd); } catch { /* Optional read cleanup. */ } }
 }
 
 /** Run one bounded PID-only query, without reading or changing any other process's arguments or state. */
