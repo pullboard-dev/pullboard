@@ -24,6 +24,7 @@ import {
   mainRedBuildOffer,
   nextTake,
   closePassingMainReds,
+  withdrawMetOnMain,
   nextProgress,
 } from '../../../../../packages/sandbox/index.js';
 import {
@@ -369,6 +370,8 @@ async function nextWithProgress(io, values, progress) {
       : values;
     // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
     await closePassingMainReds(ctx, takeServices);
+    // An open or claimed item whose own merge is on main is withdrawn as met before selection, so no builder is offered it again (#3961).
+    await withdrawMetOnMain(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
     const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => loadHold(ctx, selectionValues) ?? ((selectionValues.take && !selectionValues.build) || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues)));
     if (found.ownershipWaiting?.length) {
