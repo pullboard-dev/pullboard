@@ -23,6 +23,8 @@ import { machineStalled } from '../../../logic/stall.js';
 import { claimFolderActive } from '../../claim/activity.js';
 import { claimFolderCommitAt } from '../../claim/activity.js';
 import { claimFolder } from '../../claim/activity.js';
+import { readClaimSilence } from '../../claim/sweep.js';
+import { CLAIM_SILENT_MS } from '../../claim/sweep.js';
 import { redReturnLeaseHolds } from '../../../../../store/index.js';
 import { itemWorkInFlight } from '../../../../../store/index.js';
 import { itemPinned } from '../../../../../store/index.js';
@@ -260,8 +262,15 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     // A quiet seat waiting on its own test run or check is working; only a seat with nothing in flight is gone (#6128).
     if (heartbeatLost && !worktreeMissing && claimJobInFlight(board, byId.get(row.id), row.claimAt, at.getTime(), progressWithinMs)) return [];
     // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
-    if (stall && heartbeatLost) return [];
+    // A stall cannot explain an hour of silence: a seat counted silent on 3 consecutive sweeps for this claim episode is
+    // released even under a stall and with a lease still ahead, its work kept on keep/<id> [C7,#12116].
+    const silence = stall && heartbeatLost ? readClaimSilence(board, row.id) : null;
+    const silentHour = silence !== null && silence.episode === row.claimEventId && silence.sweeps >= 3
+      && at.getTime() - Date.parse(silence.since) >= CLAIM_SILENT_MS;
+    if (stall && heartbeatLost && !silentHour) return [];
     if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
+    if (silentHour) return lapsedOnly ? [] : [{ ...row, idle: 'seat-gone', kept: keepClaimWork(board, row), deadSeat: { heartbeatAt: lastHeartbeat ?? row.heartbeatAt ?? null,
+      worktreeMissing, observedAt: at.toISOString(), quietMs: seatQuietLimit, silentSince: silence.since, silentSweeps: silence.sweeps } }];
     // Presence is not progress (#3446): a lease lapsed 30 minutes ago returns once the holder has made no move, commit
     // or proof run on it for 30 minutes, however often the seat heartbeats. Pinning its handoff runs Git, so the
     // write path leaves it to background maintenance. A claim waiting on an unlanded item keeps its own rule.
