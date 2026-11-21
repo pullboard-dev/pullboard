@@ -539,6 +539,16 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
   }
 
+  /** The compatibility cells, read only: the recorded conformance runs of this project's root as page cells (C7). */
+  async function compatCellsRequest(req, res, url) {
+    const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? ''));
+    if ((!credentialMatches(given, key) && !cookieMatches(req)) || url.search || req.headers.authorization !== undefined) {
+      return json(res, 403, refusalDocument(new Refused('VIEW_SIGN_IN_AUTH', 'open this view and send its session key in the x-pullboard-key header only')));
+    }
+    if (req.method !== 'GET') return json(res, 405, refusalDocument(new Refused('BAD_REQUEST', 'read the compat cells with a GET')));
+    return json(res, 200, compatCells(conformanceRows({ root: projectRoot ?? process.cwd(), pathValue: HOST_ENV.PATH ?? '' })));
+  }
+
   /** Run only the existing person-channel adapter, with per-view intent ownership and header authentication. */
   async function sharingRequest(req, res, url) {
     const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? ''));
@@ -638,6 +648,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       }
       if (url.pathname === '/api/v1/view-link') return sharingRequest(req, res, url);
       if (url.pathname === '/api/v1/machine') return machineRequest(req, res, url);
+      if (url.pathname === '/api/v1/compat-cells') return compatCellsRequest(req, res, url);
       if (projectRoot === undefined && url.pathname === '/api/v1/projects/forget-unreadable') return forgetUnreadableRequest(req, res, url);
       return apiHandler(req, res);
     }
@@ -674,8 +685,6 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
         if (status) return json(res, 404, { error: `no timeline for #${timelineRoute[1]}` });
         return reply(res, 200, 'application/json; charset=utf-8', output);
       }
-      // The compatibility cells, read only: the recorded conformance runs of this project's root as page cells.
-      if (req.method === 'GET' && url.pathname === '/compat-cells') return json(res, 200, compatCells(conformanceRows({ root: projectRoot ?? process.cwd(), pathValue: HOST_ENV.PATH ?? '' })));
       if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {
