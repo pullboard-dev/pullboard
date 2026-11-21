@@ -1,0 +1,4 @@
+{
+  "moves.clear-review-reservation.descriptor": {"proves":{"specs":["C7"],"claim":"The clearReviewReservation descriptor names its operation, reads its actor from args[1].agentId and routes at CLEAR_REVIEW_RESERVATION_ENGINE."},"why":"A review reservation clear replayed under an engine older than its leaf would be misrouted.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/clearReviewReservation.js","packages/moves/tests/logic/moves/clearReviewReservation.test.js"]},
+  "moves.clear-review-reservation.next-steps": {"proves":{"specs":["C7"],"claim":"ENGINE_VERSION, NOT_SUBMITTED and USAGE each map to a next step naming pullboard."},"why":"A refused review reservation clear must tell the coordinator what to do next.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/clearReviewReservation.js","packages/moves/tests/logic/moves/clearReviewReservation.test.js"]}
+}
