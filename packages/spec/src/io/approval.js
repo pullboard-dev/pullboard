@@ -1,7 +1,8 @@
 /** Approval provenance: a status word is not a person's decision [S1,B26,P6]. */
 import { fileSystemAdapter } from '../../../fs/index.js';
 const disk = fileSystemAdapter();
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import {
   boardFolderFile,
   gitReadSignature,
@@ -21,7 +22,8 @@ import {
 
 const ORIGIN_CACHE_LIMIT = 32;
 const originCache = new Map();
-const ORIGIN_FILE = 'spec-row-origins.json';
+const ORIGIN_FILE = 'spec-row-origins.jsonl';
+const ORIGIN_FILE_LIMIT = 262144;
 
 /** The main tip and HEAD commit ids that key the cross-process origins; null when either is unreadable. */
 function originTips(root) {
@@ -31,22 +33,31 @@ function originTips(root) {
   return tips.length === 2 && tips.every(tip => /^[0-9a-f]{40,64}$/u.test(tip)) ? tips : null;
 }
 
-/** Read the shared origins file; damage or a foreign shape is only a miss. */
-function readOriginFile(file) {
-  try {
-    const stored = JSON.parse(disk.readFile(file, 'utf8'));
-    return stored?.version === 1 && stored.entries && typeof stored.entries === 'object' ? stored.entries : {};
-  } catch { return {}; }
+/** The newest stored rows for one key; a torn, damaged or foreign line is only a miss. */
+function readOriginFile(file, diskKey) {
+  let text;
+  try { text = disk.readFile(file, 'utf8'); } catch { return undefined; }
+  const lines = text.split('\n');
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (lines[index] === '') continue;
+    try {
+      const stored = JSON.parse(lines[index]);
+      if (stored?.key === diskKey) return stored.rows;
+    } catch { /* A torn line is skipped. */ }
+  }
+  return undefined;
 }
 
-/** Save the origins beside the board's other caches under the git common dir, never in the work tree; failure is a miss. */
-function writeOriginFile(file, entries) {
-  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
+/**
+ * Append one line beside the board's other caches under the git common dir, never in the work tree. An oversized
+ * file is dropped whole (it is only a cache), so no rewrite is ever needed; failure is a miss.
+ */
+function writeOriginFile(file, diskKey, origins) {
   try {
     disk.mkdir(dirname(file), { recursive: true, mode: 0o700 });
-    disk.writeFile(temporary, JSON.stringify({ version: 1, entries }), { mode: 0o600, flag: 'wx' });
-    disk.rename(temporary, file);
-  } catch { try { if (disk.exists(temporary)) disk.rm(temporary); } catch { /* A partial temp is never read. */ } }
+    if (disk.exists(file) && disk.lstat(file).size > ORIGIN_FILE_LIMIT) disk.rm(file);
+    disk.appendFile(file, `${JSON.stringify({ key: diskKey, rows: [...origins] })}\n`, { mode: 0o600 });
+  } catch { /* An unwritable cache never blocks a read. */ }
 }
 
 /** Revive stored origins only when every row has the exact shape this module writes. */
@@ -85,7 +96,7 @@ export function rowOrigins(root, file, lines = null) {
   let store = null;
   if (diskKey !== null) {
     try { store = boardFolderFile(root, ORIGIN_FILE); } catch { store = null; }
-    const revived = store === null ? null : reviveOrigins(readOriginFile(store)[diskKey]);
+    const revived = store === null ? null : reviveOrigins(readOriginFile(store, diskKey));
     if (revived !== null) {
       originCache.set(key, revived);
       while (originCache.size > ORIGIN_CACHE_LIMIT) originCache.delete(originCache.keys().next().value);
@@ -114,10 +125,7 @@ export function rowOrigins(root, file, lines = null) {
     originCache.set(key, origins);
     while (originCache.size > ORIGIN_CACHE_LIMIT) originCache.delete(originCache.keys().next().value);
     if (store !== null && diskKey !== null && stable() === stableBefore && originTips(root)?.join() === tips.join()) {
-      const entries = readOriginFile(store);
-      delete entries[diskKey];
-      const kept = Object.entries(entries).slice(-(ORIGIN_CACHE_LIMIT - 1));
-      writeOriginFile(store, { ...Object.fromEntries(kept), [diskKey]: [...origins] });
+      writeOriginFile(store, diskKey, origins);
     }
   }
   return origins;

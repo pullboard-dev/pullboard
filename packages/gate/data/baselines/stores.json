@@ -1198,8 +1198,8 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/module/imports.js"
     },
-    "spec-row-origins.json": {
-      "kind": "json",
+    "spec-row-origins.jsonl": {
+      "kind": "jsonl",
       "owner": "packages/spec/src/io/approval.js"
     },
     "starting.json": {

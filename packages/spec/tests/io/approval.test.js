@@ -11,15 +11,14 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import {
   privateFixtureFiles,
-  runFixtureChild,
   runFixtureGit,
-} from '../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 
 const APPROVAL = pathToFileURL(join(import.meta.dirname, '..', '..', 'src', 'io', 'approval.js')).href;
-const SCRIPT = `import { rowOrigins } from ${JSON.stringify(APPROVAL)}; process.stdout.write(JSON.stringify([...rowOrigins(process.argv[1], 'rows.md', [1, 2])]));`;
+let processes = 0;
 
-/** A real repository with a committed two-line spec, plus a reader that runs one fresh process and reports whether it ran git blame. */
+/** A real repository with a committed two-line spec, plus a reader that acts as a fresh process and reports whether it ran git blame. */
 function specRepo(t) {
   const repo = fixtureCommittedGraph('pullboard-spec-origins-');
   const traces = privateFixtureFiles('pullboard-spec-origins-trace-').root;
@@ -29,42 +28,47 @@ function specRepo(t) {
   const git = (...args) => runFixtureGit(args, { cwd: repo.root, env, encoding: 'utf8', stdio: 'pipe' });
   repo.put('rows.md', 'one\ntwo\n');
   repo.commit();
-  /** Run a new process; the trace names every Git command it launched. */
-  const read = () => {
+  /** Load a new copy of the module, so its in-process cache is empty as in a new command process; the trace names every Git command launched. */
+  const read = async () => {
     rmSync(trace, { force: true });
-    const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', SCRIPT, repo.root], { cwd: repo.root, env: { ...env, GIT_TRACE: trace }, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
+    processes += 1;
+    const { rowOrigins } = await import(`${APPROVAL}?process=${processes}`);
+    const before = process.env.GIT_TRACE;
+    process.env.GIT_TRACE = trace;
+    let origins;
+    try { origins = [...rowOrigins(repo.root, 'rows.md', [1, 2])]; }
+    finally { if (before === undefined) delete process.env.GIT_TRACE; else process.env.GIT_TRACE = before; }
     const launched = existsSync(trace) ? readFileSync(trace, 'utf8') : '';
-    return { origins: JSON.parse(result.stdout), blamed: /\bgit blame\b|\bblame --line-porcelain\b/u.test(launched) };
+    return { origins, blamed: /\bgit blame\b|\bblame --line-porcelain\b/u.test(launched) };
   };
   return { ...repo, git, read };
 }
 
-test('spec.io-approval.repeat-read-no-blame: clause 1: [C7] a second process at the same main tip and HEAD runs no git blame and returns the same origins', (t) => {
+test('spec.io-approval.repeat-read-no-blame: clause 1: [C7] a second process at the same main tip and HEAD runs no git blame and returns the same origins', async (t) => {
   const { read } = specRepo(t);
-  const first = read();
+  const first = await read();
   assert.equal(first.blamed, true, 'the first process blames the rows');
   assert.equal(first.origins.length, 2);
-  const second = read();
+  const second = await read();
   assert.equal(second.blamed, false, 'the second process reuses the first one\'s origins');
   assert.deepEqual(second.origins, first.origins);
 });
 
-test('spec.io-approval.tip-moves-reblames: clause 2: [C7] a moved main or HEAD, an edited spec file or a new .mailmap makes the next read run git blame again', (t) => {
+test('spec.io-approval.tip-moves-reblames: clause 2: [C7] a moved main or HEAD, an edited spec file or a new .mailmap makes the next read run git blame again', async (t) => {
   const { put, commit, git, read } = specRepo(t);
-  read();
-  assert.equal(read().blamed, false, 'control: unchanged inputs hit the cache');
+  await read();
+  assert.equal((await read()).blamed, false, 'control: unchanged inputs hit the cache');
   put('rows.md', 'one\ntwo\nthree\n');
   commit();
-  assert.equal(read().blamed, true, 'main and HEAD moved');
-  assert.equal(read().blamed, false, 'control: the new tip is cached');
+  assert.equal((await read()).blamed, true, 'main and HEAD moved');
+  assert.equal((await read()).blamed, false, 'control: the new tip is cached');
   git('switch', '-q', '-c', 'side');
   git('commit', '-q', '--allow-empty', '-m', 'head moves alone');
-  assert.equal(read().blamed, true, 'HEAD moved while main stayed');
-  assert.equal(read().blamed, false, 'control: the new HEAD is cached');
+  assert.equal((await read()).blamed, true, 'HEAD moved while main stayed');
+  assert.equal((await read()).blamed, false, 'control: the new HEAD is cached');
   put('rows.md', 'one\ntwo\nthree\nfour\n');
-  assert.equal(read().blamed, true, 'the spec file changed');
-  assert.equal(read().blamed, false, 'control: the edited file is cached');
+  assert.equal((await read()).blamed, true, 'the spec file changed');
+  assert.equal((await read()).blamed, false, 'control: the edited file is cached');
   put('.mailmap', 'Other Name <agent@example.com>\n');
-  assert.equal(read().blamed, true, 'the .mailmap appeared');
+  assert.equal((await read()).blamed, true, 'the .mailmap appeared');
 });
