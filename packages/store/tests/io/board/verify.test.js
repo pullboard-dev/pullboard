@@ -129,3 +129,30 @@ test('store.io-board-verify.solo-accept-narrow: clause 2: a builder accept witho
   refused(rejected, 'REJECT', { soloLowStakes: true, rows: LOW, checks: MACHINE });
   assert.equal(soloEvents(board, rejected).length, 0, 'a builder reject writes no event');
 });
+
+const isolatedRows = board => board.db.prepare("SELECT meta_key k, meta_value v FROM board_meta WHERE meta_key LIKE 'verdict_isolated:%' ORDER BY meta_key").all().map(row => ({ k: row.k, v: row.v }));
+const verdictOf = (board, id) => board.db.prepare('SELECT verdict_id id FROM verdict WHERE item_id=?').get(id).id;
+/** Verify a submitted item as core-9 with the sealed review the CLI records, passing whatever isolated field the case gives. */
+function verdict(board, id, decision, extra) {
+  const item = store.getItem(board, id);
+  const base = { agentId: 'core-9', decision, head: item.item_commit, digest: item.item_frozen_digest, ...REVIEW, review: { commit: item.item_commit, head: item.item_commit, trunk: LANDED, paths: [] }, ...extra };
+  return store.verify(board, id, decision === 'ACCEPT'
+    ? { ...base, note: 'Synthetic isolated-flag fixture accept.' }
+    : { ...base, reason: 'TEST_FAILURE', clause: CLAUSE, note: 'Synthetic isolated-flag fixture reject.' });
+}
+
+test('store.io-board-verify.records-isolated: clause 1: store.verify given isolated true or false records it in board_meta as verdict_isolated:<verdict_id> beside the verdict, for an accept and for a reject, and a verdict given no isolated field writes no such row [C7,#1112]', t => {
+  const { board, submitted } = seeded(t);
+  const accepted = submitted('Isolated accept', 'core-1', 'a'.repeat(40));
+  const rejected = submitted('Isolated reject', 'core-2', 'd'.repeat(40));
+  const plain = submitted('No isolated field', 'core-3', 'e'.repeat(40));
+  assert.equal(verdict(board, accepted, 'ACCEPT', { isolated: true }).decision, 'ACCEPT');
+  assert.equal(verdict(board, rejected, 'REJECT', { isolated: false }).decision, 'REJECT');
+  assert.deepEqual(isolatedRows(board), [
+    { k: `verdict_isolated:${verdictOf(board, accepted)}`, v: 'true' },
+    { k: `verdict_isolated:${verdictOf(board, rejected)}`, v: 'false' },
+  ].sort((a, b) => a.k.localeCompare(b.k)), 'one row per verdict that said so, boolean valued');
+  verdict(board, plain, 'REJECT', {});
+  assert.equal(isolatedRows(board).length, 2, 'a verdict with no isolated field writes no row');
+  assert.equal(isolatedRows(board).some(row => row.k === `verdict_isolated:${verdictOf(board, plain)}`), false);
+});

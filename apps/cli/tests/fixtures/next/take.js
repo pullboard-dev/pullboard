@@ -52,8 +52,9 @@ async function cleanupFixture(directory, board, original) {
  * Isolate real worktrees and shared SQLite; only the explicitly injected clock advances time.
  * The fixture leaves gate.runnerDispatch unpinned, so it is pull, and turns the local runner off: next restarts a dead local runner
  * while a gate job waits (#6556) and a fixture must never start a real process [P7].
+ * `seats` names the seat keys to create (default all five); a test that drives one seat skips the other worktrees and registrations.
  */
-export async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {}, mainRed = false, perSeat = null, projectConfig = {} } = {}) {
+export async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {}, mainRed = false, perSeat = null, projectConfig = {}, seats: wanted = null } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-next-take-')));
   const root = join(directory, 'repo');
   mkdirSync(root);
@@ -102,6 +103,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
     ['sibling', 'review', 'fixture-P', 'Family Beta'], ['sameFamily', 'review', 'fixture-Q', 'Family Alpha'],
     ['outside', 'review', 'fixture-R', 'Family Beta'],
   ]) {
+    if (wanted && !wanted.includes(name)) continue;
     const path = join(directory, name);
     git(root, 'worktree', 'add', '-q', '-b', `${lane}/${name}`, path);
     const id = store.register(board, { lane, path, parent, family: vendor, route: name === 'actor' ? route : 'strong' });

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board */
 /**
  * A board write lands within a second whatever stale holder records, long readers and busy gate workers surround it [B3,C7].
  * This test uses a real Git checkout and a real SQLite board.

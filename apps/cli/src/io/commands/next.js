@@ -20,10 +20,6 @@ import { agentSessionDigest } from '../../../../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next/monitor.js';
-import { mainRedReviewItems } from '../../../../../packages/landing/index.js';
-import { mainRedReworkItems } from '../../../../../packages/landing/index.js';
-import { passingMainRedItems } from '../../../../../packages/landing/index.js';
-import { computedReturnArgs } from '../../../../../packages/landing/index.js';
 import {
   mainRedBuildOffer,
   nextTake,
@@ -96,6 +92,10 @@ function builderWithLiveReviewSeat(board, me) {
 }
 
 /** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
+const mainRedReviewItems = (...args) => requireModule('../../../../../packages/landing/index.js').mainRedReviewItems(...args);
+const mainRedReworkItems = (...args) => requireModule('../../../../../packages/landing/index.js').mainRedReworkItems(...args);
+const passingMainRedItems = (...args) => requireModule('../../../../../packages/landing/index.js').passingMainRedItems(...args);
+const computedReturnArgs = (...args) => requireModule('../../../../../packages/landing/index.js').computedReturnArgs(...args);
 const shoutReviewCoverStuck = (...args) => requireModule('../../../../../packages/health/index.js').shoutReviewCoverStuck(...args);
 const shoutStarvedReviews = (...args) => requireModule('../../../../../packages/health/index.js').shoutStarvedReviews(...args);
 
@@ -201,6 +201,43 @@ function barLine(id) {
 }
 
 /**
+ * Whether no other process holds the board writer right now: a zero-wait write lock taken on a private connection and
+ * given straight back. Why: the delivery write only marks runs delivered, and reporting a run twice is harmless, so next
+ * skips it rather than queueing behind a verify, submit or release that holds the writer for seconds [C7].
+ *
+ * @param {string} file - The board file.
+ * @returns {boolean} False when the writer is busy; true when it is free or the probe could not run.
+ */
+function boardWriterFree(file) {
+  let probe;
+  try {
+    const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+    probe = new DatabaseSync(file);
+    probe.exec('PRAGMA busy_timeout = 0');
+    probe.exec('BEGIN IMMEDIATE');
+    probe.exec('ROLLBACK');
+    return true;
+  } catch (error) {
+    return !/locked|busy/iu.test(String(error?.message ?? error));
+  } finally {
+    try { probe?.close(); } catch { /* a probe that never opened has nothing to close */ }
+  }
+}
+
+/**
+ * Hand this seat its finished test runs, the way next does, but never queue for the board writer: while another process
+ * holds it the lines still print and the runs stay undelivered for the next call [C7].
+ *
+ * @param {any} io
+ * @param {any} ctx
+ * @param {{ withBoard: Function, withBoardRead: Function, whoAmI: Function }} services
+ * @returns {ReturnType<typeof deliverOwnTestRuns>}
+ */
+export function deliverSeatRuns(io, ctx, services) {
+  return deliverOwnTestRuns(io, ctx, { ...services, withBoard: (c, work) => (boardWriterFree(c.file) ? services.withBoard(c, work) : undefined) });
+}
+
+/**
  * Print each next phase's milliseconds and name the slowest three, on stderr so JSON stdout stays whole.
  * Why: the 0.2 s budget needs a measured profile of the real-size board before any phase is optimised (#6290).
  *
@@ -264,7 +301,7 @@ async function nextWithProgress(io, values, progress) {
   // review.starveShout (off by default): a green submission no seat may review reaches the coordinator once, naming the guards [C7,#9682].
   if (reviewStarveShout()) await withBoard(ctx, board => shoutStarvedReviews(ctx, board, ordered));
   // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
-  const testRuns = deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI });
+  const testRuns = deliverSeatRuns(io, ctx, { withBoard, withBoardRead, whoAmI });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), { spare: !values.verify }));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
@@ -307,7 +344,7 @@ async function nextWithProgress(io, values, progress) {
       return 0;
     }
     // A waiting next wakes on the board file, so a queued test run that finishes meanwhile comes back at once [C7].
-    if (minutes > 0 && testRuns.pending.length && deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI }).delivered) return 0;
+    if (minutes > 0 && testRuns.pending.length && deliverSeatRuns(io, ctx, { withBoard, withBoardRead, whoAmI }).delivered) return 0;
     if (!values.verify) {
       const ownerQueue = withBoardRead(ctx, board => {
         const me = whoAmI(ctx, board);

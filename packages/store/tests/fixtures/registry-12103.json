@@ -1,0 +1,29 @@
+{
+  "store.io-board-edit-specs.replaces-rows-and-refreezes": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: editItem with a specs argument and a reason replaces an open item's cited spec rows, refreezes its bar with the new rows' text and records one edit move; without specs the rows are untouched."
+    },
+    "why": "Without this test an item filed against the wrong spec rows could only be withdrawn and refiled.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/edit.js",
+      "packages/items/src/logic/edit/bar.js"
+    ]
+  },
+  "store.io-board-edit-specs.refuses-bad-lists": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: editItem refuses an empty, repeated or reasonless specs list and changes nothing."
+    },
+    "why": "Without this test a malformed list could blank an item's cited rows or change them with no recorded reason.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/edit.js"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+name: Contribution gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Read-only: this workflow posts nothing and reads no repository secret
+permissions:
+  contents: read
+
+jobs:
+  lands-through-pullboard:
+    name: Lands through Pullboard
+    runs-on: ubuntu-latest
+    steps:
+      # Only the trusted base tree is checked out: contributor code never runs.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted-gate
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13'
+      - name: Run the static gate from the trusted tree
+        working-directory: trusted-gate
+        run: node apps/cli/pullboard.js gate --static

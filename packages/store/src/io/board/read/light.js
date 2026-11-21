@@ -228,8 +228,9 @@ function strictPolicy(stored) {
  * @returns {string}
  */
 export function listItemsSql({ all, hasLane, inFlight = false }) {
+  // Each scope reads item through an item_status index: a NOT IN would scan every item the board ever held [#12581].
   const scope = inFlight ? "(item_status IN ('claimed','submitted') OR (item_status='verified' AND COALESCE(item_merged_commit,'')=''))"
-    : all ? '1' : "item_status NOT IN ('verified','withdrawn')";
+    : all ? '1' : "(item_status IN ('open','claimed','submitted'))";
   return `SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, policy.meta_value AS review_policy, expected.meta_value AS expected_build,
       item.item_id IN (SELECT item_id FROM event WHERE event_kind='merged') AS landed
       FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id

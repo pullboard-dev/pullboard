@@ -841,7 +841,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/fact/e2e/tour.test.js": {
+    "apps/cli/tests/io/commands/fact/e2e-tour.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -1361,7 +1361,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/fact/main/cache.test.js": {
+    "apps/cli/tests/io/commands/fact/main-cache.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -1811,7 +1811,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/submit/steps.test.js": {
+    "apps/cli/tests/io/submit/steps.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -2467,7 +2467,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/fact/review/packet/cases/fixture.test.js": {
+    "apps/cli/tests/io/commands/fact/review-packet-cases-fixture.test.js": {
       "cells": [
         "app:lib",
         "gate",
