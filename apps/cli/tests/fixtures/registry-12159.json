@@ -19,11 +19,12 @@
       "specs": [
         "C7"
       ],
-      "claim": "One seat-ready mark is one append: 50 marks on a fixture board write 50 events and nothing spools, with the p95 of the append stated."
+      "claim": "50 claims on a fixture board before and after the seat-ready mark: the added claim p95 is stated, 50 claims write 50 marks, one append each, nothing spools."
     },
     "why": "Without it, the cost the mark adds to a claim is a guess.",
     "kind": "cell unit",
     "inputs": [
+      "apps/cli/src/io/commands/claim.js",
       "apps/cli/src/io/mark-spool.js",
       "apps/cli/tests/io/commands/claim.test.js"
     ]

@@ -64,20 +64,29 @@ test('cli.claim.seat-ready-mark: clause 1: a claim appends exactly one seat-read
   assert.deepEqual(spooled.map(line => [line.item, line.stage, line.edge]), [[other, 'seat-ready', 'point']], 'the mark waits in the spool');
 });
 
-test('cli.claim.seat-ready-latency: clause 3: one seat-ready mark is one append: 50 marks on a fixture board write 50 events, and the p95 of the append is stated [C7,#12159]', async t => {
-  const box = await fixture(t);
-  const id = String(box.add('Timed item'));
-  const spans = [];
-  for (let n = 0; n < 50; n++) {
-    const started = performance.now();
-    const ran = await cli(box, box.seats.builder.path, ['mark', id, 'seat-ready', '--point']);
-    spans.push(performance.now() - started);
-    assert.equal(ran.code, 0, ran.out + ran.err);
-  }
-  assert.equal(box.board.db.prepare("SELECT COUNT(*) n FROM event WHERE item_id=? AND event_kind='mark'").get(Number(id)).n, 50, 'one append per mark');
+test('cli.claim.seat-ready-latency: clause 3: 50 claims on a fixture board before (mark writer replaced by nothing) and after (real mark): the added p95 is stated, one append per claim, no scan [C7,#12159]', async t => {
+  const box = await fixture(t, { projectConfig: { laneMode: 'off' } });
+  const timed = async markWriter => {
+    const spans = [];
+    for (let n = 0; n < 50; n++) {
+      const id = box.add('Timed item', { lane: 'docs' });
+      const started = performance.now();
+      const ran = await cli(box, box.seats.actor.path, ['claim', String(id)], markWriter ? { markWriter } : {});
+      spans.push(performance.now() - started);
+      assert.equal(ran.code, 0, ran.out + ran.err);
+      const released = await cli(box, box.seats.actor.path, ['release', String(id), '--reason', 'OTHER', '--note', 'timing loop']);
+      assert.equal(released.code, 0, released.out + released.err);
+    }
+    return spans.sort((a, b) => a - b);
+  };
+  const marks = () => box.board.db.prepare("SELECT COUNT(*) n FROM event WHERE event_kind='mark'").get().n;
+  const before = await timed(async () => {});
+  assert.equal(marks(), 0, 'before: no mark is written');
+  const after = await timed(null);
+  assert.equal(marks(), 50, 'after: one append per claim, 50 claims write 50 marks');
   assert.equal(existsSync(spoolPath(box.file)), false, 'a free board spools nothing');
-  spans.sort((a, b) => a - b);
-  t.diagnostic(`seat-ready mark append: 50 marks, p50 ${spans[24].toFixed(1)} ms, p95 ${spans[47].toFixed(1)} ms, max ${spans[49].toFixed(1)} ms`);
+  const p95 = spans => spans[47];
+  t.diagnostic(`claim p95 over 50 claims: before ${p95(before).toFixed(1)} ms, after ${p95(after).toFixed(1)} ms, added ${(p95(after) - p95(before)).toFixed(1)} ms; p50 before ${before[24].toFixed(1)} ms, after ${after[24].toFixed(1)} ms`);
 });
 
 test('cli.io-commands-claim.profile-names-phases: clause 1: with PULLBOARD_CLAIM_PROFILE set, pullboard claim prints one stderr line per claim phase as claim profile: <phase> <ms> ms plus a total line naming the slowest three, with it unset there is no claim profile line and --json stdout is unchanged, and every phase printed is one of the steps of run() in claim.js [C7,#12396]', async t => {
