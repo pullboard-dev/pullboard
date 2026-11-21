@@ -61,7 +61,7 @@ async function work([root, rawId, request]) {
   const { relayOrdering } = await import('../../../../../packages/outbox/index.js');
   const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import('../../../../../packages/outbox/index.js');
   const checkpointWorker = fileURLToPath(new URL('../worker/checkpoint/relay.js', import.meta.url));
-  const { runCheckBaselineWorker } = await import('../../../../../packages/gate/index.js');
+  const { runCheckBaselineWorker } = await import('../../../../../packages/gate/heavy.js');
   // The baseline runs on a registered runner like any gate run, under the light gate-slot services [C7,#2520].
   const { gateSlotServices } = await import('../slot/services.js');
   const services = { openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, gateExecutionServices: gateSlotServices };

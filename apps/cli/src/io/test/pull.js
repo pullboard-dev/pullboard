@@ -12,9 +12,12 @@ import { Refused } from '../../../../../packages/kernel/light.js';
 import { FILE_TIME_LINE } from '../../../../../packages/gate/heavy.js';
 import { testFileLoadScale } from '../../../../../packages/gate/heavy.js';
 import { allTestOutcomes } from '../../../../../packages/gate/heavy.js';
+import { safeLog } from '../../../../../packages/gate/heavy.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { testLoadRerunEnabled } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { verifyRunnerReceipt } from '../../../../../packages/runners/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
@@ -40,6 +43,17 @@ const POLL_MS = 1_000;
 const BEAT_MS = 30_000;
 // Budget: the most failing cases a receipt names; the rest are in the output it carries.
 const CASES = 100;
+
+/** Verify only against the controller's enrolled runner snapshot and the exact offered job. */
+export function authenticatedPullCompletion(envelope, expected, runners) {
+  try {
+    if (!envelope || envelope.version !== 1 || envelope.job !== expected.job || envelope.nonce !== expected.nonce
+      || envelope.source !== expected.source || envelope.tree !== expected.tree || envelope.outputSha256 !== expected.outputSha256
+      || envelope.status !== expected.status || envelope.signal !== expected.signal) return false;
+    const matches = (runners ?? []).filter(row => row.host === envelope.host && typeof row.publicKey === 'string');
+    return matches.length === 1 && verifyRunnerReceipt(envelope, matches[0].publicKey);
+  } catch { return false; }
+}
 
 /**
  * The test job's entry, written into accepted main's archive by the gate bootstrap: it runs the named files with the
@@ -71,6 +85,11 @@ const startedAt = new Date().toISOString(), loadAtStart = loadavg()[0];
 // The job's main names the base the candidate's import graph forks from, so its key analysis parses only what changed [C7,#6672].
 const env = { ...process.env, ${JSON.stringify(PULLED_JOB_ENV)}: '1', PULLBOARD_TEST_PRIOR: input.main };
 delete env.NODE_TEST_CONTEXT;
+// Named selections owe an account, so share this runner's complete proof store across pull checkouts.
+// An explicit store or reuse policy remains authoritative; the test runner validates keys and outcomes.
+const pullParts = String(root).split('/'), pullAt = pullParts.lastIndexOf('pull');
+if (Array.isArray(input.files) && input.files.length && pullAt > 0 && !env.PULLBOARD_TEST_RESULT_STORE)
+  env.PULLBOARD_TEST_RESULT_STORE = pullParts.slice(0, pullAt).join('/') + '/test-results/pull-gate';
 // A job that names a file budget (pullboard test --no-file-limit) runs under it; any other job's limits are the runner's own [C7].
 ${fileLimitEnv.toString()}
 Object.assign(env, fileLimitEnv(input));
@@ -191,14 +210,13 @@ process.exitCode = receipt.green ? 0 : 1;
 `;
 
 /**
- * True when this test run is a runner job row: always, since every runner job is a row. `--affected` and `--diagnose` keep the existing path, since their
- * selection and full log are read on this machine.
+ * True when this test run is a runner job row: always, since every runner job is a row. The runner receives the selected
+ * files and command, so affected selection and focused diagnosis do not require executing test files on this machine.
  *
  * @param {number | undefined} item - The seat's sole claimed item.
  * @param {Record<string, any>} values - The parsed switches.
  */
 export function pullTestWanted(item, values) {
-  if (values.affected === true || values.diagnose === true) return false;
   return runnerDispatchMode() === 'pull';
 }
 
@@ -277,10 +295,11 @@ export async function testJobRow(ctx, { item, commit, main, command, files, runI
   const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
+  const completionNonce = randomBytes(24).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
   const env = testJobEnv(environment);
-  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs, testResults: finishTestResults(runId ?? tag, ledger) }) }, commits: [main] };
+  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: { ...testJobData({ main, commit, command, files, runId, fileBudgetMs, testResults: finishTestResults(runId ?? tag, ledger) }), completionNonce } }, commits: [main] };
   return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}) } };
 }
@@ -321,13 +340,14 @@ export function readTestRow({ board, runs = null }, job) {
 }
 
 /** Offer one test job for a commit. Returns the job id and the pinned ref. */
-async function offerTestJob(ctx, fields, runs) {
+async function offerTestJob(ctx, fields, runs, onOffer) {
   const { offerJob } = await import('../../../../../packages/api/index.js');
   const ledger = Array.isArray(fields.files) && fields.files.length ? withBoardRead(ctx, board => ledgerHits(board.db, fields.files)) : null;
   const { ref, row } = await testJobRow(ctx, { ...fields, ledger });
   const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
+  onOffer?.(job.id, runs);
   await startLocalRunner(ctx);
-  return { job: job.id, ref };
+  return { job: job.id, ref, completionNonce: row.request.input.data.completionNonce };
 }
 
 /**
@@ -349,14 +369,17 @@ export async function offerAcceptCheck(ctx, board, { item, commit, main, command
 
 /**
  * Wait on a job's row until a runner posts its receipt, keeping the seat alive. Refuses when no runner claims it within
- * gate.runnerWaitMs, as a runner-only test run waits today.
+ * gate.runnerWaitMs, as a runner-only test run waits today. A job a runner took whose lease then lapsed, with that same
+ * deadline past, has made no progress: the wait refuses too, so a detached waiter stops heartbeating the seat and renewing
+ * its run lease for a runner that died [C7,#12670].
  *
  * @returns {Promise<{ receipt: Record<string, any>, runner: string | null, enqueuedAt: string | null }>}
  */
-async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null }) {
-  const deadline = Date.now() + gateRunnerWaitMs();
+export async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null, signal, waitMs = gateRunnerWaitMs(), beatSeat = null }) {
+  const deadline = Date.now() + waitMs;
   let beat = 0, claimed = null;
   for (;;) {
+    if (signal?.aborted) throw signal.reason ?? new Error('test job stopped');
     const view = runs ? readTestRow({ runs }, job) : withBoardRead(ctx, board => readTestRow({ board }, job));
     if (!view) throw new Refused('TEST_JOB_MISSING', `test job ${job} is gone from the board; run pullboard test again`);
     const posted = [...view.steps].reverse().find(step => step.name === 'receipt');
@@ -366,12 +389,15 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
     if (!claimed && Date.now() > deadline) {
       throw new Refused('TEST_JOB_UNCLAIMED', `no runner took test job ${job} within ${Math.round(gateRunnerWaitMs() / 1000)}s; start one with pullboard runner serve <board-url>, then run pullboard test again`);
     }
+    if (claimed && !holder && Date.now() > deadline) {
+      throw new Refused('TEST_JOB_STALLED', `runner ${claimed} took test job ${job} but its lease lapsed and no runner has renewed it within ${Math.round(waitMs / 1000)}s; run pullboard test again`);
+    }
     if (agent && Date.now() - beat >= BEAT_MS) {
       beat = Date.now();
       const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
-      try { withBoard(ctx, board => heartbeatSeat(board, agent)); } catch (error) { if (!error?.code) throw error; }
+      try { beatSeat ? beatSeat(agent) : withBoard(ctx, board => heartbeatSeat(board, agent)); } catch (error) { if (!error?.code) throw error; }
     }
-    await wait(pollMs);
+    try { await wait(pollMs, null, signal ? { signal } : undefined); } catch (error) { if (signal?.aborted) throw signal.reason ?? error; throw error; }
   }
 }
 
@@ -379,17 +405,21 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
  * Run one test job to its receipt and drop its pin; the receipt's phase is the run. A queued run's worker (`testRun`)
  * names the job on its run, so the receipt still settles the run if the worker stops before it (#7574).
  */
-async function runJobFor(ctx, fields, { agent, say, testRun }) {
+async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) {
   // The moment a runner took the job, for a census row's claimedAt [C7,#9284].
   let claimedAt = null;
   const noted = say;
   say = line => { if (claimedAt === null && /took test job/u.test(String(line))) claimedAt = new Date().toISOString(); noted?.(line); };
   const runs = testRunsHolder(ctx);
-  const offered = await offerTestJob(ctx, fields, runs);
+  let enrolled = [], tree = null;
+  try { enrolled = (loadMachineSettings().runners ?? []).map(({ host, publicKey }) => ({ host, publicKey })); } catch { /* A missing trust snapshot cannot block ordinary execution. */ }
+  try { tree = git(ctx.info.root, ['rev-parse', `${fields.commit}^{tree}`]).trim(); } catch { /* Unavailable identity cannot authenticate a completion. */ }
+  const offered = await offerTestJob(ctx, fields, runs, onOffer);
   if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
-    const { receipt, runner, enqueuedAt } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
+    if (signal?.aborted) throw signal.reason ?? new Error('test job stopped');
+    const { receipt, runner, enqueuedAt } = await receiptOf(ctx, { job: offered.job, agent, say, runs, signal });
     const gate = receipt.gate ?? {};
     const rows = finishLedgerRows(gate);
     if (rows.length) withBoard(ctx, board => recordTestResults(board.db, { receipt: `${offered.job}#0`, origin: `finish:${runner ?? 'unknown'}`, commit: fields.commit, rows }));
@@ -397,12 +427,14 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, load: gate.load && typeof gate.load === 'object' ? gate.load : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
+    const authenticated = authenticatedPullCompletion(receipt.signedCompletion, { job: offered.job, nonce: offered.completionNonce, source: fields.commit, tree, outputSha256: receipt.outputSha256, status: receipt.status, signal: receipt.signal }, enrolled);
+    return { job: offered.job, runner, green, authenticated, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, load: gate.load && typeof gate.load === 'object' ? gate.load : null, output: String(output), outputBytes: phase?.bytes ?? null, failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
       times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,
       caseMs: gate.caseMs && typeof gate.caseMs === 'object' && !Array.isArray(gate.caseMs) ? gate.caseMs : null };
   } finally {
+    onOffer?.(offered.job, runs, true);
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
 }
@@ -436,8 +468,8 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
  * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null, caseMs: Record<string, number> | null }>}
  */
-export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
-  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs, censusPerRunner, censusPerRunnerQuiet }, { say });
+export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null, signal, onOffer }) {
+  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs, censusPerRunner, censusPerRunnerQuiet }, { say, signal, onOffer });
 }
 
 /**
@@ -630,6 +662,13 @@ export function loadRerunFiles(ran, paths, { enabled = testLoadRerunEnabled() } 
   return [...red];
 }
 
+/** Show the red diagnostic text, marking when the signed receipt retained only its tail. */
+export function pulledDiagnosisOutput(output, outputBytes) {
+  const received = Buffer.byteLength(output);
+  const clipped = Number.isSafeInteger(outputBytes) && outputBytes > received;
+  return (clipped ? `[runner output clipped: showing the last ${received} of ${outputBytes} bytes]\n` : '') + safeLog(output);
+}
+
 /**
  * Run named test files as a pulled test job and return the result in the shape runTestFiles returns, so `pullboard
  * test` prints, records and exits as it does today. A red run is compared with main as today's run is: not for one
@@ -641,23 +680,40 @@ export function loadRerunFiles(ran, paths, { enabled = testLoadRerunEnabled() } 
  */
 export async function runPulledTests(ctx, { agent, item, files, values, knownRed, say }) {
   const { root } = ctx.info;
-  const config = ctx.config;
-  const [{ testFiles }, { retainTestOutput, renderTestSummary }, { mainPolicy }] = await Promise.all([import('../../../../../packages/gate/index.js'), import('../../../../../packages/gate/heavy.js'), import('../../../../../packages/sandbox/index.js')]);
-  if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
-    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
-  }
-  const paths = testFiles(root, files);
+  let config = ctx.config;
+  const [{ testFiles, selectAffectedTests, affectedCommand }, { retainTestOutput, renderTestSummary }, { mainPolicy }, { selectRegistryGuards }, { git: readGit }] = await Promise.all([
+    import('../../../../../packages/gate/index.js'), import('../../../../../packages/gate/heavy.js'), import('../../../../../packages/sandbox/index.js'),
+    import('../../../../../packages/kernel/index.js'), import('../../../../../packages/git/index.js'),
+  ]);
   await refuseUncommitted(root);
   const commit = headCommit(root);
   const policy = mainPolicy(root);
   const main = policy.commit;
   if (!commit || !main) throw new Refused('TEST_SNAPSHOT', 'this checkout has no commit or no accepted main to test against; commit the work and run pullboard test again');
+  const affected = values.affected === true;
+  if (affected) config = policy.config;
+  if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
+    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
+  }
+  let full = false;
+  let paths = affected ? [] : testFiles(root, files);
+  if (affected) {
+    const options = { base: main, trunk: main, commit };
+    const selection = selectAffectedTests(root, options);
+    const guards = selectRegistryGuards(root, config.registryGuards, { ...options, git: readGit });
+    full = selection.full;
+    paths = [...new Set([...(full ? [] : selection.files), ...guards])].sort();
+    if (paths.length) paths = testFiles(root, paths);
+  }
   const started = Date.now();
-  const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
+  const focused = paths.length ? affectedCommand(config, paths, config.gate?.selectionUnit ?? 'file') : '';
+  if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
+  const command = full ? `(${config.gate})${focused ? ` && ${focused}` : ''}` : (focused || 'true');
+  const diagnose = values.diagnose === true;
   const budget = fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {};
-  let ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...budget }, { agent, say, testRun: values['test-run'] });
+  let ran = await runJobFor(ctx, { item, commit, main, command: diagnose ? `PULLBOARD_TEST_REUSE=0 ${command}` : command, files: paths, ...budget }, { agent, say, testRun: values['test-run'] });
   // With test.loadRerun on, a file red only on timing on an overloaded runner is offered once more and the rerun is reported [C7,#10597].
-  const again = loadRerunFiles(ran, paths);
+  const again = diagnose ? [] : loadRerunFiles(ran, paths);
   let loadRerun = null;
   if (again.length) {
     const first = ran;
@@ -674,7 +730,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
     const seen = String(row.file ?? ran.failures?.find(found => found.name === row.name)?.file ?? '').replace(/^\.\//u, '');
     row.file = paths.find(path => seen === path || seen.endsWith(`/${path}`)) ?? row.file;
   }
-  const result = { green: ran.green, output: renderTestSummary(summary), ...summary, runner: ran.runner ?? 'a pulled runner', seconds: Math.round((Date.now() - started) / 1000),
+  const result = { green: ran.green, output: diagnose && !ran.green ? pulledDiagnosisOutput(ran.output, ran.outputBytes) : renderTestSummary(summary), ...summary, runner: ran.runner ?? 'a pulled runner', seconds: Math.round((Date.now() - started) / 1000),
     files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [], runFailures: ran.failures, ...(loadRerun ? { loadRerun } : {}) };
   if (ran.green) return result;
   if (paths.length === 1 && values['compare-main'] !== true) { result.mainSkipped = 'one file: add --compare-main to also run it on main'; return result; }

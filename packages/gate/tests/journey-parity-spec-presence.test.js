@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/spec/main.test.js apps/cli/journeys/resume/presence/heartbeat.test.js */
+/** @pullboard-test-input apps/cli/journeys/spec/main.test.js apps/cli/tests/io/resume/heartbeat.test.js */
 /**
  * The parity check for the spec/main and resume/presence/heartbeat journeys (#8267, U149): one CLI-heavy case of each runs
  * twice, once with every CLI call a real process and once in-process, and any difference in exit code, JSON result, printed
@@ -10,7 +10,7 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [
   { journey: 'apps/cli/journeys/spec/main.test.js', cases: ['spec check names both locations when ids repeat within or across configured files'] },
-  { journey: 'apps/cli/journeys/resume/presence/heartbeat.test.js', cases: ['plain status counts large seat history and hides gone seats behind --all'] },
+  { journey: 'apps/cli/tests/io/resume/heartbeat.test.js', cases: ['plain status counts large seat history and hides gone seats behind --all'] },
 ];
 
 test('gate.journey-parity-spec-presence.the-spec-main-and-heartbeat-journeys-give: clause 1: the spec/main and heartbeat journeys give the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {

@@ -33,12 +33,12 @@ test('kernel.audit.github-npm-boundary-selects-real-or-fake: #9852 clause 2: the
   assert.equal(selectBoundaryAdapter('keys', { fake, real, env: { PULLBOARD_TEST_REAL: 'github-npm' } }), fake, 'github-npm never selects the keys real adapter');
 });
 
-test('kernel.audit.scheduled-audit-forces-keys-and-github-npm-real: #9852 clause 3: the scheduled audit forces both names real even with mode fake, and clock stays unregistered [C7]', () => {
+test('kernel.audit.scheduled-audit-forces-keys-and-github-npm-real: #9852 clause 3: the scheduled audit forces both names real even with mode fake, and an unregistered name is refused [C7]', () => {
   const env = auditAdapterEnvironment(true);
   for (const boundary of KEY_BOUNDARIES) {
     assert.equal(selectBoundaryAdapter(boundary, { fake, real, env }), real);
     assert.equal(selectBoundaryAdapter(boundary, { fake, real, env, mode: 'fake' }), real);
     assert.equal(selectBoundaryAdapter(boundary, { fake, real, env: auditAdapterEnvironment(false) }), fake);
   }
-  assert.throws(() => selectBoundaryAdapter('clock', { fake, real, env }), TypeError);
+  assert.throws(() => selectBoundaryAdapter('unregistered', { fake, real, env }), TypeError);
 });

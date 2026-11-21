@@ -77,6 +77,7 @@ import { submissionSize } from "../../../../state/light.js";
 import { moveItem } from "../board.js";
 import { sealClauseInspection } from './repository.js';
 import { sendBackDependents } from './item/after-gate.js';
+import { measureBoardWritePhase } from './write/lock.js';
 import { recordAfterGateRebuild } from './item/after-gate-report.js';
 import { reopen } from './reopen.js';
 import { release } from './release.js';
@@ -202,6 +203,8 @@ export function submit(board, id, options) {
   const clauseInspection = (found, { greenFiles, outcomes, cases }) => clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles,
     gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases, outcomes });
   // shadow: the commit compare is recorded under moves.shadow; live: with moves.live.submit on, the COMMIT table's event is the one logged [C7,#8379,#8384].
+  // Each named part is timed, so the hold row of a long submit names its slowest step [C7,#12605].
+  const phase = (name, work) => measureBoardWritePhase(board.db, name, work);
   atomic(board, () => {
     requireBoardWriteSnapshot(board, snapshot, 'submit');
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_RENAME_ENGINE && strictRenames !== undefined) {
@@ -210,8 +213,10 @@ export function submit(board, id, options) {
     }
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE && options.machineReceipts !== undefined
       && (!Array.isArray(options.machineReceipts) || options.machineReceipts.some(receipt => !receiptFields(receipt)))) throw new Refused('MACHINE_PROOF', 'machine evidence must contain valid native receipts');
-    requireStrictBuilderFamily(board, id, agentId);
-    const familyProblem = builderFamilyProblem(board, getItem(board, id), agentId, familyPolicy);
+    const familyProblem = phase('submit-builder-family', () => {
+      requireStrictBuilderFamily(board, id, agentId);
+      return builderFamilyProblem(board, getItem(board, id), agentId, familyPolicy);
+    });
     if (familyProblem) throw familyProblem;
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
     if (quarantineProofIds !== undefined) board.nativePorts.quarantine.validateQuarantineProofIds(board, getItem(board, id),
@@ -232,8 +237,8 @@ export function submit(board, id, options) {
         [IN_STATE]: notYours,
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
-        clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspection(found, reads.proofs ?? inspectionReads(board, id, commit, proof, titleTicks)) : null,
+        clausesInspected: found => phase('submit-clauses-inspected', () => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
+          ? clauseInspection(found, reads.proofs ?? inspectionReads(board, id, commit, proof, titleTicks)) : null),
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -253,7 +258,7 @@ export function submit(board, id, options) {
           notBuilder: found => retainedVerifierIdentityProblem(board, found, basis.by, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }),
           proofNoted: () => typeof mergeOnly?.resolutionDiff === 'string' ? null : new Refused('PROOF_REQUIRED', 'record the actual merge resolution diff'),
         } : {}),
-        submissionProofValid: () => {
+        submissionProofValid: () => phase('submit-proof-valid', () => {
           if (autoMainReds) for (const receipt of autoOptions.autoMainReds.candidates ?? []) board.nativePorts.quarantine.validateQuarantineVerdict(board, receipt);
           const runningFile = (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_RUNNING_FILE_ENGINE;
           const autoResult = autoMainReds ? fileKnownMainAutofile(board, id, autoOptions, listItems(board, { all: true }), runningFile) : null;
@@ -266,8 +271,8 @@ export function submit(board, id, options) {
           }
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
-        },
-        childrenDone: () => submissionChildrenProblem(board, id),
+        }),
+        childrenDone: () => phase('submit-children-done', () => submissionChildrenProblem(board, id)),
         headIsNew: (found) => {
           const engineVersion = board.executionEngineVersion ?? ENGINE_VERSION;
           const rejectedHead = board.db.prepare(
@@ -283,18 +288,20 @@ export function submit(board, id, options) {
       before: () => { if (carry) logEvent(board, agentId, 'merge-only-accept', id, { ...mergeOnly, by: basis.by }); },
       set: found => submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
     });
-    recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling,
-      modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION, shadow, live });
+    phase('submit-record-event', () => recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling,
+      modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION, shadow, live }));
     // claims.fileLease on: a submission whose changed files part from the predicted ones leaves a miss on the item [C7,#8522].
-    const miss = board.fileLease && !carry ? fileMiss(getItem(board, id), files, board.fileLease.hubs) : null;
-    if (miss) logEvent(board, agentId, 'file_miss', id, miss);
-    startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
+    phase('submit-file-miss', () => {
+      const miss = board.fileLease && !carry ? fileMiss(getItem(board, id), files, board.fileLease.hubs) : null;
+      if (miss) logEvent(board, agentId, 'file_miss', id, miss);
+    });
+    phase('submit-patch-window', () => startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent }));
     // A parent resubmitted at a new head sends back each dependent built on the old one [C7,#11808].
-    sendBackDependents(board, id, { head: commit }, { reopen, release, appendFact, recordAfterGateRebuild });
+    phase('submit-send-back-dependents', () => sendBackDependents(board, id, { head: commit }, { reopen, release, appendFact, recordAfterGateRebuild }));
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
       if (gateGreen !== true || companion || recordedProof?.knownMainFailures) throw new Refused('MACHINE_PROOF', 'machine acceptance needs an entirely green composed submission without companions or known reds');
-      acceptMachineSubmission(board, getItem(board, id), options, { getItem, moveItem, logEvent });
+      phase('submit-machine-accept', () => acceptMachineSubmission(board, getItem(board, id), options, { getItem, moveItem, logEvent }));
     }
   });
   if (autoMainReds) return { mainRedRepairs };

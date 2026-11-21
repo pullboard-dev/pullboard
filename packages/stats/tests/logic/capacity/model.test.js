@@ -267,3 +267,22 @@ test('stats.capacity-model.fallback-line: the fallback prints "from ready work o
   assert.equal(lines[0], 'Max useful agents now: 2 from ready work only.');
   assert.match(capacityLines(plan([item(1), item(2), item(3)]))[0], /^Max useful agents now: 3 \(/u);
 });
+
+test('stats.logic-capacity-model.recommended-from-eligible-ready: clause 1: agents.recommended is the eligible ready count plus one reviewer per 20 pending reviews [R1,R2]', () => {
+  const items = [item(1), item(2)];
+  assert.equal(plan(items, fit(), { eligibleReady: 5, pendingReviews: 0 }).agents.recommended, 5);
+  assert.equal(plan(items, fit(), { eligibleReady: 5, pendingReviews: 1 }).agents.recommended, 6);
+  assert.equal(plan(items, fit(), { eligibleReady: 5, pendingReviews: 20 }).agents.recommended, 6);
+  assert.equal(plan(items, fit(), { eligibleReady: 5, pendingReviews: 21 }).agents.recommended, 7);
+  assert.equal(plan(items, fit(), { eligibleReady: 0, pendingReviews: 40 }).agents.recommended, 2);
+});
+
+test('stats.logic-capacity-model.recommended-fallback-unchanged: clause 2: with no eligible ready count agents.recommended is what it is on main [R1,R2]', () => {
+  const items = [item(1), item(2), item(3)];
+  const base = plan(items).agents.recommended;
+  assert.equal(base, 3);
+  assert.equal(plan(items, fit(), { pendingReviews: 40 }).agents.recommended, base, 'pending reviews alone change nothing');
+  assert.equal(plan(items, fit(), { eligibleReady: null }).agents.recommended, base);
+  const rows = samples().filter(row => row.kind !== 'build');
+  assert.equal(plan([item(1)], fit(rows)).agents.recommended, 1, 'ready-work fallback still applies');
+});

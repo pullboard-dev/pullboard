@@ -1,3 +1,5 @@
+/** @pullboard-test-input source-cell apps/cli */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** A test job request carries the caller's fixture switches and nothing else from its shell [C7,#10849]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -7,8 +9,96 @@ import { test } from 'node:test';
 import { ledgerHits } from '../../../../../packages/store/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
+import { fixtureBoard } from '../../../../../packages/board/tests/fixtures/board.js';
+import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
+import { receiptOf } from '../../../src/io/test/pull.js';
+import { offerJob } from '../../../../../packages/api/index.js';
+import { takeJob } from '../../../../../packages/jobs/index.js';
+import { renewLease } from '../../../../../packages/jobs/index.js';
+import { writeStep } from '../../../../../packages/jobs/index.js';
+import { workTestRun } from '../../../../../packages/drive/index.js';
+import { pullTestWanted } from '../../../src/io/test/pull.js';
+import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
+import { testJobEntry } from '../../../src/io/test/pull.js';
+import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
+import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
+import { generateKeyPairSync } from 'node:crypto';
+import { signRunnerReceipt } from '../../../../../packages/runners/index.js';
+import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { focusedRunnerPath } from '../../fixtures/test/pulled-entry.js';
+import { runPulledEntry } from '../../fixtures/test/pulled-entry.js';
+import { runFixtureGit } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { storeTestResult } from '../../../../../packages/gate/index.js';
+
+test('cli.io-test-pull.signed-completion: clause 1: a real pulled completion verifies only for its enrolled runner and exact fresh request [C7,#12647]', { timeout: 120_000 }, async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pinned = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  const signed = body => { const row = { ...body, host: 'runner.example' }; return { ...row, signature: signRunnerReceipt(row, privateKey) }; };
+  const { receipt, job, nonce, source, tree } = await signedPullFixture(signed);
+  assert.ok(receipt?.signedCompletion, 'the pull runner posts its signed envelope');
+  const expected = { job, nonce, source, tree, status: receipt.status, signal: receipt.signal, outputSha256: receipt.outputSha256 };
+  const runners = [{ host: 'runner.example', publicKey: pinned }];
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, runners), true);
+  assert.equal(authenticatedPullCompletion(null, expected, runners), false, 'unsigned remains unauthenticated');
+  const other = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, [{ host: 'runner.example', publicKey: other }]), false, 'wrong enrolled key');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, { ...expected, nonce: 'cd'.repeat(24) }, runners), false, 'replayed request');
+  for (const field of ['source', 'tree', 'outputSha256']) assert.equal(authenticatedPullCompletion({ ...receipt.signedCompletion, [field]: '0'.repeat(receipt.signedCompletion[field].length) }, expected, runners), false, `tampered ${field}`);
+  const unsigned = await signedPullFixture(null);
+  assert.equal(unsigned.receipt.status, 0, 'ordinary unsigned execution still returns');
+  assert.equal(unsigned.receipt.signedCompletion, undefined);
+});
+
+test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
+  const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
+  const runner = join(scratch.root, 'runner'), one = join(runner, 'pull', 'one'), two = join(runner, 'pull', 'two');
+  const counter = join(scratch.root, 'executions');
+  repo.put('package.json', '{"type":"module"}\n');
+  repo.put('test/proof.test.js', `import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('proof', () => appendFileSync(${JSON.stringify(counter)}, 'x'));\n`);
+  const commit = repo.commit();
+  mkdirSync(join(runner, 'pull'), { recursive: true });
+  for (const path of [one, two]) runFixtureGit(['clone', '-q', repo.root, path]);
+  const entry = join(scratch.root, 'entry.mjs');
+  writeFileSync(entry, testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''));
+  const tests = focusedRunnerPath();
+  const data = { main: commit, source: commit, files: ['test/proof.test.js'], command: `${process.execPath} ${tests} ./test/proof.test.js`, runId: '11111111-2222-3333-4444-555555555555' };
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PULLBOARD_(TEST_|LEDGER_HITS|TIMING_RUN_ID)/u.test(key)));
+  const run = (root, extra = {}) => runPulledEntry(entry, root, data, { ...env, ...extra });
+  assert.equal(run(one).status, 0);
+  const second = run(two);
+  assert.equal(second.status, 0);
+  assert.match(second.stdout, /# reused /u);
+  assert.equal(readFileSync(counter, 'utf8'), 'x', 'only first checkout executed');
+  assert.equal(run(two, { TZ: 'Pacific/Honolulu' }).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xx', 'different runtime context executes');
+  const store = join(runner, 'test-results', 'pull-gate');
+  const entries = readdirSync(join(store, 'green')).map(name => {
+    const path = join(store, 'green', name);
+    return { path, value: JSON.parse(readFileSync(path, 'utf8')) };
+  });
+  // Poison every observed context so neither one can accidentally satisfy the next request.
+  for (const { value } of entries) assert.equal(storeTestResult(store, { ...value, status: 'fail' }), true);
+  assert.equal(run(two).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxx', 'previously red key executes');
+  for (const { value } of entries) rmSync(join(store, 'red', value.key), { force: true });
+  for (const { path, value } of entries) writeFileSync(path, JSON.stringify({ ...value, tap: undefined }));
+  assert.equal(run(two).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxx', 'incomplete outcome executes');
+  assert.equal(run(two, { PULLBOARD_TEST_REUSE: '0' }).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxxx', 'fresh-only executes');
+  writeFileSync(join(two, 'test/proof.test.js'), readFileSync(join(two, 'test/proof.test.js'), 'utf8') + '\n// changed input\n');
+  assert.equal(run(two).status, 0);
+  assert.equal(readFileSync(counter, 'utf8'), 'xxxxxx', 'changed input executes');
+});
 
 const SHELL = { PATH: '/usr/bin', HOME: '/home/user', NODE_OPTIONS: '--require ./evil.js', FIXTURE_ONE: '1', PULLBOARD_FIXTURE_INPROCESS_HOOKS: '1', PULLBOARD_FIXTUREX: 'no', MY_FIXTURE_A: 'no' };
 
@@ -29,6 +119,37 @@ test('cli.io-test-pull.leaves-other-variables-out: clause 2: testJobRow leaves P
   for (const name of ['PATH', 'HOME', 'NODE_OPTIONS', 'PULLBOARD_FIXTUREX', 'MY_FIXTURE_A']) assert.equal(name in row.request.env, false, name);
   const bare = await rowFor(t, { PATH: '/usr/bin' });
   assert.equal('env' in bare.request, false, 'a shell with no fixture variable adds no env map');
+});
+
+test('cli.io-test-pull.runner-dispatch-keeps-affected-diagnose-and-focused-runs-on-runners: clause 1: pullTestWanted selects pull dispatch for --affected, focused --diagnose and ordinary focused runs [C7,P7]', () => {
+  assert.equal(pullTestWanted(1, { affected: true }), true);
+  assert.equal(pullTestWanted(1, { diagnose: true }), true);
+  assert.equal(pullTestWanted(1, {}), true);
+});
+
+test('cli.io-test-pull.runner-job-keeps-candidate-item-and-interactive-priority: clause 1: a pulled test job keeps the requested candidate and item with interactive priority [C7,P7]', async t => {
+  const { root, commit } = cellRepo(t, { real: true });
+  const { row } = await testJobRow({ info: { root } }, { item: 12573, commit, main: commit, command: 'true', files: [] });
+  assert.equal(row.candidate, commit);
+  assert.equal(row.item, 12573);
+  assert.equal(row.priority, 'interactive');
+});
+
+test('cli.io-test-pull.queued-diagnose-reaches-its-worker: clause 1: queueTestRun carries --diagnose through the worker command and records the focused diagnosis flag [C7,P7]', async t => {
+  const board = fixtureBoard(t);
+  const { root } = cellRepo(t, { real: true });
+  const launched = [];
+  queueTestRun({ info: { commonDir: join(root, '.git'), root } }, work => work(board),
+    { agent: 'seat', files: ['apps/cli/tests/io/test/pull.test.js'], diagnose: true },
+    { bin: '/pullboard.js', launch: (_node, args) => { launched.push(args); return { unref() {} }; } });
+  assert.ok(launched[0].includes('--diagnose'), JSON.stringify(launched[0]));
+  const queued = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'queued'").get();
+  assert.equal(JSON.parse(queued.payload).diagnose, true);
+});
+
+test('cli.io-test-pull.diagnose-labels-clipped-receipt-output: clause 1: pulled diagnose preserves red output and reports when the receipt clipped it [C7,P7]', () => {
+  assert.equal(pulledDiagnosisOutput('failure: details\n', 17), 'failure: details\n');
+  assert.equal(pulledDiagnosisOutput('tail\n', 50), '[runner output clipped: showing the last 5 of 50 bytes]\ntail\n');
 });
 
 const KEY_A = 'a'.repeat(64), KEY_B = 'b'.repeat(64), CONTEXT = 'c'.repeat(64);
@@ -58,4 +179,44 @@ test('cli.io-test-pull.finish-rows-reach-ledger: clause 2: a finish run of 5 fil
   assert.deepEqual(testResults(db).map(row => row.file).sort(), files);
   const hits = ledgerHits(db, files);
   assert.deepEqual(hits.files.map(row => row[0]).sort(), files);
+});
+
+/** A detached waiter's two lease holders, as the run's worker holds them: the run job it renews and the runner job it waits on. */
+function waiterFixture(t) {
+  const board = fixtureBoard(t);
+  offerJob(board.db, { id: 'run-1', kind: 'noop' });
+  offerJob(board.db, { id: 'runner-1', kind: 'noop' });
+  return { board, runs: { db: board.db }, beats: [] };
+}
+
+test('cli.io-test-pull.stuck-waiter-stops: clause 1: a detached test-run waiter whose runner job lapsed past the wait deadline stops renewing and heartbeating, records the run not finished and exits [C7,#12670]', async t => {
+  const { board, runs, beats } = waiterFixture(t);
+  takeJob(board.db, 'runner-1', 'runner-a', { leaseMs: 30 });
+  const result = await workTestRun(work => work(board), 'run-1',
+    () => receiptOf({}, { job: 'runner-1', agent: 'seat', runs, waitMs: 150, pollMs: 10, beatSeat: agent => beats.push(agent) }).then(() => ({ green: true })),
+    { renewMs: 10, beatSeat: () => beats.push('worker'), runs });
+  assert.equal(result.green, false);
+  assert.equal(result.error.code, 'TEST_JOB_STALLED');
+  const view = board.db.prepare("SELECT job_step_name AS name FROM job_step WHERE job_step_job = 'run-1'").all().map(row => row.name);
+  assert.ok(view.includes('result'), 'the run records its result');
+  const lease = () => board.db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'run-1'").get().until;
+  const settled = { beats: beats.length, lease: lease() };
+  for (let turn = 0; turn < 50; turn += 1) await new Promise(done => setImmediate(done));
+  assert.deepEqual({ beats: beats.length, lease: lease() }, settled, 'no beat and no lease renewal after the waiter stopped');
+});
+
+test('cli.io-test-pull.progressing-waiter-lives: clause 2: a detached test-run waiter whose runner job keeps its lease past the wait deadline keeps waiting until the receipt arrives [C7,#12670]', async t => {
+  const { board, runs, beats } = waiterFixture(t);
+  takeJob(board.db, 'runner-1', 'runner-a', { leaseMs: 60 });
+  let polls = 0;
+  const wait = async () => {
+    polls += 1;
+    const until = Date.now() + 10;
+    while (Date.now() < until) await new Promise(done => setImmediate(done));
+    renewLease(board.db, 'runner-1', 'runner-a', { leaseMs: 60 });
+    if (polls === 25) writeStep(board.db, 'runner-1', 'receipt', { receipt: { status: 0 }, runner: 'runner-a' });
+  };
+  const posted = await receiptOf({}, { job: 'runner-1', agent: 'seat', runs, waitMs: 100, pollMs: 10, wait, beatSeat: agent => beats.push(agent) });
+  assert.equal(posted.runner, 'runner-a');
+  assert.ok(polls >= 25 && beats.length >= 1, `polls ${polls}, beats ${beats.length}`);
 });

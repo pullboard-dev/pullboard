@@ -28,10 +28,6 @@
       "cells": 1,
       "deep": 18
     },
-    "apps/cli/src/io/cells/backlog.js": {
-      "cells": 2,
-      "deep": 0
-    },
     "apps/cli/src/io/cells/cache.js": {
       "cells": 4,
       "deep": 0

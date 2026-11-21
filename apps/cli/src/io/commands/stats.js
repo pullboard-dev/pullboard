@@ -18,6 +18,8 @@ import { runDemand } from './stats/demand.js';
 import { runHealth } from './stats/health.js';
 import { runLag } from './stats/lag.js';
 import { runAgents } from './stats/agents.js';
+import { costlyTestsSummary } from './stats/costly-tests.js';
+import { runCostlyTests } from './stats/costly-tests.js';
 import { refusalSummary } from './stats/refusals.js';
 import { runRefusals } from './stats/refusals.js';
 import { pipelineLimit } from '../../../../../packages/stats/index.js';
@@ -91,6 +93,7 @@ export function run(io, { first, second, rest, values }) {
   if (first === 'agents') return runAgents(io, ctx, { second, rest, values });
   if (first === 'review') return runReview(io, ctx, { second, rest, values });
   if (first === 'refusals') return runRefusals(io, ctx, { second, rest, values });
+  if (first === 'tests') return runCostlyTests(io, ctx, { second, rest, values });
   if (first !== undefined && !['pipeline', 'moves', 'time', 'disk', 'runners'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats disk [--prune], pullboard stats runners, pullboard stats pipeline, pullboard stats moves --limit 20, or pullboard stats time --window 7d');
   if (values.transcripts !== undefined && first !== 'moves') throw new Refused('USAGE', '--transcripts belongs to pullboard stats moves');
   if (values.prune && first !== 'disk') throw new Refused('USAGE', '--prune belongs to pullboard stats disk');
@@ -190,6 +193,7 @@ export function run(io, { first, second, rest, values }) {
       : !boardHolds.available || boardHolds.truncated || boardHolds.invalidLines ? 'incomplete' : 'within' };
   const disk = refusingBadPolicy(() => diskUse(join(ctx.info.commonDir, 'pullboard'), { now, maxAgeMs: 5 * 60_000 }), Refused);
   const refusals = refusalSummary(ctx.info.commonDir, ctx.clock.now().getTime());
+  const costlyLine = costlyTestsSummary(ctx);
   io.result?.({ stats, refusals: refusals.rows, disk, usage, coordinatorUsage: coordinatorTotals, idleSkips, coordinatorActions: coordinator, gateWaits: waits.stats, testWallBudgets: waits.testWallBudgets, boardHolds, ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
   // First, so the 8192-byte human summary never withholds the answer a window was asked for.
   if (pipelineHour) for (const line of pipelinePerHourLines(pipelineHour)) io.say(line);
@@ -200,6 +204,7 @@ export function run(io, { first, second, rest, values }) {
   for (const row of stats.notesPerSubmit) io.say(`${row.seat}: ${row.notes} notes / ${row.submits} submits (${row.notesPerSubmit ?? 'unmeasured'} notes per submit)`);
   for (const row of stats.workFreeReleases) io.say(`work-free releases ${row.day}: ${row.seat} ${row.reason} ${row.count}`);
   io.say(refusals.line);
+  io.say(costlyLine);
   io.say(`events: ${stats.firstEventAt ?? 'none'} to ${stats.lastEventAt ?? 'none'}${stats.since ? ` (since ${stats.since})` : ''}`);
   for (const row of idleSkips.rows) io.say(`idle last 24h: ${row.code} ${row.seatMinutes.toFixed(2)} seat-minutes`);
   for (const line of coordinatorActionLines(coordinator)) io.say(line);

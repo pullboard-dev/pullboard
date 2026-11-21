@@ -48,7 +48,7 @@
     "why": "Without it, a herd of seats calling next at once could collide on the one board writer and hand two seats the same item or none.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/next/herd.test.js"
+      "apps/cli/tests/io/commands/next/herd.test.js"
     ]
   },
   "cli.journeys-next-loop.two-items-one-voice": {

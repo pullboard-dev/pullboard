@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { inProcessHooksOn } from '../../../tests/fixtures/hook/mode.js';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 import {
@@ -21,7 +22,8 @@ import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 
 test('cli.journeys-submit-handoff-queued.queued-submit-returns-before-its-gate: clause 1: queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
   // The builder holds two queued builds beside its second and third live claims, so the seat names a cap of four [B5].
-  const box = fixture(t, { companion: true, perSeat: 4, fourth: true });
+  const box = await fixture(t, { companion: true, perSeat: 4, fourth: true });
+  assert.equal(inProcessHooksOn(box.env), true, 'the fixture uses the default in-process hooks');
   const fourth = box.fourth;
   // The gate holds on its release file while the builder moves on, so no submit waits for the queue to settle.
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
@@ -44,10 +46,10 @@ test('cli.journeys-submit-handoff-queued.queued-submit-returns-before-its-gate: 
   assert.equal(state(box, box.id).item.item_status, 'claimed', 'unproved work is never reviewable');
   assert.equal(gateJob(box).candidate, queued.composed, 'the queued gate job captured the composed source');
   box.git(box.web, 'checkout', '-q', '--detach', 'main');
-  assert.equal(helpersCommit(box, 'web/later.txt', 'later\n').status, 0);
+  assert.equal((await helpersCommit(box, 'web/later.txt', 'later\n')).status, 0);
   assert.equal(existsSync(join(box.web, 'web/snapshot.txt')), false, 'the next build no longer contains the queued candidate');
   document(await box.runLocal(box.web, 'claim', String(box.second), '--json'));
-  assert.equal(helpersCommit(box, 'web/second.txt', 'second\n').status, 0, 'real commit hooks select only the ordinary second claim');
+  assert.equal((await helpersCommit(box, 'web/second.txt', 'second\n')).status, 0, 'real commit hooks select only the ordinary second claim');
   const secondQueued = document(await box.runLocal(box.web, 'submit', String(box.second), '--no-next', '--json'));
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
   document(await box.runLocal(box.web, 'claim', String(box.third), '--json'));
@@ -72,7 +74,8 @@ test('cli.journeys-submit-handoff-queued.queued-submit-returns-before-its-gate: 
 });
 
 test('cli.journeys-submit-handoff-queued.a-seat-holding-a-claim-gets: clause 1: a seat holding a claim gets submit --wait back at once with no agent marker, the result through next [P7]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t, { inProcessHooks: false });
+  assert.equal(inProcessHooksOn(box.env), false, 'the fixture uses native subprocess hooks');
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   for (const name of AGENT_SHELL_MARKERS) delete box.env[name];
   const ran = await box.inProcess(box.web, 'submit', String(box.id), '--wait', '--no-next', '--json');

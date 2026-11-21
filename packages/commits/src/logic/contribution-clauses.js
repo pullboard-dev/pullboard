@@ -19,6 +19,9 @@ export const CLAUSE_LIMIT_NOTE = 'CR3 proves a test is bound to the change, not 
 /** Characters a shell would read as syntax; a check command holding one is refused rather than guessed at. */
 const SHELL_SYNTAX = /[;&|`$<>(){}[\]*?!~\\'"#\n\r]/u;
 
+/** A URL scheme at the start of a word (file:, data:, node:, https:): a loader would fetch it from outside the repository. */
+const URL_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]+:/u;
+
 /** The leading clause number of a bar or check entry, and the rest of the line. */
 function numbered(line) {
   const match = String(line).match(/^(\d+):\s+(.*)$/su);
@@ -77,6 +80,7 @@ export function insideRepoPath(path, where) {
   if (text.includes('\0')) throw refuse('holds a null byte');
   if (text.startsWith('-')) throw refuse('starts with "-", which a command would read as an option');
   if (/^[/\\~]/u.test(text) || /^[A-Za-z]:/u.test(text)) throw refuse('is outside the repository: absolute paths are refused');
+  if (URL_SCHEME.test(text)) throw refuse('is outside the repository: a URL such as file: or data: is refused');
   if (text.split(/[/\\]/u).includes('..')) throw refuse('is outside the repository: ".." segments are refused');
   return text.replace(/^(\.\/)+/u, '');
 }
@@ -118,10 +122,10 @@ export function allowlistedCommand(command, allowlist) {
   for (const word of words.slice(1)) {
     if (word.startsWith('-')) {
       const value = word.includes('=') ? word.slice(word.indexOf('=') + 1) : '';
-      if (/[/\\]/u.test(value) || value.startsWith('~')) insideRepoPath(value, 'command argument');
+      if (/[/\\]/u.test(value) || value.startsWith('~') || URL_SCHEME.test(value)) insideRepoPath(value, 'command argument');
       continue;
     }
-    if (/[/\\]/u.test(word) || word.startsWith('~') || word === '..') insideRepoPath(word, 'command argument');
+    if (/[/\\]/u.test(word) || word.startsWith('~') || word === '..' || URL_SCHEME.test(word)) insideRepoPath(word, 'command argument');
   }
   return words;
 }

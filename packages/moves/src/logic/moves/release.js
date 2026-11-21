@@ -36,6 +36,7 @@ function actor(move) { return move.args[1] ?? null; }
 export default Object.freeze({ operation: "release", order: 14, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "LINE_SETTING_RANGE": "read the allowed range with pullboard settings line, then record an in-range value or off with its reason and window numbers",
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
   ...RELEASE_NEXT,
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again"

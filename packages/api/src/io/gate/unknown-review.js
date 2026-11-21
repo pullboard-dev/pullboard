@@ -1,18 +1,14 @@
 /** A claimed item whose newest gate settled unknown goes to review once main's receipts excuse every red file [C7,P7,DJ2]. */
 import * as store from '../../../../store/index.js';
 import { appendNote } from '../../../../jobs/index.js';
+import { queueFor } from '../queue.js';
 import { mainRedFileExcuse } from './main-red-files.js';
 
 /** The rule the move names in its settled note and gate_settled event. */
 export const UNKNOWN_TO_REVIEW_RULE = 'gate.unknownToReview';
 
-/** Per board: each judged gate job with the newest main-test receipt step it was judged at, so a walk re-reads it only after main records more. */
-const judged = new WeakMap();
-
-/** The newest main-test receipt step on the board; 0 when none. */
-function mainReceiptMark(db) {
-  return db.prepare("SELECT MAX(step.job_step_id) AS id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id WHERE job.job_kind = 'main-test' AND step.job_step_name = 'receipt'").get()?.id ?? 0;
-}
+/** Limit candidate items examined per maintenance tick, including items without an unknown gate. */
+const BATCH_SIZE = 8;
 
 /** The newest note:shards.settled payload of a gate job, or null. */
 function settledNote(db, job) {
@@ -27,7 +23,7 @@ function redFiles(receipt) {
 }
 
 /**
- * Hand each claimed item whose newest gate job's newest settled note says unknown to review, when its shards' combined
+ * In one bounded pass, hand each claimed item whose newest gate job's newest settled note says unknown to review, when its shards' combined
  * receipt is green, or every red file is one main fails at the same input key (mainRedFileExcuse) and none is a file the
  * item's own diff touches. The combined receipt re-applies through applyGateReceipt with the main-red file excuse on, so
  * the item is submitted as any excused gate is; then one settled note and one gate_settled event naming the rule are
@@ -38,20 +34,20 @@ function redFiles(receipt) {
  *
  * @param {any} board
  * @param {Record<string, any>} ports - applyGateReceipt's ports; excuseMainRedFiles is forced on for the re-apply.
- * @param {{ now?: number }} options
+ * @param {{ now?: number, after?: number }} options
  * @param {{ latestGateJob: Function, offeredGate: Function, postedReceipt: Function, shardedResult: Function, applyGateReceipt: Function }} gate
- * @returns {{ job: string, item: number, outcome: string }[]} the gate jobs re-applied and their outcomes
+ * @returns {{ after: number, moved: { job: string, item: number, outcome: string }[] }} the next cursor and re-applied gates
  */
-export function handUnknownGatesToReview(board, ports, { now = Date.now() } = {}, gate) {
+export function handUnknownGatesToReview(board, ports, { now = Date.now(), after = 0 } = {}, gate) {
+  if (queueFor(board, 'coordinator')) return { after: 0, moved: [] };
   const { db } = board;
-  const seen = judged.get(board) ?? new Map();
-  judged.set(board, seen);
-  const mark = mainReceiptMark(db);
+  const rows = db.prepare(`SELECT item_id, item_owner FROM item
+    WHERE item_status = 'claimed' AND item_id > ? AND item_owner IS NOT NULL
+    ORDER BY item_id LIMIT ?`).all(after, BATCH_SIZE);
   const moved = [];
-  for (const { item_id: item, item_owner: owner } of db.prepare("SELECT item_id, item_owner FROM item WHERE item_status = 'claimed' AND item_owner IS NOT NULL").all()) {
+  for (const { item_id: item, item_owner: owner } of rows) {
     const job = gate.latestGateJob(db, item);
-    if (!job || seen.get(job) === mark || settledNote(db, job)?.outcome !== 'unknown') continue;
-    seen.set(job, mark);
+    if (!job || settledNote(db, job)?.outcome !== 'unknown') continue;
     const offered = gate.offeredGate(db, job);
     if (offered?.submit?.agentId !== owner) continue;
     const posted = gate.postedReceipt(db, job)?.receipt;
@@ -63,7 +59,7 @@ export function handUnknownGatesToReview(board, ports, { now = Date.now() } = {}
     if (!excused || redFiles(combined).some(file => touched.has(file))) continue;
     let applied;
     try { applied = gate.applyGateReceipt(board, { job, receipt: combined }, { ...ports, excuseMainRedFiles: true }); }
-    catch (error) { if (!error?.code) throw error; continue; } // a coded refusal leaves the claim as it was; the next walk after a new main receipt tries again
+    catch (error) { if (!error?.code) throw error; continue; } // a coded refusal leaves the claim as it was; a later maintenance pass tries again
     if (applied?.outcome !== 'review') { moved.push({ job, item, outcome: applied?.outcome ?? 'none' }); continue; }
     const files = excused.map(row => row.file);
     store.atomic(board, () => {
@@ -73,5 +69,5 @@ export function handUnknownGatesToReview(board, ports, { now = Date.now() } = {}
     });
     moved.push({ job, item, outcome: 'review' });
   }
-  return moved;
+  return { after: rows.length === BATCH_SIZE ? rows.at(-1).item_id : 0, moved };
 }

@@ -46,6 +46,18 @@ function tables(board) {
     .map(([name, rows]) => [name, name === 'board_meta' ? rows.filter(row => !/^relay_/u.test(row.meta_key)) : rows]));
 }
 
+/** Columns this release added after 0.9.3, by table: the value each must hold on the upgraded 0.9.3 rows. Nothing else may differ. */
+const POST_093_COLUMNS = { shout: { shout_answered_at: null } };
+
+/** Rows with each allowed post-0.9.3 column removed when it holds its allowed value; any other column or value stays to be compared. */
+function withoutPost093Columns(tableRows) {
+  return Object.fromEntries(Object.entries(tableRows).map(([name, rows]) => [name, rows.map(row => {
+    const kept = { ...row };
+    for (const [column, value] of Object.entries(POST_093_COLUMNS[name] ?? {})) if (column in kept && kept[column] === value) delete kept[column];
+    return kept;
+  })]));
+}
+
 /** A private folder for one test, removed after it. */
 function scratch(t) {
   const { root: dir } = privateFixtureFiles('pullboard-upgrade-');
@@ -81,7 +93,7 @@ test('cli.journeys-upgrade-previous-release.current-code-opens-the-0-9: current 
     const { sqlite_sequence: sequenceNow, ...now } = tables(board);
     const { sqlite_sequence: sequenceThen, ...then } = recorded.final;
     now.event = now.event.filter(row => row.event_id !== guards.event_id);
-    assert.deepEqual(unnumbered(now), unnumbered(then), 'every table matches what 0.9.3 held after the same moves');
+    assert.deepEqual(unnumbered(withoutPost093Columns(now)), unnumbered(then), 'every table matches what 0.9.3 held after the same moves');
     const eventsThen = sequenceThen.find(row => row.name === 'event').seq, eventsNow = sequenceNow.find(row => row.name === 'event').seq;
     assert.equal(eventsNow, eventsThen + 1, 'the guards event is the only extra event');
   });
@@ -179,4 +191,15 @@ test('cli.journeys-upgrade-previous-release.doctor-on-the-upgraded-board-ends: d
     // A changed trigger's repair is a board write, inbox, since 443661e6e2 (#7924).
     assert.ok(remaining.some(problem => /^(?:run pullboard (?:status|inbox)|merge this code into the main checkout first)/u.test(problem.next)), 'doctor still names a repair');
   }
+});
+
+test('cli.journeys-upgrade-previous-release.post-093-columns-are-an-explicit-list: only shout_answered_at holding null may differ from the 0.9.3 record [R4,I1]', () => {
+  const record = { shout: [{ shout_id: 1, shout_text: 'a' }], item: [{ item_id: 1, item_title: 't' }] };
+  const grown = (table, extra) => ({ ...record, [table]: record[table].map(row => ({ ...row, ...extra })) });
+  assert.deepEqual(withoutPost093Columns(grown('shout', { shout_answered_at: null })), record, 'the listed column holding null is allowed');
+  assert.notDeepEqual(withoutPost093Columns(grown('shout', { shout_answered_at: '2026-11-14T07:07:25.275Z' })), record, 'the listed column holding a value is not');
+  assert.notDeepEqual(withoutPost093Columns(grown('shout', { shout_other: null })), record, 'another extra column in the same table is not');
+  assert.notDeepEqual(withoutPost093Columns(grown('item', { shout_answered_at: null })), record, 'the column in another table is not');
+  assert.notDeepEqual(withoutPost093Columns({ ...record, shout: [{ shout_id: 1 }] }), record, 'a missing column is not');
+  assert.notDeepEqual(withoutPost093Columns({ ...record, shout: [] }), record, 'a missing row is not');
 });

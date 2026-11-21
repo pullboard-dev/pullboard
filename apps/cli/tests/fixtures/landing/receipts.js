@@ -116,6 +116,8 @@ export function fixture(t, required = true) {
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/train.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('the actual train body [C7]',()=>assert.notEqual(process.env.TRAIN_RED,'1'));\n");
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  // The copied config names the plan; the project has none here, so the key goes with the file.
+  if (config.cells) delete config.cells.plan;
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config,
     landing: { perItem: false, manualOverride: true, publish: 'separate', requireReceipts: required }, pushReceiptCheck: { smoke: 'node -e ""' } }));
   box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/train.test.js', 'packages/codemap/data/plan/cells.json');

@@ -1,0 +1,47 @@
+{
+  "cli.io-item-folder.claim-skips-main-merge": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#12577"
+      ],
+      "claim": "Claiming a branch that holds its own commits launches no git status and no git merge, leaves its head, and prints one line naming how far behind main it is."
+    },
+    "why": "Without it, the claim-time status scan and merge over the whole folder return and cost 30+ s on a loaded disk.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder.test.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
+  },
+  "cli.io-item-folder.claim-cost-flat-with-main-history": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#12577"
+      ],
+      "claim": "Opening such a folder with main 200 commits past its base takes at most twice the time of 1 commit past and under 1 s."
+    },
+    "why": "Without it, a claim cost that grows with main's history would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder.test.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
+  },
+  "cli.io-item-folder.claim-fast-forwards-plain-folder": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#12577"
+      ],
+      "claim": "A branch with no commits of its own that is behind main still moves to main's tip by a ref update with no merge commit."
+    },
+    "why": "Without it, dropping the merge for branches with commits could also drop the fast-forward for plain ones.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder.test.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
+  }
+}

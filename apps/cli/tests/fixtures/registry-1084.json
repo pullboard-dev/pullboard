@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-verify.raised-stakes-self-accept": {"proves":{"specs":["C7"],"claim":"A builder self-accept on an item frozen with a low row that main now writes as team or critical is refused PENDING_REFREEZE, naming the row and pullboard refreeze."},"why":"Without it a low-stakes self-accept sealed on the old record would land on a row whose stakes rose on main since the claim.","kind":"cell unit","inputs":["apps/cli/src/io/commands/verify.js"]},
+  "cli.io-commands-verify.raised-stakes-scope": {"proves":{"specs":["C7"],"claim":"The raised-stakes check leaves an independent verifier accept alone, and a self-accept after the refreeze meets the ordinary team-row SELF_VERIFY refusal."},"why":"Without it the check could block independent review or hide the ordinary self-verify rule after a refreeze.","kind":"cell unit","inputs":["apps/cli/src/io/commands/verify.js"]}
+}
