@@ -25,5 +25,14 @@
     "why": "Moving diagnosis off the host must preserve the caller's diagnosis request.",
     "kind": "cell unit",
     "inputs": ["packages/drive/src/io/queue.js"]
+  },
+  "cli.io-test-pull.diagnose-labels-clipped-receipt-output": {
+    "proves": {
+      "specs": ["C7", "P7"],
+      "claim": "Pulled diagnosis preserves the red diagnostic text and marks when the signed receipt contains only a clipped tail."
+    },
+    "why": "Runner-side diagnosis must preserve useful failure detail without mistaking a bounded receipt for the whole output.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/test/pull.js"]
   }
 }

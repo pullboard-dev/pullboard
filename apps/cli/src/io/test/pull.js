@@ -12,6 +12,7 @@ import { Refused } from '../../../../../packages/kernel/light.js';
 import { FILE_TIME_LINE } from '../../../../../packages/gate/heavy.js';
 import { testFileLoadScale } from '../../../../../packages/gate/heavy.js';
 import { allTestOutcomes } from '../../../../../packages/gate/heavy.js';
+import { safeLog } from '../../../../../packages/gate/heavy.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { testLoadRerunEnabled } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
@@ -404,7 +405,7 @@ async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) 
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, load: gate.load && typeof gate.load === 'object' ? gate.load : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
+    return { job: offered.job, runner, green, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, load: gate.load && typeof gate.load === 'object' ? gate.load : null, output: String(output), outputBytes: phase?.bytes ?? null, failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
       times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,
@@ -638,6 +639,13 @@ export function loadRerunFiles(ran, paths, { enabled = testLoadRerunEnabled() } 
   return [...red];
 }
 
+/** Show the red diagnostic text, marking when the signed receipt retained only its tail. */
+export function pulledDiagnosisOutput(output, outputBytes) {
+  const received = Buffer.byteLength(output);
+  const clipped = Number.isSafeInteger(outputBytes) && outputBytes > received;
+  return (clipped ? `[runner output clipped: showing the last ${received} of ${outputBytes} bytes]\n` : '') + safeLog(output);
+}
+
 /**
  * Run named test files as a pulled test job and return the result in the shape runTestFiles returns, so `pullboard
  * test` prints, records and exits as it does today. A red run is compared with main as today's run is: not for one
@@ -678,10 +686,11 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const focused = paths.length ? affectedCommand(config, paths, config.gate?.selectionUnit ?? 'file') : '';
   if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
   const command = full ? `(${config.gate})${focused ? ` && ${focused}` : ''}` : (focused || 'true');
+  const diagnose = values.diagnose === true;
   const budget = fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {};
-  let ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...budget }, { agent, say, testRun: values['test-run'] });
+  let ran = await runJobFor(ctx, { item, commit, main, command: diagnose ? `PULLBOARD_TEST_REUSE=0 ${command}` : command, files: paths, ...budget }, { agent, say, testRun: values['test-run'] });
   // With test.loadRerun on, a file red only on timing on an overloaded runner is offered once more and the rerun is reported [C7,#10597].
-  const again = loadRerunFiles(ran, paths);
+  const again = diagnose ? [] : loadRerunFiles(ran, paths);
   let loadRerun = null;
   if (again.length) {
     const first = ran;
@@ -698,7 +707,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
     const seen = String(row.file ?? ran.failures?.find(found => found.name === row.name)?.file ?? '').replace(/^\.\//u, '');
     row.file = paths.find(path => seen === path || seen.endsWith(`/${path}`)) ?? row.file;
   }
-  const result = { green: ran.green, output: renderTestSummary(summary), ...summary, runner: ran.runner ?? 'a pulled runner', seconds: Math.round((Date.now() - started) / 1000),
+  const result = { green: ran.green, output: diagnose && !ran.green ? pulledDiagnosisOutput(ran.output, ran.outputBytes) : renderTestSummary(summary), ...summary, runner: ran.runner ?? 'a pulled runner', seconds: Math.round((Date.now() - started) / 1000),
     files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [], runFailures: ran.failures, ...(loadRerun ? { loadRerun } : {}) };
   if (ran.green) return result;
   if (paths.length === 1 && values['compare-main'] !== true) { result.mainSkipped = 'one file: add --compare-main to also run it on main'; return result; }

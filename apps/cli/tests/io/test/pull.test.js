@@ -13,6 +13,7 @@ import { fixtureBoard } from '../../../../../packages/board/tests/fixtures/board
 import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
 import { pullTestWanted } from '../../../src/io/test/pull.js';
+import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
@@ -115,6 +116,11 @@ test('cli.io-test-pull.queued-diagnose-reaches-its-worker: clause 1: queueTestRu
   assert.ok(launched[0].includes('--diagnose'), JSON.stringify(launched[0]));
   const queued = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'queued'").get();
   assert.equal(JSON.parse(queued.payload).diagnose, true);
+});
+
+test('cli.io-test-pull.diagnose-labels-clipped-receipt-output: clause 1: pulled diagnose preserves red output and reports when the receipt clipped it [C7,P7]', () => {
+  assert.equal(pulledDiagnosisOutput('failure: details\n', 17), 'failure: details\n');
+  assert.equal(pulledDiagnosisOutput('tail\n', 50), '[runner output clipped: showing the last 5 of 50 bytes]\ntail\n');
 });
 
 const KEY_A = 'a'.repeat(64), KEY_B = 'b'.repeat(64), CONTEXT = 'c'.repeat(64);
