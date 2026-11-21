@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runFixtureGit } from '../../../../packages/gate/tests/fixtures/child.js';
-import { cellsSnapshotProblems, policyProblems } from '../../src/io/cells-submit-checks.js';
+import { cellsSnapshotProblems } from '../../src/io/cells-submit-checks.js';
+import { policyProblems } from '../../src/io/cells-submit-checks.js';
 import { cellsSnapshotPair } from '../fixtures/cells/snapshot.js';
 import { commonJsIn } from '../../../../packages/gate/heavy.js';
 import { foreignNodeOptions } from '../../../../packages/gate/heavy.js';
