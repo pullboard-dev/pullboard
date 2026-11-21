@@ -159,10 +159,10 @@ function takeLock(folder, home) {
  * Serve one board until the signal stops it: runner serve against its loopback URL. A refusal is logged and tried
  * again later, so the local runner never stops serving a board on one error.
  */
-async function serveBoard({ root, id }, { origin, key, runner, folder, capabilities, handlers, admit, ledger, git, signal, say, wakeOnOffer, wakeMark }) {
+async function serveBoard({ root, id }, { origin, key, runner, folder, capabilities, handlers, admit, ledger, git, signal, say, wakeOnOffer, wakeMark, wakeIdle }) {
   const cache = join(folder, 'cache', createHash('sha256').update(root).digest('hex').slice(0, 16));
   // With runners.localWake on, an offering command's touch of the wake file ends this board's idle wait at once [#10409].
-  const wake = wakeOnOffer ? (await import('./wake.js')).watchWake(folder, { mark: wakeMark }) : null;
+  const wake = wakeOnOffer ? (await import('./wake.js')).watchWake(folder, { mark: wakeMark, idle: wakeIdle }) : null;
   for (let wait = RETRY.firstMs; !signal.aborted; wait = Math.min(wait * 2, RETRY.maxMs)) {
     try {
       say(`serving ${root} as board ${id}`);
@@ -190,6 +190,7 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
  * @param {string[]} options.capabilities - What this runner offers, BOARD_HOST among them.
  * @param {Parameters<typeof serveRunner>[0]['handlers']} [options.handlers]
  * @param {boolean} [options.wakeOnOffer] - runners.localWake: an idle board wait ends when an offering command touches the folder's wake file (wakeLocalRunner); default off.
+ * @param {() => void} [options.wakeIdle] - Called each time the wake watcher's nap begins to wait (watchWake's idle); absent, nothing is recorded.
  * @param {(step: 'touch' | 'wake' | 'timeout') => void} [options.wakeMark] - Sees each step of the wake watcher (watchWake's mark); absent, nothing is recorded.
  * @param {Parameters<typeof serveRunner>[0]['admit']} [options.admit] - Asked before each claim, with the kinds the runner holds across its boards; the local runner takes a job only while it says yes, skipping the kinds it excepts.
  * @param {Parameters<typeof serveRunner>[0]['git']} [options.git] - The Git launches the app hands every serve.
@@ -199,7 +200,7 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
  * @param {{ heartbeatMs?: number }} [options.timing]
  * @returns {Promise<{ served: true, pid: number } | { served: false, pid: number | null, code: string, next: string }>} served false, with a refusal code and a next line, when a local runner of the same home (pid) already runs.
  */
-export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, admit, git, signal, say = () => {}, timing = {}, wakeOnOffer = false, wakeMark, home = null }) {
+export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, admit, git, signal, say = () => {}, timing = {}, wakeOnOffer = false, wakeMark, wakeIdle, home = null }) {
   const { heartbeatMs = HEARTBEAT_MS } = timing;
   fs.mkdir(folder, { recursive: true, mode: 0o700 });
   if (!takeLock(folder, home)) {
@@ -222,7 +223,7 @@ export async function serveLocalRunner({ folder, open, capabilities, handlers = 
     say(`local runner ${runner} pulling from ${state.url}`);
     while (!signal.aborted) {
       for (const board of api.boards()) {
-        if (!loops.has(board.root)) loops.set(board.root, serveBoard(board, { origin: api.origin, key: api.key, runner, folder, capabilities, handlers, admit, ledger, git, signal, say, wakeOnOffer, wakeMark }));
+        if (!loops.has(board.root)) loops.set(board.root, serveBoard(board, { origin: api.origin, key: api.key, runner, folder, capabilities, handlers, admit, ledger, git, signal, say, wakeOnOffer, wakeMark, wakeIdle }));
       }
       await pause(heartbeatMs, null, { signal }).catch(() => { /* stopped */ });
     }

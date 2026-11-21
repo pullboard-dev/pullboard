@@ -102,3 +102,16 @@ test('drive.local-wake.touch-finds-a-runner-under-a-home: clause 1: a runner sta
   assert.equal(wakeLocalRunner(folder), false, 'with no home the plain state file is absent, so no runner is found');
   assert.equal(wakeLocalRunner(folder, home), true, 'with the runner\'s home its keyed state file is found and the touch is written');
 });
+
+test('drive.local-wake.idle-is-called-as-a-nap-waits: clause 1: watchWake calls idle when a nap begins to wait and not again when the nap ends [P7,C7,#12694]', async t => {
+  const folder = temporaryDirectory('pullboard-local-wake-idle-');
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  let idles = 0;
+  const wake = watchWake(folder, { idle: () => { idles += 1; } });
+  t.after(() => wake.close());
+  const napping = wake.nap(60_000);
+  assert.equal(idles, 1, 'a nap that waits reports idle');
+  wake.close();
+  await napping;
+  assert.equal(idles, 1, 'the nap ending reports no second idle');
+});

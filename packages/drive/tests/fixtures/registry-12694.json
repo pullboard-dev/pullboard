@@ -13,5 +13,20 @@
       "packages/drive/tests/io/local-wake.test.js",
       "packages/drive/src/io/local.js"
     ]
+  },
+  "drive.local-wake.idle-is-called-as-a-nap-waits": {
+    "proves": {
+      "specs": [
+        "P7",
+        "C7"
+      ],
+      "claim": "watchWake calls its idle callback when a nap begins to wait, so a runner can tell a caller it is ready for a touch"
+    },
+    "why": "The tour offers its first job only once the demo runner is idle, because a touch that lands while the runner still loads is lost.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/tests/io/local-wake.test.js",
+      "packages/drive/src/io/wake.js"
+    ]
   }
 }
