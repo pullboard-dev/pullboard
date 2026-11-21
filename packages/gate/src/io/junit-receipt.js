@@ -1,5 +1,7 @@
 /** Receipt counts for a run whose output has no TAP summary, read from the report gate.junitReport names [C7,#10373]. */
-import { lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
