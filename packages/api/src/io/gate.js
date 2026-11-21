@@ -1155,11 +1155,7 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
     if (seedWide === true) seedWideMainTestsAtMain(board, { now: options.now });
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
-    // A claimed item whose gate settled unknown goes to review once main's receipts excuse every red file, so its claim never pins finished work (#12569).
-    settleWindow.run(board, options.now, () => {
-      settleDoneShardGates(board, ports, { now: options.now });
-      if (!queueFor(board, 'coordinator')) handUnknownGatesToReview(board, ports, { now: options.now ?? Date.now() }, { latestGateJob, offeredGate, postedReceipt, shardedResult, applyGateReceipt });
-    });
+    settleWindow.run(board, options.now, () => settleDoneShardGates(board, ports, { now: options.now }));
   }
   // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
   const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
@@ -1168,6 +1164,10 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
+/** Reconcile one page of legacy unknown gates outside runner requests. */
+export function maintainUnknownGates(board, { now = Date.now(), after, ...ports } = {}) {
+  return handUnknownGatesToReview(board, { compareWithMain: mainComparison, receiptNow: now, ...ports }, { now, after }, { latestGateJob, offeredGate, postedReceipt, shardedResult, applyGateReceipt });
+}
 /**
  * The runnerCommit port a board's claim answers carry with runners.reportCommit on: the commit the board's trunk main
  * ref points at, read from Git's ref files so no Git process runs on the request path; null (no port) when off, so the
