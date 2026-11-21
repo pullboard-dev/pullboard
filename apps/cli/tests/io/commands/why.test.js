@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { main } from '../../fixtures/native.js';
 import { fixture } from '../../fixtures/next/take.js';
 import { fetchPrintedViewLink } from '../../fixtures/view/link.js';
-import * as nativeBoard from '../../../lib/index.js';
+import * as nativeBoard from '../../../../lib/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
 import { flowReader } from '../../../src/io/commands/why.js';
 
