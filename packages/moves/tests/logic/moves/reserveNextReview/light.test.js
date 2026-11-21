@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import * as store from '../../../../../store/index.js';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 
 /** Give each candidate a disjoint file so the queue's normal collision guard stays active. */
 function brief(file) {
@@ -23,7 +24,7 @@ async function lightSeatRunsNext(box) {
 }
 
 test('moves.reserve-next-review-light.active-light-work-stays-behind-ready-mid: active light work stays behind ready mid and strong work even when light is prioritized [N2,B13]', async t => {
-  const box = fixture(t, { route: 'light', reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, route: 'light', reviewers: true });
   await lightSeatRunsNext(box);
   const strong = box.add('Strong work', { route: 'strong', brief: brief('strong-work') });
   const mid = box.add('Mid work', { route: 'mid', brief: brief('mid-work') });
@@ -44,7 +45,7 @@ test('moves.reserve-next-review-light.active-light-work-stays-behind-ready-mid: 
 });
 
 test('moves.reserve-next-review-light.an-active-light-seat-does-not-block: an active light seat does not block fallback when no strong work is ready [N2,B13]', async t => {
-  const box = fixture(t, { route: 'light', reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, route: 'light', reviewers: true });
   await lightSeatRunsNext(box);
   const light = box.add('Only ready light work', { route: 'light', brief: brief('only-light') });
 
@@ -55,7 +56,7 @@ test('moves.reserve-next-review-light.an-active-light-seat-does-not-block: an ac
 });
 
 test('moves.reserve-next-review-light.light-work-is-available-freely-after-the: light work is available freely after the light seat has been quiet for 30 minutes [N2,B13]', async t => {
-  const box = fixture(t, { route: 'light', reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, route: 'light', reviewers: true });
   await lightSeatRunsNext(box);
   box.advance(31 * 60_000);
   const light = box.add('Light work after the quiet window', { route: 'light', brief: brief('quiet-light') });
@@ -67,7 +68,7 @@ test('moves.reserve-next-review-light.light-work-is-available-freely-after-the: 
 });
 
 test('moves.reserve-next-review-light.a-light-seat-review-reservation-also-counts: a light seat review reservation also counts as next activity [N2,B13]', t => {
-  const box = fixture(t, { route: 'light', reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, route: 'light', reviewers: true });
   const reviewerPath = join(box.root, 'light-review-seat');
   const reviewer = store.register(box.board, { lane: 'review', path: reviewerPath, route: 'light', family: 'Family Beta' });
   const submitted = box.add('Submission for the light reviewer', { route: 'light', brief: brief('reviewed-light') });
