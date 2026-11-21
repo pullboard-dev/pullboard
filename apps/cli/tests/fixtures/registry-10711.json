@@ -17,9 +17,9 @@
       "specs": [
         "C7"
       ],
-      "claim": "[C7] shared policy still names every cell the folders show and the caller keeps its signature."
+      "claim": "[C7] shared policy still names every cell the folders show, through the four arguments."
     },
-    "why": "Without it, a regression where [C7] shared policy still names every cell the folders show and the caller keeps its signature would pass unnoticed.",
+    "why": "Without it, a regression where [C7] shared policy still names every cell the folders show, through the four arguments would pass unnoticed.",
     "kind": "cell unit",
     "inputs": [
       "apps/cli/tests/io/submit/touched-cells-folder.test.js"

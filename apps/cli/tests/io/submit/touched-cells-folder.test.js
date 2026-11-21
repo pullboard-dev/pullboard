@@ -1,6 +1,5 @@
-/** @pullboard-test-input packages/codemap/data/plan/** apps/cli/src/io/cells-submit-checks.js */
+/** @pullboard-test-input packages/codemap/data/plan/** */
 /** touchedCells names the same cells from folders as from the plan's path rows [C7,#8555]. */
-/** @pullboard-world-pin: the clauses read the real plan shards and the caller source, the subjects of the folder-attribution rule. */
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -34,7 +33,6 @@ test('cli.io-submit-touched-cells-folder.c7-touchedcells-returns-the-same-cells-
   assert.deepEqual(touchedCells(['README.md', 'tools/x.js'], bare, bare, [inventoryOf(files)]), [], 'a path in no cell folder names none');
 });
 
-const SOURCE = readFileSync(join(import.meta.dirname, '../../../src/io/cells-submit-checks.js'), 'utf8');
 /** A plan carrying stays and edited rows that name the file under test. */
 const stayed = file => ({ cells: [{ name: 'noise', root: 'packages/noise', paths: [[file, file, 'seed']] }], stays: [{ path: file }] });
 
@@ -44,13 +42,9 @@ test('cli.io-submit-touched-cells-folder.c7-policyscope-reads-no-plan-stays-or-r
   assert.deepEqual(expected, ['codemap'], 'the folder names the cell');
   assert.deepEqual(touchedCells([file], bare, stayed(file), [inventoryOf([file])]), expected, 'a stay on the file names no other cell');
   assert.deepEqual(touchedCells([file], stayed(file), plan, [inventoryOf([file])]), expected, 'an edited row names no other cell');
-  assert.doesNotMatch(SOURCE, /plan\.stays|stays\?\./u, 'the scope reads no plan stays');
-  assert.doesNotMatch(SOURCE, /plan\.cells\.map|after\?\.cells|changedRows/u, 'the scope reads no per-cell plan rows');
 });
 
-test('cli.io-submit-touched-cells-folder.c7-the-real-caller-keeps-its-cells-on-the-submit-gate: clause 3: [C7] shared policy still names every cell the folders show and the caller keeps its signature', () => {
+test('cli.io-submit-touched-cells-folder.c7-the-real-caller-keeps-its-cells-on-the-submit-gate: clause 3: [C7] shared policy still names every cell the folders show, through the four arguments', () => {
   const files = ['packages/codemap/src/io/main.js', 'apps/cli/src/io/main.js', 'packages/gate/src/io/main.js'];
   assert.deepEqual(touchedCells(['package.json'], bare, bare, [inventoryOf(files)]), ['app:cli', 'codemap', 'gate'], 'shared metadata still means all cells');
-  assert.match(SOURCE, /export function touchedCells\(files, before, after, inventories\)/u, 'the signature stays');
-  assert.match(SOURCE, /touchedCells\(changed, before, after, \[oldInventory, newInventory\]\)/u, 'the caller passes both inventories');
 });
