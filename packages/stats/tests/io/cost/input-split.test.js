@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { FIXTURE_MODEL } from '../../../../gate/tests/fixtures/testkit.js';
 import { recordCoordinatorUsage } from '../../../src/io/cost.js';
 import { sumUsage } from '../../../src/io/cost/usage.js';
+import { itemCost, publicUsage } from '../../../light.js';
 
 /** A real in-memory board_meta table behind the two native ports the store function uses. */
 function board() {
@@ -36,4 +37,12 @@ test('stats.input-split.a-usage-record-without-them-is: clause 2: a usage record
   const [partial] = stored('s-null', { ...BASE, freshInputTokens: 9, cacheReadInputTokens: null, cacheWriteInputTokens: null });
   assert.equal(partial.cacheReadInputTokens, null);
   assert.equal(sumUsage([partial], {}).cacheReadInputTokens, null);
+});
+
+test('stats.io-cost-input-split.show-read-boundary: clause 1: item usage and public filtering are available through the read door [C7]', () => {
+  const b = board();
+  const total = itemCost(b, 7, {});
+  assert.equal(total.inputTokens, null);
+  assert.equal(total.unknownReasons.includes('not-recorded'), true);
+  assert.deepEqual(publicUsage({ inputTokens: 3, costUSD: 2, knownCostUSD: 1, estimate: true }), { inputTokens: 3 });
 });
