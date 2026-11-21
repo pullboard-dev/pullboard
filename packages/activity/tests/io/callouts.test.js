@@ -4,9 +4,10 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { register } from '../../../store/index.js';
+import { shout } from '../../../store/index.js';
 import { coordinatorCalloutLine } from '../../index.js';
 
-const ACTIONABLE = 'Sentinel needs a sharper bar for #12576';
+const ACTIONABLE = 'Sentinel needs a sharper bar';
 
 /** Add deterministic call-out rows so the small and history-heavy boards differ only in irrelevant/answered rows. */
 function seed(board, count) {
@@ -59,6 +60,11 @@ test('activity.io-callouts.reads-open-callouts-by-index: clause 1: every prepare
   assert.ok(shoutPlans.length > 0, 'a shout query plan was captured');
   assert.ok(shoutPlans.some(detail => /shout_open_coordinator_callout/u.test(detail)), shoutPlans.join('\n'));
   assert.ok(shoutPlans.every(detail => !/SCAN shout(?! USING INDEX shout_open_coordinator_callout)/u.test(detail)), shoutPlans.join('\n'));
+  const sentinel = register(board, { lane: 'core', path: '/m/sentinel' });
+  const ask = shout(board, { from: sentinel, to: 'coordinator', text: ACTIONABLE, lanes: ['core'], decision: true });
+  shout(board, { from: 'coordinator', to: sentinel, text: 'I have acted on the call-out', lanes: ['core'], answers: ask });
+  assert.ok(db.prepare('SELECT shout_answered_at FROM shout WHERE shout_id=?').get(ask).shout_answered_at,
+    'the answer write timestamps the call-out in the same transaction');
 });
 
 test('activity.io-callouts.cost-flat-with-shout-history: clause 2: 4,342 answered and unrelated coordinator shouts keep median read under 200 ms and within 2x of 10 rows [C7]', t => {
