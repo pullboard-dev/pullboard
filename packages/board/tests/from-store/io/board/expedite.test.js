@@ -2,9 +2,9 @@
 /** expediteItem writes one expedite event, and expeditedItems drops an item once a gate verdict is recorded after it [C7,#12295]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { expediteItem } from '../../../../../store/src/io/board/expedite.js';
-import { expeditedItems } from '../../../../../store/src/io/board/expedite.js';
-import { logEvent } from '../../../../../store/src/io/board/event/log.js';
+import { expediteItem } from '../../../../../store/index.js';
+import { expeditedItems } from '../../../../../store/index.js';
+import { logEvent } from '../../../../../store/index.js';
 import { cellBoard } from '../../../fixtures/cell-board.js';
 import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
 

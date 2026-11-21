@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { archiveOldEvents } from '../../../../../store/index.js';
-import { buildLocalBoardState } from '../../../../../store/src/io/board/state.js';
+import { buildLocalBoardState } from '../../../../../store/index.js';
 import { closeBoard } from '../../../../../store/index.js';
 import { events } from '../../../../../store/index.js';
 import { exportBoard } from '../../../../../store/index.js';

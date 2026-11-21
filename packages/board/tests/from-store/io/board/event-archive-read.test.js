@@ -9,7 +9,7 @@ import { closeBoard } from '../../../../../store/index.js';
 import { events } from '../../../../../store/index.js';
 import { exportBoard } from '../../../../../store/index.js';
 import { importBoard } from '../../../../../store/index.js';
-import { itemThreads } from '../../../../../store/src/io/board.js';
+import { itemThreads } from '../../../../../store/index.js';
 import { itemThread } from '../../../../../store/index.js';
 import { openKitBoard } from '../../../fixtures/cell-board.js';
 import { temporaryDirectory } from '../../../../../store/tests/fixtures/tmp.js';
