@@ -79,7 +79,7 @@ import { settingsPageScript } from "../../logic/settings/page.js";
 import { agentApprovalScript } from "../../logic/agent/approval.js";
 import { historyLoadingScript } from "../history.js";
 /**
- * The compatibility rows the cockpit draws from GET /compat-cells (C7): one row per language, one cell per stage in
+ * The compatibility rows the cockpit draws from GET /api/v1/compat-cells (C7): one row per language, one cell per stage in
  * the feed's stage order, each cell carrying its outcome and the run id that recorded it.
  * Why: the page says what each setup does at each pipeline stage and which run said so. The page script carries this
  * function by its source, so it uses no names from outside itself.
@@ -100,7 +100,7 @@ export function compatRowsHtml(groups) {
   return '<table class="compat-cells"><thead>' + head + '</thead><tbody>' + rows.join('') + '</tbody></table>';
 }
 /**
- * The page script part that fetches GET /compat-cells and draws its rows on the Pipeline tab (C7).
+ * The page script part that fetches GET /api/v1/compat-cells and draws its rows on the Pipeline tab (C7).
  * Why: a snapshot has no server to ask, so it draws nothing; a failed read leaves the section hidden.
  *
  * @returns {string}
@@ -109,9 +109,11 @@ function compatScript() {
   return `
 /** Fetch the compat cells and draw one row per conformance setup under the Pipeline tab [C7]. */
 const compatRowsHtml = ${compatRowsHtml.toString()};
+let compatAt = 0;
 function drawCompatCells() {
-  if (snapshot) return;
-  api('/compat-cells').then((groups) => {
+  if (snapshot || Date.now() - compatAt < 30000) return;
+  compatAt = Date.now();
+  api('/api/v1/compat-cells').then((groups) => {
     const anchor = document.getElementById('insights-pipeline');
     if (!anchor || !Array.isArray(groups)) return;
     let section = document.getElementById('compat-cells');
@@ -127,7 +129,9 @@ function drawCompatCells() {
     section.innerHTML = '<h2>Compatibility by stage</h2>' + compatRowsHtml(groups);
   }, () => {});
 }
-drawCompatCells();
+// Asked for only when the Pipeline tab is drawn, so no other tab reads it.
+const renderBeforeCompat = render;
+render = function (...given) { const drawn = renderBeforeCompat.apply(this, given); if (view.tab === 'pipeline') drawCompatCells(); return drawn; };
 `;
 }
 /**
