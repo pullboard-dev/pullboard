@@ -1,0 +1,32 @@
+{
+  "codemap.plan-load-hold.verification-order": {
+    "proves": {
+      "specs": [
+        "C7",
+        "D3"
+      ],
+      "claim": "live ownership, declared cuts and prerequisites give a deterministic leaf-first order while preserving the historical plan"
+    },
+    "why": "Verification must reflect current dependencies without rewriting issued move history.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/codemap/tests/io/cells/plan-load-hold.test.js",
+      "packages/codemap/src/io/cells/plan.js"
+    ]
+  },
+  "codemap.plan-load-hold.verification-cycle": {
+    "proves": {
+      "specs": [
+        "C7",
+        "D3"
+      ],
+      "claim": "an uncut cycle is refused naming its participating cells"
+    },
+    "why": "Verification must reflect current dependencies without rewriting issued move history.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/codemap/tests/io/cells/plan-load-hold.test.js",
+      "packages/codemap/src/io/cells/plan.js"
+    ]
+  }
+}

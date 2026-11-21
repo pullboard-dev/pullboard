@@ -12,7 +12,7 @@ import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
 
-/** A memo file is named by the fixture analyzer's digest, as packages/codemap/src/io/cells/scripts/plan.js names it. */
+/** A memo file is named by the fixture analyzer's digest, as packages/codemap/src/io/cells/memo.js names it from the analyzer digest. */
 const NAME = /^[a-f0-9]{64}\.v8\.gz$/u;
 /** Budget: a shared memo of at most 16 MiB compressed; tonight's were under 200 KiB. */
 const MAX_BYTES = 16 * 1024 ** 2;

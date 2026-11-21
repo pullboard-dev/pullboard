@@ -78,7 +78,7 @@ test('codemap.plan.with-the-setting-off-the: with the setting off the check alwa
 
 test('codemap.plan.the-cache-setting-is-off: the cache setting is off by default and described [C7]', () => {
   const config = spawnSync(process.execPath, ['-e', "import('./packages/config/index.js').then(m => console.log(JSON.stringify(m.defaults().cells)))"], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(config.stdout.trim(), '{"cache":false,"shimMaxAgeDays":7}');
+  assert.equal(config.stdout.trim(), '{"cache":false,"shimMaxAgeDays":7,"plan":null}', 'the cache is off by default; cells.plan (#12437) defaults to null');
 });
 
 

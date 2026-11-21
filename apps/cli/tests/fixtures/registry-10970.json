@@ -10,7 +10,7 @@
     "kind": "contract",
     "inputs": [
       "apps/cli/src/io/commands/resume.js",
-      "apps/cli/journeys/resume/allowance.test.js"
+      "apps/cli/tests/io/resume/allowance.test.js"
     ]
   },
   "cli.journeys-resume-allowance.four-percent-is-urgent-and-no-reading-is-unknown": {
@@ -24,7 +24,7 @@
     "kind": "contract",
     "inputs": [
       "apps/cli/src/io/commands/resume.js",
-      "apps/cli/journeys/resume/allowance.test.js"
+      "apps/cli/tests/io/resume/allowance.test.js"
     ]
   },
   "cli.journeys-resume-allowance.sixty-percent-left-prints-no-allowance-line": {
@@ -38,7 +38,7 @@
     "kind": "contract",
     "inputs": [
       "apps/cli/src/io/commands/resume.js",
-      "apps/cli/journeys/resume/allowance.test.js"
+      "apps/cli/tests/io/resume/allowance.test.js"
     ]
   }
 }

@@ -1,0 +1,16 @@
+{
+  "cli.test-here.screenshots-line": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: runHere prints screenshots: <path> after the green or red line and adds screenshotsPath to its payload when the run result carries one, and prints and returns exactly as today when it does not."
+    },
+    "why": "A runner run that brought screenshots back left the builder no path to them in the pullboard test output.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/test/here.js",
+      "apps/cli/tests/io/test/here.test.js"
+    ]
+  }
+}

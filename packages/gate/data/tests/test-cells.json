@@ -9,7 +9,7 @@
     "apps/cli/journeys/spec/changes.test.js": "drives the real CLI in signed repositories and checks approved-row edit refusals, staged receipts and exit codes end to end",
     "apps/cli/journeys/spec/person.test.js": "drives the real CLI (spec, answer, person, shout) on real repositories and checks person identity, channel receipts and exit codes end to end",
     "apps/cli/journeys/doctor/frozen.test.js": "drives the real CLI in signed repositories and checks the frozen items an approved row edit names, without rewriting receipts, end to end",
-    "apps/cli/journeys/intake/main.test.js": "drives the real CLI (intake, claim, verify, accept, land) in a project checkout and checks the person intake flow, output and board rows end to end",
+    "apps/cli/tests/io/commands/intake/main.test.js": "drives the real CLI (intake, claim, verify, accept, land) in a project checkout and checks the person intake flow, output and board rows end to end",
     "apps/cli/tests/io/submit/guards.test.js": "drives the real CLI (add, claim, submit, show, export) in private repositories with installed hooks and checks that a submit refuses a move without its registry guard by name, then passes once repaired and keeps the guard in its proof",
     "apps/cli/tests/io/submit/guards-full.test.js": "drives the real CLI (add, claim, submit) in a private repository with installed hooks and checks that a full fallback gate and a candidate policy edit cannot omit an accepted registry guard",
     "apps/cli/tests/io/commands/fact/item-notes.test.js": "drives the real CLI in a project checkout and checks its item notes, board rows and exit codes end to end",

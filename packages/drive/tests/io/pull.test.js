@@ -182,6 +182,57 @@ test('drive.io-claim-key.one-key-per-claim-reused-on-retry: clause 1: queueCall 
   assert.notEqual(claims[3].key, claims[0].key, 'the next claim gets a new key');
 });
 
+/** A board offering `count` gate jobs, each with its own token, that keeps every renew call body. */
+function renewBoard(count) {
+  const open = Array.from({ length: count }, (_, at) => ({ job: `gate:${at}:r`, kind: 'gate', needs: [], run: [], candidate: null, base: null, attempt: 1, token: `t${at}` })), renews = [];
+  const fetchImpl = async (_url, { body }) => {
+    const call = JSON.parse(body);
+    if (call.action === 'claim') { queueMicrotask(changed); return { status: 200, json: async () => ({ trunk: 'unused', claim: open.shift() ?? null }) }; }
+    if (call.action === 'renew') { renews.push(call); queueMicrotask(changed); return { status: 200, json: async () => ({ leases: (call.held ?? []).map(({ job }) => ({ job, renewed: true, leaseUntil: 1 })) }) }; }
+    return { status: 200, json: async () => ({ recorded: true }) };
+  };
+  return { fetchImpl, renews };
+}
+
+test('drive.io-keep-lease.one-renew-for-all-held: clause 1: with 10 held jobs keepLease sends one renew call per interval carrying all 10 job ids [C7,#12150]', { timeout: 30_000 }, async t => {
+  const queue = renewBoard(10), jobs = holders();
+  const { root } = privateFixtureFiles('pullboard-pull-renew-');
+  const stop = new AbortController();
+  const serving = serveRunner({ git: pullGit, board: 'http://board.invalid/api/v1/boards/b0?k=x', runner: 'renew-0', capabilities: [], cache: `${root}/b0`, jobs: 10,
+    fetchImpl: queue.fetchImpl, handlers: jobs.handlers, signal: stop.signal, timing: { renewMs: 20, idleMs: 5 }, trunkPack: async () => {} });
+  t.after(() => { stop.abort(); rmSync(root, { recursive: true, force: true }); });
+  await until(() => jobs.started.length === 10);
+  const from = queue.renews.length;
+  await until(() => queue.renews.length >= from + 3);
+  const interval = queue.renews.slice(from, from + 3);
+  assert.ok(interval.every(call => call.job === undefined && call.runner === 'renew-0'), 'every renew is the runner\'s batch call, not a call per job');
+  assert.ok(interval.every(call => call.held.length === 10 && new Set(call.held.map(entry => entry.job)).size === 10), 'each carries all 10 held job ids');
+  assert.ok(interval.every(call => call.held.every(entry => entry.token === `t${entry.job.split(':')[1]}`)), 'each job with its own token');
+  for (const job of [...jobs.started]) jobs.release(job);
+  stop.abort();
+  await serving;
+});
+
+test('drive.io-keep-lease.capped-claim-waits: clause 1: a claim answer carrying a wait time makes serveRunner wait that time instead of its idle poll [C7,#12150]', { timeout: 30_000 }, async t => {
+  const claims = [], slept = [];
+  const fetchImpl = async (_url, { body }) => {
+    const call = JSON.parse(body);
+    if (call.action === 'claim') { claims.push(call); queueMicrotask(changed); return { status: 200, json: async () => ({ trunk: 'unused', claim: null, waitMs: 300 }) }; }
+    return { status: 200, json: async () => ({ recorded: true }) };
+  };
+  const { root } = privateFixtureFiles('pullboard-pull-capped-');
+  const stop = new AbortController();
+  const serving = serveRunner({ git: pullGit, board: 'http://board.invalid/api/v1/boards/b0?k=x', runner: 'capped-0', capabilities: [], cache: `${root}/b0`, jobs: 1,
+    fetchImpl, handlers: {}, signal: stop.signal, timing: { idleMs: 5 }, trunkPack: async () => {},
+    sleep: ms => { slept.push(ms); return new Promise(resolve => setImmediate(resolve)); } });
+  t.after(() => { stop.abort(); rmSync(root, { recursive: true, force: true }); });
+  await until(() => claims.length >= 3);
+  stop.abort();
+  await serving;
+  assert.ok(slept.includes(300), 'the runner waited the 300 ms the claim answer carried');
+  assert.ok(!slept.includes(5), 'and never the 5 ms idle poll');
+});
+
 test("drive.io-claim-refusal.backs-off-keeps-serving: clause 1: a claim call the board refuses (HOP_HELD twice) is said, backed off and claimed again; the serve takes the next job and ends only on its signal [C7]", { timeout: 30_000 }, async t => {
   const { root } = privateFixtureFiles("pullboard-claim-refusal-");
   const stop = new AbortController(), said = [], posted = [];

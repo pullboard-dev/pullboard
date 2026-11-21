@@ -15,7 +15,7 @@ const IN_LANE = ['apps/cli/journeys/list/board.test.js', 'a lane commits only in
 const HEADER = ['apps/cli/journeys/hooks/main.test.js', 'header format, length, case and period'];
 const CITES = ['apps/cli/journeys/hooks/main.test.js', 'feat and fix cite ids; cited ids exist'];
 const PRE_PUSH = ['apps/cli/journeys/spec/e2e/submit.test.js', 'pre-push runs the gate once per tree'];
-const MERGE_HINT = ['apps/cli/journeys/hooks/main-part2.test.js', 'a refused merge message points to the message git writes'];
+const MERGE_HINT = ['apps/cli/tests/io/commands/hooks/part2.test.js', 'a refused merge message points to the message git writes'];
 const FIXERS = ['apps/cli/journeys/runner/e2e-sweep.test.js', 'pre-commit runs the fixers on fully staged files'];
 const CI = ['packages/gate/tests/ci.test.js', 'CI runs the gate on every push and pull request'];
 const BADGE = ['packages/gate/tests/ci.test.js', "the README header shows the board's own badges, not the CI status badge"];
@@ -34,7 +34,7 @@ const MUTANTS = [
   ['L2', 'an unowned path belongs to no lane', [['packages/seats/src/logic/lane/lookup.js', '  let owner = COORDINATOR;', "  let owner = '';"]], LONGEST, 'red'],
   ['L3', 'a lane may commit outside its folders', [['packages/commits/src/io/hooks.js', '.flatMap((path) => outside(path).map(label => ({ path, label })))', '.flatMap(() => [])']], IN_LANE, 'red'],
   ['L3', "a move counts only where it lands, not where it left", [['packages/commits/src/io/hooks.js', 'const paths = fields.slice(index + 1, index + (isMove ? 3 : 2)).filter(', 'const paths = fields.slice(index + (isMove ? 2 : 1), index + (isMove ? 3 : 2)).filter(']], IN_LANE, 'red'],
-  ['L4', 'a worktree that joined no lane may commit', [['packages/commits/src/io/hooks.js', "    problems.push('this worktree has not joined a lane: pullboard join <lane> --model \"<model name>\"');\n    return problems;", '    return problems;']], IN_LANE, 'red'],
+  ['L4', 'a worktree that joined no lane may commit', [['packages/commits/src/io/hooks.js', "    problems.push(offBranch ?? 'this worktree has not joined a lane: pullboard join <lane> --model \"<model name>\"');\n    return problems;", '    return problems;']], IN_LANE, 'red'],
   ['C1', 'a header of any length passes', [['packages/commits/src/io/hooks.js', 'if (header.length > rules.maxHeader) {', 'if (false) {']], HEADER, 'red'],
   ['C1', 'a header of any type passes', [['packages/commits/src/io/hooks.js', "const typeRe = new RegExp(`^(${rules.types.join('|')})", 'const typeRe = new RegExp(`^([a-z]+)']], HEADER, 'red'],
   ['C1', 'a subject may start uppercase', [['packages/commits/src/io/hooks.js', 'if (/^[A-Z]/.test(subject)) {', 'if (false) {']], HEADER, 'red'],

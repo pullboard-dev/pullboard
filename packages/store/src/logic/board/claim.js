@@ -16,6 +16,7 @@ import {
   ENGINE_VERSION,
   MOVES,
   IN_STATE,
+  lineSettings,
   REOPEN_FIRST_REFUSAL_ENGINE,
 } from "../../../../state/index.js";
 import { firstRefusal } from "./item/lookup.js";
@@ -28,6 +29,7 @@ import { TWO_TIER_DIAGNOSIS_ENGINE } from "../../../../state/light.js";
 import { TAKEN_OVER_RELEASE_ENGINE } from "../../../../state/light.js";
 import { INFRA_RELEASE_ENGINE } from "../../../../state/light.js";
 import { RELEASE_UNTOUCHED_REROUTE_ENGINE } from "../../../../state/light.js";
+import { SEAT_LIVE_WINDOW_MS } from "../../io/presence.js";
 import { releaseDecision } from "./release-table.js";
 
 /**
@@ -57,6 +59,19 @@ function goneRelease(board, item, actor, observation) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < GONE_CLAIM_ENGINE) {
     throw new Refused('ENGINE_VERSION', 'gone-seat releases require the gone-claim engine; upgrade every linked writer');
   }
+  const checkout = observation?.checkout;
+  if (checkout && actor === 'coordinator' && item.item_status === 'claimed'
+    && item.item_owner === observation.seat && item.item_lease_until === checkout.leaseUntil
+    && Number.isFinite(seen) && new Date(seen).toISOString() === at) {
+    const minutes = lineSettings(board).takeoverMinutes;
+    const window = typeof minutes === 'number' ? minutes * 60_000 : SEAT_LIVE_WINDOW_MS;
+    const revision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=?').get(item.item_id).id;
+    if (now - seen >= window && checkout.itemRevision === revision
+      && Object.keys(observation).every(key => ['seat', 'lastSeen', 'checkout'].includes(key))) {
+      return { seat: observation.seat, lastSeen: at };
+    }
+  }
+  if (checkout) throw new Refused('NOT_YOURS', 'the gone-seat claim or takeover window changed after maintenance observed it');
   if (actor !== 'coordinator' || item.item_status !== 'claimed' || item.item_owner !== observation?.seat
     || !(item.item_lease_until > board.clock.now().toISOString()) || !Number.isFinite(seen)
     || new Date(seen).toISOString() !== at || now - seen < 1_800_000

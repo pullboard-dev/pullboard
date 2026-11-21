@@ -69,14 +69,30 @@ function expectedWorktreeRoot(treePath, mainRoot, placement) {
 }
 
 /** Match a reported process working directory to this tree without treating a similarly named sibling as inside it. */
-function processInTree(processes, treePath) {
+function processInTree(processes, treePath, seatFamily = false) {
   if (!Array.isArray(processes)) return { unknown: true, matched: false };
   for (const process of processes) {
     const cwd = absolutePath(typeof process === 'string' ? process : process?.cwd ?? process?.path);
     if (!cwd) return { unknown: true, matched: false };
     if (containsPath(treePath, cwd)) return { unknown: false, matched: true };
+    if (seatFamily) {
+      const sibling = relative(dirname(treePath), cwd).split(sep)[0];
+      const prefix = basename(treePath) + '-';
+      if (sibling.startsWith(prefix) && /^(?:item-[1-9]\d*|spare)$/u.test(sibling.slice(prefix.length))) {
+        return { unknown: false, matched: true };
+      }
+    }
   }
   return { unknown: false, matched: false };
+}
+
+/** Return the last observed activity only when the whole seat is idle past the line's takeover window. */
+export function goneMaintenanceSeat(seat, takeoverMs, now, workingDirectories) {
+  const root = absolutePath(seat.agent_path ?? seat.path);
+  if (!root || !idlePastTakeover(seat, takeoverMs, now)) return null;
+  const census = processInTree(workingDirectories, root, true);
+  if (census.unknown || census.matched) return null;
+  return seatActivity(seat);
 }
 
 /** A closed native item has either landed or been explicitly withdrawn. */
@@ -110,10 +126,11 @@ export function classifyMaintenanceTree(tree, {
   const path = absolutePath(tree?.path);
   const main = absolutePath(mainRoot), current = absolutePath(currentRoot);
   let retiredIdle = false;
+  let goneSeat = null;
   const result = (kind, protectedTree, reason, agents = [], linkedItems = [], inactiveSince = null, oldEnough = false) => ({
     path: path ?? String(tree?.path ?? ''), kind, protected: protectedTree, reason,
     agents: [...new Set(agents)].sort(), items: [...new Set(linkedItems)].sort((a, b) => Number(a) - Number(b)),
-    inactiveSince, oldEnough, ...(retiredIdle ? { retiredIdle: true } : {}),
+    inactiveSince, oldEnough, ...(retiredIdle ? { retiredIdle: true } : {}), ...(goneSeat ? { goneSeat } : {}),
   });
   if (!path || !main || !Number.isFinite(now)) return result('active', true, 'path-or-clock-unknown');
   if (maintenanceProtectedPath(path)) return result('active', true, 'recovery-checkout');
@@ -124,10 +141,6 @@ export function classifyMaintenanceTree(tree, {
     return root && path.startsWith(`${root}-item-`) && /^[1-9]\d*$/u.test(path.slice(root.length + 6));
   }) : null;
   const folderItem = itemSeat ? Number(path.slice(absolutePath(itemSeat.path ?? itemSeat.agent_path).length + 6)) : null;
-  const folderClaim = Array.isArray(items) ? items.find(item => item.item_id === folderItem
-    && (item.item_owner === itemSeat?.agent_id || item.item_built_by === itemSeat?.agent_id)
-    && itemObligation(item, now)) : null;
-  if (folderClaim) return result('active', true, 'item-folder-obligation', [itemSeat.agent_id], [folderItem]);
   // A seat's prepared spare (#5776) is the seat's own scratch: it follows the seat's retirement and is never a stray checkout.
   const matchingSeats = Array.isArray(seats) ? seats.filter(seat => {
     const root = absolutePath(seat.path ?? seat.agent_path);
@@ -155,9 +168,21 @@ export function classifyMaintenanceTree(tree, {
     if (overlapsPath(resolve(main, excluded), path)) return result('active', true, 'configured-exclusion', agentIds, itemIds);
   }
 
-  const processState = processInTree(workingDirectories, path);
+  const seatRoot = itemSeat ? absolutePath(itemSeat.agent_path ?? itemSeat.path) : path;
+  const processState = processInTree(workingDirectories, seatRoot, Boolean(itemSeat || matchingSeats.length && seatRoot === path));
+  if (itemSeat && processState.matched) return result('active', true, 'process-working-directory', [itemSeat.agent_id], [folderItem]);
   if (processState.unknown) return result('active', true, 'process-census-unknown', agentIds, itemIds);
   if (processState.matched) return result('active', true, 'process-working-directory', agentIds, itemIds);
+
+  const seatOwners = itemSeat ? [itemSeat] : matchingSeats;
+  if (seatOwners.length && seatOwners.every(seat => goneMaintenanceSeat(seat, takeoverMs, now, workingDirectories) !== null)) {
+    goneSeat = seatOwners.map(seat => seat.agent_id);
+  }
+  const folderClaim = itemSeat && items.find(item => item.item_id === folderItem && itemObligation(item, now));
+  if (folderClaim) return result('active', true, 'item-folder-obligation', [itemSeat.agent_id], [folderItem]);
+  if (itemSeat && takeoverMs !== null && !goneSeat && !items.some(item => item.item_id === folderItem && itemClosed(item))) {
+    return result('active', true, 'item-seat-present', [itemSeat.agent_id], [folderItem]);
+  }
 
   const outsideRoot = !expectedWorktreeRoot(path, main, config.worktrees ?? 'beside');
   if (config.worktrees === 'inside' && path === join(main, '.claude', 'worktrees')) {
@@ -172,7 +197,7 @@ export function classifyMaintenanceTree(tree, {
     // which a hookless, rejoined or pooled seat never refreshes, so "gone" never proves the seat has left (#5969).
     // A joined seat idle past the takeover window that holds no claim (checked above) is retired the same way (#8199).
     if (timestamp(seat.completedTakeoverAt) === null) {
-      if (!idlePastTakeover(seat, takeoverMs, now)) {
+      if (goneMaintenanceSeat(seat, takeoverMs, now, workingDirectories) === null) {
         const reason = seat.presence === 'live' || seat.presence === 'idle' ? `seat-${seat.presence}` : 'seat-joined';
         return result('active', true, reason, agentIds, itemIds);
       }

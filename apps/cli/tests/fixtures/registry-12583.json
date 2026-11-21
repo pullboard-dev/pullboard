@@ -1,0 +1,20 @@
+{
+  "cli.io-reclaim.skips-busy-writer": {
+    "proves": { "specs": ["C7"], "claim": "with the board writer held by another connection, fallbackReclaim returns null in under 200 ms and leaves the lapsed gate job as it was." },
+    "why": "Without this test the fallback queued for the writer on nearly every next, 7 s of one builder next at load on 20 Nov.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/reclaim.js", "apps/cli/tests/io/reclaim.test.js"]
+  },
+  "cli.io-reclaim.drives-when-writer-free": {
+    "proves": { "specs": ["C7"], "claim": "with the writer free, a command's fallback reclaim still drives a lapsed gate job one transition." },
+    "why": "Without this test the no-wait probe could silently stop the fallback from ever reclaiming.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/reclaim.js", "apps/cli/tests/io/reclaim.test.js"]
+  },
+  "cli.io-reclaim.cost-flat-with-lapsed-history": {
+    "proves": { "specs": ["C7"], "claim": "with 400 finished gate jobs and one lapsed job, a fallback reclaim that meets a held writer stays under 200 ms." },
+    "why": "Without this test the fallback's cost could grow with gate history while it still skipped the write.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/reclaim.js", "apps/cli/tests/io/reclaim.test.js"]
+  }
+}

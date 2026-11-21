@@ -38,7 +38,14 @@ export async function run(io, { values = {} } = {}) {
   const actedIds = (values['acted-on'] ?? '').split(',').filter(Boolean);
   const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead,
     // inbox.batchedMarks: queued marks go to a background worker that writes them in one batch (#9117).
-    handOffMarks: (c, entries) => { if (!entries.length) return; spoolInboxMarks(c.file, entries); startMarksWorker(MARKS_WORKER, c.file); } };
+    handOffMarks: (c, entries) => { if (!entries.length) return; spoolInboxMarks(c.file, entries); startMarksWorker(MARKS_WORKER, c.file); },
+    // The delivery record leaves the same way: the spool holds it and the worker writes it, so the read opens no write board (#10879).
+    handOffDelivery: (c, agentId, group) => {
+      const delivery = { ...group };
+      delete delivery.agentId;
+      spoolInboxMarks(c.file, [{ agent: agentId, delivery }]);
+      startMarksWorker(MARKS_WORKER, c.file);
+    } };
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   sayLag(io, ctx);
   const result = await deliverActivity(ctx, { actedIds }, ports);
