@@ -50,7 +50,7 @@ test('cli.journeys-fact-repo-local.consumer-claim-waits-on-provider: clause 1: l
 
   const linked = consumer.run(consumer.repo, 'link', 'repo', '--by', 'consumer-parent', '--key', consumerKey);
   assert.equal(linked.code, 0, linked.err + linked.out);
-  assert.match(linked.out, /linked repo-repo/u);
+  assert.match(linked.out, /linked board-repo: board is the parent of repo/u);
 
   const waitingId = fileFixtureItem(consumer, consumer.repo, { lane: 'web', title: 'Waits on provider', diagnose: false, args: ['--after', `repo#${providerId}`] }).item_id;
 
