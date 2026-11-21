@@ -1,7 +1,7 @@
 /** A census prints the seconds it spent from start to its first job, through pass 1, and in its reruns [C7,#10525], and per host the minutes its slots sat idle while jobs were queued [C7,#10526]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { spawn } from 'node:child_process';
+import { startFixtureChild } from '../../fixtures/child.js';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { pullProject } from '../../fixtures/pull.js';
 import { openKitBoard } from '../../fixtures/board.js';
-import { closeBoard } from '../../../../lib/index.js';
+import { closeBoard } from '../../../../../packages/board/index.js';
 import { jobQueueCall } from '../../../../../packages/api/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { fixtureCommitAll } from '../../../../../packages/gate/tests/fixtures/testkit.js';
@@ -114,7 +114,7 @@ test('cli.io-test-census.sigterm-cancels-own-shards: clause 1: SIGTERM withdraws
   };
   const bin = join(import.meta.dirname, '../../../pullboard.js');
   const start = name => {
-    const child = spawn(process.execPath, [bin, 'test', '--census', '--out', join(box.dir, `${name}.jsonl`)], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = startFixtureChild(process.execPath, [bin, 'test', '--census', '--out', join(box.dir, `${name}.jsonl`)], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = ''; child.stdout.on('data', data => { output += data; }); child.stderr.on('data', data => { output += data; });
     child.closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal, output })));
     t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await child.closed; });
