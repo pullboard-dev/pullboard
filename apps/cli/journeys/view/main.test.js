@@ -188,7 +188,7 @@ async function nextViewStreamEvent(reader, predicate) {
   } finally { clearTimeout(timer); }
 }
 
-after(() => { for (const dir of PRIVATE_DIRS) rmSync(dir, { recursive: true, force: true }); });
+after(() => { for (const dir of PRIVATE_DIRS) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); });
 
 test('cli.journeys-view-main.public-export-refuses-an-exporter-without: public export refuses an exporter without declared filter support [N26]', async () => {
   let called = false;
