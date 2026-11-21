@@ -1,0 +1,30 @@
+{
+ "gate.io-board-request-blocking.adapter-list-blocks": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "a request-path function that lists a directory through fileSystemAdapter().list is reported as blocking"
+  },
+  "why": "Without this case a directory read moved onto the fs adapter would hide from the request-path ratchet.",
+  "kind": "cell unit",
+  "inputs": [
+   "packages/gate/tests/io/board/request/blocking.test.js",
+   "packages/gate/src/io/board/request.js"
+  ]
+ },
+ "gate.io-board-request-blocking.bare-worktree-row-fires": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "the known-blocker row for bareWorktreeFinding is in the gate request list and fires on main"
+  },
+  "why": "Without this case a directory read moved onto the fs adapter would hide from the request-path ratchet.",
+  "kind": "cell unit",
+  "inputs": [
+   "packages/gate/tests/io/board/request/blocking.test.js",
+   "packages/gate/src/io/board/request.js"
+  ]
+ }
+}
