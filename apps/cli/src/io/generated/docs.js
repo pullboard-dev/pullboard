@@ -13,6 +13,7 @@ import { schemaDocBlocks } from '../../logic/generated/doc/schema.js';
 import { declarationDocBlocks } from './declarations.js';
 
 const files = fileSystemAdapter();
+const SPEC_TABLES = ['id-pattern', 'statuses', 'tiers', 'parser-fields'];
 
 /** The engine page of the formats doc: headings held here, its table rendered from the event declarations [C7]. */
 export function engineFirstPage(blocks) {
@@ -42,6 +43,34 @@ export function staticViewPage(blocks) {
   ].join('\n');
 }
 
+/** The spec page: headings held here, its four tables rendered from the parser declarations; its authored prose is dropped [C7]. */
+export function specPage(blocks) {
+  return [
+    '# SPEC.md and DOCTRINE.md',
+    '',
+    '## SPEC.md and DOCTRINE.md',
+    '',
+    '<!-- id-pattern:start -->',
+    blocks['id-pattern'].trimEnd(),
+    '<!-- id-pattern:end -->',
+    '',
+    '<!-- statuses:start -->',
+    blocks.statuses.trimEnd(),
+    '<!-- statuses:end -->',
+    '',
+    '<!-- tiers:start -->',
+    blocks.tiers.trimEnd(),
+    '<!-- tiers:end -->',
+    '',
+    '### Parsed row fields',
+    '',
+    '<!-- parser-fields:start -->',
+    blocks['parser-fields'].trimEnd(),
+    '<!-- parser-fields:end -->',
+    '',
+  ].join('\n');
+}
+
 /** Render every generated copy without touching a repository board or rewriting authored prose. */
 export function generatedDocs(root = fileURLToPath(new URL('../../../../../', import.meta.url)), { openBoard } = {}) {
   const board = openBoard(':memory:');
@@ -49,12 +78,10 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   try { blocks = { ...schemaDocBlocks(board.db), ...declarationDocBlocks(root), 'format-versions': formatTable(root) }; }
   finally { closeBoard(board); }
   let formats = files.readFile(join(root, 'docs', 'formats.md'), 'utf8');
-  let spec = files.readFile(join(root, 'docs', 'formats', 'spec.md'), 'utf8');
   // A table moved to a user page is refreshed there; every other table stays in the guide.
   for (const [name, table] of Object.entries(blocks)) {
-    if (name === 'snapshot-files') continue; // rendered whole into the static view page below
-    if (!formats.includes(`<!-- ${name}:start -->`) && spec.includes(`<!-- ${name}:start -->`)) spec = replaceDocTable(spec, name, table);
-    else formats = replaceDocTable(formats, name, table);
+    if (name === 'snapshot-files' || SPEC_TABLES.includes(name)) continue; // rendered whole into their own pages below
+    formats = replaceDocTable(formats, name, table);
   }
   let api = files.readFile(join(root, 'docs', 'api.md'), 'utf8');
   const tables = {
@@ -66,7 +93,7 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   };
   for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
   return new Map([
-    ['docs/formats.md', formats], ['docs/formats/spec.md', spec], ['docs/formats/static-view.md', staticViewPage(blocks)], ['docs/api.md', api],
+    ['docs/formats.md', formats], ['docs/formats/spec.md', specPage(blocks)], ['docs/formats/static-view.md', staticViewPage(blocks)], ['docs/api.md', api],
     ['docs/formats/engine-first.md', engineFirstPage(blocks)],
     ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)],
   ]);

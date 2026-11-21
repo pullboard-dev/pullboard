@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/generated/docs.js apps/cli/src/io/documentation/events/*.json docs/formats/engine-first.md docs/formats/static-view.md docs/tools/update-docs.js */
+/** @pullboard-test-input apps/cli/src/io/generated/docs.js apps/cli/src/io/documentation/events/*.json docs/formats/engine-first.md docs/formats/static-view.md docs/formats/spec.md docs/tools/update-docs.js */
 /** The generated-docs boundary renders the engine page whole from the declarations, with no committed page to read [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -12,6 +12,7 @@ import { generatedDocs } from '../../../src/io/generated/docs.js';
 
 const PAGE = 'docs/formats/engine-first.md';
 const STATIC_VIEW = 'docs/formats/static-view.md';
+const SPEC = 'docs/formats/spec.md';
 
 test('cli.io-generated-docs.engine-page-whole: clause 1: generatedDocs returns docs/formats/engine-first.md rendered whole on a root that has no such file [C7]', (t) => {
   const box = docsRepository(t);
@@ -54,6 +55,32 @@ test('cli.io-generated-docs.static-view-written: clause 2: docs/tools/update-doc
   const written = box.node('docs/tools/update-docs.js');
   assert.equal(written.status, 0, written.context);
   assert.equal(readFileSync(join(box.root, STATIC_VIEW), 'utf8'), committed);
+  const checked = box.node('docs/tools/update-docs.js', '--check');
+  assert.equal(checked.status, 0, checked.context);
+});
+
+test('cli.io-generated-docs.spec-renders-whole: clause 1: generatedDocs returns docs/formats/spec.md rendered whole, with every generated table, on a root that has no such file [C7]', (t) => {
+  const box = docsRepository(t);
+  const committed = readFileSync(join(box.root, SPEC), 'utf8');
+  rmSync(join(box.root, SPEC));
+  assert.equal(existsSync(join(box.root, SPEC)), false);
+  const page = generatedDocs(box.root, { openBoard }).get(SPEC);
+  assert.equal(page, committed, 'the rendered page equals the committed copy');
+  assert.match(page, /^# SPEC\.md and DOCTRINE\.md\n\n## SPEC\.md and DOCTRINE\.md\n\n<!-- id-pattern:start -->\n/u);
+  for (const name of ['id-pattern', 'statuses', 'tiers', 'parser-fields']) {
+    assert.ok(page.includes(`<!-- ${name}:start -->\n| `), `${name} table present`);
+    assert.ok(page.includes(`\n<!-- ${name}:end -->\n`), `${name} end marker present`);
+  }
+  assert.ok(page.endsWith('<!-- parser-fields:end -->\n'));
+});
+
+test('cli.io-generated-docs.spec-written: clause 2: docs/tools/update-docs.js writes the whole spec page where none exists and --check then passes [C7]', (t) => {
+  const box = docsRepository(t);
+  const committed = readFileSync(join(box.root, SPEC), 'utf8');
+  rmSync(join(box.root, SPEC));
+  const written = box.node('docs/tools/update-docs.js');
+  assert.equal(written.status, 0, written.context);
+  assert.equal(readFileSync(join(box.root, SPEC), 'utf8'), committed);
   const checked = box.node('docs/tools/update-docs.js', '--check');
   assert.equal(checked.status, 0, checked.context);
 });
