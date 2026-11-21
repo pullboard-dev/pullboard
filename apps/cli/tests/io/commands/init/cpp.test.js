@@ -5,11 +5,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { CMAKE } from '../../tests/fixtures/languages/cpp.js';
-import { UNAVAILABLE } from '../../tests/fixtures/languages/cpp.js';
-import { cmakeSandbox } from '../../tests/fixtures/languages/cpp.js';
-import { writeProject } from '../../tests/fixtures/languages/cpp.js';
+import { createE2eHelpers } from '../../../fixtures/e2e.js';
+import { CMAKE } from '../../../fixtures/languages/cpp.js';
+import { UNAVAILABLE } from '../../../fixtures/languages/cpp.js';
+import { cmakeSandbox } from '../../../fixtures/languages/cpp.js';
+import { writeProject } from '../../../fixtures/languages/cpp.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

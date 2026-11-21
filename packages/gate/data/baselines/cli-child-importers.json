@@ -1,11 +1,6 @@
 [
-  "activity/tests/io/worktrees.test.js",
-  "config/tests/io/compat.test.js",
-  "config/tests/logic/settings/busy.test.js",
-  "config/tests/logic/settings/comparison.test.js",
-  "config/tests/logic/settings/dispatch.test.js",
-  "config/tests/logic/settings/door.test.js",
-  "config/tests/logic/settings/require-runner-attribution.test.js",
+  "commits/tests/contribution-clauses.test.js",
+  "commits/tests/runner/scan/leak.test.js",
   "gate/tests/io/static/style.test.js",
   "jobs/tests/io/launch.test.js",
   "jobs/tests/logic/panel.test.js",

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../git/tests/fixtures/child.js';
 import { machineHome } from '../../../../resources/index.js';
 import { machineSettingsFile } from '../../../../resources/index.js';
 import { DEFAULT_QUEUE_AGING_MINUTES } from '../../../../queue/index.js';

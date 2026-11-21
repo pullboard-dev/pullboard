@@ -5,12 +5,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { COMPOSER } from '../../tests/fixtures/languages/php.js';
-import { GATE } from '../../tests/fixtures/languages/php.js';
-import { UNAVAILABLE } from '../../tests/fixtures/languages/php.js';
-import { composerSandbox } from '../../tests/fixtures/languages/php.js';
-import { writeProject } from '../../tests/fixtures/languages/php.js';
+import { createE2eHelpers } from '../../../fixtures/e2e.js';
+import { COMPOSER } from '../../../fixtures/languages/php.js';
+import { GATE } from '../../../fixtures/languages/php.js';
+import { UNAVAILABLE } from '../../../fixtures/languages/php.js';
+import { composerSandbox } from '../../../fixtures/languages/php.js';
+import { writeProject } from '../../../fixtures/languages/php.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
