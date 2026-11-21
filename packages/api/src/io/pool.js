@@ -23,6 +23,8 @@ const CALL_MS = 120_000;
  * claim and renewal was refused API_BUSY, 62 test jobs sat queued with six runners idle and landings stopped (#10786).
  */
 const RUNNER_WORKERS = 1;
+/** Runner job actions safe to name in health; request fields other than this canonical name stay out of pool state. */
+const RUNNER_ACTIONS = Object.freeze(['claim', 'renew', 'progress', 'receipt']);
 
 /** The pool size this machine's cores give: one core stays with the request thread, and at least two workers run. */
 export function handlerPoolSize(cores = availableParallelism()) {
@@ -123,10 +125,10 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
      * without a limit, behind the queue. A runner call (`runner`: a runner's job call and its board lookup) waits in
      * its own queue, served before agent calls, and may take the workers agent calls leave to it (#10786).
      */
-    call(kind, args, { route = kind, internal = false, runner = false } = {}) {
+    call(kind, args, { route = kind, internal = false, runner = false, action = null } = {}) {
       if (closed) return Promise.reject(new Refused('API_CLOSED', 'the API is closing; retry against the restarted server'));
       return new Promise((ok, fail) => {
-        const call = { id: ++nextId, kind, args, route, runner, ok, fail, timer: null };
+        const call = { id: ++nextId, kind, args, route, runner, action: runner && RUNNER_ACTIONS.includes(action) ? action : null, ok, fail, timer: null };
         const lane = runner ? runnerQueue : queue;
         const free = lane.length ? null : freeFor(call);
         if (free) return run(free, call);
@@ -138,7 +140,11 @@ export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize()
     /** What health reports: the pool size, the workers kept for runner job calls, the workers holding a call and for how long, and the queued calls. */
     health(now = Date.now()) {
       const held = slots.filter((slot) => slot.call);
-      return { workers: size, runnerWorkers: reserved, busy: held.length, queued: queue.length + runnerQueue.length, oldestMs: held.length ? now - Math.min(...held.map((slot) => slot.started)) : 0 };
+      const runnerActions = Object.fromEntries(RUNNER_ACTIONS.map((action) => {
+        const active = slots.filter((slot) => slot.call?.runner && slot.call.action === action);
+        return [action, { busy: active.length, oldestMs: active.length ? now - Math.min(...active.map((slot) => slot.started)) : 0 }];
+      }));
+      return { workers: size, runnerWorkers: reserved, busy: held.length, queued: queue.length + runnerQueue.length, oldestMs: held.length ? now - Math.min(...held.map((slot) => slot.started)) : 0, runnerActions };
     },
     /** End every worker and refuse every queued call. */
     close() {

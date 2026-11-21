@@ -21,6 +21,7 @@ import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
 import { briefFilesAbsentFromMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireSpecGateRows } from '../item/bar.js';
 import { requireAfterNeeded } from '../item/bar.js';
 import { requireChainDepth } from '../item/bar.js';
 import { chainDepthOf } from '../item/bar.js';
@@ -76,8 +77,10 @@ import {
   relayCommandReceiptReported,
 } from '../../../../../packages/link/index.js';
 import {
+  gateFiles,
   idProblems,
   loadSpec,
+  parseSpec,
 } from '../../../../../packages/spec/index.js';
 import {
   actOn,
@@ -254,6 +257,7 @@ export async function run(io, args) {
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   briefFilesAbsentFromMain(ctx, { criterion: item.criterion, brief: item.brief }, itemsBarRulesAtAdd());
   await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
+  await requireSpecGateRows(ctx, { criterion: item.criterion }, itemsBarRulesAtAdd(), asPerson || me.id === COORDINATOR, { parseSpec, gateFiles });
   requireAfterNeeded(ctx, { criterion: item.criterion, check: item.check }, { on: itemsBarRulesAtAdd(), after: item.after ?? [], items: () => store.listItems(board, { all: true }) });
   if (itemsBarRulesAtAdd() && (item.after ?? []).length) requireChainDepth(item.after, chainDepthOf(store.listItems(board, { all: true })));
   requireBarInLane(ctx, me, item, itemsBarRulesAtAdd());
