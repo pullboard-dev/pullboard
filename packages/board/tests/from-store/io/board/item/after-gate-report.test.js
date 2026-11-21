@@ -50,7 +50,7 @@ function seeded(t) {
   return { box, parent, head };
 }
 
-test("store.io-board-item-after-gate-report.claim-recorded: clause 1: claiming a dependent whose after-gate parent is gate-green records one note fact starting after-gate claim: naming the parent id, the parent head and the claim time, and a plain --after claim and a renewed claim record none [C7,#12325]", t => {
+test('store.io-board-item-after-gate-report.claim-recorded: clause 1: claiming a dependent whose after-gate parent is gate-green records one note fact starting after-gate claim: naming the parent id, the parent head and the claim time, and a plain --after claim and a renewed claim record none [C7,#12325]', t => {
   const { box, parent, head } = seeded(t);
   const child = box.add("Dependent on the gate");
   setAfterGate(box.board, child, [parent]);
@@ -103,7 +103,7 @@ function timed(t) {
 /** The note texts on one item that start with a prefix. */
 const notesStarting = (board, id, prefix) => itemThread(board, id).filter(entry => entry.type === "fact" && entry.kind === "note" && String(entry.text).startsWith(prefix)).map(entry => entry.text);
 
-test("store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 1: verifying an after-gate parent records one after-gate saved: note naming each claimed dependent and its whole minutes, and sending a dependent back records one after-gate rebuild: note naming it on the parent [C7,#12326]", t => {
+test('store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 1: verifying an after-gate parent records one after-gate saved: note naming each claimed dependent and its whole minutes, and sending a dependent back records one after-gate rebuild: note naming it on the parent [C7,#12326]', t => {
   const { board, clock, seats, item, claim, submitted, verdict } = timed(t);
   // Both parents are submitted before the first verdict sets the engine that seals each submission's policy.
   const parent = submitted("Parent that is verified");
@@ -133,7 +133,7 @@ test("store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 
   assert.equal(notesStarting(board, parent, "after-gate rebuild:").length, 0, "a verified parent records no rebuild");
 });
 
-test("store.io-board-item-after-gate-report.report-reads-back: clause 1: afterGateReport sums the minutes of every saved note and counts the rebuild notes on a parent, and reads zero for a parent with none [C7,#12327]", t => {
+test('store.io-board-item-after-gate-report.report-reads-back: clause 1: afterGateReport sums the minutes of every saved note and counts the rebuild notes on a parent, and reads zero for a parent with none [C7,#12327]', t => {
   const { box, parent } = seeded(t);
   const agentId = box.seats.builder.id;
   assert.deepEqual(afterGateReport(box.board, parent), { savedMinutes: 0, rebuilds: 0 });
