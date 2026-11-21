@@ -13,8 +13,8 @@ import { chooseTuning } from '../../../../../../packages/stats/index.js';
 import { tuneFixes } from '../../../../../../packages/stats/index.js';
 import { tuneRecord } from '../../../../../../packages/stats/index.js';
 import { LINE_SETTING_DEFINITIONS } from '../../../../../../packages/queue/index.js';
-import { oneSeatHistory } from '../../../../fixtures/flow/tune-history.js';
-import { TUNE_POLICY } from '../../../../fixtures/flow/tune-history.js';
+import { oneSeatHistory } from '../../../fixtures/flow/tune-history.js';
+import { TUNE_POLICY } from '../../../fixtures/flow/tune-history.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
