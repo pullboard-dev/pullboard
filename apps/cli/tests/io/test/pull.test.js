@@ -12,6 +12,12 @@ import { testResults } from '../../../../../packages/store/index.js';
 import { fixtureBoard } from '../../../../../packages/board/tests/fixtures/board.js';
 import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
+import { receiptOf } from '../../../src/io/test/pull.js';
+import { offerJob } from '../../../../../packages/api/index.js';
+import { takeJob } from '../../../../../packages/jobs/index.js';
+import { renewLease } from '../../../../../packages/jobs/index.js';
+import { writeStep } from '../../../../../packages/jobs/index.js';
+import { workTestRun } from '../../../../../packages/drive/index.js';
 import { pullTestWanted } from '../../../src/io/test/pull.js';
 import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
@@ -173,4 +179,44 @@ test('cli.io-test-pull.finish-rows-reach-ledger: clause 2: a finish run of 5 fil
   assert.deepEqual(testResults(db).map(row => row.file).sort(), files);
   const hits = ledgerHits(db, files);
   assert.deepEqual(hits.files.map(row => row[0]).sort(), files);
+});
+
+/** A detached waiter's two lease holders, as the run's worker holds them: the run job it renews and the runner job it waits on. */
+function waiterFixture(t) {
+  const board = fixtureBoard(t);
+  offerJob(board.db, { id: 'run-1', kind: 'noop' });
+  offerJob(board.db, { id: 'runner-1', kind: 'noop' });
+  return { board, runs: { db: board.db }, beats: [] };
+}
+
+test('cli.io-test-pull.stuck-waiter-stops: clause 1: a detached test-run waiter whose runner job lapsed past the wait deadline stops renewing and heartbeating, records the run not finished and exits [C7,#12670]', async t => {
+  const { board, runs, beats } = waiterFixture(t);
+  takeJob(board.db, 'runner-1', 'runner-a', { leaseMs: 30 });
+  const result = await workTestRun(work => work(board), 'run-1',
+    () => receiptOf({}, { job: 'runner-1', agent: 'seat', runs, waitMs: 150, pollMs: 10, beatSeat: agent => beats.push(agent) }).then(() => ({ green: true })),
+    { renewMs: 10, beatSeat: () => beats.push('worker'), runs });
+  assert.equal(result.green, false);
+  assert.equal(result.error.code, 'TEST_JOB_STALLED');
+  const view = board.db.prepare("SELECT job_step_name AS name FROM job_step WHERE job_step_job = 'run-1'").all().map(row => row.name);
+  assert.ok(view.includes('result'), 'the run records its result');
+  const lease = () => board.db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'run-1'").get().until;
+  const settled = { beats: beats.length, lease: lease() };
+  for (let turn = 0; turn < 50; turn += 1) await new Promise(done => setImmediate(done));
+  assert.deepEqual({ beats: beats.length, lease: lease() }, settled, 'no beat and no lease renewal after the waiter stopped');
+});
+
+test('cli.io-test-pull.progressing-waiter-lives: clause 2: a detached test-run waiter whose runner job keeps its lease past the wait deadline keeps waiting until the receipt arrives [C7,#12670]', async t => {
+  const { board, runs, beats } = waiterFixture(t);
+  takeJob(board.db, 'runner-1', 'runner-a', { leaseMs: 60 });
+  let polls = 0;
+  const wait = async () => {
+    polls += 1;
+    const until = Date.now() + 10;
+    while (Date.now() < until) await new Promise(done => setImmediate(done));
+    renewLease(board.db, 'runner-1', 'runner-a', { leaseMs: 60 });
+    if (polls === 25) writeStep(board.db, 'runner-1', 'receipt', { receipt: { status: 0 }, runner: 'runner-a' });
+  };
+  const posted = await receiptOf({}, { job: 'runner-1', agent: 'seat', runs, waitMs: 100, pollMs: 10, wait, beatSeat: agent => beats.push(agent) });
+  assert.equal(posted.runner, 'runner-a');
+  assert.ok(polls >= 25 && beats.length >= 1, `polls ${polls}, beats ${beats.length}`);
 });

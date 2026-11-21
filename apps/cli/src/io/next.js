@@ -48,7 +48,8 @@ let derivedReaders = null;
 function currentDerivedTable(root, board) {
   if (!derivedReaders || !derivedStateEnabled()) return null;
   let main;
-  try { main = derivedReaders.verdictTrunk(root, { trunkRef: derivedReaders.trunkRef }); } catch { return null; }
+  // The trunk tip next already resolved (the command's one main-checkout read) answers without another rev-parse [C7,#8945].
+  try { main = derivedReaders.mainCheckout(root)?.commit || derivedReaders.verdictTrunk(root, { trunkRef: derivedReaders.trunkRef }); } catch { return null; }
   return derivedReaders.readDerivedState(board, { mainCommit: main, enabled: true });
 }
 
@@ -94,8 +95,8 @@ export async function nextOnce(ctx, values) {
   const held = loadHold(ctx, values);
   if (held) return held;
   if (derivedStateEnabled() && !derivedReaders) {
-    const [{ readDerivedState }, { verdictTrunk }, { trunkRef }] = await Promise.all([import('../../../../packages/health/index.js'), import('../../../../packages/verify/index.js'), import('../../../../packages/git/light.js')]);
-    derivedReaders = { readDerivedState, verdictTrunk, trunkRef };
+    const [{ readDerivedState }, { verdictTrunk }, { trunkRef, mainCheckout }] = await Promise.all([import('../../../../packages/health/index.js'), import('../../../../packages/verify/index.js'), import('../../../../packages/git/light.js')]);
+    derivedReaders = { readDerivedState, verdictTrunk, trunkRef, mainCheckout };
   }
   return requireModule('../../../../packages/moves/src/io/selection.js').nextOnce(ctx, values, nextPorts);
 }

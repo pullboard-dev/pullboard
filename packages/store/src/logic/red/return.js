@@ -69,17 +69,24 @@ const RUN_START_GRACE_MS = 2 * 60_000;
  * Why: a builder waiting on a runner beats no seat heartbeat, so the sweep took its claim after 2 minutes and the
  * next commit in the item folder refused NOT_JOINED.
  *
+ * A lapsed claim passes `progressWithinMs`: a proof run then counts only if it made step or result progress inside that
+ * window. Lease renewals, `alive` marks and `note:` steps are a waiter reporting itself, never progress, so a waiter that
+ * keeps a run's lease fresh at one step cannot hold a lapsed claim [C7,#12690].
+ *
  * @param {any} board
  * @param {any} item
+ * @param {{progressWithinMs?: number}} [options]
  * @returns {boolean}
  */
-export function itemWorkInFlight(board, item) {
+export function itemWorkInFlight(board, item, { progressWithinMs = null } = {}) {
   if (item?.item_status !== 'claimed' || !item.item_owner) return false;
   if (submitGateInFlight(board, item)) return true;
   const at = board.clock.now().getTime();
   let rows;
   try {
     rows = board.db.prepare(`SELECT j.job_lease_until AS lease, j.job_lease_owner AS owner, j.job_created AS created,
+      MAX(j.job_created, j.job_updated, COALESCE((SELECT MAX(p.job_step_at) FROM job_step p WHERE p.job_step_job = j.job_id
+        AND p.job_step_name <> 'alive' AND p.job_step_name NOT LIKE 'note:%'), 0)) AS progress,
       (SELECT s.job_step_payload FROM job_step s WHERE s.job_step_job = j.job_id AND s.job_step_name = 'queued' ORDER BY s.job_step_id LIMIT 1) AS queued
       FROM job j WHERE j.job_kind = 'test-run' AND j.job_item = ? AND j.job_step NOT IN ('result', 'delivered', 'done')`).all(item.item_id);
   } catch { return false; } // an older board has no job tables, so it holds no run
@@ -87,6 +94,7 @@ export function itemWorkInFlight(board, item) {
     let agent;
     try { agent = JSON.parse(row.queued ?? '{}').agent; } catch { return false; }
     if (agent !== item.item_owner) return false;
+    if (progressWithinMs !== null && at - row.progress >= progressWithinMs) return false;
     return row.lease > at || (!row.owner && row.created + RUN_START_GRACE_MS > at);
   });
 }
