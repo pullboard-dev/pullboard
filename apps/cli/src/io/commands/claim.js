@@ -43,7 +43,8 @@ export async function run(io, { first }) {
   const act = (work) => withGitCommandMemo(() => actOn(io, work));
   return act(async (ctx, board, me) => {
   const id = idArg(first);
-  await receiveLocalBoardStates(ctx, board, { projects: listProjects(), readKey: id => readBoardKey(id, { legacyKeychain: false }) });
+  await receiveLocalBoardStates(ctx, board, { projects: listProjects(), parentRoot: primaryCheckoutRoot(ctx.info) ?? ctx.info.root,
+    readKey: id => readBoardKey(id, { legacyKeychain: false }) });
   const phase = claimPhases();
   phase.time('sayQueuedReds', () => sayQueuedReds(io, board, () => me));
   phase.time('sayLag', () => sayLag(io, ctx));

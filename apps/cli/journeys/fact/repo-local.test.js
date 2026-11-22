@@ -29,7 +29,7 @@ function signerKey(box, name) {
  * Why PULLBOARD_HOME too: the project registry file lives under it, so the machine home alone leaves the two boards unaware of each other.
  * The provider's signer is its git principal, the one pullboard link signs the child side with; the consumer's key is named by --by and --key.
  */
-function twoBoards() {
+async function twoBoards() {
   const provider = helpers.project('true', helpers.sandbox());
   const other = helpers.sandbox();
   other.env.PULLBOARD_MACHINE_HOME = provider.env.PULLBOARD_MACHINE_HOME;
@@ -43,16 +43,25 @@ function twoBoards() {
   consumer.env.GIT_CONFIG_COUNT = '1';
   consumer.env.GIT_CONFIG_KEY_0 = 'user.signingkey';
   consumer.env.GIT_CONFIG_VALUE_0 = providerKey;
-  const boardKey = Buffer.alloc(32, 124).toString('base64url');
-  for (const box of [provider, consumer]) {
-    box.env.PULLBOARD_RELAY_TOKEN = 'fixture-local-link';
-    box.env.PULLBOARD_RELAY_KEY = boardKey;
-  }
+  await provisionBoardKey(consumer);
   return { provider, consumer, consumerKey };
 }
 
-test('cli.journeys-fact-repo-local.consumer-claim-waits-on-provider: clause 1: link, add --after provider#id and claim by commands on two local boards refuse the claim as waiting on the provider item [XB1,B24,E32]', () => {
-  const { provider, consumer, consumerKey } = twoBoards();
+/** Give the local link its private envelope key in the fixture's machine home. */
+async function provisionBoardKey(box) {
+  const previous = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
+  try {
+    const { boardId, storeBoardKey } = await import('../../../../packages/store/index.js');
+    helpers.board(box, board => storeBoardKey(boardId(board), Buffer.alloc(32, 124)));
+  } finally {
+    if (previous === undefined) delete process.env.PULLBOARD_HOME;
+    else process.env.PULLBOARD_HOME = previous;
+  }
+}
+
+test('cli.journeys-fact-repo-local.consumer-claim-waits-on-provider: clause 1: link, add --after provider#id and claim by commands on two local boards refuse the claim as waiting on the provider item [XB1,B24,E32]', async () => {
+  const { provider, consumer, consumerKey } = await twoBoards();
   const providerId = fileFixtureItem(provider, provider.repo, { lane: 'web', title: 'Provider work', diagnose: false }).item_id;
 
   const linked = consumer.run(consumer.repo, 'link', 'repo', '--by', 'consumer-parent', '--key', consumerKey);
@@ -76,8 +85,8 @@ test('cli.journeys-fact-repo-local.journey-uses-only-commands: clause 2: the fir
   assert.match(source, /addSigner\(/u);
 });
 
-test('cli.journeys-fact-repo-local.verified-provider-refreshes-consumer-before-claim: provider claim, submit and verify and consumer claim use commands; the consumer refreshes the signed file delivery and claims only after verification [XB1,B24,E32]', () => {
-  const { provider, consumer, consumerKey } = twoBoards();
+test('cli.journeys-fact-repo-local.verified-provider-refreshes-consumer-before-claim: provider claim, submit and verify and consumer claim use commands; the consumer refreshes the signed file delivery and claims only after verification [XB1,B24,E32]', async () => {
+  const { provider, consumer, consumerKey } = await twoBoards();
   const linked = consumer.run(consumer.repo, 'link', 'repo', '--by', 'consumer-parent', '--key', consumerKey);
   assert.equal(linked.code, 0, linked.err + linked.out);
 
