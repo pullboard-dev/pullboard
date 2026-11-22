@@ -1,0 +1,4 @@
+{
+  "store.io-board-write-sequencer.envelope-capture": {"proves":{"specs":["C7"],"claim":"A prepared write under captureBoardChanges yields the same relay changeset as the equivalent logEvent write on a real SQLite board."},"why":"A prepared move that skipped capture would reach the relay as no changeset, so no move can migrate until the envelope is shared.","kind":"cell unit","inputs":["packages/store/tests/io/board/write/envelope.test.js"]},
+  "store.io-board-write-sequencer.envelope-policy": {"proves":{"specs":["C7"],"claim":"commitPrepared applies the same write policy and review normalization as logEvent, and a policy-refused write appends nothing."},"why":"The prepared path must not bypass a landed write policy or review defaults that every logEvent write honours.","kind":"cell unit","inputs":["packages/store/tests/io/board/write/envelope.test.js"]}
+}

@@ -761,16 +761,15 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   }, 'show');
   assert.equal(noRow.error.code, 'NO_ROW');
 
-  // The plain loop finishes at once: a coordinator seat with nothing to build gets one successful document, not a refusal.
-  const plainLoop = await box.runLocal(repo, 'next', '--json');
-  assert.equal(plainLoop.status, 0);
+  // An idle coordinator seat reports its timeout immediately when asked not to wait.
+  const plainLoop = await box.runLocal(repo, 'next', '--no-wait', '--json');
+  assert.equal(plainLoop.status, 4);
   assert.equal(plainLoop.stderr, '');
-  assert.deepEqual(JSON.parse(plainLoop.stdout), {
-    version: 1,
-    item: null,
-    next: 'nothing for this seat: end your turn',
-    reasons: ["no open items in the coordinator lane; lane items are built from each lane's own worktree"],
-  });
+  const plainLoopDocument = parseOneDocument(plainLoop.stdout);
+  assert.equal(plainLoopDocument.version, 1);
+  assert.equal(plainLoopDocument.item, null);
+  assert.deepEqual(plainLoopDocument.timeout, { seconds: 90 });
+  assert.deepEqual(plainLoopDocument.reasons, ['[IDLE_TIMEOUT] nothing for this seat in 90 seconds; the board is not finished. Stop, or call next again.']);
   // A bounded wait that finds nothing is the refusal: one JSON document with the exact public error fields.
   const nothingFree = await box.runLocal(repo, 'next', '--wait', '0', '--json');
   assert.equal(nothingFree.status, 1);
