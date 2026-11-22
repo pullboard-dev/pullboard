@@ -182,6 +182,7 @@ test('cli.io-commands-next.no-wait-finished-exit-3: clause 2: next --no-wait ret
   assert.equal(events.length, 1, 'the finished observation was recorded');
 
   let fake = 1_000_000, sleeps = 0;
+  const began = fake;
   const clock = {
     now: () => fake,
     sleep: async (wake, { deadline }) => { sleeps += 1; fake = Math.min(fake + DEFAULT_IDLE_STEP_MS, Number.isFinite(deadline) ? Math.max(deadline, fake) : Infinity); },
@@ -189,5 +190,6 @@ test('cli.io-commands-next.no-wait-finished-exit-3: clause 2: next --no-wait ret
   const plainFinished = await drivenNext(box, box.seats.actor.path, clock);
   assert.equal(plainFinished.code, 3, printed(plainFinished));
   assert.match(printed(plainFinished), /next: board finished: every item in web is verified\. Stop\./u, printed(plainFinished));
-  assert.equal(sleeps, 0, 'plain next returns the finished line without waiting for the idle deadline');
+  assert.equal(fake - began, DEFAULT_IDLE_MS, `plain next returned the finished line after ${fake - began} ms of simulated time instead of its default deadline`);
+  assert.ok(sleeps >= DEFAULT_IDLE_MS / DEFAULT_IDLE_STEP_MS, `plain next traversed only ${sleeps} fake-clock sleeps before finishing`);
 });
