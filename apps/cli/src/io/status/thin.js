@@ -9,7 +9,7 @@ import { repoInfo } from '../../../../../packages/git/light.js';
 import { derivedStateEnabled } from '../../../../../packages/config/light.js';
 
 /** The event kinds that make the full status print a section this door cannot serve. */
-const SECTION_KINDS = ['land_%', 'relay%', 'runner%', 'health%', 'verify%'];
+const SECTION_KINDS = ['relay%', 'runner%', 'health%', 'verify%'];
 /** The tables whose rows make the full status read a job, runner run or verify proof. */
 const SECTION_TABLES = ['job', 'run', 'test_result'];
 
@@ -17,7 +17,7 @@ const SECTION_TABLES = ['job', 'run', 'test_result'];
 function hasSectionRecords(db) {
   const made = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name));
   if (SECTION_TABLES.some(table => made.has(table) && db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get())) return true;
-  const clause = [...SECTION_KINDS.map(() => 'event_kind LIKE ?'), "(event_kind LIKE 'landing%' AND event_kind <> 'landing_batch')"].join(' OR ');
+  const clause = ["(event_kind LIKE 'land%' AND event_kind <> 'landing_batch')", ...SECTION_KINDS.map(() => 'event_kind LIKE ?')].join(' OR ');
   return Boolean(db.prepare(`SELECT 1 FROM event WHERE ${clause} LIMIT 1`).get(...SECTION_KINDS));
 }
 
