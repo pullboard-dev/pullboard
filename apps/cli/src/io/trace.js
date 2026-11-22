@@ -86,21 +86,29 @@ function branchOf(gitDir) {
   catch { return null; }
 }
 
+/** Retain trace provenance before final-step cleanup removes the command's checkout. */
+export function captureTraceContext(cwd) {
+  try {
+    const where = locate(cwd);
+    return where ? { ...where, branch: branchOf(where.gitDir) } : null;
+  } catch { return null; /* Unavailable trace provenance never fails a command. */ }
+}
+
 /**
  * Append one trace line for a finished command. `status` is the exit code, `error` an uncaught throw and `refusal`
  * a Refused the command reported; `seat` is the registered agent id when known; `why` is the agent's stated intent. It returns the line written, or
  * null when nothing could be written; it never throws.
  */
-export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat = null, why = null, env = environmentAdapter().all(), now = Date.now }) {
+export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat = null, why = null, context = null, env = environmentAdapter().all(), now = Date.now }) {
   try {
-    const where = locate(cwd);
+    const where = context ?? locate(cwd);
     if (!where) return null;
     const at = new Date(startedAt);
     const refused = refusal ?? (error && typeof error.code === 'string' && error.name === 'Refused' ? error : null);
     const item = itemOf(argv);
     const line = {
       at: at.toISOString(), agent: seat, model: firstEnv(MODEL_ENV, env), session: firstEnv(SESSION_ENV, env),
-      worktree: where.root, branch: branchOf(where.gitDir), command: argv[0] ?? 'help', item,
+      worktree: where.root, branch: context ? context.branch : branchOf(where.gitDir), command: argv[0] ?? 'help', item,
       args: redactArgs(argv.slice(1)), why, exit: status,
       refusal: refused ? { code: refused.code, message: String(refused.message) } : null,
       error: error && !refused ? String(error.message ?? error) : undefined,

@@ -12,7 +12,7 @@ import { CHECKOUT_BOARD_ONLY } from './session.js';
 import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
-import { appendTrace } from '../trace.js';
+import { appendTrace, captureTraceContext } from '../trace.js';
 import { liveCwd } from './live-cwd.js';
 import { extractWhy } from '../../logic/why.js';
 
@@ -120,8 +120,9 @@ export async function main(rawArgv, streams) {
   globalThis[lockPort] = () => beginSeatTiming(cwd, 'lock-wait', 'board write lock', item, binding);
   const startedAt = Date.now();
   const traced = { refusal: null };
-  let status; let thrown;
-  try { status = await timedMain(argv, { ...streams, traceRecord: traced }); return status; }
+  let status; let thrown; let completion; let traceContext;
+  const afterDeferred = outermost ? complete => { completion = complete; traceContext = captureTraceContext(cwd); } : undefined;
+  try { status = await timedMain(argv, { ...streams, traceRecord: traced, afterDeferred }); }
   catch (error) { thrown = error; status = 1; throw error; }
   finally {
     try { (await import('../../../../../packages/store/light.js')).rotateBoardWritesLog(); } catch { /* A log that cannot rotate never changes a command's outcome. */ }
@@ -132,14 +133,17 @@ export async function main(rawArgv, streams) {
     if (binding) try { (await import('../../../../../packages/store/light.js')).beatSeatFile(binding.board, binding.seat, streams.clock); } catch { /* presence is best effort */ }
     stopBeat(); finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
-    appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
+    const trace = () => appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why, context: traceContext });
+    if (!completion || thrown) trace();
     // Last step: every import this run needs has loaded, so the folder it ran from may go now.
     if (outermost) {
       const pending = globalThis[removals];
       delete globalThis[removals];
       for (const remove of pending) try { remove(); } catch { /* A folder that will not go stays for the next cleanup pass. */ }
     }
+    if (completion && !thrown) { status = completion(status); trace(); }
   }
+  return status;
 }
 
 // The commands a seat with board.url set sends to the board host: two reads, the worker loop's moves and shout [P7].
@@ -159,6 +163,7 @@ async function runMain(argv, streams) {
   io.loadNativeBoard = streams.loadNativeBoard;
   // Only the served API sets this, for a seat joined over it from another machine [P7].
   io.remoteAgent = streams.remoteAgent;
+  io.afterDeferred = streams.afterDeferred;
   io.withOutboxGuard = streams.withOutboxGuard;
   io.replayConflictRecord = streams.replayConflictRecord;
   io.remoteBoardMissing = streams.remoteBoardMissing;
