@@ -271,4 +271,26 @@ test('cli.io-commands-next.lag-keeps-waiting: clause 2: the current behind-main 
     assert.equal((observed.match(/this checkout is 1 commit behind main/gu) ?? []).length, 1);
     assert.match(printed(result), /next waiting for/u);
   }
+  const advancing = await fixture(t);
+  let fake = 0, observed = '', advanced = false;
+  const clock = { now: () => fake, sleep: async (wake, { deadline }) => {
+    if (!advanced) {
+      assert.doesNotMatch(observed, /behind main/u, 'a level seat has no lag notice');
+      writeFileSync(join(advancing.root, 'main-later.txt'), 'Main advances during the wait.\n');
+      advancing.git(advancing.root, 'add', 'main-later.txt');
+      advancing.git(advancing.root, 'commit', '-q', '-m', 'chore: advance main during wait [G1]');
+      advanced = true;
+    } else {
+      assert.match(observed, /this checkout is 1 commit behind main/u, 'new lag is reported while the same wait continues');
+      assert.match(observed, /submit composes current main/u);
+      assert.doesNotMatch(observed, /IDLE_TIMEOUT/u);
+    }
+    fake = deadline;
+  } };
+  const result = await captureCommandInProcess((argv, io) => main(argv, { ...io, nextWaitClock: clock,
+    stdout: { ...io.stdout, write: text => { observed += text; return io.stdout.write(text); } },
+  }), ['next'], { cwd: advancing.seats.actor.path, env: advancing.env });
+  assert.equal(result.code, 4, printed(result));
+  assert.equal(fake, DEFAULT_IDLE_MS);
+  assert.equal((observed.match(/this checkout is 1 commit behind main/gu) ?? []).length, 1);
 });

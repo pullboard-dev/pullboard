@@ -599,9 +599,11 @@ async function nextWithProgress(io, values, progress) {
     else {
       if (!waitLagSaid) {
         // A lag notice informs the waiting seat; it neither ends the wait nor repeats on each wake.
-        sayLag(io, ctx);
-        io.lagSilent = true;
-        waitLagSaid = true;
+        sayLag({ say: line => {
+          io.say(line);
+          io.lagSilent = true;
+          waitLagSaid = true;
+        } }, ctx);
       }
       if (recordedIdle && wake) {
         // The idle record itself changes the watched board; rebuild and reread selection before waiting so that
