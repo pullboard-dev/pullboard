@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { fixtureCommittedGraph } from '../../../../../store/tests/fixtures/cell.js';
 import { runFixtureGit } from '../../../../../store/tests/fixtures/cell.js';
-import { requireComputedConflictObjects } from '../../../src/io/computed/conflict/receipt.js';
+import { requireComputedConflictObjects } from '../../../../src/io/computed/conflict/receipt.js';
 
 const REPO = resolve(import.meta.dirname, '../../../../../../');
 const TARGET = resolve(REPO, 'packages/landing/src/io/computed/conflict/receipt.js');

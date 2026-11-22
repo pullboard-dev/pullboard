@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { fixtureCommittedGraph } from '../../../../../store/tests/fixtures/cell.js';
 import { runFixtureGit } from '../../../../../store/tests/fixtures/cell.js';
-import { computeConflictReturn } from '../../../src/io/computed/conflict/return.js';
+import { computeConflictReturn } from '../../../../src/io/computed/conflict/return.js';
 
 const REPO = resolve(import.meta.dirname, '../../../../../../');
 const TARGET = resolve(REPO, 'packages/landing/src/io/computed/conflict/return.js');
