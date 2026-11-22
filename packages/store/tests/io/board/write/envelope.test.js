@@ -17,7 +17,7 @@ import { temporaryDirectory } from '../../../fixtures/tmp.js';
 const AT = new Date('2026-11-20T10:00:00.000Z');
 
 /** A real board file with one seat and a fixed clock, and a machine home of its own for the write log. */
-function fixture(t) {
+function fixture(t, { seat: withSeat = true } = {}) {
   const directory = temporaryDirectory('pullboard-envelope-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(directory, 'home');
@@ -26,7 +26,7 @@ function fixture(t) {
     rmSync(directory, { recursive: true, force: true });
   });
   const board = cellBoard(t, join(directory, 'board.sqlite'), { now: () => AT }, { real: true });
-  const seat = cellSeat(board, { lane: 'core', path: '/builder' });
+  const seat = withSeat ? cellSeat(board, { lane: 'core', path: '/builder' }) : null;
   return { board, seat };
 }
 
@@ -40,8 +40,8 @@ function boardRows(board) {
 }
 
 test('store.io-board-write-sequencer.envelope-capture: clause 1: [C7] a prepared write under captureBoardChanges produces the same relay changeset as the equivalent logEvent write', async t => {
-  const logged = fixture(t);
-  const prepared = fixture(t);
+  const logged = fixture(t, { seat: false });
+  const prepared = fixture(t, { seat: false });
   const detail = { text: 'x' };
   const viaLog = await captureBoardChanges(() => logEvent(logged.board, 'not-a-seat', 'note', null, detail));
   const viaPrepared = await captureBoardChanges(() => {
@@ -51,8 +51,8 @@ test('store.io-board-write-sequencer.envelope-capture: clause 1: [C7] a prepared
   });
   assert.ok(viaLog.changes.length > 0, 'the logEvent write is captured');
   assert.equal(viaPrepared.changes.length, 2, 'the prepared event and post-commit counter drain are captured separately');
-  const replayLogged = cellBoard(t, join(temporaryDirectory('pullboard-envelope-log-replay-'), 'board.sqlite'), { now: () => AT }, { real: true });
-  const replayPrepared = cellBoard(t, join(temporaryDirectory('pullboard-envelope-prepared-replay-'), 'board.sqlite'), { now: () => AT }, { real: true });
+  const replayLogged = fixture(t, { seat: false }).board;
+  const replayPrepared = fixture(t, { seat: false }).board;
   assert.equal(replayLogged.db.applyChangeset(viaLog.changes[0]), true, 'the relay can apply the logEvent changeset');
   for (const changeset of viaPrepared.changes) assert.equal(replayPrepared.db.applyChangeset(changeset), true, 'the relay can apply each prepared write changeset');
   assert.deepEqual(boardRows(replayPrepared), boardRows(replayLogged), 'the prepared write and drained counters reproduce every changed native row');
