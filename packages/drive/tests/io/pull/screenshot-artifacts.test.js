@@ -1,14 +1,20 @@
 /** Actual pull checkouts deliver bounded screenshot bytes through authenticated receipts [C7]. */
 import assert from 'node:assert/strict';
-import { createHash, generateKeyPairSync } from 'node:crypto';
-import { rmSync, writeFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { generateKeyPairSync } from 'node:crypto';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
 import { signRunnerReceipt } from '../../../../runners/light.js';
-import { screenshotPlan, SCREENSHOT_DIRECTORY, SCREENSHOT_MAX_BYTES } from '../../../../runners/light.js';
+import { screenshotPlan } from '../../../../runners/light.js';
+import { SCREENSHOT_DIRECTORY } from '../../../../runners/light.js';
+import { SCREENSHOT_MAX_BYTES } from '../../../../runners/light.js';
 import { verifyRunnerReceipt } from '../../../../runners/index.js';
-import { privateFixtureFiles, runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
