@@ -1,0 +1,11 @@
+{
+  "cli.io-status-thin.verified-landing-facts": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "Thin status preserves stage and verdict counts, review queue, landing and held-run lines for a verified landing board while full status retains detailed output."
+    },
+    "why": "Without it, a regression where thin status drops proof counts or landing lines on a verified landing board would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/tests/io/status/thin.test.js", "apps/cli/src/io/commands/status.js", "apps/cli/src/io/status/thin.js"]
+  }
+}

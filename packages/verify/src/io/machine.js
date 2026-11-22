@@ -1,19 +1,14 @@
 /** Coordinator authorization and machine verdicts use the same native board transaction as submission [V1,V4,H16]. */
-import { machineBarDigest } from '../logic/verdict/machine.js';
+import { machineBarDigest } from '../logic/verdict/machine-read.js';
 import { machineClauseCommands } from '../logic/verdict/machine.js';
 import { machineProofProblem } from '../logic/verdict/machine.js';
+import { machineVerification } from './machine-read.js';
+export { machineVerification } from './machine-read.js';
 import { itemReviewPolicy } from '../logic/review/policy.js';
 import { gateJudgmentPath } from './review/tier.js';
 import { recordVerdict } from '../logic/verdict/assurance.js';
 import { Refused } from '../../../kernel/index.js';
 import { MOVES } from '../../../state/index.js';
-
-/** Read the explicit authorization; default off and stale bars cannot inherit an old opt-in. */
-export function machineVerification(board, item) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`machine_verification:${item.item_id}`);
-  const value = row ? JSON.parse(row.meta_value) : null;
-  return value?.enabled === true && value.bar === machineBarDigest(item) ? value : null;
-}
 
 /** Check permission before any file-backed clause command can become board authority. */
 export function validateMachineVerification(board, item, { agentId, machineVerified, machineCommands }) {

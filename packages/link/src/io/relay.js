@@ -36,8 +36,8 @@ import { hostname } from 'node:os';
 import { SEALED_SNAPSHOT_BYTES as SEALED_SNAPSHOT_LIMIT } from '../logic/relay/limits.js';
 import { basename } from 'node:path';
 import { join } from 'node:path';
-import { gunzipSync } from 'node:zlib';
-import { gzipSync } from 'node:zlib';
+import { decodeRelayRecord } from './relay/records.js';
+import { sealRelayRecord } from './relay/records.js';
 import * as store from '../../../store/index.js';
 import { exportBoard } from '../../../store/index.js';
 import { importBoard } from '../../../store/index.js';
@@ -505,9 +505,7 @@ async function retryPausedBaseline(root, file, state, io) {
 
 /** Seal a client record at its proposed public sequence, with no board key in its envelope. */
 async function sealedRecord(key, value, state, kind, sequence) {
-  const plain = Buffer.from(JSON.stringify(value));
-  const content = kind === 'snapshot' ? gzipSync(plain) : plain;
-  return Buffer.from(await seal(key, content, { boardId: state.board, kind, sequence })).toString('base64url');
+  return sealRelayRecord(key, value, state, kind, sequence);
 }
 
 /** Catch up in local order, retaining exact ciphertext so a lost response cannot duplicate a move. */
@@ -607,21 +605,7 @@ export function relayLinkAvailability(root) {
 
 /** Authenticate and decode one opaque relay record on this device alone. */
 async function decoded(key, record, state, kind, sequence) {
-  const bytes = Buffer.from(record.sealed, 'base64url');
-  if (!bytes.length || bytes.toString('base64url') !== record.sealed) throw new Refused('RELAY_RESPONSE', 'the relay returned invalid sealed bytes; fetch the board again');
-  const plain = await unseal(key, bytes, { boardId: state.board, kind, sequence });
-  try {
-    if (kind === 'snapshot') {
-      if (plain[0] === 0x1f && plain[1] === 0x8b) return JSON.parse(gunzipSync(plain).toString('utf8'));
-      if (plain[0] !== 0x7b) throw new Refused('SNAPSHOT_FORMAT', `the sealed snapshot starts with ${Buffer.from(plain.subarray(0, 4)).toString('hex') || 'no bytes'}; expected gzip magic 1f8b or legacy JSON starting with 7b`);
-    }
-    return JSON.parse(new TextDecoder().decode(plain));
-  }
-  catch (error) {
-    if (error instanceof Refused) throw error;
-    if (kind === 'snapshot') throw new Refused('SNAPSHOT_FORMAT', 'the sealed snapshot has gzip magic or legacy JSON bytes but cannot be read; refresh it from a linked machine');
-    throw new Refused('RELAY_MOVE', 'the authenticated relay document is invalid; upgrade pullboard or restore a consistent snapshot');
-  }
+  return decodeRelayRecord(key, record, state, kind, sequence);
 }
 
 /** Replay one authenticated record, auto-refusing only deterministic current-format record failures. */
