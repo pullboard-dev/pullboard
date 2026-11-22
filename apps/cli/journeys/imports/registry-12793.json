@@ -1,0 +1,11 @@
+{
+  "cli.journeys-imports-closure-budget.status-store-door-module-drop": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "The cold status module count drops by at least 10 after #12701."
+    },
+    "why": "Keeps the measured status import reduction from regressing.",
+    "kind": "journey",
+    "inputs": ["apps/cli/journeys/imports/count.js", "apps/cli/journeys/imports/closure-budget.test.js"]
+  }
+}

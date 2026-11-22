@@ -1,10 +1,10 @@
 /** The hold row's to-rebar move sends a hold past its hard limit to the re-bar queue whatever the evidence, and leaves earlier holds alone [B4,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../../store/index.js';
-import { cellBoard } from '../../../../../store/tests/fixtures/cell.js';
-import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
-import { clockSweep } from '../../../../index.js';
+import * as store from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { clockSweep } from '../../../../../../health/index.js';
 
 const MINUTE = 60_000;
 const T0 = Date.UTC(2026, 10, 20, 12, 0, 0);

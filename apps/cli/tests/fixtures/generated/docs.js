@@ -1,5 +1,6 @@
 /** Real isolated repository and child boundaries for documentation generation proofs [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -43,7 +44,10 @@ export function docsRepository(t) {
   git('config', 'core.hooksPath', '/dev/null');
   // The source commit holds thousands of loose objects, past gc.auto: a detached auto gc then writes .git while the case's teardown removes it (ENOTEMPTY).
   git('config', 'gc.auto', '0');
-  git('add', '.'); git('commit', '-qm', 'source fixture');
+  git('add', '.');
+  const generatedDocs = ['docs/api.md', 'docs/formats.md', 'docs/formats/'].filter(path => existsSync(join(root, path)));
+  if (generatedDocs.length) git('add', '-f', '--', ...generatedDocs);
+  git('commit', '-qm', 'source fixture');
   // The committed state is the template, taken before the case changes anything.
   const copy = `${root}-template`;
   mkdirSync(copy);

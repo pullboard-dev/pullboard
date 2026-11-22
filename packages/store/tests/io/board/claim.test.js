@@ -6,12 +6,13 @@ import { setAfterGate } from "../../../src/io/board/item/after-gate.js";
 import { readBoardMeta } from "../../../src/io/board/meta.js";
 import { getItem } from "../../../index.js";
 import { fixture } from "../../fixtures/dispatch.js";
+import { cellBoard } from "../../fixtures/cell.js";
 
 const OTHER = "b".repeat(40);
 
 /** A board whose builder seat claims; `submitParent` publishes a parent at a real head and records its gate in the given state. */
 function seeded(t) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const submitParent = (title, job, { jobHead } = {}) => {
     const parent = box.add(title);
     box.submit(parent);

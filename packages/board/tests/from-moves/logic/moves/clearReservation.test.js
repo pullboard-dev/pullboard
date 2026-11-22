@@ -1,12 +1,13 @@
 /** clearReservation removes an item reservation, refuses when none is set, and an older engine refuses it [C7,#9176]. */
-// fixture-subject: addItem (a store unit test of clearReservation over one seeded item; the board is a private cell fixture)
+/** @pullboard-test-input source-cell packages/board */
+// fixture-subject: addItem (a store unit test of clearReservation over one seeded item; the board is opened through the board cell fixture)
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../store/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { cellProject } from '../../../../store/tests/fixtures/cell.js';
-import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { RESERVATION_ENGINE } from '../../../../state/light.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
+import { RESERVATION_ENGINE } from '../../../../../state/light.js';
 
 const LIGHT_BRIEF = 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n';
 

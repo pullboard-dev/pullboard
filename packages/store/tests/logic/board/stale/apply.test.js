@@ -6,6 +6,7 @@ import { getItem } from '../../../../index.js';
 import { maintainStaleState } from '../../../../index.js';
 import { staleStateLimits } from '../../../../index.js';
 import { fixture } from '../../../fixtures/dispatch.js';
+import { cellBoard } from '../../../fixtures/cell.js';
 import { applyStaleState } from '../../../../src/logic/board/stale/apply.js';
 import { atomic } from '../../../../src/io/board/event/log.js';
 import { logEvent } from '../../../../src/io/board/event/log.js';
@@ -24,7 +25,7 @@ const MINUTE = 60_000;
  * production maintenance write, as the claim-path sweep does.
  */
 function submitted(t) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   box.board.movesLive = { reclaim: true };
   const id = box.add('Item in a sharded gate');
   box.claim(id);
@@ -91,7 +92,7 @@ const OLDER_BOARD_VERSION = 276;
 
 /** One claimed item and a pass that hands the production maintenance write the given claim row. */
 function swept(t, engine) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   box.board.movesLive = { reclaim: false };
   if (engine !== undefined) box.board.executionEngineVersion = engine;
   const id = box.add('Item the stale sweep returns');
@@ -156,7 +157,7 @@ test('store.stale-apply.claim-release-codes-below-engine: clause 2: below the bo
 
 /** A submitted item whose reviewer reserved it and went quiet for 31 minutes; `pass` hands the idle row to the production apply with a spy on the reclaim table. */
 function idleReview(t, engine) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   box.board.movesLive = { reclaim: false };
   const id = box.add('Item whose review goes idle');
   box.submit(id);
