@@ -115,7 +115,7 @@ test('cli.io-status-thin.verified-landing-facts: clause 1: thin status keeps sta
   assert.ok(thinLines.some(line => line.startsWith('review queue: 1 submitted; 1 waiting for a first reviewer')));
   assert.ok(thinLines.some(line => line.startsWith('landing: 1 landed, 0 reopened')));
   assert.ok(fullLines.some(line => line.startsWith('seats:')), 'full status keeps detailed sections');
-  assert.ok(thinLines.length < fullLines.length, 'thin status keeps its limited output');
+  assert.equal(thinLines.some(line => line.startsWith('seats:')), false, 'thin status leaves detailed sections out');
 });
 
 test('cli.io-status-thin.write-refused: clause 1: thinStatusFacts returns null when the board refuses the read as a write refusal [C7]', async (t) => {
