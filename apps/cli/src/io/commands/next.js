@@ -491,6 +491,9 @@ async function nextWithProgress(io, values, progress) {
           io.say(`claim it when ready: ${here} pullboard claim ${item.item_id}`);
           return 0;
         }
+        const returnedRed = returned?.gate && withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id)
+          .some(red => red.id === item.item_id));
+        if (firstDefaultPassPending && returnedRed) deliverQueuedReds();
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         finishFirstDefaultPass();
         // An infrastructure stop is not the candidate's red: next gives the same instruction show does, and nothing to build (#4989).
