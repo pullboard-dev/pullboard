@@ -48,9 +48,11 @@ export async function fixture(t, { ruleProof = false } = {}) {
   const home = join(dir, 'home');
   const shims = join(dir, 'shims');
   const calls = join(dir, 'git-calls.log');
-  /** Read the same immutable per-fixture log path without changing reset or failure semantics. */
-  function readCalls() {
-    return readFileSync(calls, 'utf8');
+  const invocations = [];
+  let latestCalls = calls;
+  /** Read one invocation's retained log, including background descendants that still inherit it. */
+  function readCalls(invocation) {
+    return readFileSync(invocation?.calls ?? latestCalls, 'utf8');
   }
   mkdirSync(repo);
   mkdirSync(shims);
@@ -78,6 +80,16 @@ export async function fixture(t, { ruleProof = false } = {}) {
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
   };
+  writeFileSync(calls, '');
+  /** Allocate a log before launching a command; later invocations never truncate or inherit it. */
+  function recordInvocation(cwd, argv) {
+    const invocation = { cwd, argv: [...argv], calls: join(dir, `git-calls-${invocations.length + 1}.log`) };
+    writeFileSync(invocation.calls, '');
+    invocations.push(invocation);
+    writeFileSync(join(dir, 'git-invocations.json'), JSON.stringify(invocations));
+    latestCalls = invocation.calls;
+    return { ...invocation, env: { ...env, PULLBOARD_GIT_CALLS: invocation.calls } };
+  }
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
     spec: 'SPEC.md', practice: 'DOCTRINE.md', gate: ruleProof ? 'node --test test/proven.test.js' : 'true',
     lanes: { core: { owns: ['src/'], specs: ['C7'] } },
@@ -98,7 +110,10 @@ export async function fixture(t, { ruleProof = false } = {}) {
     if (result.status !== 0) throw new Error(result.failure);
     return result.stdout.trim();
   };
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const run = (cwd, ...args) => {
+    const invocation = recordInvocation(cwd, [process.execPath, BIN, ...args]);
+    return { ...runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: invocation.env, encoding: 'utf8' }), invocation };
+  };
   const ok = (cwd, ...args) => {
     const result = run(cwd, ...args);
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
@@ -106,7 +121,8 @@ export async function fixture(t, { ruleProof = false } = {}) {
   };
   /** Run one setup command through production dispatch in this process; the measured commands stay real children [C7]. */
   const setup = async (cwd, ...args) => {
-    const result = await runCliInProcess(args, { cwd, env });
+    const invocation = recordInvocation(cwd, ['in-process CLI', ...args]);
+    const result = await runCliInProcess(args, { cwd, env: invocation.env });
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   };
   git(repo, 'init', '-q', '-b', 'main');
@@ -116,7 +132,7 @@ export async function fixture(t, { ruleProof = false } = {}) {
   git(repo, 'update-ref', 'HEAD', git(repo, 'commit-tree', git(repo, 'write-tree'), '-m', 'chore(repo): initialize Git-call fixture'));
   git(repo, 'worktree', 'add', '-q', '-b', 'core/worker', worker);
   await setup(worker, 'join', 'core', '--model', FIXTURE_MODEL, '--level', 'light', '--family', 'codex');
-  return { dir, repo, worker, calls, readCalls, env, git, run, ok };
+  return { dir, repo, worker, calls, readCalls, recordInvocation, invocations, env, git, run, ok };
 }
 
 /** Advance the fixture branch using real Git plumbing without running its checkout hooks. */
