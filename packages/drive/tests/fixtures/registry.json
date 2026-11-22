@@ -150,5 +150,7 @@
       "packages/drive/src/io/queue.js",
       "packages/drive/tests/io/queue.test.js"
     ]
-  }
+  },
+  "drive.screenshot-artifacts.full-set-authenticated": {"proves":{"specs":["C7"],"claim":"clause 1: real pulled job PNGs at the existing 4 MiB cap survive cleanup and cross receipt parts with decoded hashes bound to signed completion on green and red outcomes."},"why":"Without this regression the pull route silently loses screenshot evidence (#12933).","kind":"contract","inputs":["packages/drive/src/io/pull.js","packages/drive/src/io/pull/screenshots.js"]},
+  "drive.screenshot-artifacts.absent-link-and-over-cap": {"proves":{"specs":["C7"],"claim":"clause 1: missing screenshots, symlinks and over-cap sets produce no artifacts and preserve job outcome."},"why":"Without this regression the pull route silently loses screenshot evidence (#12933).","kind":"contract","inputs":["packages/drive/src/io/pull.js","packages/drive/src/io/pull/screenshots.js"]}
 }
