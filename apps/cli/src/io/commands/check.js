@@ -1,6 +1,6 @@
 import { seatAt } from '../item/folder/identity.js';
 import { recordCheckTicks } from './submit.js';
-import { frozenCheckTiming } from '../../../../../packages/items/index.js';
+import { frozenCheckTiming } from '../../../../../packages/items/light.js';
 import { checkAtCommit } from '../../../../runner/index.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';

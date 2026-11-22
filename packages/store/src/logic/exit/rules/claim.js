@@ -6,7 +6,7 @@ import {
 } from "../../../io/board/event/log.js";
 import { appendFact } from "../../../io/board/fact.js";
 import { itemById } from "../../../io/board/query.js";
-import { seatFamily } from "../../../../../items/index.js";
+import { seatFamily } from "../../../../../items/light.js";
 import { buildCheckpoint } from "../../../../../seats/index.js";
 import { checkpointText } from "../../../../../seats/index.js";
 import {
