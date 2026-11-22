@@ -18,9 +18,9 @@ function heldLease(t) {
 }
 
 test('board.from-store-landing-lease.batch-persists-and-lists-two-in-flight: clause 1: batch moves with allowance 2 persist both batches and inFlightBatches reads them [C7,#11247]', t => {
-  const { board, lease } = heldLease(t);
+  const { board, lease, requested } = heldLease(t);
   for (const batch of ['first', 'second']) {
-    store.landingLeaseMove(board, { ...lease, action: 'batch', batch, allowance: 2 });
+    store.landingLeaseMove(board, { ...lease, action: 'batch', batch, allowance: 2, generation: requested.generation });
   }
   const saved = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('landing_lease').meta_value);
   assert.deepEqual(saved.batches, ['first', 'second']);
