@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell store */
 /** A move that also lifts an infra hold hands its own event row, not the chained unhold row, to its trigger consumers [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
