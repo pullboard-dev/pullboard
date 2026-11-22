@@ -162,3 +162,59 @@ test('cli.release-committed-cleanup.retains-locked-custody: clause 1: committed 
   assert.ok(!existsSync(folder), 'ordinary successful release cleans the unlocked owned folder');
   assert.equal(box.git(box.repo, 'rev-parse', ref), head, 'normal release retains the reusable branch');
 });
+
+
+test('cli.release-committed-cleanup.deferred-owned-tree: clause 1: release from its own item tree reports deferred Git refusal and durable custody in text and JSON; clause 2: ordinary recovery removes the clean tree [C7,#12955]', async () => {
+  for (const json of [false, true]) {
+    const box = e2e.project();
+    const item = fileFixtureItem(box, box.repo, { lane: 'api', title: 'Deferred cleanup custody', check: 'true', args: ['--specs', 'G1'] });
+    const api = await seat(box, 'api');
+    const id = String(item.item_id), folder = `${api.root}-item-${id}`, ref = `refs/heads/api/item-${id}`;
+    const call = (cwd, ...args) => shared(box, () => box.runLocal(cwd, ...args));
+    const claimed = await call(api.root, 'claim', id, '--no-next');
+    assert.equal(claimed.code, 0, claimed.out + claimed.err);
+    const head = box.git(box.repo, 'rev-parse', ref);
+    const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+    box.git(box.repo, 'worktree', 'lock', '--reason', 'fixture deferred custody', folder);
+    try {
+      const refused = await call(folder, 'release', id, '--reason', 'INVALID', '--no-next');
+      assert.notEqual(refused.code, 0);
+      assert.match(refused.out + refused.err, /RELEASE_REASON/u);
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='release'").get(item.item_id).n, 0);
+      const released = await call(folder, 'release', id, '--reason', 'OTHER', '--note', 'fixture deferred', '--no-next', ...(json ? ['--json'] : []));
+      const state = db.prepare('SELECT item_status, item_owner FROM item WHERE item_id=?').get(item.item_id);
+      assert.equal(state.item_status, 'open');
+      assert.equal(state.item_owner, null);
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='release'").get(item.item_id).n, 1);
+      assert.ok(existsSync(folder), 'failed deferred removal preserves its real item folder');
+      assert.match(box.git(box.repo, 'worktree', 'list', '--porcelain'), /locked fixture deferred custody/u);
+      assert.equal(box.git(box.repo, 'rev-parse', ref), head);
+      assert.equal(released.code, 1, 'deferred removal failure is a nonzero command outcome');
+      if (json) {
+        const outcome = JSON.parse(released.out);
+        assert.equal(outcome.released, true);
+        assert.deepEqual(outcome.item, { id: item.item_id, status: 'open', owner: null });
+        assert.equal(outcome.cleanup.status, 'failed');
+        assert.match(outcome.cleanup.error, /locked/u);
+        assert.match(outcome.cleanup.next, /show.*do not repeat release.*next/u);
+        assert.match(outcome.diagnostics.join('\n'), /RELEASE_CLEANUP_FAILED/u);
+      } else {
+        assert.equal(released.out.split('\n').filter(line => line === `released #${id}`).length, 1);
+        assert.match(released.err, /RELEASE_CLEANUP_FAILED.*release committed/u);
+        assert.match(released.err, /locked/u);
+        assert.match(released.err, /show.*do not repeat release.*next/u);
+      }
+    } finally {
+      box.git(box.repo, 'worktree', 'unlock', folder);
+      db.close();
+    }
+    const reclaimed = await call(api.root, 'claim', id, '--no-next');
+    assert.equal(reclaimed.code, 0, reclaimed.out + reclaimed.err);
+    const recovered = await call(folder, 'release', id, '--reason', 'OTHER', '--note', 'fixture recovered', '--no-next', ...(json ? ['--json'] : []));
+    assert.equal(recovered.code, 0, recovered.out + recovered.err);
+    if (json) assert.equal(JSON.parse(recovered.out).id, item.item_id);
+    else assert.match(recovered.out, new RegExp(`released #${id}`, 'u'));
+    assert.equal(existsSync(folder), false, 'ordinary deferred removal still runs after the command');
+    assert.equal(box.git(box.repo, 'rev-parse', ref), head);
+  }
+});

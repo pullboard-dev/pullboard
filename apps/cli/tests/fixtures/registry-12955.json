@@ -13,5 +13,21 @@
       "apps/cli/src/io/commands/release.js",
       "apps/cli/src/io/item/folder.js"
     ]
+  },
+  "cli.release-committed-cleanup.deferred-owned-tree": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: a real release from its own item tree reports committed state, one release event and actual deferred Git refusal with retained custody in text and JSON; clause 2: pre-release refusal and ordinary clean deferred recovery preserve behavior."
+    },
+    "why": "The release handler returns before deferred cleanup, so a late removal failure must not disappear behind an already flushed success.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/tests/io/commands/next/session.test.js",
+      "apps/cli/src/io/commands/release.js",
+      "apps/cli/src/io/item/folder.js",
+      "apps/cli/src/io/cli-main/run.js"
+    ]
   }
 }
