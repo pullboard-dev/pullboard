@@ -1,0 +1,66 @@
+{
+  "store.submit-handoff-records.recovery-policy": {
+    "proves": {
+      "specs": [
+        "B28",
+        "C7"
+      ],
+      "claim": "The public policy reads existing values and captures detached immutable read-only observations."
+    },
+    "why": "Recovery consumers need source-bound facts without changing custody or inferring proof.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/submit/handoff/records.js",
+      "packages/store/index.js",
+      "packages/store/tests/io/submit/handoff/records.test.js"
+    ]
+  },
+  "store.submit-handoff-records.recovery-source-binding": {
+    "proves": {
+      "specs": [
+        "B28",
+        "C7"
+      ],
+      "claim": "Latest native authority is selected before binding and unknown or malformed sources fail closed."
+    },
+    "why": "Recovery consumers need source-bound facts without changing custody or inferring proof.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/submit/handoff/records.js",
+      "packages/store/index.js",
+      "packages/store/tests/io/submit/handoff/records.test.js"
+    ]
+  },
+  "store.submit-handoff-records.recovery-unknown-deferred": {
+    "proves": {
+      "specs": [
+        "B28",
+        "C7"
+      ],
+      "claim": "Exact deferred receipts, UNKNOWN settlement and done shard identities survive old age bounds."
+    },
+    "why": "Recovery consumers need source-bound facts without changing custody or inferring proof.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/submit/handoff/records.js",
+      "packages/store/index.js",
+      "packages/store/tests/io/submit/handoff/records.test.js"
+    ]
+  },
+  "store.submit-handoff-records.recovery-progress-exhaustion": {
+    "proves": {
+      "specs": [
+        "B28",
+        "C7"
+      ],
+      "claim": "Lease heartbeat observations remain separate from actual steps, results and recorded recovery budgets."
+    },
+    "why": "Recovery consumers need source-bound facts without changing custody or inferring proof.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/submit/handoff/records.js",
+      "packages/store/index.js",
+      "packages/store/tests/io/submit/handoff/records.test.js"
+    ]
+  }
+}
