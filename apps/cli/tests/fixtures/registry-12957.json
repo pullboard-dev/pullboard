@@ -1,0 +1,14 @@
+{
+  "cli.verify-reserve.lease-holder-refused": {
+    "proves": { "specs": ["V15", "C7"], "claim": "next --verify reserves the review under the reviewLease, show names the holder, another verifier is passed over and refused, and the case removes its whole private root only after its local runner and recorded comparison writers have exited." },
+    "why": "A detached comparison worker kept writing into the fixture's board folder after the runner was killed, so the immediate removal failed with ENOTEMPTY on native gates.",
+    "kind": "journey",
+    "inputs": ["apps/cli/tests/journeys/verify/reserve.test.js", "apps/cli/tests/fixtures/verify/writers.js"]
+  },
+  "cli.verify-reserve.cleanup-drains-owned-writer": {
+    "proves": { "specs": ["V15", "C7"], "claim": "The reservation cleanup stops a live recorded writer group whose command line names its own request, removes the root once, and leaves a separately owned process and folder running and intact." },
+    "why": "A cleanup that removed a root under a live writer, or signalled a process another root owns, would race or overreach.",
+    "kind": "harness",
+    "inputs": ["apps/cli/tests/fixtures/verify/writers.js", "apps/cli/tests/journeys/verify/reserve.test.js"]
+  }
+}
