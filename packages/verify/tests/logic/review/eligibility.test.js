@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Refused } from '../../../../kernel/light.js';
 import { requiredFamilyStands } from '../../../src/logic/review/eligibility.js';
+import { reviewEligibilitySummary } from '../../../src/logic/review/eligibility-summary.js';
 
 const WITNESS = { version: 1, threshold: 2, queueLength: 2, waiting: [1, 2], activeSeats: [], at: '2026-01-01T00:16:00.000Z' };
 const ITEM = { item_id: 1 };
@@ -20,4 +21,14 @@ test('verify.logic-review-eligibility.required-family-refused: clause 2: without
   assert.equal(requiredFamilyStands(REFUSAL, {}, ITEM, 'core-2', { relaxRequiredFamily: true, requiredFamilyWitness: () => null }), REFUSAL);
   assert.equal(requiredFamilyStands(REFUSAL, {}, ITEM, 'core-2', { relaxRequiredFamily: false, requiredFamilyWitness: () => WITNESS }), REFUSAL);
   assert.equal(requiredFamilyStands(null, {}, ITEM, 'core-2', { relaxRequiredFamily: true, requiredFamilyWitness: () => WITNESS }), null);
+});
+
+test('verify.logic-review-eligibility.show-summary-parity: clause 1: summary preserves ready, strict-only, historical tier, and strict owner output before candidate guards [C7]', () => {
+  const strictNotReady = reviewEligibilitySummary({ tier: 'strict', requiredFamily: 'anthropic', ready: false, strictOnly: true,
+    strictOwnerFallback: { owner: 'core-1', family: 'openai' } });
+  assert.deepEqual(strictNotReady, { summary: { tier: 'strict', requiredFamily: 'anthropic', ready: false,
+    eligible: [], ineligible: [], owner: 'core-1' }, candidatesReady: false });
+  assert.equal(reviewEligibilitySummary({ tier: 'standard', requiredFamily: null, ready: true, strictOnly: true }).candidatesReady, false);
+  assert.deepEqual(reviewEligibilitySummary({ tier: 'legacy', requiredFamily: null, ready: true }).summary,
+    { tier: 'legacy', requiredFamily: null, ready: true, eligible: [], ineligible: [] });
 });
