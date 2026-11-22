@@ -245,6 +245,7 @@ function stagedMainMerge(t, fillers, { resolve = false } = {}) {
   graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { core: { owns: ['src/'], specs: ['G1'] } } }) + '\n');
   graph.put('src/item.js', 'export const item = 0;\n');
   graph.put('src/shared.js', 'a\nb\nc\nd\ne\n');
+  graph.put('unrelated/deep/untouched.txt', 'ordinary stage zero outside the sparse cone\n');
   for (let index = 0; index < fillers; index++) graph.put(`src/f${index}.js`, `export const value = ${index};\n`);
   graph.commit();
   runFixtureSetupGit(['worktree', 'add', '-b', 'core/item-7', root], { cwd: main });
@@ -317,6 +318,9 @@ test('commits.io-hooks.resolve-undo-skips-stage-zero: clause 2: ordinary and spa
     if (sparse) {
       runFixtureSetupGit(['sparse-checkout', 'init', '--cone', '--sparse-index'], { cwd: root });
       runFixtureSetupGit(['sparse-checkout', 'set', 'src'], { cwd: root });
+      const index = runFixtureChild('git', ['ls-files', '--sparse', '--stage', '-z'], { cwd: root, encoding: 'utf8' });
+      assert.equal(index.status, 0, index.stderr);
+      assert.ok(index.stdout.split('\0').some(record => /^040000 [0-9a-f]{40,64} 0\tunrelated\/$/u.test(record)), 'the real index contains an unexpanded sparse directory');
     }
     const { problems, notices, operations } = tracedMergeCheck(root);
     assert.deepEqual(problems, []);
