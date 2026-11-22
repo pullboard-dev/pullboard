@@ -373,7 +373,7 @@ export function combinedReceipt(gateReceipt, shards, { signatures = false, mainR
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = mainRed?.has(job) === true || (posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0);
-    return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
+    return { job, runner: posted?.runner ?? null, attempt: posted?.attempt ?? null, head: shardGate.source ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
       output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null, selected };
   });
   const reds = parts.filter(part => !part.green);

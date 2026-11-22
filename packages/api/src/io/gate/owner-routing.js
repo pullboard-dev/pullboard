@@ -51,7 +51,7 @@ export function outcomeOwnerRoute(part, failure, index) {
   const inputKey = selected?.keys?.[row.owner];
   if (!selected?.files?.includes(row.owner) || !INPUT_KEY.test(inputKey ?? '')) return null;
   return { file: row.owner, sourceFile: row.file, name: row.name, signature: part.phase?.failureSignatures?.[index] ?? null,
-    shard: part.job, attempt: part.posted?.attempt ?? null, head: part.phase?.head ?? part.posted?.receipt?.gate?.source ?? null, inputKey };
+    shard: part.job, attempt: part.attempt ?? null, head: part.phase?.head ?? part.head ?? null, inputKey };
 }
 
 /** Resolve each failure only against the validated owner outcome from its own shard. */
