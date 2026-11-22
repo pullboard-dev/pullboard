@@ -49,7 +49,7 @@ test('link.io-relay.reads-gzip-and-legacy-moves: authenticated gzip and legacy m
 test('link.io-relay.move-writer-remains-plain: outbound moves stay plain while snapshots retain gzip [H16,H17]', async () => {
   const moveSealed = await sealRelayRecord(KEY, MOVE, STATE, 'move', 7);
   const movePlain = await unsealRelayRecord(KEY, { sealed: moveSealed }, STATE, 'move', 7);
-  assert.deepEqual(movePlain, Buffer.from(JSON.stringify(MOVE)), 'the actual move serializer seals ordinary JSON without gzip');
+  assert.deepEqual(Buffer.from(movePlain), Buffer.from(JSON.stringify(MOVE)), 'the actual move serializer seals ordinary JSON without gzip');
   const snapshot = { version: 1, tables: { event: [{ event_id: 7 }] } };
   const snapshotSealed = await sealRelayRecord(KEY, snapshot, STATE, 'snapshot', 7);
   const snapshotPlain = await unsealRelayRecord(KEY, { sealed: snapshotSealed }, STATE, 'snapshot', 7);
