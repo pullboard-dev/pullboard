@@ -1,9 +1,9 @@
 /** recordNextIdle also records a next call that timed out and a seat that finished its loop, once per seat [N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 
 /** The seat's events of one kind, with their parsed detail. */
 function eventsOf(board, kind) {
