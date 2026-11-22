@@ -63,13 +63,14 @@ async function produce(t, { size = 0, status = 0, mode = 'png' } = {}) {
 test('drive.screenshot-artifacts.full-set-authenticated: clause 1: actual checkout PNGs at the full existing 4 MiB cap survive cleanup, use receipt parts under API cap and bind decoded hashes to signed completion on green and red [C7]', { timeout: 120_000 }, async t => {
   for (const status of [0, 1]) {
     const { receipt, gate, parts, calls, cleaned, key, text } = await produce(t, { size: 2 * 1024 ** 2, status });
+    const expected = Buffer.alloc(2 * 1024 ** 2); Buffer.from(PNG, 'base64').copy(expected);
     assert.equal(cleaned, true);
     assert.equal(receipt.status, status); assert.equal(gate.green, status === 0);
     assert.ok(parts.length > 1); assert.ok(calls.every(call => call.bodyBytes < 100_000));
     assert.equal(receipt.gateParts.sha256, hash(text)); assert.equal(receipt.gateParts.bytes, Buffer.byteLength(text));
     assert.deepEqual(gate.screenshots.map(row => row.path).sort(), ['screenshots/a.png', 'screenshots/b.png']);
     assert.equal(gate.screenshots.reduce((sum, row) => sum + row.bytes, 0), 4 * 1024 ** 2);
-    for (const row of gate.screenshots) { const bytes = Buffer.from(row.base64, 'base64'); assert.equal(bytes.length, row.bytes); assert.equal(hash(bytes), row.sha256); }
+    for (const row of gate.screenshots) { const bytes = Buffer.from(row.base64, 'base64'); assert.equal(bytes.length, row.bytes); assert.equal(hash(bytes), row.sha256); assert.equal(row.sha256, hash(expected), 'receipt bytes match the independently constructed job input'); }
     assert.equal(gate.screenshotsSha256, hash(JSON.stringify(gate.screenshots)));
     assert.equal(receipt.signedCompletion.screenshotsSha256, gate.screenshotsSha256);
     assert.equal(verifyRunnerReceipt(receipt.signedCompletion, key), true);
