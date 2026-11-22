@@ -62,5 +62,37 @@
       "packages/store/index.js",
       "packages/store/tests/io/submit/handoff/records.test.js"
     ]
+  },
+  "store.submit-handoff-records.recovery-safe-evidence": {
+    "proves": {
+      "specs": [
+        "B28",
+        "C7"
+      ],
+      "claim": "Typed allow-lists retain safe source evidence and exact refusals without exporting synthetic claimed bearer credentials or nested raw copies."
+    },
+    "why": "Recovery evidence is observational and must never expose job lease bearer credentials.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/submit/handoff/records.js",
+      "packages/store/index.js",
+      "packages/store/tests/io/submit/handoff/records.test.js"
+    ]
+  },
+  "store.submit-handoff-records.recovery-authority-ordering": {
+    "proves": {
+      "specs": [
+        "B28",
+        "C7"
+      ],
+      "claim": "Safe projections preserve latest gate and authoritative run selection before binding and never fall back to older matching evidence."
+    },
+    "why": "Recovery evidence is observational and must never expose job lease bearer credentials.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/submit/handoff/records.js",
+      "packages/store/index.js",
+      "packages/store/tests/io/submit/handoff/records.test.js"
+    ]
   }
 }

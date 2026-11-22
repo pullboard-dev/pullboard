@@ -262,7 +262,47 @@ export async function gateRecoveryPolicy() {
     infrastructureRetryLimit: INFRASTRUCTURE_RETRY_LIMIT });
 }
 
-/** Freeze detached JSON observations recursively, including raw source rows and refusal payloads. */
+// Only these typed fields cross this observation door. Raw JSON and unknown nested objects never do.
+const REFUSAL_FIELDS = { code: 'string', message: 'string', next: 'string', reason: 'string' };
+const HANDOFF_FIELDS = { version: 'number', id: 'string', item: 'number', agentId: 'string', commit: 'string',
+  tree: 'string', main: 'string', executionCommit: 'string', executionTree: 'string', digest: 'string',
+  companionDigest: 'string', leaseMs: 'number', state: 'string', at: 'string', startedAt: 'string', completedAt: 'string',
+  attempt: 'number', infrastructureRetries: 'number', recoveryRetries: 'number', retryOf: 'string',
+  infrastructureNotified: 'boolean', error: REFUSAL_FIELDS };
+const GATE_FIELDS = { deferred: 'boolean', outcome: 'string', green: 'boolean', full: 'boolean', main: 'string' };
+const BINDING_FIELDS = { agentId: 'string', commit: 'string', tree: 'string', main: 'string', digest: 'string' };
+const PAYLOAD_FIELDS = { agent: 'string', commit: 'string', tree: 'string', digest: 'string', runner: 'string',
+  attempt: 'number', hopEpoch: 'number', at: 'number', leaseUntil: 'number', heartbeat: 'boolean',
+  outcome: 'string', status: 'number', exactResult: 'string', error: 'string', record: HANDOFF_FIELDS,
+  gate: GATE_FIELDS, request: { submit: BINDING_FIELDS },
+  counts: { passed: 'number', failed: 'number', skipped: 'number' } };
+const ITEM_FIELDS = { item_id: 'number', item_status: 'string', item_owner: 'string', item_commit: 'string',
+  item_claim_head: 'string', item_frozen_digest: 'string', item_lease_until: 'string', item_updated_at: 'string' };
+const JOB_FIELDS = { job_id: 'string', job_kind: 'string', job_item: 'number', job_candidate: 'string', job_base: 'string',
+  job_step: 'string', job_attempt: 'number', job_lease_owner: 'string', job_lease_until: 'number',
+  job_created: 'number', job_updated: 'number', job_applied: 'number' };
+const RUN_FIELDS = { run_job: 'string', run_kind: 'string', run_item: 'number', run_candidate: 'string', run_base: 'string',
+  run_state: 'string', run_attempt: 'number', run_outcome: 'string', run_lease_owner: 'string', run_lease_until: 'number',
+  run_created: 'number', run_updated: 'number' };
+const STEP_FIELDS = { job_step_id: 'number', job_step_job: 'string', job_step_name: 'string',
+  job_step_seq: 'number', job_step_at: 'number' };
+
+/** Project known fields with their expected types, never copying arbitrary objects through a safe-looking key. */
+function evidenceFields(value, fields, reasons = [], source = 'row') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = {};
+  for (const [key, type] of Object.entries(fields)) {
+    if (!Object.hasOwn(value, key)) continue;
+    const entry = value[key];
+    if (entry === null || (typeof type === 'string' && typeof entry === type && (type !== 'number' || Number.isFinite(entry)))) result[key] = entry;
+    else if (typeof type === 'object' && entry && typeof entry === 'object' && !Array.isArray(entry)) result[key] = evidenceFields(entry, type, reasons, source);
+    else reasons.push(`unknown-field:${source}:${key}`);
+  }
+  if (Object.keys(value).some(key => !Object.hasOwn(fields, key))) reasons.push(`omitted-fields:${source}`);
+  return result;
+}
+
+/** Freeze detached JSON observations recursively, including source references and allow-listed refusal fields. */
 function freezeEvidence(value) {
   if (value && typeof value === 'object') {
     for (const child of Object.values(value)) freezeEvidence(child);
@@ -271,12 +311,12 @@ function freezeEvidence(value) {
   return value;
 }
 
-/** Parse a source without hiding its raw payload or treating malformed JSON as an empty successful record. */
-function evidencePayload(raw, reasons, source) {
+/** Parse and project a source, preserving unreadable evidence explicitly without exporting raw JSON. */
+function evidencePayload(raw, reasons, source, fields = PAYLOAD_FIELDS) {
   try {
     const value = JSON.parse(raw);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('not an object');
-    return value;
+    return evidenceFields(value, fields, reasons, source);
   } catch { reasons.push(`unreadable:${source}`); return null; }
 }
 
@@ -285,14 +325,14 @@ function recoveryJobs(db, item, source, now, reasons) {
   try {
     return db.prepare('SELECT * FROM job WHERE job_item = ? ORDER BY job_created DESC, rowid DESC').all(item).map(row => {
       const steps = db.prepare('SELECT * FROM job_step WHERE job_step_job = ? ORDER BY job_step_id').all(row.job_id)
-        .map(step => ({ source: `${source}.job_step:${step.job_step_id}`, row: step,
+        .map(step => ({ source: `${source}.job_step:${step.job_step_id}`, row: evidenceFields(step, STEP_FIELDS),
           payload: evidencePayload(step.job_step_payload, reasons, `${source}.job_step:${step.job_step_id}`) }));
       const progress = steps.filter(step => step.row.job_step_name !== 'alive' && !step.row.job_step_name.startsWith('note:'));
-      return { source: `${source}.job:${row.job_id}`, row, steps,
+      return { source: `${source}.job:${row.job_id}`, row: evidenceFields(row, JOB_FIELDS), steps,
         lease: row.job_lease_owner ? (row.job_lease_until > now ? 'live' : 'lapsed') : 'unowned',
         progress, heartbeat: steps.filter(step => step.row.job_step_name === 'alive') };
     });
-  } catch (error) { reasons.push(`unavailable:${source}.jobs:${error.message}`); return []; }
+  } catch (error) { reasons.push(`unavailable:${source}.jobs:read`); return []; }
 }
 
 /**
@@ -314,7 +354,8 @@ export async function captureGateRecoveryEvidence(board, id, { runs = null } = {
   const own = !db.isTransaction;
   try {
     if (own) db.exec('BEGIN');
-    answer.item = db.prepare('SELECT * FROM item WHERE item_id = ?').get(id) ?? null;
+    answer.item = evidenceFields(db.prepare('SELECT * FROM item WHERE item_id = ?').get(id), ITEM_FIELDS);
+    answer.itemSource = `board.item:${id}`;
     if (!answer.item) reasons.push('missing:item');
     const split = runsStoreOn(db);
     answer.authority = split ? 'board.run' : 'board.job';
@@ -322,7 +363,7 @@ export async function captureGateRecoveryEvidence(board, id, { runs = null } = {
     const gate = split
       ? db.prepare("SELECT * FROM run WHERE run_kind = 'gate' AND run_item = ? ORDER BY run_updated DESC, rowid DESC LIMIT 1").get(id)
       : db.prepare("SELECT * FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(id);
-    answer.gate = gate ? { source: `${answer.authority}:${split ? gate.run_job : gate.job_id}`, row: gate } : null;
+    answer.gate = gate ? { source: `${answer.authority}:${split ? gate.run_job : gate.job_id}`, row: evidenceFields(gate, split ? RUN_FIELDS : JOB_FIELDS) } : null;
     if (!gate) reasons.push('missing:gate');
     let jobDb = db;
     if (split) {
@@ -344,7 +385,7 @@ export async function captureGateRecoveryEvidence(board, id, { runs = null } = {
     const jobId = gate ? (split ? gate.run_job : gate.job_id) : null;
     const job = answer.jobs.find(entry => entry.row.job_id === jobId);
     if (gate && split) answer.handoff = { source: `${answer.gate.source}.run_record`,
-      record: evidencePayload(gate.run_record, reasons, `${answer.gate.source}.run_record`) };
+      record: evidencePayload(gate.run_record, reasons, `${answer.gate.source}.run_record`, HANDOFF_FIELDS) };
     else if (job) {
       // The newest record-bearing step on this gate is authoritative, including a malformed record. No older-gate fallback.
       const step = job.steps.slice().reverse().find(entry => entry.payload && Object.hasOwn(entry.payload, 'record'));
@@ -388,7 +429,7 @@ export async function captureGateRecoveryEvidence(board, id, { runs = null } = {
       const queued = entry.steps.find(step => step.row.job_step_name === 'queued');
       return { ...entry, binding: queued?.payload?.agent === answer.item?.item_owner ? 'owner-recorded' : 'unknown' };
     });
-  } catch (error) { reasons.push(`unavailable:board:${error.message}`); }
+  } catch (error) { reasons.push(`unavailable:board:read`); }
   finally { if (own && db.isTransaction) db.exec('ROLLBACK'); }
   return freezeEvidence(structuredClone(answer));
 }

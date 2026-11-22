@@ -327,3 +327,78 @@ test('store.submit-handoff-records.recovery-progress-exhaustion: clause 2: [B28,
   f.save();
   assert.equal((await f.read()).exhaustion, null, 'count alone is not a producer exhaustion record');
 });
+
+
+/** Synthetic secret material is intentionally never taken from a live store. */
+test('store.submit-handoff-records.recovery-safe-evidence: clause 1: [B28,C7] typed allow-lists exclude claimed bearer credentials and every nested raw copy while retaining provenance and exact refusals', async t => {
+  const f = recoveryFixture(t);
+  const sentinel = 'SYNTHETIC-BEARER-12920-DO-NOT-EXPORT';
+  const claimed = { runner: 'synthetic-runner', token: sentinel, hopEpoch: 7,
+    request: { token: sentinel, submit: { agentId: f.record.agentId, token: sentinel } },
+    record: { ...f.record, token: sentinel, error: { ...f.record.error, token: sentinel },
+      debug: { job_step_payload: sentinel }, treeCopy: { token: sentinel } },
+    gate: { deferred: true, token: sentinel, main: { token: sentinel } },
+    job_step_payload: sentinel, payload: { token: sentinel } };
+  const at = f.box.clock.now().getTime();
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'claimed', 7, ?, ?)")
+    .run(f.record.id, JSON.stringify(claimed), at);
+  f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_step, job_created, job_updated) VALUES ('safe-proof', 'test-run', ?, 'claimed', ?, ?)").run(f.id, at, at);
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES ('safe-proof', 'queued', ?, ?)")
+    .run(JSON.stringify({ agent: f.record.agentId, token: sentinel }), at);
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES ('safe-proof', 'claimed', ?, ?)").run(JSON.stringify(claimed), at);
+  const before = evidenceRows(f.db);
+  const got = await f.read();
+  assert.equal(JSON.stringify(got).includes(sentinel), false, 'no raw row, parsed payload, nested handoff, progress or proof-run escape');
+  assert.equal(JSON.stringify(got).includes('job_step_payload'), false);
+  assert.deepEqual(evidenceRows(f.db), before, 'projection does not rewrite producer evidence');
+  assert.equal(got.itemSource, `board.item:${f.id}`);
+  assert.equal(got.handoff.record.id, f.record.id);
+  assert.deepEqual(got.handoff.record.error, f.record.error, 'exact approved refusal fields retained');
+  assert.equal(got.exhaustion.binding, 'unknown', 'omitted or malformed evidence cannot become exhaustion authority');
+  const gate = got.jobs.find(entry => entry.row.job_id === f.record.id);
+  const step = gate.steps.find(entry => entry.row.job_step_name === 'claimed');
+  assert.equal(step.payload.runner, 'synthetic-runner');
+  assert.equal(step.payload.hopEpoch, 7);
+  assert.equal(step.row.job_step_seq, 7);
+  assert.equal(step.source, `board.job_step:${step.row.job_step_id}`);
+  assert.equal(step.row.job_step_at, at);
+  assert.equal(step.payload.token, undefined);
+  assert.equal(step.payload.gate.main, undefined, 'objects cannot hide under an allowed scalar key');
+  assert.ok(got.reasons.some(reason => reason.startsWith('unknown-field:')));
+  assert.ok(got.reasons.some(reason => reason.startsWith('omitted-fields:')));
+  assert.ok(Object.isFrozen(got.proofRuns[0].progress[1].payload.record.error));
+});
+
+test('store.submit-handoff-records.recovery-authority-ordering: clause 1: [B28,C7] sanitization preserves latest gate and run authority before checking binding, without raw run-record escapes', async t => {
+  const f = recoveryFixture(t);
+  const sentinel = 'SYNTHETIC-RUN-SECRET-12920';
+  const at = f.box.clock.now().getTime();
+  f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_created, job_updated) VALUES ('latest-gate', 'gate', ?, ?, ?)").run(f.id, at + 1, at + 1);
+  f.save();
+  assert.equal((await f.read()).gate.row.job_id, 'latest-gate');
+  assert.equal((await f.read()).handoff, null, 'a later step on an older gate does not replace latest gate authority');
+  f.db.prepare("INSERT INTO board_meta (meta_key, meta_value) VALUES ('runs_store', '1') ON CONFLICT(meta_key) DO UPDATE SET meta_value = '1'").run();
+  const addRun = (job, record, time) => f.db.prepare("INSERT INTO run (run_job, run_kind, run_item, run_candidate, run_base, run_state, run_attempt, run_record, run_summary, run_created, run_updated) VALUES (?, 'gate', ?, ?, ?, 'done', 1, ?, ?, ?, ?)")
+    .run(job, f.id, f.record.commit, f.record.main, JSON.stringify(record), JSON.stringify({ token: sentinel }), time, time);
+  addRun(f.record.id, f.record, 1);
+  addRun('latest-run', { ...f.record, id: 'latest-run', agentId: 'foreign-owner', token: sentinel,
+    error: { ...f.record.error, token: sentinel } }, 2);
+  const got = await f.read();
+  assert.equal(got.authority, 'board.run');
+  assert.equal(got.gate.row.run_job, 'latest-run');
+  assert.equal(got.handoff.source, 'board.run:latest-run.run_record');
+  assert.equal(got.handoff.record.agentId, 'foreign-owner', 'never fall back to older matching run');
+  assert.ok(got.reasons.includes('unknown-binding:owner'));
+  assert.equal(got.exhaustion.binding, 'unknown');
+  assert.deepEqual(got.handoff.record.error, f.record.error);
+  assert.equal(JSON.stringify(got).includes(sentinel), false);
+  assert.equal(got.gate.row.run_record, undefined);
+  assert.equal(got.gate.row.run_summary, undefined);
+  assert.deepEqual(got.jobs, [], 'no legacy job fallback when runs_store is authoritative');
+  f.db.prepare("UPDATE run SET run_record = '{' WHERE run_job = 'latest-run'").run();
+  const malformed = await f.read();
+  assert.equal(malformed.gate.row.run_job, 'latest-run');
+  assert.equal(malformed.handoff.record, null);
+  assert.ok(malformed.reasons.includes('unreadable:board.run:latest-run.run_record'));
+  assert.equal(malformed.exhaustion, null);
+});
