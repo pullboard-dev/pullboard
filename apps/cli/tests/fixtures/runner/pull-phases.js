@@ -20,7 +20,7 @@ export function pullPhaseDiagnosticsSource({ home, machineHome, requests }) {
         return phaseNames(directory).filter(id => /^[a-f0-9-]{36}$/u.test(id)).map(id => {
           const log = phaseRead(join(directory, id, 'control.log'));
           return { job: phaseId(id), state, need: log.includes('PULLBOARD_RUNNER_NEED '), ready: log.includes('PULLBOARD_RUNNER_READY '), result: log.includes('PULLBOARD_RUNNER_RESULT '),
-            sourceSent: phaseRead(join(directory, id, 'source.pack.ready')) !== '' };
+            sourceSent: phaseNames(join(directory, id)).includes('source.pack.ready') };
         });
       });
       const transports = phaseRead(${JSON.stringify(requests + '.phases')}).trim().split('\\n');
