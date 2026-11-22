@@ -70,7 +70,7 @@ async function observe(t, enable, refused, legacy) {
   assert.equal(JSON.parse(configIndex).worktreeMaintenance.enabled, true, 'the intended config is staged even on refusal');
   if (!refused) {
     assert.equal(box.git(cwd, 'show', 'HEAD:pullboard.json'), configIndex, 'successful setup commits the intended config');
-    assert.equal(box.git(cwd, 'show', 'HEAD:partial.txt'), 'staged bytes\n', 'Git commits staged rather than working bytes');
+    assert.equal(box.tryGit(cwd, 'show', 'HEAD:partial.txt').stdout, 'staged bytes\n', 'Git commits staged rather than working bytes');
   }
   return { status: result.status, stderr: parityText(failure?.message ?? '', box.dir), external };
 }
