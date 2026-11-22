@@ -1,18 +1,16 @@
-/** @pullboard-test-input source-cell packages/store */
 /** After an item on a linked child board changes state, each parent that waits on it is told through the file transport [E32,B24,#11039]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { announceItemState } from '../../../../src/io/board/link/announce.js';
-import { applyBoardLink } from '../../../../index.js';
-import { approveBoardLink } from '../../../../index.js';
-import { boardId } from '../../../../index.js';
-import { closeBoard } from '../../../../index.js';
-import { createBoardLinkCapability } from '../../../../index.js';
-import { createBoardLinkFileTransport } from '../../../../index.js';
-import { generateBoardKey } from '../../../../../kernel/index.js';
-import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { openKitBoard } from '../../../fixtures/cell.js';
+import { announceItemState } from '../../../../../../store/index.js';
+import { applyBoardLink } from '../../../../../../store/index.js';
+import { approveBoardLink } from '../../../../../../store/index.js';
+import { boardId } from '../../../../../../store/index.js';
+import { createBoardLinkCapability } from '../../../../../../store/index.js';
+import { createBoardLinkFileTransport } from '../../../../../../store/index.js';
+import { generateBoardKey } from '../../../../../../kernel/index.js';
+import { privateFixtureFiles } from '../../../../../../gate/tests/fixtures/child.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
 
 const PARENT = 'b'.repeat(32);
 const AT = '2026-11-19T08:00:00.000Z';
@@ -25,8 +23,7 @@ const authority = {
 
 /** A child board with one open item, a signed states link to a parent board, and the file transport folder between them. */
 async function linked(t) {
-  const board = openKitBoard(':memory:', { now: () => new Date(AT) });
-  t.after(() => closeBoard(board));
+  const board = cellBoard(t, ':memory:', { now: () => new Date(AT) });
   const item = cellItem(board, { lane: 'core', title: 'Child work', criterion: '1. It works. [test]' });
   const parent = { boardId: PARENT, organization: 'fixture', handle: 'parent' };
   const child = { boardId: boardId(board), organization: 'fixture', handle: 'kid' };
