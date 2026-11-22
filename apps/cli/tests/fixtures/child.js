@@ -23,9 +23,10 @@ export { openKitBoard } from '../../../lib/tests/fixtures/board.js';
 
 /** Run the native CLI in a private fixture process when a command clause requires its real entry and exit. */
 export async function runNativeFixtureCli(args, options) {
-  assert.ok(options.env.PULLBOARD_HOME, 'a native CLI probe owns a private fixture home');
+  const env = options.env ?? { ...process.env };
+  assert.ok(env.PULLBOARD_HOME, 'a native CLI probe owns a private fixture home');
   const running = runFixtureChildAsync(process.execPath,
-    [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), ...args], { encoding: 'utf8', ...options });
+    [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), ...args], { encoding: 'utf8', ...options, env });
   const childPid = running.child.pid;
   assert.ok(Number.isSafeInteger(childPid) && childPid > 0, 'the native CLI started a real process');
   assert.notEqual(childPid, process.pid, 'the native CLI runs outside the test process');
