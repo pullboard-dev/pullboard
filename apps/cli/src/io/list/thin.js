@@ -16,10 +16,10 @@ import { derivedStateEnabled } from '../../../../../packages/config/light.js';
  * The rows `pullboard list` would print from `cwd`, or null when the full path must run it: no readable board, a
  * board a read must not open (it needs a write or an upgrade), or a read that wants the write path.
  *
- * @param {{ cwd: string, lane?: string, all?: boolean, clock?: any, conflictReader?: () => Promise<Function> }} request - conflictReader loads the merge index's mechanical conflict reader.
+ * @param {{ cwd: string, lane?: string, all?: boolean, clock?: any, text?: boolean, conflictReader?: () => Promise<Function> }} request - text includes the text renderer's agent names and merge labels (default true); conflictReader loads the merge index's mechanical conflict reader.
  * @returns {Promise<{ items: any[], needsRescope: any[], agents: any[], merging: Set<number> } | null>}
  */
-export async function thinListRows({ cwd, lane, all, clock = store.systemClock, conflictReader }) {
+export async function thinListRows({ cwd, lane, all, clock = store.systemClock, text = true, conflictReader }) {
   // With health.derivedState on the full path reads the derived-state table for verdict freshness, so the thin door steps aside [C7,#11373].
   if (derivedStateEnabled()) return null;
   const info = repoInfo(cwd);
@@ -32,8 +32,9 @@ export async function thinListRows({ cwd, lane, all, clock = store.systemClock, 
     const residualConflicts = conflictReader && rows.some(row => row.item_status === 'verified') ? await conflictReader() : null;
     const project = verdictProjector(info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts }).project;
     const items = rows.map(project);
-    const merging = new Set(rows.filter(item => !['verified', 'withdrawn'].includes(item.item_status) && mainMergeFor(board, item.item_id)).map(item => item.item_id));
-    return { items, needsRescope: store.allItemsNeedingRescope(board), agents: store.listAgents(board), merging };
+    // JSON prints complete item rows, but never the text-only merge labels or agent display names [C7,#12861].
+    const merging = new Set((text ? rows : []).filter(item => !['verified', 'withdrawn'].includes(item.item_status) && mainMergeFor(board, item.item_id)).map(item => item.item_id));
+    return { items, needsRescope: store.allItemsNeedingRescope(board), agents: text ? store.listAgents(board) : [], merging };
   } catch (error) {
     if (error instanceof store.ReadNeedsWrite || store.writeRefused(error) || store.schemaMissing(error)) return null;
     throw error;
