@@ -1,0 +1,30 @@
+{
+  "store.review-lease.coordinator-clear": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The coordinator clearReviewReservation clears only the submitted item review reservation, ends its review-job lease through the review lease port, leaves the item submitted and lets another reviewer reserve it."
+    },
+    "why": "A held review reservation is item_review_by and item_review_until, which the build-route clearReservation never touched, so a stuck review had no coordinator clear.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/review/lease.test.js",
+      "packages/store/src/io/board/review/lease.js"
+    ]
+  },
+  "store.review-lease.coordinator-clear-refusals": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A non-coordinator clearReviewReservation is refused COORDINATOR_ONLY with no mutation, and an item holding only a build-route reservation is refused and left unchanged."
+    },
+    "why": "Only the coordinator may take a review away from its reviewer, and the clear must never reach a build-route reservation.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/review/lease.test.js",
+      "packages/store/src/io/board/review/lease.js"
+    ]
+  }
+}

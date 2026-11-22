@@ -121,6 +121,7 @@ import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
 import { reserveItem } from "./board/hold/item.js";
 import { clearReservation } from "./board/hold/item.js";
+import { clearReviewReservation } from "./board/review/lease.js";
 import { addBlock } from "./board/blocks.js";
 import { claimBlock } from "./board/blocks.js";
 import { listBlocks } from "./board/blocks.js";
@@ -525,6 +526,7 @@ export {
   holdItem,
   reserveItem,
   clearReservation,
+  clearReviewReservation,
   addBlock,
   claimBlock,
   listBlocks,

@@ -162,6 +162,9 @@ export async function runStaticStageAdmitted(io, root, { slots = staticCheckSlot
     io.say('static stage green: kept from a green run of this exact clean tree and main (gate.staticMemo); the gate will not return STATIC_RED for this tree');
     return 0;
   }
+  const remote = await runner(io, root, stage);
+  if (remote !== null) return remote;
+
   let said = '';
   const capacity = slots();
   const lease = await takeResource({
@@ -177,8 +180,6 @@ export async function runStaticStageAdmitted(io, root, { slots = staticCheckSlot
     },
   });
   try {
-    const remote = await runner(io, root, stage);
-    if (remote !== null) return remote;
     const code = await run(io, root, stage);
     if (code === 0 && key) writeAnalysisMemo(key, { green: true });
     return code;

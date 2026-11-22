@@ -103,6 +103,18 @@ test('cli.io-worktree-maintenance-folder-sweep.dead-seat-and-agent-tree-swept: c
   assert.equal(row(waiting).action, 'kept');
 });
 
+test('cli.io-worktree-maintenance-folder-sweep.keeps-secret-blocked-folder: clause 3: folder cleanup retains a folder containing a secret-blocked file [C7,#12859]', async t => {
+  const fx = fixture(t);
+  const builder = fx.seat('b-live', 'core-1', 'live');
+  const folder = fx.itemFolder(`${builder}-item-17`, 17);
+  fx.board.items.push(fx.landed(17, folder.commit, 'core-1'));
+  writeFileSync(join(folder.path, 'private.env'), 'API_TOKEN=not-a-real-but-matching-secret-value-1234567890\n');
+  const report = await fx.run();
+  const row = report.entries.find(entry => entry.path === folder.path);
+  assert.equal(existsSync(folder.path), true);
+  assert.match(row.reason, /secret-blocked files retained: private\.env/u);
+});
+
 test('cli.io-worktree-maintenance-folder-sweep.claimed-seat-presence: clause 1: takeover age classifies a claimed seat as gone only with no live process or recent heartbeat [C7,#12625]', () => {
   const mainRoot = '/tmp/pullboard', path = '/tmp/pullboard-core-1';
   const now = Date.UTC(2026, 10, 20, 17);

@@ -5,6 +5,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { acceptMachineSubmission } from '../../src/io/machine.js';
 import { machineBarDigest } from '../../src/logic/verdict/machine.js';
+import { machineVerification } from '../../src/io/machine-read.js';
+import { showReads } from '../../read.js';
 
 const CHECK = 'node --test one.test.js';
 const COMMIT = 'c'.repeat(40);
@@ -54,4 +56,13 @@ test('verify.machine.not-submitted-live: clause 1: machine acceptance refuses NO
   const deps = { ...box.deps, moveItem: (board, id, verb, how) => { box.calls.push(['move', verb]); how.before(live); return live; } };
   assert.throws(() => acceptMachineSubmission(box.db, box.item, box.options, deps), (error) => error.code === 'NOT_SUBMITTED');
   assert.equal(box.calls.some(call => call[0] === 'event'), false, 'no accept event is logged');
+});
+
+test('verify.machine.show-read-boundary: clause 1: show reads only the current enabled authorization from the read source and rejects a stale bar [C7]', async () => {
+  const box = fixture();
+  const reads = await showReads();
+  assert.equal(reads.machineVerification, machineVerification);
+  assert.deepEqual(reads.machineVerification(box.db, box.item), JSON.parse(box.item.item_frozen).machineVerification);
+  const stale = { ...box.item, item_check: 'node --test changed.test.js' };
+  assert.equal(reads.machineVerification(box.db, stale), null);
 });

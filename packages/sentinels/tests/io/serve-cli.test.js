@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../git/tests/fixtures/child.js';
 import { startServeSentinel } from '../../index.js';
 
 const { root } = privateFixtureFiles('sentinel-serve-cli-');

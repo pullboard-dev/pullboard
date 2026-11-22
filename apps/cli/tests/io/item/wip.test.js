@@ -74,6 +74,35 @@ test('cli.io-item-wip.snapshot-skips: clause 2: an unchanged folder writes no ne
   assert.equal(snapshotWip(folder, 7).written, true);
 });
 
+test('cli.io-item-wip.secret-file-never-enters-snapshot: clause 1: a fake secret in a non-ignored file is absent from the snapshot ref and its reachable tree, the file and clean files remain [C7,#12859]', t => {
+  const { folder, git } = dirtyFolder(t);
+  const secret = 'sk-proj-' + 'A'.repeat(40);
+  writeFileSync(join(folder, 'credentials.txt'), `token=${secret}\n`);
+  const messages = [], original = console.log;
+  console.log = message => messages.push(String(message));
+  let result;
+  try { result = snapshotWip(folder, 12859); } finally { console.log = original; }
+  assert.equal(result.written, true);
+  assert.ok(messages.every(message => !message.includes(secret)));
+  assert.equal(readFileSync(join(folder, 'credentials.txt'), 'utf8'), `token=${secret}\n`);
+  assert.equal(git('show', `${result.commit}:tracked.txt`), 'one\nunstaged');
+  assert.equal(git('show', `${result.commit}:staged.txt`), 'staged');
+  assert.throws(() => git('grep', '-F', secret, result.commit));
+  assert.equal(git('status', '--porcelain=v1').includes('credentials.txt'), true);
+});
+
+test('cli.io-item-wip.secret-block-notice: clause 2: a blocked snapshot notice names only the item and file [C7,#12859]', t => {
+  const { folder } = dirtyFolder(t);
+  writeFileSync(join(folder, 'private.env'), 'API_TOKEN=not-a-real-but-matching-secret-value-1234567890\n');
+  const messages = [], original = console.log;
+  console.log = message => messages.push(String(message));
+  try { snapshotWip(folder, 12859); } finally { console.log = original; }
+  assert.equal(messages.length, 1);
+  assert.match(messages[0], /item 12859/u);
+  assert.match(messages[0], /private\.env/u);
+  assert.doesNotMatch(messages[0], /not-a-real-but-matching-secret-value/u);
+});
+
 /** The options that make a board call by seat core-1 see one claimed folder, with a clock the test owns. */
 function claimedCall(folder, now) {
   return { seatOf: () => ({ seat: 'core-1', board: '/nowhere/board.sqlite' }), now: () => now, claimed: async () => [{ item: 12746, folder }] };

@@ -599,10 +599,15 @@ async function nextWithProgress(io, values, progress) {
       await progress.idle(found.reasons, () => waitClock.sleep(wake, { after: wakeVersion, deadline: until }));
       wakeVersion = wake.version();
       quiet = passSignature; quietAt = waitClock.now();
+      let signatureAt = quietAt;
       // Another seat's write that changes nothing this seat can take, hear or hold is not a reason to select again; a read path this signature misses is caught by the recheck [C7,#11798].
-      while (quiet !== null && !testRuns.pending.length && waitClock.now() < until && waitClock.now() - quietAt < QUIET_RECHECK_MS && seatSignature(ctx) === quiet) {
-        await waitClock.sleep(wake, { after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS) });
+      while (quiet !== null && !testRuns.pending.length && waitClock.now() < until && waitClock.now() - quietAt < QUIET_RECHECK_MS) {
+        const checkAt = signatureAt + QUIET_SIGNATURE_INTERVAL_MS;
+        await waitClock.sleep(wake, { after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS, checkAt) });
         wakeVersion = wake.version();
+        if (waitClock.now() < checkAt) continue;
+        signatureAt = waitClock.now();
+        if (seatSignature(ctx) !== quiet) break;
       }
     }
   } } finally { wake?.close(); }
@@ -635,6 +640,9 @@ const realWaitClock = { now: () => Date.now(), sleep: (wake, options) => wake.wa
 
 /** The longest a waiting next trusts an unchanged signature before it selects again, so a read path the signature misses cannot hold a seat for long [C7,#11798]. */
 const QUIET_RECHECK_MS = 30_000;
+
+/** Minimum time between full selection signatures while a waiter's watched files keep changing [C7,#12794]. */
+const QUIET_SIGNATURE_INTERVAL_MS = 100;
 
 /**
  * What a waiting seat's selection reads that other seats' writes can change: items, shouts, verdicts, holds, agents, this seat's queued reds and the non-board inputs.

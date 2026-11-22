@@ -32,9 +32,8 @@ test('cli.journeys-init-defaults.defaults-move-refusals-and-the-init: clause 1: 
   const template = readFileSync(new URL('../../../../../packages/config/src/io/templates.js', import.meta.url), 'utf8');
   const resume = readFileSync(new URL('../../../src/io/commands/resume.js', import.meta.url), 'utf8');
   assert.doesNotMatch(resume, /--wait/u);
-  assert.doesNotMatch(template, /--wait/u);
-  assert.match(template, /Never wait: submit and move on/u);
-  assert.match(template, /Stop:\*\* after 4 empty .{1,4}next.{1,4} answers in a row/u);
+  assert.match(template, /Never wait, never sleep, never poll, never stop while the board has work/u);
+  assert.match(template, /Stop:\*\* only when .{1,4}pullboard status.{1,4} shows nothing open/u);
   assert.equal(successfulNext('submit', {}), 'pullboard next --take');
   assert.equal(successfulNext('next', {}), 'nothing for this seat: end your turn');
   assert.throws(() => requireManualLanding({}), error => {

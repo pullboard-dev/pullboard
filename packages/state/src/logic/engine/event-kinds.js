@@ -9,6 +9,7 @@ import { engineNumber } from './number.js';
 export const EVENT_KIND_ENGINES = Object.freeze({
   pull_out: 'LANDING_DIMENSION_ENGINE',
   pulled: 'LANDING_DIMENSION_ENGINE',
+  clear_review_reservation: 'CLEAR_REVIEW_RESERVATION_ENGINE',
   published: 'LANDING_DIMENSION_ENGINE',
 });
 

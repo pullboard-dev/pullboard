@@ -19,10 +19,14 @@ export {
   listThinRead,
   loadMachineSettings,
   namedImportSelectionOn,
+  nextReturnedFirst,
   readThinCommands,
+  routeReservations,
   reofferInfraEndEnabled,
   retireIdleSeatHours,
+  submitComposeAsObject,
   submitProofOnly,
   typedFieldsEnabled,
   validateRunner,
 } from './src/logic/settings.js';
+export { scratchRoot } from './src/logic/scratch.js';

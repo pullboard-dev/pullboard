@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
+import { repoPath } from '../../../kernel/light.js';
 import { holdBoard } from '../fixtures/hold-board.js';
 import { atomically } from '../../index.js';
 import { createJob } from '../../index.js';
@@ -181,7 +182,7 @@ test('jobs.io-store.prepared-commit-port: clause 1: setPreparedCommit and commit
   setPreparedCommit(null);
   assert.throws(() => commitJobStatements(board, move, statements), refused('PREPARED_COMMIT_UNSET'));
   assert.equal(calls.length, 1, 'a cleared port is not called');
-  const file = resolve(import.meta.dirname, '..', '..', 'src', 'io', 'store.js');
+  const file = repoPath(import.meta.dirname, '../../src/io/store.js');
   const jobs = resolve(import.meta.dirname, '..', '..');
   const kernel = resolve(jobs, '..', 'kernel', 'light.js');
   const specifiers = [...readFileSync(file, 'utf8').matchAll(/^import [^\n]* from ["']([^"']+)["'];$/gmu)].map(match => match[1]);
