@@ -1,13 +1,10 @@
 /** Explicit, frozen machine authority never treats an evidence narrative as executable proof [V1,V4,H16]. */
-import { createHash } from 'node:crypto';
 import { criterionClauses } from '../../../../state/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { machineBarDigest } from './machine-read.js';
+export { machineBarDigest } from './machine-read.js';
 
 /** Bind opt-in to the exact acceptance bar; any later edit disables the old authorization. */
-export function machineBarDigest(item) {
-  return createHash('sha256').update(JSON.stringify([item.item_criterion, item.item_check, item.item_spec_ids, item.item_brief])).digest('hex');
-}
-
 /** Require one explicit executable command for every numbered command clause, with no missing or duplicate clauses. */
 export function machineClauseCommands(item, commands) {
   const clauses = criterionClauses(item.item_criterion);
