@@ -1,0 +1,38 @@
+{
+  "cli.inbox-growth.unpaired-process-observations": {
+    "proves": {
+      "specs": [
+        "C7",
+        "N26"
+      ],
+      "claim": "Identical actual renderer code retains different CPU/count observations and therefore can differ without source growth."
+    },
+    "why": "A zero-growth output comparison needs the same observation without hiding genuine output growth.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/journeys/inbox/growth.test.js",
+      "apps/cli/tests/fixtures/budget-measure.js",
+      "apps/cli/tests/fixtures/budget-process-sample.js",
+      "packages/seats/src/io/agent/tree.js",
+      "packages/resources/src/io/admission/consumers.js"
+    ]
+  },
+  "cli.inbox-growth.matched-input-added-byte": {
+    "proves": {
+      "specs": [
+        "C7",
+        "N26"
+      ],
+      "claim": "Independent actual source renderers preserve full bytes and reject one genuine added output byte under the same actual process observation."
+    },
+    "why": "A zero-growth output comparison needs the same observation without hiding genuine output growth.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/journeys/inbox/growth.test.js",
+      "apps/cli/tests/fixtures/budget-measure.js",
+      "apps/cli/tests/fixtures/budget-process-sample.js",
+      "packages/seats/src/io/agent/tree.js",
+      "packages/resources/src/io/admission/consumers.js"
+    ]
+  }
+}
