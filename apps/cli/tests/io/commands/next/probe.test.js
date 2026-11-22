@@ -10,7 +10,7 @@ const IDLE_BUDGET_MS = 95_000;
 
 /** Run the built CLI against an isolated fixture board. */
 function runNext(box, cwd, ...args) {
-  return runCliInProcess(['next', ...args], { cwd, env: box.env });
+  return runCliInProcess(args, { cwd, env: box.env });
 }
 
 /** Mark one fixture item verified through the board's guarded transition window. */
@@ -39,12 +39,14 @@ test('cli.io-commands-next.built-cli-contract: clause 3: the built CLI prints a 
   assert.equal(finished.status, 3, `${finished.stdout}\n${finished.stderr}`);
   assert.match(finished.stdout, /board finished/u);
 
-  const idleBox = await fixture(t);
+  const idleBox = await fixture(t, { projectConfig: { next: { idleMinutes: 1 } } });
   const began = performance.now();
   const idle = await runNext(idleBox, idleBox.seats.actor.path, 'next');
   const elapsed = performance.now() - began;
+  const idleOutput = idle.stdout + idle.stderr;
   assert.equal(idle.status, 4, `${idle.stdout}\n${idle.stderr}`);
-  assert.match(idle.stdout, /\[IDLE_TIMEOUT\]/u);
+  assert.match(idleOutput, /\[IDLE_TIMEOUT\] nothing for this seat in 60 seconds/u, idleOutput);
+  assert.ok(elapsed >= 60_000, `configured 60 second idle answer came after only ${elapsed} ms`); // budget: measured one-minute fixture setting, not a raised ceiling
   assert.ok(elapsed <= IDLE_BUDGET_MS, `idle answer took ${elapsed} ms`); // budget: approved row C7 requires idle within 95 seconds [#12807]
-  console.log(`PULLBOARD_NEXT_PROBE ${JSON.stringify({ command: `node ${CLI_ENTRY} next`, claimed: { status: claimed.status, stdout: claimed.stdout.trim() }, finished: { command: `node ${CLI_ENTRY} next --no-wait`, status: finished.status, stdout: finished.stdout.trim() }, idle: { status: idle.status, stdout: idle.stdout.trim(), elapsedMs: Math.round(elapsed) } })}`);
+  console.log(`PULLBOARD_NEXT_PROBE ${JSON.stringify({ claimed: { arguments: ['next'], status: claimed.status, stdout: claimed.stdout.trim() }, finished: { arguments: ['next', '--no-wait'], status: finished.status, stdout: finished.stdout.trim() }, idle: { arguments: ['next'], status: idle.status, stdout: idle.stdout.trim(), stderr: idle.stderr.trim(), elapsedMs: Math.round(elapsed) } })}`);
 });

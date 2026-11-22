@@ -44,13 +44,14 @@ test('cli.io-commands-next-wait.busy-board-cpu: clause 1: a real next --wait on 
   const seat = JSON.parse(made.out).path;
   // One plain answer first warms this process's modules, so the next one is the cost of answering once.
   await measured(box, seat, '--no-wait');
-  const plain = await measured(box, seat);
+  const plain = await measured(box, seat, '--no-wait');
   const writing = startBoardWriter(join(repo, '.git', 'pullboard', 'board.sqlite'));
   const waiting = await measured(box, seat, '--wait', WAIT_MINUTES);
   const wrote = await writing;
   assert.equal(wrote.code, 0, wrote.err);
   assert.doesNotMatch(waiting.err, /\n\s+at [^\n]*\.js:\d+/u, `the wait ended in an error: ${waiting.err}`);
-  assert.ok(waiting.code === 0 || waiting.code === 1, `exit ${waiting.code}: ${waiting.err}`);
+  assert.equal(waiting.code, 4, `exit ${waiting.code}: ${waiting.err}`);
+  assert.match(waiting.out + waiting.err, /\[IDLE_TIMEOUT\]/u, `the wait omitted its idle line: ${waiting.out}${waiting.err}`);
   assert.ok(waiting.seconds >= 5, `the wait returned after ${waiting.seconds} s, so it did not wait under the writes: ${waiting.err}`);
   const figure = Math.round((waiting.cpu - plain.cpu) * 100) / 100;
   t.diagnostic(`the wait ran ${waiting.seconds} s, exit ${waiting.code}: ${(waiting.out + waiting.err).replace(/\s+/gu, ' ').slice(0, 300)}`);

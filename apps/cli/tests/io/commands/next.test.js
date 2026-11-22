@@ -11,6 +11,8 @@ import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
+import { main } from '../../fixtures/native.js';
+import { captureCommandInProcess } from '../../fixtures/process.js';
 
 /** The release events an item recorded, with their detail parsed. */
 const releases = (box, id) => box.board.db.prepare("SELECT event_detail d FROM event WHERE item_id=? AND event_kind='release'").all(id).map(row => JSON.parse(row.d));
@@ -100,14 +102,32 @@ test('cli.io-commands-next.landing-loads-at-call-time: clause 1: next.js has no 
 });
 
 const IDLE_LINE = '[IDLE_TIMEOUT] nothing for this seat in 90 seconds; the board is not finished. Stop, or call next again.';
+const DEFAULT_IDLE_MS = 90_000;
+const DEFAULT_IDLE_STEP_MS = 30_000;
 
 /** Every number and word the answer printed, whichever stream or JSON field carried it. */
 const printed = ran => ran.out + ran.err;
 
+/** Drive a plain next through the production dispatcher without sleeping for its real idle deadline. */
+function drivenNext(box, cwd, clock, ...args) {
+  return captureCommandInProcess((argv, io) => main(argv, { ...io, nextWaitClock: clock }), ['next', ...args], { cwd, env: box.env });
+}
+
 test('cli.io-commands-next.no-wait-idle-exit-4: clause 1: next --no-wait on a board with nothing for the seat prints the IDLE_TIMEOUT line first and exits 4 at once; a held review still refuses REVIEW_HELD at once, and plain next without the flag is unchanged [C7,#12779]', async t => {
   const box = await fixture(t);
-  const plain = await cli(box, box.seats.actor.path, ['next']);
+  let fake = 1_000_000;
+  const began = fake, seen = [];
+  let sleeps = 0;
+  const clock = {
+    now: () => { seen.push(fake); return fake; },
+    sleep: async (wake, { deadline }) => { sleeps += 1; fake = Math.min(fake + DEFAULT_IDLE_STEP_MS, Number.isFinite(deadline) ? Math.max(deadline, fake) : Infinity); },
+  };
+  const plain = await drivenNext(box, box.seats.actor.path, clock);
+  assert.equal(plain.code, 4, printed(plain));
   assert.ok(printed(plain).includes(IDLE_LINE), 'plain next on a lane with no items reports the idle timeout');
+  assert.equal(fake - began, DEFAULT_IDLE_MS, `plain next returned after ${fake - began} ms of simulated time instead of the 90 second default`);
+  assert.ok(seen.some(at => at > began && at < began + DEFAULT_IDLE_MS), 'plain next did not read the clock while waiting through its default deadline');
+  assert.equal(sleeps, DEFAULT_IDLE_MS / DEFAULT_IDLE_STEP_MS, 'plain next traversed each fake-clock interval through its 90 second deadline');
   const plainEvents = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind IN ('next-idle-timeout','next-finished')").all().map(row => row.k);
   assert.deepEqual(plainEvents, ['next-idle-timeout'], 'plain next records one timeout and no finished event');
   const ran = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
@@ -160,4 +180,17 @@ test('cli.io-commands-next.no-wait-finished-exit-3: clause 2: next --no-wait ret
   assert.ok(printed(finished).includes('next: board finished: every item in web is verified. Stop.'), printed(finished));
   const events = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind='next-finished'").all();
   assert.equal(events.length, 1, 'the finished observation was recorded');
+
+  const plainFinishedBox = await fixture(t);
+  const verified = plainFinishedBox.add('The only verified item for plain next');
+  verify(verified);
+  let fake = 1_000_000, sleeps = 0;
+  const clock = {
+    now: () => fake,
+    sleep: async (wake, { deadline }) => { sleeps += 1; fake = Math.min(fake + DEFAULT_IDLE_STEP_MS, Number.isFinite(deadline) ? Math.max(deadline, fake) : Infinity); },
+  };
+  const plainFinished = await drivenNext(plainFinishedBox, plainFinishedBox.seats.actor.path, clock);
+  assert.equal(plainFinished.code, 3, printed(plainFinished));
+  assert.match(printed(plainFinished), /next: board finished: every item in web is verified\. Stop\./u, printed(plainFinished));
+  assert.equal(sleeps, 0, 'plain next returns the finished line without waiting for the idle deadline');
 });
