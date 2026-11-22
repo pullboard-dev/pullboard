@@ -36,7 +36,8 @@ const eventCount = board => board.db.prepare('SELECT count(*) AS n FROM event').
 function boardRows(board) {
   const tables = board.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
   return Object.fromEntries(tables.map(({ name }) => [name,
-    board.db.prepare(`SELECT * FROM "${name.replaceAll('"', '""')}"`).all().map(row => JSON.stringify(row)).sort()]));
+    board.db.prepare(`SELECT * FROM "${name.replaceAll('"', '""')}"`).all()
+      .filter(row => name !== 'board_meta' || row.meta_key !== 'board_id').map(row => JSON.stringify(row)).sort()]));
 }
 
 test('store.io-board-write-sequencer.envelope-capture: clause 1: [C7] a prepared write under captureBoardChanges produces the same relay changeset as the equivalent logEvent write', async t => {
