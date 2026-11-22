@@ -82,10 +82,10 @@ test('cli.io-status-thin.verified-landing-facts: clause 1: thin status keeps sta
   const ids = onBoard(box, board => board.db.prepare('SELECT item_id FROM item ORDER BY item_id').all().map(row => row.item_id));
   const [landed, rejected, submitted] = ids;
   onBoard(box, board => {
-    const commit = 'a'.repeat(40), digest = 'd'.repeat(64);
+    const commit = 'a'.repeat(40), digest = 'd'.repeat(64), at = new Date().toISOString();
     for (const [id, decision] of [[landed, 'ACCEPT'], [rejected, 'REJECT']]) {
       board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
-        VALUES (?, 'reviewer-1', ?, 'fixture', 'fixture verdict', ?, ?, ?, ?)`).run(id, decision, commit, digest, commit, NOW);
+        VALUES (?, 'reviewer-1', ?, 'fixture', 'fixture verdict', ?, ?, ?, ?)`).run(id, decision, commit, digest, commit, at);
     }
     board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
     try {
@@ -95,11 +95,11 @@ test('cli.io-status-thin.verified-landing-facts: clause 1: thin status keeps sta
         WHERE item_id=?`).run(commit, digest, submitted);
     } finally { board.db.exec('DELETE FROM temp.moving'); }
     const event = board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
-    event.run(NOW, 'coordinator', 'accept', landed, '{}');
-    event.run(NOW, 'coordinator', 'reject', rejected, '{}');
-    event.run(NOW, 'builder-2', 'submit', submitted, '{}');
-    event.run(NOW, 'coordinator', 'merged', landed, '{}');
-    event.run(NOW, 'coordinator', 'landing_batch', null, JSON.stringify({ batch: { id: 'fixture-batch', state: 'blocked', items: [landed], blocked: [], refusal: { code: 'FIXTURE' } } }));
+    event.run(at, 'coordinator', 'accept', landed, '{}');
+    event.run(at, 'coordinator', 'reject', rejected, '{}');
+    event.run(at, 'builder-2', 'submit', submitted, '{}');
+    event.run(at, 'coordinator', 'merged', landed, '{}');
+    event.run(at, 'coordinator', 'landing_batch', null, JSON.stringify({ batch: { id: 'fixture-batch', state: 'blocked', items: [landed], blocked: [], refusal: { code: 'FIXTURE' } } }));
   });
   const lines = result => result.out.split('\n').map(line => line.replace(/\d+ s ago/u, 'N s ago'));
   setReadThin(box, false);
@@ -151,12 +151,14 @@ test('cli.io-status-thin.wired-behind-setting: clause 2: status.js calls the doo
   assert.ok(thin.some(line => line.startsWith('capacity:')), 'thin status keeps capacity');
   assert.ok(thin.some(line => line.startsWith('Max useful builders:')), 'thin status keeps useful builders');
   assert.ok(thin.every(line => line.startsWith('board:') || line.startsWith('verdicts:') || line.startsWith('lanes:')
+    || line.startsWith('review queue:') || line.startsWith('landing:')
+    || line.startsWith('local memory holds ') || line === 'local memory hold status unavailable; pullboard resources shows the queue'
     || line.startsWith('ready buffer:') || line.startsWith('capacity:')
     || line.startsWith('Max useful agents now:') || line.endsWith('items can be built at once now.')
     || line.startsWith('Finish in about ') || line === 'Finish time: unknown.'
     || line.startsWith('Binding: ') || line.startsWith('Lever: ')
     || line.startsWith('Approval evidence count:') || line.startsWith('Unknown: ')
-    || line.startsWith('Max useful builders:')), `thin status prints only counts, lanes, capacity and useful builders: ${thin.join(' | ')}`);
+    || line.startsWith('Max useful builders:')), `thin status prints counts, lanes, review and landing lines, capacity and useful builders: ${thin.join(' | ')}`);
   for (const line of thin.filter(line => !line.startsWith('lanes:') && !line.startsWith('Max useful builders:'))) assert.ok(full.includes(line), `thin status shares the full-path field: ${line}`);
   assert.ok(full.some(line => line.startsWith('seats:')), 'full status keeps detailed sections');
   assert.ok(thin.length < full.length, 'thin status omits full-path details');
