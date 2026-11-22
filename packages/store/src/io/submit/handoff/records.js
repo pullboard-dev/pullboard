@@ -423,8 +423,12 @@ export async function captureGateRecoveryEvidence(board, id, { runs = null } = {
         if (a === undefined || a === null || b === undefined || b === null || a !== b) reasons.push(`unknown-binding:${name}`);
       }
       if (typeof record.commit !== 'string' || !/^[a-f0-9]{40}$/u.test(record.commit) || typeof record.digest !== 'string' || !/^[a-f0-9]{64}$/u.test(record.digest)) reasons.push('unknown-binding:source');
-      const envelope = job?.steps.find(step => step.source === answer.handoff.source)?.payload;
-      if (!envelope || envelope.tree !== record.tree || envelope.agent !== record.agentId || envelope.commit !== record.commit || envelope.digest !== record.digest) reasons.push('unknown-binding:envelope');
+      // saveSubmitHandoff writes a run_record directly onto the authoritative run row. Its row bindings above
+      // are the envelope; only the legacy job producer wraps the record in a source-labelled job step.
+      if (!split) {
+        const envelope = job?.steps.find(step => step.source === answer.handoff.source)?.payload;
+        if (!envelope || envelope.tree !== record.tree || envelope.agent !== record.agentId || envelope.commit !== record.commit || envelope.digest !== record.digest) reasons.push('unknown-binding:envelope');
+      }
       if (typeof record.tree !== 'string' || !/^[a-f0-9]{40}$/u.test(record.tree)) reasons.push('unknown-binding:tree');
       if (item?.item_status !== 'claimed') reasons.push('unknown-binding:status');
       if (record.error?.code === 'GATE_INFRA_EXHAUSTED') {
