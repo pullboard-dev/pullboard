@@ -24,7 +24,7 @@ test('cli.journeys-relay-setup.relay-help-lists-every-relay-command: relay help 
 });
 
 /** @pullboard-world-pin: clause 2 reads the help and pair tests, relay setup test and registry to verify the moved cases in the committed tree. */
-test('cli.journeys-relay-setup.help-case-preserves-setup-cases: clause 2: the moved help case has one record and setup keeps its unselected cases [C7,H17]', () => {
+test('cli.journeys-relay-setup.help-case-preserves-setup-cases: clause 1: the moved help case has one record and setup keeps its unselected cases [C7,H17]', () => {
   const help = readFileSync(resolve(ROOT, 'apps/cli/tests/io/commands/relay/help.test.js'), 'utf8');
   const pair = readFileSync(resolve(ROOT, 'apps/cli/tests/io/commands/relay/pair.test.js'), 'utf8');
   const setup = readFileSync(resolve(ROOT, 'apps/cli/journeys/relay/setup.test.js'), 'utf8');
