@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/tests/io/commands/add/relay.test.js apps/cli/journeys/relay/queue-on-failure.test.js apps/cli/journeys/relay/main-offline.test.js */
+/** @pullboard-test-input apps/cli/tests/io/commands/add/relay.test.js apps/cli/journeys/relay/queue-on-failure.test.js apps/cli/journeys/relay/main-offline.test.js apps/cli/tests/fixtures/registry-10548.json */
 /** @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
