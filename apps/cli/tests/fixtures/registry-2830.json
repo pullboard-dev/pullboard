@@ -10,7 +10,7 @@
     "why": "Without it, a laneless light seat could be refused the second cell, or a commit outside its first lane folders, and lanes off would be unproven end to end.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/join/lanes-off.test.js",
+      "apps/cli/tests/io/join/lanes-off.test.js",
       "apps/cli/src/io/commands/claim.js",
       "packages/commits/src/io/hooks.js"
     ]
@@ -26,7 +26,7 @@
     "why": "Without it, two light seats could take work in one cell at once and write the same files.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/join/lanes-off.test.js",
+      "apps/cli/tests/io/join/lanes-off.test.js",
       "packages/store/src/io/eligibility.js"
     ]
   },
@@ -41,7 +41,7 @@
     "why": "Without it, two seats could claim into one cell by naming the item, past the guard that next applies.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/join/lanes-off.test.js",
+      "apps/cli/tests/io/join/lanes-off.test.js",
       "packages/store/src/io/board/claim.js",
       "packages/store/src/io/cells.js"
     ]
@@ -57,7 +57,7 @@
     "why": "Without it, the lanes-off refusal could leak into lanes-on claims and stop seats that today may share a cell.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/join/lanes-off.test.js",
+      "apps/cli/tests/io/join/lanes-off.test.js",
       "packages/store/src/io/board/claim.js"
     ]
   },
@@ -72,7 +72,7 @@
     "why": "Without it, lanes off could check lane folders instead of the claimed item's cells and pass or refuse the wrong files.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/join/lanes-off.test.js",
+      "apps/cli/tests/io/join/lanes-off.test.js",
       "packages/commits/src/io/hooks.js"
     ]
   },
@@ -87,7 +87,7 @@
     "why": "Without it, a hook-skipped commit could carry another cell's file past submit when lanes are off.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/join/lanes-off.test.js",
+      "apps/cli/tests/io/join/lanes-off.test.js",
       "packages/commits/src/io/hooks.js"
     ]
   }
