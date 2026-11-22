@@ -10,6 +10,7 @@ import { drainInboxMarks } from '../../src/io/inbox-marks.js';
 import { spoolInboxMarks } from '../../src/io/inbox-marks.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixture } from '../fixtures/dispatch.js';
+import { cellBoard } from '../fixtures/cell.js';
 
 /** A private folder holding one board file path; the spool lives beside it. */
 const folder = () => join(privateFixtureFiles('pullboard-marks-').root, 'board.sqlite');
@@ -35,7 +36,7 @@ test('store.inbox-marks.drain-delivery: clause 1: one drain writes every mark in
 });
 
 test('store.inbox-marks.delivery-replay: clause 2: replaying a drained delivery line leaves the recorded cursor unchanged, a mark-only spool drains as before, and no port keeps delivery lines [C7,#10878]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const agentId = box.seats.actor.id;
   const through = box.board.db.prepare('SELECT MAX(event_id) AS id FROM event').get().id;
   const delivery = { interrupts: [], through, observedThrough: through, digestThrough: through };
