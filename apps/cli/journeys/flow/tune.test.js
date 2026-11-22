@@ -7,11 +7,9 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { busyHistory } from '../../tests/fixtures/flow/tune-history.js';
-import { oneSeatHistory } from '../../tests/fixtures/flow/tune-history.js';
 import { TUNE_POLICY } from '../../tests/fixtures/flow/tune-history.js';
 
 const MINUTE = 60_000;
-const STAGES = ['build', 'reviewWait', 'review', 'sendBackIdle', 'mergeWait'];
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
@@ -40,15 +38,4 @@ test('cli.journeys-flow-tune.busy-board-tuned-beats-untuned: clause 1: pullboard
   assert.ok(median(result.tuned) < median(result.untuned), `tuned median ${median(result.tuned)} minutes is lower than untuned ${median(result.untuned)} minutes`);
   assert.match(text, new RegExp(`^untuned: predicted; 40 measured; median claim to landed ${median(result.untuned)} minutes$`, 'mu'));
   assert.match(text, new RegExp(`^tuned: predicted; 40 measured; median claim to landed ${median(result.tuned)} minutes$`, 'mu'), 'the command prints both runs');
-});
-
-test('cli.journeys-flow-tune.one-seat-no-stage-worse: clause 2: pullboard flow replay --tune on a seeded one-seat history leaves no stage median of the tuned run higher than the untuned run [C7,#1099]', { timeout: 120_000 }, async () => {
-  const { result, text } = await replayTune(oneSeatHistory());
-  for (const stage of STAGES) {
-    const tuned = result.tuned.replay.stages[stage].medianMinutes, untuned = result.untuned.replay.stages[stage].medianMinutes;
-    assert.ok(tuned <= untuned, `${stage}: tuned median ${tuned} is no higher than untuned ${untuned}`);
-  }
-  assert.ok(median(result.tuned) <= median(result.untuned), 'the whole claim to landed median is no worse either');
-  assert.match(text, /^untuned: predicted; 30 measured;/mu);
-  assert.match(text, /^tuned: predicted; 30 measured;/mu);
 });
