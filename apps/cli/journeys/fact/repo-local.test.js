@@ -6,6 +6,8 @@ import { writeFileSync } from 'node:fs';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { addSigner } from '../../../../packages/spec/index.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -107,6 +109,10 @@ test('cli.journeys-fact-repo-local.verified-provider-refreshes-consumer-before-c
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const verified = provider.run(provider.repo, 'verify', String(providerId), 'accept', '--as', 'coordinator', '--note', 'the provider gate passed');
   assert.equal(verified.code, 0, verified.err + verified.out);
+  const deliveryFolder = join(consumer.repo, '.git', 'pullboard', 'board-links');
+  assert.equal(existsSync(deliveryFolder), true, 'provider verification writes a local delivery for its linked parent');
+  const destinationFolder = join(deliveryFolder, readdirSync(deliveryFolder)[0]);
+  assert.ok(readdirSync(destinationFolder).some(name => name.endsWith('.envelope')), 'the local delivery is a signed envelope');
 
   const eligible = consumer.run(consumer.web, 'claim', String(consumerId));
   assert.equal(eligible.code, 0, eligible.err + eligible.out);
