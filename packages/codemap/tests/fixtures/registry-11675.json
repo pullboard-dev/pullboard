@@ -88,7 +88,7 @@
       "specs": [
         "C7"
       ],
-      "claim": "a shim keeps the date of its first-parent introduction when its source changes later"
+      "claim": "Distinct dated first-parent commits retain the original shim mapping introduction date after source edits and relocation into a cell shard."
     },
     "why": "A filesystem timestamp or a later edit must not reset shim age.",
     "kind": "cell unit",
@@ -114,7 +114,7 @@
       "specs": [
         "C7"
       ],
-      "claim": "missing and removed shims are excluded and the best native removal item is selected"
+      "claim": "Never-present and physically removed shim files are excluded; actionable exact-path native removal work ranks before verified or cell-wide work."
     },
     "why": "Removal advice must refer to extant shims and actionable work.",
     "kind": "cell unit",
