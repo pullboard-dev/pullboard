@@ -353,7 +353,7 @@ function resolvedForeignMerge(t, kind) {
   if (kind === 'rename/delete' || kind === 'modify/delete') rmSync(join(main, path));
   else graph.put(path, body('main'));
   graph.commit();
-  const merge = runFixtureChild('git', ['merge', '-q', '--no-ff', '--no-commit', 'main'], { cwd: root, encoding: 'utf8' });
+  const merge = runFixtureChild('git', ['-c', 'user.name=Test Agent', '-c', 'user.email=agent@example.com', 'merge', '-q', '--no-ff', '--no-commit', 'main'], { cwd: root, encoding: 'utf8' });
   assert.equal(merge.status, 1, `${kind} creates a real conflict: ${merge.stdout} ${merge.stderr}`);
   const conflictPath = kind === 'rename/delete' ? renamed : path;
   if (kind === 'rename/delete' || kind === 'modify/delete') run(root, ['rm', '-f', '--', conflictPath]);
