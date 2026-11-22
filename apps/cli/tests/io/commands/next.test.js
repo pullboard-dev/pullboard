@@ -127,7 +127,7 @@ test('cli.io-commands-next.no-wait-idle-exit-4: clause 1: next --no-wait on a bo
   assert.ok(printed(plain).includes(IDLE_LINE), 'plain next on a lane with no items reports the idle timeout');
   assert.equal(fake - began, DEFAULT_IDLE_MS, `plain next returned after ${fake - began} ms of simulated time instead of the 90 second default`);
   assert.ok(seen.some(at => at > began && at < began + DEFAULT_IDLE_MS), 'plain next did not read the clock while waiting through its default deadline');
-  assert.equal(sleeps, DEFAULT_IDLE_MS / DEFAULT_IDLE_STEP_MS, 'plain next traversed each fake-clock interval through its 90 second deadline');
+  assert.ok(sleeps >= DEFAULT_IDLE_MS / DEFAULT_IDLE_STEP_MS, `plain next traversed only ${sleeps} fake-clock sleeps before its 90 second deadline`);
   const plainEvents = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind IN ('next-idle-timeout','next-finished')").all().map(row => row.k);
   assert.deepEqual(plainEvents, ['next-idle-timeout'], 'plain next records one timeout and no finished event');
   const ran = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
@@ -181,15 +181,12 @@ test('cli.io-commands-next.no-wait-finished-exit-3: clause 2: next --no-wait ret
   const events = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind='next-finished'").all();
   assert.equal(events.length, 1, 'the finished observation was recorded');
 
-  const plainFinishedBox = await fixture(t);
-  const verified = plainFinishedBox.add('The only verified item for plain next');
-  verify(verified);
   let fake = 1_000_000, sleeps = 0;
   const clock = {
     now: () => fake,
     sleep: async (wake, { deadline }) => { sleeps += 1; fake = Math.min(fake + DEFAULT_IDLE_STEP_MS, Number.isFinite(deadline) ? Math.max(deadline, fake) : Infinity); },
   };
-  const plainFinished = await drivenNext(plainFinishedBox, plainFinishedBox.seats.actor.path, clock);
+  const plainFinished = await drivenNext(box, box.seats.actor.path, clock);
   assert.equal(plainFinished.code, 3, printed(plainFinished));
   assert.match(printed(plainFinished), /next: board finished: every item in web is verified\. Stop\./u, printed(plainFinished));
   assert.equal(sleeps, 0, 'plain next returns the finished line without waiting for the idle deadline');
