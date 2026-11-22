@@ -8,8 +8,8 @@ import * as store from '../../../../../packages/store/light.js';
 import { repoInfo } from '../../../../../packages/git/light.js';
 import { derivedStateEnabled } from '../../../../../packages/config/light.js';
 
-/** The event kinds that make the full status print a landing, relay, runner, health or verify-proof section. */
-const SECTION_KINDS = ['landing%', 'land_%', 'merged', 'relay%', 'runner%', 'health%', 'proof-run', 'verify%', 'accept', 'reject'];
+/** The event kinds that make the full status print a section this door cannot serve. */
+const SECTION_KINDS = ['land_%', 'relay%', 'runner%', 'health%', 'verify%'];
 /** The tables whose rows make the full status read a job, runner run or verify proof. */
 const SECTION_TABLES = ['job', 'run', 'test_result'];
 
@@ -17,13 +17,13 @@ const SECTION_TABLES = ['job', 'run', 'test_result'];
 function hasSectionRecords(db) {
   const made = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name));
   if (SECTION_TABLES.some(table => made.has(table) && db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get())) return true;
-  const clause = SECTION_KINDS.map(() => 'event_kind LIKE ?').join(' OR ');
+  const clause = [...SECTION_KINDS.map(() => 'event_kind LIKE ?'), "(event_kind LIKE 'landing%' AND event_kind <> 'landing_batch')"].join(' OR ');
   return Boolean(db.prepare(`SELECT 1 FROM event WHERE ${clause} LIMIT 1`).get(...SECTION_KINDS));
 }
 
 /**
  * The facts `pullboard status` would print for a plain board, or null when the full path must run it: no readable
- * board, a drifted board, a read that needs a write, or any landing, relay, runner, health, job or verify-proof record.
+ * board, a drifted board, a read that needs a write, or any unsupported landing, relay, runner, health, job or verify-proof record.
  *
  * @param {{ cwd: string, clock?: any, open?: Function }} request
  * @returns {Promise<{ agents: any[] } | null>}
