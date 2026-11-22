@@ -5,25 +5,27 @@ import { gateJudgmentItem } from './tier.js';
 import { itemReviewPolicy } from '../../logic/review/policy.js';
 
 /** Existing snapshots change only on a successful modern write; failed writes roll back this witness too. */
-export function normalizeReviewDefaults(board, { logEvent }) {
+export function normalizeReviewDefaults(board, { logEvent, itemId }) {
+  if (!Number.isSafeInteger(itemId)) return;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_DEFAULT_ENGINE) return;
   if (!board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='item'").get()
     || !board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='board_meta'").get()) return;
-  if (board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get()) return;
-  const items = board.db.prepare('SELECT item_id, item_status FROM item ORDER BY item_id').all();
-  if (!items.length) return;
+  const active = board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get();
+  const item = board.db.prepare('SELECT item_id, item_status FROM item WHERE item_id=?').get(itemId);
+  if (!item || board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`review_default:normalized:${itemId}`)) return;
   const insert = board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)');
   const changed = [];
-  for (const item of items) {
-    const id = item.item_id;
-    const policy = itemReviewPolicy(board, id);
-    if (policy.tier === 'strict' && !policy.sensitive && !policy.reviewFamily && policy.reviewTier !== 'strict' && gateJudgmentItem(board, id)) {
-      insert.run(`review_default:normalized:${id}`, JSON.stringify({ item: id, at: board.clock.now().toISOString(),
-        from: 'strict', to: 'standard', reason: 'no explicit sensitive or review-family mark' }));
-      changed.push({ id, status: item.item_status });
-    }
+  const id = item.item_id;
+  const policy = itemReviewPolicy(board, id);
+  const implicitStrict = !policy.sensitive && !policy.reviewFamily && policy.reviewTier !== 'strict' && gateJudgmentItem(board, id);
+  // The active marker is global, but this bounded entry point sees only one write at a time. After the first write
+  // activates defaults, an unmarked judgment item still needs the same pre-activation strict projection.
+  if (implicitStrict && (policy.tier === 'strict' || active)) {
+    insert.run(`review_default:normalized:${id}`, JSON.stringify({ item: id, at: board.clock.now().toISOString(),
+      from: 'strict', to: 'standard', reason: 'no explicit sensitive or review-family mark' }));
+    changed.push({ id, status: item.item_status });
   }
-  insert.run('review_default:active', String(REVIEW_DEFAULT_ENGINE));
+  if (!active) insert.run('review_default:active', String(REVIEW_DEFAULT_ENGINE));
   if (!changed.length) return;
   const unfinished = changed.filter(({ status }) => !['verified', 'withdrawn'].includes(status)).map(({ id }) => id);
   logEvent(board, 'board', 'review-default', null, { engine: REVIEW_DEFAULT_ENGINE, count: changed.length, unfinished });
