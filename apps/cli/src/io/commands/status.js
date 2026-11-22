@@ -82,9 +82,9 @@ export async function run(io, { values }) {
   // Status does not load the library root that binds the runner; unbound, its coverage fingerprint never matches the writer's.
   bindProofRunner(fileURLToPath(new URL('../run/tests.js', import.meta.url)));
   // A served board gets the deliberately small status view; unsupported boards keep the complete path [C7,#10761].
-  const thinStatus = readThinCommands()
-    ? await (await import('../status/thin.js')).thinStatusFacts({ cwd: ctx.info.root, clock: ctx.clock })
-    : null;
+  let thinStatus = null;
+  if (readThinCommands()) await (await import('../status/thin.js')).thinStatusFacts({ cwd: ctx.info.root, clock: ctx.clock })
+    .then(facts => { thinStatus = facts; });
   const hasRelayState = relayStateExists(ctx.info.commonDir);
   if (hasRelayState) await io.prepareProcessPorts?.();
   const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
