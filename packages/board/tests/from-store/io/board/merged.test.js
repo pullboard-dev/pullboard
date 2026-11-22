@@ -2,13 +2,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
-import { board_ensureCoordinator } from '../../../index.js';
-import { getItem } from '../../../index.js';
-import { merged } from '../../../index.js';
-import { MERGED_AT_ENGINE } from '../../../../state/index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
+import { board_ensureCoordinator } from '../../../../../store/index.js';
+import { getItem } from '../../../../../store/index.js';
+import { merged } from '../../../../../store/index.js';
+import { MERGED_AT_ENGINE } from '../../../../../state/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 
 const COMMIT = 'b'.repeat(40);
 
