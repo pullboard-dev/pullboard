@@ -96,6 +96,18 @@ export function staleObservation(row, snapshot, itemRevision, health) {
     ...(itemRevision === undefined ? {} : { itemRevision }), health };
 }
 
+/** Report a committed release separately from its failed folder cleanup; never suggest repeating the move. */
+function incompleteCleanup(io, item, id, review, error, announced = false) {
+  const failure = String(error?.stderr?.toString().trim() || error?.message || error);
+  const next = `pullboard show ${id} --json; do not repeat release; inspect git worktree list --porcelain from the original seat, resolve the reported Git failure without force or metadata deletion, then run pullboard next`;
+  io.result?.({ id, released: true, item: { id, status: item.item_status, owner: item.item_owner },
+    cleanup: { status: 'failed', error: failure, next } });
+  if (!announced) io.say(review ? `released the review of #${id}; the review is free again` : `released #${id}`);
+  io.err(`pullboard: [RELEASE_CLEANUP_FAILED] release committed; folder cleanup is incomplete: ${failure}`);
+  io.err(`next: ${next}`);
+  return 1;
+}
+
 /** Run `pullboard release` and return its exit code. */
 export async function run(io, args) {
   const { first, values } = args;
@@ -156,7 +168,21 @@ export async function run(io, args) {
     const { endStaleGateJobs, queueFor } = await import('../../../../../packages/api/index.js');
     endStaleGateJobs(queueFor(board, me.id, { file: ctx.file })?.runs?.db ?? board.db, { item: idArg(first), enabled: true, reason: 'the item was released' });
   }
-  cleanItemFolders(ctx, board, me);
+  const pending = globalThis[Symbol.for('pullboard.deferred-folder-removals')];
+  const before = pending?.length ?? 0, failures = [];
+  try { cleanItemFolders(ctx, board, me, { onDeferredFailure: error => failures.push(error) }); }
+  catch (error) { return incompleteCleanup(io, store.getItem(board, idArg(first)), idArg(first), review, error); }
+  if (pending?.length > before && io.afterDeferred) {
+    // The board closes before final-step removal. Retain its committed state, never repeat the release.
+    const item = store.getItem(board, idArg(first)), flush = io.flush;
+    if (values.json) io.flush = () => {}; // Only JSON waits; normal text must finish while the folder stands.
+    io.afterDeferred(code => {
+      if (failures.length) code = incompleteCleanup(io, item, idArg(first), review,
+        new AggregateError(failures, failures.map(error => error.message).join('\n')), true);
+      if (values.json) flush(code);
+      return code;
+    });
+  }
   if (!review && ctx.config.worktreeMaintenance?.enabled === true) {
     const { cleanupMaintenanceLifecycle } = await import('../worktree/maintenance/command.js');
     await cleanupMaintenanceLifecycle(ctx, me.id, { path: ctx.info.root, item: idArg(first), agent: me.id });

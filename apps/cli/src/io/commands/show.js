@@ -153,10 +153,27 @@ async function thinFacts(ctx, id, prices) {
       independence: (board, item) => reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), cost: (board) => itemCost(board, id, prices) } });
 }
 
+/**
+ * `pullboard show <id> --compact`: this item's queued relay moves, each review's paths as a nested path tree (GitHub #35).
+ * Why: a verify move binds every literal path of the diff, and a flat array repeats each shared prefix. The sealed
+ * outbox is only read; `show <id> --json` and the stored move format are unchanged.
+ */
+async function showCompact(ctx, io, id, json) {
+  const entries = relayStateExists(ctx.info.commonDir) ? await Promise.all([import('../../../../../packages/link/index.js'), import('../../../../../packages/outbox/index.js')])
+    .then(async ([link, outbox]) => (await link.queuedOutboxEntries(ctx.info.root, outbox.readOutbox))
+      .filter((entry) => outbox.outboxEntrySummary(entry).item === id)
+      .map((entry) => ({ queuedAt: entry.queuedAt, line: outbox.describeMove(entry.move), move: outbox.treeView(entry.move) }))) : [];
+  if (json) { io.result({ item: id, queuedMoves: entries.map(({ queuedAt, move }) => ({ queuedAt, move })) }); return 0; }
+  if (!entries.length) io.say(`#${id} has no queued moves in the relay outbox`);
+  for (const entry of entries) io.say(`${entry.line} (made ${entry.queuedAt}):\n${JSON.stringify(entry.move, null, 2)}`);
+  return 0;
+}
+
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const id = idArg(first);
+  if (values.compact) return showCompact(ctx, io, id, values.json);
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) { const full = await import('../../../../../packages/store/index.js'); return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, full)), { json: values.json }); }
   // The verify reads come from their defining modules through the read door, never the full index, so a cold show loads only what it calls [C7,#11911].

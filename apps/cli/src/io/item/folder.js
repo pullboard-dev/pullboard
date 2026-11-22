@@ -237,7 +237,7 @@ function idleFolder(ctx, board, me, root, id) {
  * thousands of items costs one directory listing, one worktree list and one status per folder.
  * With `spare`, the first idle folder is kept so the seat's next claim switches it to that item instead of creating a worktree [C7].
  */
-export function cleanItemFolders(ctx, board, me, { spare = false } = {}) {
+export function cleanItemFolders(ctx, board, me, { spare = false, onDeferredFailure = null } = {}) {
   if (me.id === 'coordinator') return;
   const root = seatRoot(ctx, board, me);
   let spared = !spare;
@@ -246,7 +246,7 @@ export function cleanItemFolders(ctx, board, me, { spare = false } = {}) {
     if (!idle) continue;
     if (!spared) { spared = true; continue; }
     const dropBranch = idle.item.item_status === 'withdrawn' || Boolean(idle.item.item_merged_commit);
-    removeIdleFolder(ctx.info.root, idle.path, { seat: root, ref: dropBranch ? idle.ref : null, running: [ctx.info.root, runningCheckout()] });
+    removeIdleFolder(ctx.info.root, idle.path, { seat: root, ref: dropBranch ? idle.ref : null, running: [ctx.info.root, runningCheckout()], onDeferredFailure });
   }
 }
 
@@ -266,11 +266,11 @@ function runningCheckout() {
  *
  * @param {string} gitRoot the checkout the command runs git in
  * @param {string} path the clean item folder to remove
- * @param {{ seat: string, ref?: string|null, running?: (string|null)[] }} options the seat checkout that survives,
- *   the item branch to delete after removal, and the folders the running command stands in or loads from
+ * @param {{ seat: string, ref?: string|null, running?: (string|null)[], onDeferredFailure?: Function|null }} options the seat checkout that survives,
+ *   the item branch to delete after removal, the running folders, and an observer for deferred removal failure
  * @returns {boolean} true when the folder was removed now, false when its removal waits for main() to finish
  */
-export function removeIdleFolder(gitRoot, path, { seat, ref = null, running = [] }) {
+export function removeIdleFolder(gitRoot, path, { seat, ref = null, running = [], onDeferredFailure = null }) {
   const pending = globalThis[DEFERRED_FOLDER_REMOVALS];
   const here = canonical(path);
   const inside = here !== null && running.some(folder => {
@@ -280,7 +280,11 @@ export function removeIdleFolder(gitRoot, path, { seat, ref = null, running = []
   if (Array.isArray(pending) && inside) {
     // Run from the seat, which survives, never from the folder being removed.
     pending.push(() => {
-      tryGit(seat, ['worktree', 'remove', path]);
+      const removed = tryGit(seat, ['worktree', 'remove', path]);
+      if (removed.status !== 0) {
+        onDeferredFailure?.(new Error(removed.stderr || removed.error?.message || `git worktree remove failed (status ${removed.status})`));
+        return;
+      }
       if (ref) tryGit(seat, ['branch', '-d', ref]);
     });
     return false;

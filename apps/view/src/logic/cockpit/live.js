@@ -115,7 +115,15 @@ async function refresh(fresh = null, attempt = 1) {
   }
   if (snapshot && !snapshotReplay.final && data.project) {
     snapshotReplay.final = structuredClone(data.project);
-    snapshotReplay.events = (await api(boardPath(view.root) + '/events')).events;
+    // The log is read in pages of 5000, never as one unbounded read, until a page comes back short.
+    snapshotReplay.events = [];
+    let replayAfter = 0, replayMore = true;
+    while (replayMore) {
+      const page = (await api(boardPath(view.root) + '/events?after=' + replayAfter + '&limit=5000')).events;
+      snapshotReplay.events.push(...page);
+      replayMore = page.length >= 5000 && page[page.length - 1].event_id > replayAfter;
+      replayAfter = page.length ? page[page.length - 1].event_id : replayAfter;
+    }
     snapshotReplay.index = snapshotReplay.events.length;
     replayControls();
   }

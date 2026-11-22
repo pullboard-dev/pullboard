@@ -126,12 +126,27 @@ if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   }
 }
 
+// Global help has no checkout context. Keep tool selection above and topic help's routing below,
+// but do not discover a repository merely to print the overview or full command list [C7,#12928].
+const { asksGitNothing, parseCommandArgs } = await import('./src/io/cli-main/options.js');
+let globalHelp = false;
+if (asksGitNothing(process.argv.slice(2)) || process.argv.includes('--all')) {
+  try {
+    const { argv } = (await import('./src/logic/why.js')).extractWhy(process.argv.slice(2));
+    const { values, positionals: [command, first, second, ...rest] } = parseCommandArgs(argv);
+    if (!(values.version && !values.help) && (command === 'help' || values.help || values.all)) {
+      const help = (await import('./src/io/help.js')).selectedHelp(command, first, second, rest, values);
+      globalHelp = Boolean(help?.text && !help.name);
+    }
+  } catch { /* The normal dispatcher retains parsing errors and their exit codes. */ }
+}
+
 // A worktree behind the main checkout runs the main checkout's CLI after checking its own pin.
-const handed = (await import('./src/io/current.js')).runCurrentCli(process.argv[1]);
+const handed = globalHelp ? null : (await import('./src/io/current.js')).runCurrentCli(process.argv[1]);
 if (handed !== null) process.exit(handed);
 
 // A warm resident board process runs the command when one serves this checkout; otherwise it runs here.
-const resident = await (await import('./src/io/resident/client.js')).runResident(process.argv.slice(2));
+const resident = globalHelp ? null : await (await import('./src/io/resident/client.js')).runResident(process.argv.slice(2));
 // A commit hook runs hookCommand alone: no dispatcher, and in an agent session only the checkout lease bind [H24].
 // A seat the thin entry cannot name returns null and takes the full path below (#5719).
 const thin = resident === null && process.argv[2] === 'hook' && (await import('./src/io/hook/thin-door.js')).isThinHook(process.argv.slice(2), process.env)

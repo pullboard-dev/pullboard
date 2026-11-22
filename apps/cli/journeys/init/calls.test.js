@@ -11,6 +11,7 @@ import { receiptBody } from '../../../../packages/gate/heavy.js';
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild,
+  runFixtureChildAsync,
 } from '../../tests/fixtures/child.js';
 import {
   mkdirSync,
@@ -29,11 +30,11 @@ import { fixture } from '../../tests/fixtures/init/calls.js';
 import { advanceHead } from '../../tests/fixtures/init/calls.js';
 import { GIT_MODULE } from '../../tests/fixtures/init/calls.js';
 import { pathToFileURL } from 'node:url';
+import { HELP } from '../../src/io/help.js';
 
 
-/** Clear the per-command count and read the number of Git processes the CLI started. */
+/** Read the number of Git processes recorded for this exact CLI invocation. */
 function resetAndCount(box, cwd, ...args) {
-  writeFileSync(box.calls, '');
   const result = box.run(cwd, ...args);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   const count = box.readCalls().trim().split('\n').filter(Boolean).length;
@@ -43,7 +44,8 @@ function resetAndCount(box, cwd, ...args) {
 /** Run one isolated Node scenario with the real Git-counting shim and only repository-redirect selectors cleared. */
 function readFactScenario(box, root, body) {
   const script = `import { codeIsFromMain, headCommit, withGitFacts, withGitReadFacts } from ${JSON.stringify(GIT_MODULE)};\n${body}`;
-  const env = { ...box.env };
+  const invocation = box.recordInvocation(box.dir, [process.execPath, '--input-type=module', '-e', script, root]);
+  const env = { ...invocation.env };
   // Keep the fixture's config and author settings; clear only selectors that redirect repository discovery.
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_CEILING_DIRECTORIES',
     'GIT_DISCOVERY_ACROSS_FILESYSTEM', 'GIT_IMPLICIT_WORK_TREE', 'GIT_OBJECT_DIRECTORY',
@@ -65,6 +67,61 @@ test('cli.journeys-init-calls.help-starts-no-git-and-linked: help starts no Git 
   assert.ok(status.count <= 4, `linked-worktree status started ${status.count} Git processes`);
   assert.equal(JSON.parse(status.result.stdout).me.id, 'core-1');
 
+  assert.notEqual(version.result.invocation.calls, help.result.invocation.calls);
+  assert.notEqual(help.result.invocation.calls, status.result.invocation.calls);
+  assert.deepEqual(help.result.invocation.argv.slice(2), ['help']);
+  assert.equal(help.result.invocation.cwd, box.dir);
+  assert.equal(box.readCalls(version.result.invocation), '', 'the version log remains intact after later commands');
+  assert.equal(box.readCalls(help.result.invocation), '', 'the help log remains intact after linked status');
+
+  const nested = join(box.worker, 'nested');
+  mkdirSync(nested);
+  for (const [cwd, args, expected] of [
+    [box.dir, ['help', '--json'], HELP.overview],
+    [box.repo, ['-h', '--json'], HELP.firstRun],
+    [box.worker, ['--json', '--help'], HELP.firstRun],
+    [nested, ['help', '--all', '--json'], HELP.all],
+    [box.dir, ['help', '--why', 'inspect command usage', '--json'], HELP.overview],
+  ]) {
+    const variant = resetAndCount(box, cwd, ...args);
+    assert.equal(variant.count, 0, `${args.join(' ')} at ${cwd}: ${box.readCalls()}`);
+    assert.equal(JSON.parse(variant.result.stdout).help, expected, 'native help rendering retains the selected view');
+  }
+  const topic = box.run(box.worker, 'help', 'worktree', '--json');
+  assert.equal(topic.status, 0, topic.failure);
+  assert.ok(JSON.parse(topic.stdout).help.includes(`Active worktree location: ${join(box.dir, 'repo-<lane>-N')}.`),
+    'topic help still resolves the actual primary checkout and its worktree configuration');
+
+  // Real work started under an earlier invocation must remain attributed there after a later CLI returns.
+  const script = `import { spawnSync } from 'node:child_process';
+    process.stdout.write('ready\\n');
+    process.stdin.once('data', () => {
+      const git = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' });
+      process.stdout.write(JSON.stringify({ status: git.status, root: git.stdout.trim() }));
+      process.exitCode = git.status ?? 1;
+      process.stdin.destroy();
+    });`;
+  const previous = box.recordInvocation(box.worker, [process.execPath, '--input-type=module', '-e', script]);
+  const background = runFixtureChildAsync(process.execPath, previous.argv.slice(1), {
+    cwd: previous.cwd, env: previous.env, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let isolated;
+  try {
+    await new Promise((ready, reject) => {
+      background.child.stdout.once('data', ready);
+      background.child.once('error', reject);
+      background.child.once('exit', () => reject(new Error('background Git scenario exited before ready')));
+    });
+    isolated = resetAndCount(box, box.dir, 'help');
+  } finally { background.child.stdin.end('run\n'); }
+  const completed = await background;
+  assert.equal(completed.status, 0, completed.failure);
+  const resolved = JSON.parse(completed.stdout.slice('ready\n'.length));
+  assert.equal(resolved.status, 0);
+  assert.equal(realpathSync(resolved.root), realpathSync(box.worker), 'the delayed Git child resolves its actual repository');
+  assert.equal(box.readCalls(previous).trim(), 'git rev-parse --show-toplevel', 'background Git remains in its own invocation log');
+  assert.equal(isolated.count, 0);
+  assert.equal(box.readCalls(isolated.result.invocation), '', 'background Git never migrates into a later help invocation');
 });
 
 /** Keep the ordinary work card on indexed reads and four fresh Git children, with diagnostics explicit. */
@@ -113,7 +170,6 @@ test('cli.journeys-init-calls.ordinary-git-scopes-skip-resume-blobs: ordinary Gi
       return { head: headCommit(info.root), blobs: mainSourceBlobs(info.root) }; })));`);
   assert.equal(standard.head, box.git(box.worker, 'rev-parse', 'HEAD'));
   assert.equal(standard.blobs, null, 'only explicit resume scopes request committed source identities');
-  writeFileSync(box.calls, '');
   const outside = readFactScenario(box, box.dir, `const { repoInfo } = await import(${JSON.stringify(GIT_MODULE)});
     console.log(JSON.stringify(await withGitFacts(() => { try { repoInfo(process.argv[1]); return null; }
       catch (error) { return error.code; } })));`);

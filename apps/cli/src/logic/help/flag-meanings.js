@@ -120,6 +120,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'move --to': ['--to <handle|owner/handle|~handle>', 'the board that receives the item'],
   'watch --to': ['--to <agent|lane|all>', 'shows only events for this agent or lane, or all'],
   'show --history': 'prints every note in full',
+  'show --compact': 'prints the item\'s queued relay moves with each review\'s paths as a nested path tree; --json keeps the flat paths',
   'flow tune --apply': 'writes the one line setting change a due cycle chooses, or reverts the last one; coordinator only, and only with line.tune on',
   'flow replay --history': ['--history <json>', 'a recorded history file to replay in place of this board\'s'],
   '--review': 'prints the review packet',
