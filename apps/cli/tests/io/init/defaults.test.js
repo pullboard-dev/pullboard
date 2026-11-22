@@ -48,6 +48,12 @@ test('cli.journeys-init-defaults.worker-loop-step-2: clause 1: worker loop step 
   assert.doesNotMatch(SEAT_LOOP, /your bar, frozen at claim/u);
 });
 
+test('cli.journeys-init-defaults.seat-loop-reject-reasons: clause 1: SEAT_LOOP lists every code in REJECT_REASONS on its Reject line [C7]', () => {
+  const rejectLine = SEAT_LOOP.split('\n').find(line => line.startsWith('- **Reject:**'));
+  assert.ok(rejectLine, 'SEAT_LOOP has a Reject line');
+  for (const reason of store.REJECT_REASONS) assert.ok(rejectLine.includes(reason), `Reject line carries ${reason}`);
+});
+
 test('cli.journeys-init-defaults.real-init-writes-agents-step-2: clause 1: a real init into an empty project writes AGENTS.md step 2 as next printed the bar [N41,C7]', async t => {
   const box = initFixture(t);
   rmSync(join(box.root, 'pullboard.json'));
