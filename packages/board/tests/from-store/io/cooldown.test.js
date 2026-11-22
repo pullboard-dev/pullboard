@@ -1,9 +1,9 @@
 /** next's cooldown and pairing reads seek a seat's events of one kind and never walk the seat's whole history [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ineligibleReleaseIds } from '../../../../store/src/io/cooldown.js';
-import { parkedClaims } from '../../../../store/src/io/cooldown.js';
-import { refusesFamilyRelaxation } from '../../../../store/src/io/board/next-refused-pairings.js';
+import { ineligibleReleaseIds } from '../../../../store/index.js';
+import { parkedClaims } from '../../../../store/index.js';
+import { refusesFamilyRelaxation } from '../../../../store/index.js';
 import { cellBoard } from '../../fixtures/cell-board.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 

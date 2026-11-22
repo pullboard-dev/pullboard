@@ -2,7 +2,7 @@
 /** remeasureCandidates picks the open items whose check lacks a timed, non-strict baseline, within the free runner slots [C7]. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { remeasureCandidates } from "../../../../../../store/src/logic/board/item/baseline.js";
+import { remeasureCandidates } from "../../../../../../store/index.js";
 import { cellBoard } from "../../../../fixtures/cell-board.js";
 import { cellItem } from "../../../../../../store/tests/fixtures/cell.js";
 

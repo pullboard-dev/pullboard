@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import * as store from '../../../../store/index.js';
 import { ENGINE_VERSION } from '../../../../state/light.js';
 import { NEEDS_ENGINE } from '../../../../state/light.js';
-import { saveItemNeeds } from '../../../../store/src/io/needs.js';
-import { saveAgentAbilities } from '../../../../store/src/io/needs.js';
-import { agentAbilities } from '../../../../store/src/io/needs.js';
-import { validateAgentAbilities } from '../../../../store/src/io/needs.js';
-import { validateItemNeeds } from '../../../../store/src/io/needs.js';
+import { saveItemNeeds } from '../../../../store/index.js';
+import { saveAgentAbilities } from '../../../../store/index.js';
+import { agentAbilities } from '../../../../store/index.js';
+import { validateAgentAbilities } from '../../../../store/index.js';
+import { validateItemNeeds } from '../../../../store/index.js';
 import { cellBoard } from '../../fixtures/cell-board.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 
