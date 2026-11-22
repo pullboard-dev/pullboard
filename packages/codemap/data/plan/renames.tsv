@@ -3825,7 +3825,7 @@ test/precommit-test-checks.test.js	apps/cli/journeys/fact/checks.test.js
 test/presence-gone-fixture.js	apps/cli/tests/fixtures/presence.js
 test/presence.test.js	apps/cli/journeys/resume/presence.test.js
 test/private-board-move-fixture.js	apps/cli/tests/fixtures/move.js
-test/products.test.js	apps/cli/journeys/status/products.test.js
+test/products.test.js	apps/cli/tests/io/commands/status/products.test.js
 test/project-git-timeout-fixture.js	apps/cli/tests/fixtures/timeout.js
 test/project-git-timeout.test.js	apps/cli/journeys/show/timeout.test.js
 test/project-meta.test.js	apps/cli/journeys/forget/meta.test.js
@@ -4184,7 +4184,7 @@ test/submit-tooling-retry.test.js	apps/cli/journeys/submit/retry.test.js
 test/submit-wait-exit.test.js	apps/cli/journeys/submit/wait/exit.test.js
 test/submit-wait.test.js	apps/cli/tests/io/submit/waiting.test.js
 test/submit-wrong-branch.test.js	apps/cli/journeys/submit/branch.test.js
-test/sync.test.js	apps/cli/journeys/sync/main.test.js
+test/sync.test.js	apps/cli/tests/io/commands/sync/main.test.js
 test/team-authority-first-pin.test.js	apps/cli/tests/io/commands/fact/team-pin.test.js
 test/team-coordinator.test.js	apps/cli/journeys/relay/team/coordinator.test.js
 test/team-cross-repo.test.js	apps/cli/tests/io/commands/fact/team-repo.test.js
@@ -4199,7 +4199,7 @@ test/team-people.test.js	apps/cli/tests/io/shout/people.test.js
 test/team-person-signing.test.js	apps/cli/tests/io/commands/fact/team-signing.test.js
 test/team-private-board.test.js	apps/cli/journeys/export/team/board.test.js
 test/team-project-decisions.test.js	apps/cli/tests/io/commands/decisions/project.test.js
-test/team-queue-freshness.test.js	apps/cli/journeys/queue/team/freshness.test.js
+test/team-queue-freshness.test.js	apps/cli/tests/io/commands/queue/freshness.test.js
 test/team-queue-policy.test.js	apps/cli/journeys/queue/team/policy.test.js
 test/team-receipt-replay.test.js	apps/cli/tests/io/commands/fact/team-replay.test.js
 test/team-scenarios.fixture.js	apps/cli/tests/fixtures/scenarios/team.js

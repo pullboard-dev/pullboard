@@ -72,7 +72,7 @@ export const BOARD_FILE_BASELINE = {
   "apps/cli/journeys/resume/presence.test.js": 1,
   "apps/cli/tests/io/resume/heartbeat.test.js": 8,
   "apps/cli/journeys/resume/presence/hooks.test.js": 2,
-  "apps/cli/journeys/status/products.test.js": 1,
+  "apps/cli/tests/io/commands/status/products.test.js": 1,
   "apps/cli/journeys/show/provenance.test.js": 6,
   "apps/cli/journeys/resume/plans.test.js": 8,
   "apps/cli/journeys/queue/order.test.js": 1,
