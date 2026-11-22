@@ -70,7 +70,12 @@ function quotedCommands(text) {
 function safeArgs({ args }) {
   const placeholders = args.some(arg => PLACEHOLDER.test(arg));
   if (args.includes('--dry-run') && !placeholders) return args;
-  return [...args.map(arg => (PLACEHOLDER.test(arg) ? 'x' : arg)).filter(arg => arg !== '--dry-run'), '--help'];
+  // `help <command>` is already the help form; every other command gets --help after its flags.
+  if (args[0] === 'help') return args.map(arg => (PLACEHOLDER.test(arg) ? 'status' : arg));
+  // A flag named without its value (for example prose about `run --agent`) is given a word, so --help is not read as its value.
+  const valued = args.map(arg => (PLACEHOLDER.test(arg) ? 'x' : arg)).filter(arg => arg !== '--dry-run')
+    .flatMap((arg, at, all) => (arg.startsWith('--') && (all[at + 1] === undefined || all[at + 1].startsWith('--')) ? [arg, 'x'] : [arg]));
+  return [...valued, '--help'];
 }
 
 /** The refusal code one failed run printed, from its JSON error document or else its text. */
