@@ -371,3 +371,28 @@ test('cli.item-folder.release-removes-same-folders: clause 1: a release removes 
   assert.deepEqual(launched.filter(argv => argv.startsWith('worktree list')), [], 'no worktree list runs');
   assert.deepEqual(launched.filter(argv => argv.includes('--no-optional-locks')), [], 'no worktree status snapshot runs when no claim snapshot exists');
 });
+
+
+test('cli.item-folder.deferred-failure-retains-branch: clause 2: genuine deferred Git refusal is observed and never attempts branch deletion; clean callbacks keep their return contract [C7,#12955]', async t => {
+  const { ctx } = repository(t), seat = ctx.info.root;
+  const running = await openItemFolder(ctx, ME, 17);
+  const key = Symbol.for('pullboard.deferred-folder-removals'), saved = globalThis[key];
+  t.after(() => { if (saved === undefined) delete globalThis[key]; else globalThis[key] = saved; });
+  const pending = globalThis[key] = [], errors = [];
+  runFixtureGit(['worktree', 'lock', '--reason', 'fixture custody', running], { cwd: seat });
+  try {
+    assert.equal(removeIdleFolder(running, running, { seat, ref: 'core/item-17', running: [running], onDeferredFailure: error => errors.push(error) }), false);
+    assert.equal(pending.length, 1);
+    const observed = await countingGit(() => pending[0]());
+    assert.equal(observed.result, undefined, 'a deferred callback preserves its return contract');
+    assert.equal(errors.length, 1, 'the actual removal failure reaches its owning release');
+    assert.match(errors[0].message, /locked/u);
+    assert.equal(observed.commands.filter(args => args.includes('branch')).length, 0, 'failed removal never attempts branch deletion');
+    assert.ok(existsSync(running));
+    assert.equal(runFixtureGit(['symbolic-ref', '--short', 'HEAD'], { cwd: running }), 'core/item-17');
+  } finally { runFixtureGit(['worktree', 'unlock', running], { cwd: seat }); }
+  delete globalThis[key];
+  assert.equal(removeIdleFolder(seat, running, { seat, ref: 'core/item-17' }), true);
+  assert.equal(existsSync(running), false);
+  assert.equal(runFixtureGit(['branch', '--list', 'core/item-17'], { cwd: seat }), '');
+});

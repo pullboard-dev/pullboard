@@ -1,0 +1,47 @@
+{
+  "cli.release-committed-cleanup.retains-locked-custody": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: a real release reports committed open custody and a distinct actionable nonzero cleanup failure when real non-forced Git removal refuses a locked fixture worktree, without deleting its folder, registration or branch; clause 2: refusal and ordinary recovery preserve their behavior."
+    },
+    "why": "An exception after durable release conceals that ownership already ended and invites a duplicate release or unsafe cleanup.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/tests/io/commands/next/session.test.js",
+      "apps/cli/src/io/commands/release.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
+  },
+  "cli.release-committed-cleanup.deferred-owned-tree": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: a real release from its own item tree reports committed state, one release event and actual deferred Git refusal with retained custody in text and JSON; clause 2: pre-release refusal and ordinary clean deferred recovery preserve behavior."
+    },
+    "why": "The release handler returns before deferred cleanup, so a late removal failure must not disappear behind an already flushed success.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/tests/io/commands/next/session.test.js",
+      "apps/cli/src/io/commands/release.js",
+      "apps/cli/src/io/item/folder.js",
+      "apps/cli/src/io/cli-main/run.js"
+    ]
+  },
+  "cli.item-folder.deferred-failure-retains-branch": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: a real locked worktree removal failure reaches its observer, preserves folder and branch, attempts no branch deletion and retains the existing deferred callback return contract; normal unlocked cleanup succeeds."
+    },
+    "why": "Deferred cleanup previously discarded the real Git status and attempted branch deletion even after failed removal.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/tests/io/item/folder.test.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
+  }
+}
