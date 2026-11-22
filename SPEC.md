@@ -22,7 +22,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - P2 [approved, must] Works offline in any git repo, with no account or network unless you turn on sync. | gate: apps/cli/journeys/merged/e2e.test.js
 - P3 [approved, must] Zero runtime dependencies. Node 22.13 or newer. | gate: packages/doctrine/tests/package.test.js
 - P4 [approved, must] Every refusal names its rule, shows what it saw, and gives the next step. | gate: review
-- P5 [approved, must] The core names no model or vendor, and opens no connection except the sync you turn on. | gate: apps/cli/journeys/init/boundary.test.js
+- P5 [approved, must] The core names no model or vendor, and opens no connection except the sync you turn on. | gate: apps/cli/tests/io/init/boundary.test.js
 - P6 [approved, must] A person's own moves (approving rows, answering decisions, signing off) come only from the person: their own terminal, the view in their own browser (local or on pullboard.dev), or a signed person move; never through an agent interface such as MCP, the API, or a CLI run in an agent's shell. | gate: apps/cli/journeys/mcp/main.test.js
 - P7 [draft, must] No process is load-bearing: every activity that takes time is a job with saved steps and a heartbeat lease that any driver resumes, and every derived result is keyed by content (a tree id, or a tree plus a command). Killing any process at any moment loses no work and never blocks the board. | gate: test/durable-chaos-26.test.js
 
@@ -133,7 +133,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - S3 [approved, must] Serves links name real ids and never cycle. | gate: apps/cli/journeys/spec/main.test.js
 - S4 [approved, must] Approved must-rows name their gate. | gate: apps/cli/journeys/spec/main.test.js
 - S5 [approved, must] A sign-off keeps the text it approved. Changing the row makes it stale. | gate: apps/cli/journeys/spec/main.test.js
-- S6 [approved, must] PRACTICE.md holds the house rules in the same row format; spec check lints both. | gate: apps/cli/journeys/init/practice.test.js
+- S6 [approved, must] PRACTICE.md holds the house rules in the same row format; spec check lints both. | gate: apps/cli/tests/io/init/practice.test.js
 - S7 [approved, must] `pullboard spec view` renders spec, questions, sign-offs and practice as one offline page. | gate: apps/cli/journeys/view/main.test.js
 - S8 [approved, must] Commit refuses a deleted row; spec check finds any id once committed or cited, now gone. | gate: apps/cli/journeys/merged/e2e.test.js, apps/cli/journeys/spec/main.test.js
 - S9 [approved, must] A wont row stays with its id, out of the counts; nothing new may cite it. | gate: apps/cli/journeys/spec/main.test.js
@@ -151,11 +151,11 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: apps/cli/journeys/spec/signoff.test.js | serves: S17
 
 ## D · Doctrine
-- D1 [approved, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: apps/cli/journeys/init/practice.test.js
-- D2 [approved, must] A repo's PRACTICE.md adds rules, overrides one by its PB id, or declines one with a wont row and reason. | gate: apps/cli/journeys/init/practice.test.js | serves: D1
-- D3 [approved, must] Agents and the view see one doctrine in force: inherited rules and the repo's own, each marked with its source and version. | gate: apps/cli/journeys/init/practice.test.js | serves: D1
+- D1 [approved, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: apps/cli/tests/io/init/practice.test.js
+- D2 [approved, must] A repo's PRACTICE.md adds rules, overrides one by its PB id, or declines one with a wont row and reason. | gate: apps/cli/tests/io/init/practice.test.js | serves: D1
+- D3 [approved, must] Agents and the view see one doctrine in force: inherited rules and the repo's own, each marked with its source and version. | gate: apps/cli/tests/io/init/practice.test.js | serves: D1
 - D4 [approved, must] Init writes a DOCTRINE.md for the repo's own rules only; the standard needs no copy. | gate: apps/cli/journeys/merged/e2e.test.js | serves: D1
-- D5 [wont, aim] Covered: D6 versions every change; the changelog shows it. | gate: apps/cli/journeys/init/practice.test.js | serves: D1
+- D5 [wont, aim] Covered: D6 versions every change; the changelog shows it. | gate: apps/cli/tests/io/init/practice.test.js | serves: D1
 - D6 [draft, must] The standard changes only by an accepted RFC in docs/rfcs, and each change bumps its version. | gate: review | serves: D1
 
 ## C · Commits
@@ -189,7 +189,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - I13 [draft, aim] A recording of `pullboard tour` plays on the README and the site, regenerated by a script. | gate: docs/shots/shots.test.js
 - I14 [draft, aim] A 90-second product video, rendered by a script from the demo board, plays on the README and the site. | gate: docs/shots/shots.test.js | serves: I13
 - I15 [draft, must] A release is a tag on a green commit; CI publishes it to npm with provenance, never by hand. | gate: review
-- I16 [draft, aim] Init ignores the folders agent tools make inside the repo, such as .claude/worktrees/, so they never block a submit. | gate: apps/cli/journeys/init/ignore.test.js | serves: I1
+- I16 [draft, aim] Init ignores the folders agent tools make inside the repo, such as .claude/worktrees/, so they never block a submit. | gate: apps/cli/tests/io/init/ignore.test.js | serves: I1
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
@@ -197,7 +197,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - N3 [wont, must] `pullboard context <id>`; pullboard show prints all of it.
 - N4 [draft, must] `pullboard ask add` stores the client's documents in ask/, hashed; rows can cite them.
 - N5 [draft, must] `pullboard spec approve` and `spec answer` record who changed a row's status, and when.
-- N6 [approved, must] `pullboard prompt <role>` prints the role guide, overridable per repo. | gate: apps/cli/journeys/init/practice.test.js
+- N6 [approved, must] `pullboard prompt <role>` prints the role guide, overridable per repo. | gate: apps/cli/tests/io/init/practice.test.js
 - N7 [draft, must] `pullboard plan` proposes lanes and items from the spec and the repo; --apply writes them.
 - N8 [draft, must] `pullboard run` starts configured agent commands per lane and role, under budgets and stops.
 - N9 [wont, aim] `pullboard report`; spec view, the view's product progress and the ledger cover it.
@@ -222,7 +222,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - N28 [approved, must] The view shows each product's progress: rows met, and items open, building and verified. | gate: apps/cli/journeys/merged/e2e.test.js | serves: S11
 - N29 [draft, must] `pullboard why <path|id>`: the rows, doctrine and verified items behind it, rejections included. | gate: apps/cli/journeys/merged/e2e.test.js
 - N30 [approved, must] `show` prints the latest verdict in full and earlier ones as one line each; --history prints them all. | gate: apps/cli/journeys/show/main.test.js
-- N31 [draft, must] `pullboard prompt run` and the pullboard-run skill guide one agent through the team: spec, plan, builders, verifier, merges. | gate: apps/cli/journeys/init/practice.test.js
+- N31 [draft, must] `pullboard prompt run` and the pullboard-run skill guide one agent through the team: spec, plan, builders, verifier, merges. | gate: apps/cli/tests/io/init/practice.test.js
 - N32 [draft, must] The coordinator's resume names its next step from board and spec: spec, approve, plan, build, verify or merge. | gate: apps/cli/journeys/merged/e2e.test.js
 - N33 [draft, must] A repo names its project in pullboard.json, and the view lists projects with their repos beneath. | gate: test/cockpit.test.js | serves: N26
 - N34 [approved, must] A project has one Needs-you and one activity feed across its repos; each repo keeps its own board. | gate: apps/cli/journeys/sentinels/needs.test.js | serves: N33
