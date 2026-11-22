@@ -65,18 +65,22 @@ function enqueue(root, id, { command, input = '', extra = {} }) {
  * a loaded runner the agent starts and ticks late, so a fixed wall budget timed out six cases while the agent was alive
  * and moving (OR1 run 3482df3b, #10752); the wait now follows the agent's own state.
  */
-function until(label, root, condition, ms = 15_000) {
+function until(label, root, condition, ms = 15_000, observer = {}) {
   const agentAlive = () => {
     try { process.kill(Number(readFileSync(join(root, 'agent.lock', 'pid'), 'utf8')), 0); return true; } catch { return false; }
   };
   return new Promise((resolve, reject) => {
     mkdirSync(root, { recursive: true });
     let moved = false;
-    const watcher = watch(root, { recursive: true }, () => { moved = true; check(); });
+    // A regression may hold delivery of actual notifications; ordinary callers deliver immediately.
+    const deliver = observer.deliver ?? (notify => notify());
+    const watcher = watch(root, { recursive: true }, () => deliver(() => { moved = true; check(); }));
     let timer = setTimeout(expired, ms);
     function expired() {
-      if (moved || agentAlive()) { moved = false; timer = setTimeout(expired, ms); return; }
-      finish(new Error(`timed out waiting for ${label}`));
+      try {
+        if (moved || agentAlive()) { moved = false; timer = setTimeout(expired, ms); return; }
+        finish(new Error(`timed out waiting for ${label}`));
+      } finally { observer.expired?.(); }
     }
     function finish(error) { watcher.close(); clearTimeout(timer); if (error) reject(error); else resolve(); }
     function check() { if (condition()) finish(); }
@@ -85,6 +89,73 @@ function until(label, root, condition, ms = 15_000) {
 }
 
 const exitOf = (root, id) => JSON.parse(readFileSync(join(root, 'done', id, 'exit'), 'utf8'));
+
+/** Observe an actual worker result with real notifications withheld until the existing deadline runs. */
+async function deadlineObservation(t, { keepAlive = false, code = 0 } = {}) {
+  const { root, start, agentPid } = machine(t);
+  mkdirSync(join(root, 'queue'), { recursive: true });
+  enqueue(root, 'result', { command: `cat; echo result-error >&2; exit ${code}`, input: 'real-result' });
+  if (keepAlive) enqueue(root, 'keeper', { command: GRANDCHILD });
+  // The real controller remains interested in its workers, independently of observer notification delivery.
+  const beats = new Map();
+  const interest = watch(root, { recursive: true }, () => {
+    for (const id of ['result', 'keeper']) {
+      const running = join(root, 'running', id);
+      try {
+        const at = statSync(join(running, 'beat')).mtimeMs;
+        if (beats.get(id) !== at) {
+          beats.set(id, at);
+          const now = new Date();
+          utimesSync(join(running, 'wanted'), now, now);
+        }
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+  });
+  const done = join(root, 'done', 'result');
+  const complete = () => existsSync(join(done, 'exit')) && exitOf(root, 'result').code === 0;
+  let withheld = 0, result = null, announceExpiry;
+  const expiry = new Promise(resolve => { announceExpiry = resolve; });
+  // The OS watcher stays real. Only its test-owned delivery boundary is withheld; no event or result is invented.
+  const waiting = until('the successful real result', root, complete, undefined, {
+    deliver: () => { withheld += 1; },
+    expired: () => announceExpiry(),
+  }).then(() => { result = { status: 'resolved' }; }, error => { result = { status: 'rejected', message: error.message }; });
+  try {
+    start();
+    await until('the independent worker result', root, () => existsSync(join(done, 'exit')));
+    assert.equal(readFileSync(join(done, 'out.bin'), 'utf8'), 'real-result');
+    assert.equal(readFileSync(join(done, 'control.log'), 'utf8'), 'result-error\n');
+    assert.deepEqual({ code: exitOf(root, 'result').code, signal: exitOf(root, 'result').signal }, { code, signal: null });
+    if (keepAlive) {
+      const running = join(root, 'running', 'keeper');
+      await until('the live keeper grandchild', root, () => existsSync(join(running, 'grand.pid')) && readFileSync(join(running, 'grand.pid'), 'utf8').trim() !== '');
+      assert.doesNotThrow(() => process.kill(Number(readFileSync(join(running, 'pid'), 'utf8')), 0));
+      assert.ok(statSync(join(running, 'beat')).isFile());
+      assert.ok(JSON.parse(readFileSync(join(running, 'owner.json'), 'utf8')).pid > 0);
+    } else {
+      await until('the real agent idle exit', root, () => !existsSync(join(root, 'agent.lock')));
+    }
+    await expiry;
+    assert.ok(withheld > 0, 'actual filesystem notifications reached the withheld delivery boundary');
+    assert.equal(complete(), code === 0, 'the real on-disk result is independently known at expiry');
+    if (keepAlive) {
+      assert.ok(agentPid() > 0);
+      assert.doesNotThrow(() => process.kill(agentPid(), 0), 'the agent remains live at the deadline');
+    } else assert.equal(agentPid(), 0, 'the actual agent has ceased before the deadline');
+    t.diagnostic(JSON.stringify({ withheld, complete: complete(), agentPid: agentPid(), result }));
+    assert.equal(result?.status, code === 0 ? 'resolved' : 'rejected', 'expiry must read the real condition before rejecting or extending');
+    if (code !== 0) assert.equal(result.message, 'timed out waiting for the successful real result');
+  } finally {
+    interest.close();
+    if (keepAlive && existsSync(join(root, 'running', 'keeper'))) writeFileSync(join(root, 'running', 'keeper', 'cancel'), '');
+    // The old observer may have extended while the keeper was live; let real cancellation and idle exit end its wait.
+    await waiting;
+  }
+}
+
+test('runner.agent.deadline-completed-without-delivery: clause 1: a real completed worker resolves at expiry after its agent exits despite withheld watcher delivery [C7]', async t => deadlineObservation(t));
+test('runner.agent.deadline-completed-with-live-agent: clause 1: a real completed worker resolves before extending for a live agent despite withheld watcher delivery [C7]', async t => deadlineObservation(t, { keepAlive: true }));
+test('runner.agent.deadline-incomplete-without-liveness: clause 2: an unsuccessful real result still fails once actual progress and agent liveness cease [C7]', async t => deadlineObservation(t, { code: 7 }));
 
 test('runner.agent.a-queued-job-is-claimed-by-rename: a queued job is claimed by rename and runs on file stdin, stdout and stderr with a heartbeat [C7,#5467]', async t => {
   const { root, start } = machine(t);
