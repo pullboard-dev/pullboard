@@ -1,4 +1,5 @@
 /** `route <id> --to <seat>` and `route <id> --off` record and clear a reservation behind route.reservations [C7,#9160]. */
+/** @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
