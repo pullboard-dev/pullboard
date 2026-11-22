@@ -8,9 +8,9 @@ export function machineHome() {
   return processMachineHome();
 }
 
-/** Resolve the separate machine settings file; lower cells receive it from their caller rather than importing it. */
-export function machineSettingsFile() {
-  return join(machineHome(), 'settings.json');
+/** Resolve settings under an explicit home, or this process's current machine home when omitted. */
+export function machineSettingsFile(...homes) {
+  return join(homes.length ? homes[0] : machineHome(), 'settings.json');
 }
 
 /** Name inaccessible machine storage without disguising corruption or other database failures. */
