@@ -42,6 +42,8 @@ function isLinkOnly(section, path) {
 /** Whether the page holds the section: its text verbatim, or for a link-only section its heading and some body. */
 function pageHoldsSection(page, title, section, path) {
   if (!isLinkOnly(section, path)) return page.includes(section);
+  const pageTitle = `# ${title}\n`;
+  if (page.startsWith(pageTitle)) return page.slice(pageTitle.length).trim() !== '';
   return page.includes(`## ${title}\n`) && page.split(`## ${title}\n`)[1].trim() !== '';
 }
 
@@ -78,7 +80,10 @@ test('clause 1: a section that is only its heading and a link to its page passes
   assert.ok(!isLinkOnly('## Spec\n\nMoved to [the page](formats/spec.md).\nMore prose.', path));
   assert.ok(!isLinkOnly('## Spec\n\nMoved to [other](formats/other.md).', path));
   assert.ok(pageHoldsSection('# Page\n\n## Spec\n\nThe prose.\n', 'Spec', link, path));
+  assert.ok(pageHoldsSection('# Spec\n\nThe prose.\n', 'Spec', link, path), 'the matching page title heads its link-only section');
+  assert.ok(!pageHoldsSection('# Spec\n', 'Spec', link, path), 'the matching page title needs body text');
   assert.ok(!pageHoldsSection('# Page\n\nNo section.\n', 'Spec', link, path), 'a page without the section fails');
+  assert.ok(!pageHoldsSection('# Other\n\nThe prose.\n', 'Spec', link, path), 'a page with neither matching heading fails');
   assert.ok(!pageHoldsSection('# Page\n\n## Spec\n', 'Spec', link, path), 'a page with an empty section fails');
   assert.ok(pageHoldsSection('x\n## Spec\n\nBody\n', 'Spec', '## Spec\n\nBody', path), 'a full section still needs verbatim text');
   assert.ok(!pageHoldsSection('x\n', 'Spec', '## Spec\n\nBody', path));
