@@ -13,9 +13,13 @@ import {
   fileFixtureItem,
   joinFixtureSeat,
 } from '../../../fixtures/testkit.js';
+import { captureCommandInProcess } from '../../../fixtures/process.js';
+import { main } from '../../../fixtures/native.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
+const DEFAULT_IDLE_MS = 90_000;
+const FAKE_STEP_MS = 30_000;
 
 /** The one agent session every seat below shares, as subagents of one Claude Code session do. */
 const SESSION = 'shared-session-27';
@@ -48,15 +52,29 @@ async function seatIds(box) {
   return JSON.parse((await box.runLocal(box.repo, 'agents', '--json')).out).agents.map(agent => agent.agent_id ?? agent.id).sort();
 }
 
+/** Drive plain next to its unchanged 90-second idle deadline without waiting in real time. */
+async function plainNextAtIdleDeadline(box, cwd) {
+  let fake = 0;
+  const nextWaitClock = {
+    now: () => fake,
+    sleep: async (_wake, { deadline }) => { fake = Math.min(fake + FAKE_STEP_MS, deadline); },
+  };
+  const result = await captureCommandInProcess((argv, io) => main(argv, { ...io, nextWaitClock }),
+    ['next', '--json'], { cwd, env: box.env });
+  return { ...result, fake };
+}
+
 test('cli.journeys-next-session.next-in-a-seat-made-with: clause 2: next in a seat made with --lock-lane never claims in the web lane or opens a seat, and only names the work [GH27]', async () => {
   const box = e2e.project();
   const web = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Web only work', check: 'true', args: ['--specs', 'G1'] });
   const api = await seat(box, 'api', { lock: true });
   const other = await seat(box, 'web');
   const before = await seatIds(box);
-  const next = await shared(box, async () => (await box.runLocal(api.root, 'next')));
+  const next = await shared(box, async () => plainNextAtIdleDeadline(box, api.root));
   const all = `${next.out}\n${next.err}`;
-  assert.equal(next.code, 0, all);
+  assert.equal(next.code, 4, all);
+  assert.ok(next.fake >= DEFAULT_IDLE_MS, `the idle answer came at ${next.fake} ms, before the default deadline`);
+  assert.match(all, /\[IDLE_TIMEOUT\]/u, all);
   assert.doesNotMatch(next.out, /claimed #/u, all);
   assert.doesNotMatch(all, /you hold #|work in web-/u, all);
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(web.item_id), '--json')).out).item_status, 'open');

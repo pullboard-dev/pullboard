@@ -251,7 +251,7 @@ Fix the board, not the prompt.
 - **Pipeline:** \`pullboard stats pipeline\`.
 - **Gates:** \`pullboard gate-health --since 2h\`.
 - **Verifies:** \`pullboard queue\`.
-- **Landing:** \`pullboard land --due --dry-run\`; landed: \`pullboard merged\`.
+- **Landing:** \`pullboard land\`; landed: \`pullboard merged\`.
 - **Seats:** \`pullboard seats\`.
 - **Shouts:** \`pullboard watch --to coordinator\`.
 - **Health:** \`pullboard health\`.

@@ -68,7 +68,9 @@ function lightBrief(file) {
 /** An empty native next records the existing next-idle event used by the activity window. */
 async function lightSeatRunsIdleNext(box) {
   const before = store.events(box.board).length;
-  await main(['next'], { cwd: box.seats.actor.path, clock: box.clock,
+  let fake = 0;
+  const nextWaitClock = { now: () => fake, sleep: async (_wake, { deadline }) => { fake = deadline; } };
+  await main(['next'], { cwd: box.seats.actor.path, clock: box.clock, nextWaitClock,
     stdout: { isTTY: false, write: () => {} }, stderr: { write: () => {} } });
   assert.ok(store.events(box.board).slice(before).some(event => event.event_by === box.seats.actor.id
     && event.event_kind === 'next-idle'), 'the light seat recorded an empty-next observation');

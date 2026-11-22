@@ -9,6 +9,9 @@ import { machineSettingsFile } from '../../../../../../packages/config/index.js'
 import { cli } from '../../../fixtures/next/take.js';
 import { fixture } from '../../../fixtures/next/take.js';
 
+const DEFAULT_IDLE_MS = 90_000;
+const FAKE_STEP_MS = 30_000;
+
 /** Write this fixture machine's next settings, keeping the settings the fixture wrote. */
 function nextSettings(next) {
   const file = machineSettingsFile();
@@ -29,6 +32,22 @@ function shapedStrong(box) {
 async function offered(box) {
   const answer = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(answer.code, 0, answer.out + answer.err);
+  return answer.document.item?.item_id ?? `none: ${answer.out}`;
+}
+
+/** Run default next to its unchanged idle deadline on the clock seam. */
+async function offeredAfterDefaultIdle(box) {
+  let fake = 0;
+  const nextWaitClock = {
+    now: () => fake,
+    sleep: async (_wake, { deadline }) => { fake = Math.min(fake + FAKE_STEP_MS, deadline); },
+  };
+  const answer = await cli(box, box.seats.actor.path, ['next'], { nextWaitClock });
+  const all = answer.out + answer.err;
+  assert.equal(answer.code, 4, all);
+  assert.ok(fake >= DEFAULT_IDLE_MS, `the idle answer came at ${fake} ms, before the default deadline`);
+  assert.match(all, /\[IDLE_TIMEOUT\]/u, all);
+  assert.equal(answer.document.item, null, 'no item was offered before the default idle deadline');
   return answer.document.item?.item_id ?? `none: ${answer.out}`;
 }
 
@@ -53,7 +72,7 @@ test('cli.journeys-next-shaped.the-light-shaped-strong-item-is: clause 2: the li
 test('cli.journeys-next-shaped.with-the-setting-off-which-is: clause 2: with the setting off, which is the default, it is not offered [C7,#9568]', async t => {
   const box = await fixture(t, { route: 'light' });
   const shaped = shapedStrong(box);
-  assert.notEqual(await offered(box), shaped, 'the default is off');
+  assert.notEqual(await offeredAfterDefaultIdle(box), shaped, 'the default is off');
   nextSettings({ lightShapedStrong: false });
-  assert.notEqual(await offered(box), shaped, 'an explicit false is off');
+  assert.notEqual(await offeredAfterDefaultIdle(box), shaped, 'an explicit false is off');
 });

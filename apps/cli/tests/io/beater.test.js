@@ -14,6 +14,7 @@ import { policyRepository } from '../../../../packages/store/tests/fixtures/subm
 import { main } from '../../src/io/entry.js';
 import { wipRef } from '../../src/io/item/wip.js';
 import { agentSession } from '../../src/io/beater.js';
+import { processTable } from '../../src/io/beater.js';
 import { runBeater } from '../../src/io/beater.js';
 import { startClaimBeater } from '../../src/io/beater.js';
 
@@ -48,6 +49,49 @@ test('cli.io-beater.worker-not-ancestor: clause 1: PULLBOARD_AGENT_PID wins, and
   assert.equal(launched[1].shared, true, 'the launched beater is told it is shared, so the quiet rule governs it');
   const locks = readdirLocks(join(root, 'beaters'));
   assert.deepEqual(locks.map((lock) => lock.shared).sort(), [false, true], 'two live beaters whose locks do not both depend only on the ancestor');
+});
+
+const SESSION_START = 'Thu Nov 20 01:19:00 2026';
+/** One fake ps row; sess is the session id, 0 where ps reports none (macOS prints 0 for every process). */
+const row = (ppid, comm, sess = 0) => ({ ppid, sess, start: SESSION_START, comm });
+const noEnv = { get: () => undefined };
+
+test('cli.io-beater.subreaper-is-never-the-agent: clause 1: agentSession returns null when the walk reaches the process that adopted an orphaned shell, whatever its name [B3,C7]', () => {
+  for (const adopter of ['systemd', 'tini', 'containerd-shim', 'dumb-init', 'launchd-helper']) {
+    // The dead agent 850 led the session the orphans still carry; the adopter leads its own.
+    const orphanedShell = new Map([[1, row(0, 'init', 1)], [900, row(1, adopter, 900)], [901, row(900, 'bash', 850)], [902, row(901, 'node', 850)]]);
+    assert.equal(agentSession({ env: noEnv, pid: 902, ppid: 901, table: orphanedShell }), null, `${adopter} adopted the shell and is not the agent`);
+    const orphanedCli = new Map([[1, row(0, 'init', 1)], [900, row(1, adopter, 900)], [902, row(900, 'node', 850)]]);
+    assert.equal(agentSession({ env: noEnv, pid: 902, ppid: 900, table: orphanedCli }), null, `${adopter} adopted the CLI itself`);
+    const deeper = new Map([[1, row(0, 'init', 1)], [700, row(1, 'systemd', 700)], [900, row(700, adopter, 900)], [901, row(900, 'bash', 851)], [902, row(901, 'node', 851)]]);
+    assert.equal(agentSession({ env: noEnv, pid: 902, ppid: 901, table: deeper }), null, `${adopter} below pid 1 adopted the shell and is not the agent`);
+  }
+  const toInit = new Map([[1, row(0, 'init')], [901, row(1, 'bash')]]);
+  assert.equal(agentSession({ env: noEnv, ppid: 901, table: toInit }), null, 'shells up to pid 1 still return null');
+});
+
+test('cli.io-beater.named-and-real-agent-still-bind: clause 2: PULLBOARD_AGENT_PID still names the agent session and a real agent behind its shells still binds [B3,C7]', () => {
+  const table = new Map([[1, row(0, 'init')], [800, row(1, 'terminal')], [850, row(800, 'claude')], [851, row(850, 'zsh')], [852, row(851, 'bash')]]);
+  assert.deepEqual(agentSession({ env: noEnv, ppid: 852, table }), { pid: 850, start: SESSION_START }, 'the agent behind its shells binds');
+  const linux = new Map([[1, row(0, 'init', 1)], [700, row(1, 'systemd', 700)], [800, row(700, 'gnome-terminal-', 700)], [810, row(800, 'bash', 810)],
+    [850, row(810, 'claude', 810)], [851, row(850, 'bash', 851)], [852, row(851, 'bash', 851)], [853, row(852, 'node', 851)]]);
+  assert.deepEqual(agentSession({ env: noEnv, pid: 853, ppid: 852, table: linux }), { pid: 850, start: SESSION_START }, 'a forked Linux tree whose session leaders are all on the chain binds');
+  const named = agentSession({ env: { get: (name) => (name === 'PULLBOARD_AGENT_PID' ? '900' : undefined) }, ppid: 852, table: new Map([...table, [900, row(1, 'systemd')]]) });
+  assert.deepEqual(named, { pid: 900, start: SESSION_START, named: true }, 'the named pid wins even when init is its parent');
+});
+
+test('cli.io-beater.launchd-child-host-binds: clause 2: a real agent host whose parent is launchd or init binds, on macOS and on Linux [B3,C7]', () => {
+  for (const host of ['Terminal', 'iTerm2', 'Claude', 'Electron']) {
+    const mac = new Map([[1, row(0, 'launchd')], [600, row(1, `/Applications/${host}.app/Contents/MacOS/${host}`)], [601, row(600, '-zsh')], [602, row(601, 'node')]]);
+    assert.deepEqual(agentSession({ env: noEnv, pid: 602, ppid: 601, table: mac }), { pid: 600, start: SESSION_START }, `${host} under launchd binds`);
+    const direct = new Map([[1, row(0, 'launchd')], [600, row(1, host)], [602, row(600, 'node')]]);
+    assert.deepEqual(agentSession({ env: noEnv, pid: 602, ppid: 600, table: direct }), { pid: 600, start: SESSION_START }, `${host} under launchd running the CLI with no shell binds`);
+  }
+  const container = new Map([[1, row(0, 'tini', 1)], [40, row(1, 'claude', 1)], [41, row(40, 'bash', 41)], [42, row(41, 'node', 41)]]);
+  assert.deepEqual(agentSession({ env: noEnv, pid: 42, ppid: 41, table: container }), { pid: 40, start: SESSION_START }, 'an agent whose parent is pid 1 binds when no link was adopted');
+  const real = processTable();
+  assert.equal(real?.get(process.pid)?.ppid, process.ppid, `this ${process.platform} machine's ps rows parse with the session column`);
+  assert.ok(Number.isSafeInteger(real.get(process.pid).sess), 'the session id reads as a number (0 on macOS)');
 });
 
 function readdirLocks(dir) {
