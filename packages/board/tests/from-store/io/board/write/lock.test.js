@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board packages/store */
 /** Completed board writes over one second add named machine telemetry and a keyed status counter [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
