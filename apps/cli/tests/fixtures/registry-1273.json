@@ -1,0 +1,67 @@
+{
+  "cli.journeys-check-soundness.add-records-strict-baseline": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With claim.checkCeiling on, add --check through the real CLI records a pending baseline with strict true; with it off the baseline has no strict field."
+    },
+    "why": "Without it a new check could freeze with no measurement promised, or the default-off rollout could change silently.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/check/soundness.test.js"
+    ]
+  },
+  "cli.journeys-check-soundness.hidden-output-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With claim.checkCeiling on, the real claim command refuses CHECK_UNSOUND for a check that hides its output and leaves the item open."
+    },
+    "why": "Without it a check that can never show a failure freezes and unproven work passes.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/check/soundness.test.js"
+    ]
+  },
+  "cli.journeys-check-soundness.over-ceiling-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With claim.checkCeiling on, the real claim command refuses CHECK_OVER_CEILING for a check measured over the ceiling and claims a sound strict check under it."
+    },
+    "why": "Without it a check too slow for the gate freezes, or sound checks get refused.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/check/soundness.test.js"
+    ]
+  },
+  "cli.journeys-check-soundness.old-check-claims-while-pending": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With claim.checkCeiling on, the real claim command claims an old non-strict check whose remeasure is pending."
+    },
+    "why": "Without it every check frozen before the setting is blocked until a remeasure lands.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/check/soundness.test.js"
+    ]
+  },
+  "cli.journeys-check-soundness.setting-off-claims-as-today": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With claim.checkCeiling off or unset, the real claim command claims a hidden-output check and an over-ceiling check as today."
+    },
+    "why": "Without it the default-off rollout decision could change silently.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/check/soundness.test.js"
+    ]
+  }
+}
