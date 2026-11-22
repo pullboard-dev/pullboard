@@ -53,19 +53,20 @@ export function announcePorts(child, { projects, openBoard, closeBoard, readKey,
   const self = boardId(child.board);
   for (const record of readBoardLinks(child.board)) {
     if (record.revocation || record.child.boardId !== self) continue;
-    const found = projects.find((project) => project.name === record.parent.handle);
-    if (!found) continue;
-    let parentBoard;
-    try {
-      parentBoard = openBoard(found.root);
-      opened.push(parentBoard);
-      if (boardId(parentBoard) !== record.parent.boardId) continue;
-      const parent = { board: parentBoard, root: found.root };
-      const { authority, capability } = portsFor({ child, parent, record, readKey });
-      links.push({ record, parentItems: listItems(parentBoard, { all: true }), authority, capability,
-        transport: createBoardLinkFileTransport(join(found.root, '.git', 'pullboard', 'board-links'), { board: self }) });
-    } catch (error) {
-      if (!(error instanceof Refused)) throw error;
+    for (const found of projects.filter(project => project.name === record.parent.handle)) {
+      let parentBoard;
+      try {
+        parentBoard = openBoard(found.root);
+        opened.push(parentBoard);
+        if (boardId(parentBoard) !== record.parent.boardId) continue;
+        const parent = { board: parentBoard, root: found.root };
+        const { authority, capability } = portsFor({ child, parent, record, readKey });
+        links.push({ record, parentItems: listItems(parentBoard, { all: true }), authority, capability,
+          transport: createBoardLinkFileTransport(join(found.root, '.git', 'pullboard', 'board-links'), { board: self }) });
+        break;
+      } catch (error) {
+        if (!(error instanceof Refused)) throw error;
+      }
     }
   }
   return { links, close: () => { for (const board of opened) closeBoard(board); } };
