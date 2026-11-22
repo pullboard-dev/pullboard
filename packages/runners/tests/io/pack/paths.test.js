@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/runners/src/io/pack.js packages/runners/src/io/source/scan.js */
 /** Call-local historical path reuse preserves full prefixes and refuses incomplete inventories [C7]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../index.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
 import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 
 /** Synthetic repositories and Git observations live only beneath this test's owned fixture root. */
@@ -57,9 +57,9 @@ const launches = () => readFileSync(process.env.FIXTURE_LAUNCHES, 'utf8').trim()
 const reset = () => writeFileSync(process.env.FIXTURE_LAUNCHES, '');
 `;
 
-/** Copy supported tooling without a scanner manifest; no verdict cache is manufactured or seeded. */
+/** Copy tooling into an isolated fixture Git repository; all comparison reads and mutations stay in that copy. */
 function run(t, script) {
-  const { root } = privateFixtureFiles('pullboard-pack-paths-');
+  const { root } = fixtureCommittedGraph('pullboard-pack-paths-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
