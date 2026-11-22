@@ -1,18 +1,23 @@
 /** @pullboard-test-input packages/runners/index.js */
 /** Exercise capacity registration through a real pinned worker and real SQLite contention [C7,#12952]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
-import { runFixtureChild } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { runOnRunnerAsync } from '../../../../../packages/runners/index.js';
+import { captureCommandInProcess } from '../../../../cli/tests/fixtures/process.js';
 import { HOST } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 
 /** Hold the runner's actual capacity database until its real registration SQL reports the lock. */
-function registrationUnderLock(t, mode = 'transient') {
+async function registrationUnderLock(t, mode = 'transient') {
   const box = cellProject(t, { gate: 'true' });
   const bin = join(box.dir, 'bin');
   const worker = join(box.dir, 'worker');
@@ -45,42 +50,38 @@ DatabaseSync.prototype.exec = function(sql) {
 };\n`);
   installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'),
     nodeCommand: process.execPath, nodeOptions: `--import=${pathToFileURL(preload).href}` });
-  const runners = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
-  const source = `
-import { DatabaseSync } from 'node:sqlite';
-import { existsSync, readFileSync, watch } from 'node:fs';
-import { runOnRunnerAsync } from ${JSON.stringify(runners)};
-const observed = ${JSON.stringify(observed)};
-const db = new DatabaseSync(${JSON.stringify(join(machineHome, 'resources.sqlite'))});
-db.exec('BEGIN EXCLUSIVE');
-let held = true;
-const release = () => { if (held) { db.exec('ROLLBACK'); held = false; } };
-const controller = new AbortController();
-const watcher = watch(${JSON.stringify(box.dir)}, () => {
-  if (!existsSync(observed)) return;
-  if (${JSON.stringify(mode)} === 'transient') release();
-  if (${JSON.stringify(mode)} === 'cancel') controller.abort();
-});
-try {
-  const runner = { host: ${JSON.stringify(HOST)}, node: process.execPath, slots: 1, browser: 0 };
-  const outcome = await runOnRunnerAsync(${JSON.stringify(box.repo)}, 'printf capacity-job; exit 3', { runner, signal: controller.signal })
-    .then(result => ({ exitCode: result.exitCode, output: result.output, kind: result.executionReceipt?.kind }),
-      error => ({ refused: error.code ?? error.name, message: error.message }));
-  console.log(JSON.stringify({ observation: existsSync(observed) ? JSON.parse(readFileSync(observed, 'utf8')) : null, outcome,
-    attempts: existsSync(${JSON.stringify(attempts)}) ? readFileSync(${JSON.stringify(attempts)}, 'utf8').trim().split('\\n').filter(Boolean).length : 0 }));
-} finally { watcher.close(); release(); db.close(); }
-`;
   const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
   delete env.NODE_TEST_CONTEXT;
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
-    cwd: box.repo, env, encoding: 'utf8', timeout: 120_000,
-  });
+  const result = await captureCommandInProcess(async (_argv, { stdout }) => {
+    const db = new DatabaseSync(join(machineHome, 'resources.sqlite'));
+    db.exec('BEGIN EXCLUSIVE');
+    let held = true;
+    const release = () => { if (held) { db.exec('ROLLBACK'); held = false; } };
+    const controller = new AbortController();
+    // Preserve the former child-operation bound; a deadline cannot masquerade as the cancellation case.
+    const deadline = AbortSignal.timeout(120_000);
+    const watcher = watch(box.dir, () => {
+      if (!existsSync(observed)) return;
+      if (mode === 'transient') release();
+      if (mode === 'cancel') controller.abort();
+    });
+    try {
+      const runner = { host: HOST, node: process.execPath, slots: 1, browser: 0 };
+      const outcome = await runOnRunnerAsync(box.repo, 'printf capacity-job; exit 3', { runner, signal: AbortSignal.any([controller.signal, deadline]) })
+        .then(result => ({ exitCode: result.exitCode, output: result.output, kind: result.executionReceipt?.kind }),
+          error => ({ refused: error.code ?? error.name, message: error.message }));
+      deadline.throwIfAborted();
+      stdout.write(JSON.stringify({ observation: existsSync(observed) ? JSON.parse(readFileSync(observed, 'utf8')) : null, outcome,
+        attempts: existsSync(attempts) ? readFileSync(attempts, 'utf8').trim().split('\n').filter(Boolean).length : 0 }));
+      return 0;
+    } finally { watcher.close(); release(); db.close(); }
+  }, [], { cwd: box.repo, env });
   assert.equal(result.status, 0, result.failure || result.stderr);
   return JSON.parse(result.stdout.trim().split('\n').at(-1));
 }
 
-test('runner.capacity-startup.real-registration-lock-reaches-job: clause 1: a real startup registration SQLite lock releases after the observed failure and the worker executes its real job [C7,#12952]', { timeout: 140_000 }, t => {
-  const actual = registrationUnderLock(t);
+test('runner.capacity-startup.real-registration-lock-reaches-job: clause 1: a real startup registration SQLite lock releases after the observed failure and the worker executes its real job [C7,#12952]', { timeout: 140_000 }, async t => {
+  const actual = await registrationUnderLock(t);
   assert.deepEqual(actual.observation, { sqliteCode: 5, registration: true, startup: true, operation: 'journal_mode WAL' },
     'the genuine SQLite lock is observed specifically inside capacity registration at the real worker startup');
   assert.deepEqual(actual.outcome, { exitCode: 3, output: 'capacity-job', kind: 'runner-completion' },
@@ -88,8 +89,8 @@ test('runner.capacity-startup.real-registration-lock-reaches-job: clause 1: a re
 });
 
 
-test('runner.capacity-startup.permanent-registration-lock-exhausts-existing-budget: clause 2: permanent real registration contention stops after the existing eight attempts without executing the command [C7,#12952]', { timeout: 140_000 }, t => {
-  const actual = registrationUnderLock(t, 'permanent');
+test('runner.capacity-startup.permanent-registration-lock-exhausts-existing-budget: clause 2: permanent real registration contention stops after the existing eight attempts without executing the command [C7,#12952]', { timeout: 140_000 }, async t => {
+  const actual = await registrationUnderLock(t, 'permanent');
   assert.equal(actual.observation.registration, true);
   assert.equal(actual.observation.startup, true);
   assert.equal(actual.attempts, 8, 'the existing retrySlotLocked default remains eight attempts');
@@ -98,8 +99,8 @@ test('runner.capacity-startup.permanent-registration-lock-exhausts-existing-budg
   assert.equal(actual.outcome.output, undefined, 'a refused worker never claims the command executed');
 });
 
-test('runner.capacity-startup.transport-loss-stops-registration-retries: clause 2: actual transport cancellation after the first registration SQLite refusal stops further attempts and never executes the command [C7,#12952]', { timeout: 140_000 }, t => {
-  const actual = registrationUnderLock(t, 'cancel');
+test('runner.capacity-startup.transport-loss-stops-registration-retries: clause 2: actual transport cancellation after the first registration SQLite refusal stops further attempts and never executes the command [C7,#12952]', { timeout: 140_000 }, async t => {
+  const actual = await registrationUnderLock(t, 'cancel');
   assert.equal(actual.observation.registration, true);
   assert.equal(actual.attempts, 1, 'the closed transport prevents a second registration attempt');
   assert.equal(actual.outcome.refused, 'RunnerDropped');
