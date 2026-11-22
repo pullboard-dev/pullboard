@@ -1,13 +1,13 @@
 /** @pullboard-module-loads packages/merge/index.js */
 import { effectiveItemHead } from '../../../../../verify/read.js';
-import { isRecordedConflictContext } from '../../../../../state/index.js';
+import { isRecordedConflictContext } from '../../../../../state/light.js';
 /** Board-bound computed conflict evidence is verified against immutable Git commits before sealing and on replay [V4,H16]. */
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { repoInfo } from '../../../../../git/index.js';
+import { repoInfo } from '../../../../../git/light.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { Refused } from '../../../../../kernel/index.js';
+import { Refused } from '../../../../../kernel/light.js';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 const fs = fileSystemAdapter();
 

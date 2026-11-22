@@ -38,6 +38,11 @@ test('landing.conflict.receipt-cold-import: clause 1: importing the receipt call
     .includes('packages/merge/index.js'), false, 'a cold caller import does not reach the merge barrel');
 });
 
+test('landing.io-computed-conflict-receipt.light-door-reaches-no-state-machine: clause 1: the landing light door does not statically reach the state machine [C7]', () => {
+  assert.equal(staticImportClosure('packages/landing/light.js')
+    .includes('packages/state/src/io/machine.js'), false, 'the landing light door does not reach the state machine');
+});
+
 test('landing.conflict.receipt-recorded-conflict: clause 2: a recorded Git conflict is verified by a synchronous call through the merge public door [C7]', t => {
   const repo = conflictRepo(t);
   const board = { db: { prepare: () => ({ all: () => [{ name: 'main', file: repo.boardFile }] }) } };
