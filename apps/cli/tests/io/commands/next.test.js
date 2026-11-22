@@ -238,3 +238,27 @@ test('cli.io-commands-next.native-offer-wake: clause 2: an item filed through th
     assert.ok(events.includes('claim'), JSON.stringify(events));
   }
 });
+
+test('cli.io-commands-next.plain-review: clause 1: plain next returns the next-to-verify line with exit 0 when a submission is reviewable [C7,#12807]', async t => {
+  const box = await fixture(t);
+  const id = box.add('An item ready for independent review');
+  box.submit(id);
+  const result = await drivenNext(box, box.seats.outside.path, { now: () => 0, sleep: async () => assert.fail('reviewable work must return before waiting') });
+  assert.equal(result.code, 0, printed(result));
+  assert.match(printed(result), new RegExp(`next to verify: #${id}\\b`, 'u'));
+});
+
+test('cli.io-commands-next.lag-keeps-waiting: clause 2: the current behind-main instruction does not end a plain next wait [C7,U159,#12807]', async t => {
+  const box = await fixture(t);
+  writeFileSync(join(box.root, 'main-only.txt'), 'A new main commit.\n');
+  box.git(box.root, 'add', 'main-only.txt');
+  box.git(box.root, 'commit', '-q', '-m', 'chore: advance fixture main [G1]');
+  let fake = 0;
+  const clock = { now: () => fake, sleep: async (wake, { deadline }) => { fake = deadline; } };
+  const result = await drivenNext(box, box.seats.actor.path, clock);
+  assert.equal(result.code, 4, printed(result));
+  assert.equal(fake, DEFAULT_IDLE_MS);
+  assert.match(printed(result), /this checkout is 1 commit behind main/u);
+  assert.match(printed(result), /submit composes current main/u);
+  assert.match(printed(result), /next waiting for/u);
+});
