@@ -14,6 +14,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
+import { settledComparison } from '../../../tests/fixtures/submit/comparison-settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
@@ -70,6 +71,9 @@ test('cli.journeys-spec-e2e-next.verify-runs-at-the-submitted-commit: verify run
   const resubmitted = await box.runIn(refrozenItem, 'submit', '1', '--json');
   assert.equal(resubmitted.code, 0, resubmitted.err || resubmitted.out);
   assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(resubmitted.out))).gate.green, true);
+  const comparison = await settledComparison({ ...box, run: box.runIn }, 1, { signal: t.signal });
+  assert.equal(comparison.status, 'complete');
+  assert.deepEqual([comparison.files, comparison.head.id, comparison.base.id, comparison.newRed, comparison.fixed], [[], null, null, null, null], 'the genuine empty selection retains incomplete case coverage, independently of its green gate');
   const submittedHead = JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_commit;
   // verify.reviewFolder (on by default): the checks run in a detached folder at the submitted commit, so the checkout that is not at it stays where it is [C7].
   const mainHead = box.git(box.repo, 'rev-parse', 'HEAD').trim();
@@ -194,4 +198,41 @@ test('cli.journeys-spec-e2e-next.a-deleted-spec-row-is-refused: a deleted spec r
   const cited = await commitFile(box, box.repo, 'docs/api.md', 'x', 'feat(api): call the api [G2]');
   assert.notEqual(cited.status, 0);
   assert.match(cited.stderr, /G2 is marked won't build/);
+});
+
+
+test('cli.comparison-settle.current-source-terminal: #12958 clause 1: samples read an actual terminal comparison; clause 2: delayed genuine completion preserves empty selection with unrecorded reads [C7]', async t => {
+  const box = project();
+  await fixtureAdd(box.runIn, box.repo, 'web', 'Comparison observation', '--specs', 'G1', '--criterion', 'keeps its comparison evidence');
+  assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
+  assert.equal((await commitFile(box, box.web, 'web/comparison.html', '<h1>Comparison</h1>', 'feat(web): comparison fixture [G1]')).status, 0);
+  const submitted = await box.runIn(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(submitted.out))).gate.green, true);
+  let completed = false, reads = 0, observed, release, terminal;
+  const terminalObservation = new Promise(resolve => { observed = resolve; });
+  const delivery = new Promise(resolve => { release = resolve; });
+  t.after(release);
+  const run = () => assert.fail('settlement must not append a journey call');
+  run.read = async (root, ...args) => {
+    assert.deepEqual(args, ['show', '1', '--json', '--no-next']);
+    reads++;
+    const answer = await box.runIn.read(root, ...args);
+    const doc = JSON.parse(answer.out);
+    if (doc.comparison?.status === 'complete') {
+      assert.equal(doc.comparison.source, doc.item_commit);
+      assert.equal(doc.comparison.digest, doc.item_frozen_digest);
+      terminal = doc.comparison;
+      observed();
+      await delivery; // Hold only delivery of the real private worker's durable record, never fabricate its status.
+    }
+    return answer;
+  };
+  const waiting = settledComparison({ repo: box.repo, run }, 1, { signal: t.signal }).then(value => { completed = true; return value; });
+  await Promise.race([terminalObservation, waiting.then(() => { if (!terminal) assert.fail('completion arrived before its record was delivered'); })]);
+  assert.equal(completed, false, 'a delayed genuine terminal observation cannot settle the sample early');
+  release();
+  assert.deepEqual(await waiting, terminal);
+  assert.deepEqual([terminal.files, terminal.head.id, terminal.base.id, terminal.newRed, terminal.fixed], [[], null, null, null, null], 'genuine empty selection retains unobserved case differences rather than inventing successful executions');
+  assert.ok(reads >= 1);
 });
