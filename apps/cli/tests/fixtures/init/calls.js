@@ -22,6 +22,7 @@ import {
   runFixtureChild,
 } from '../child.js';
 import { runCliInProcess } from '../process.js';
+import { withoutPullboardEnv } from '../e2e.js';
 
 export const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 export const GIT_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/git/index.js')).href;
@@ -60,7 +61,7 @@ export async function fixture(t, { ruleProof = false } = {}) {
   writeFileSync(pullboardShim, `#!/bin/sh\nexec '${process.execPath}' '${BIN}' "$@"\n`);
   chmodSync(pullboardShim, 0o755);
   const env = {
-    ...process.env,
+    ...withoutPullboardEnv(process.env),
     HOME: home,
     USERPROFILE: home,
     PULLBOARD_HOME: join(home, '.pullboard'),
