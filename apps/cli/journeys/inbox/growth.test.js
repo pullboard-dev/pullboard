@@ -1,5 +1,6 @@
 /** No command's default text grows past its size on merge-base main [C7,N26]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -48,6 +49,11 @@ test('cli.inbox-growth.matched-input-added-byte: #12961 clause 1: both source re
   const box = seeded(), tree = sourceTree(), sample = await observeProcesses();
   try {
     const bin = join(tree, 'apps/cli/pullboard.js'), renderer = join(tree, 'packages/seats/src/io/agent/tree.js');
+    const working = await renderAgents(box, helpers.BIN, sample, { inProcess: box.inProcess });
+    const workingProcess = await renderAgents(box, helpers.BIN, sample);
+    assert.equal(working.status, 0, working.stderr);
+    assert.equal(workingProcess.status, 0, workingProcess.stderr);
+    assert.equal(working.stdout, workingProcess.stdout, 'working in-process and actual process modes retain the same complete unnormalized output under one observation');
     const before = await renderAgents(box, bin, sample);
     assert.equal(before.status, 0, before.stderr);
     assert.match(before.stdout, /top local consumers: /u);
@@ -60,6 +66,6 @@ test('cli.inbox-growth.matched-input-added-byte: #12961 clause 1: both source re
     assert.equal(Buffer.byteLength(added.stdout), Buffer.byteLength(before.stdout) + 1);
     assert.deepEqual(ratchetProblems({ agents: Buffer.byteLength(added.stdout) }, { agents: Buffer.byteLength(before.stdout) }),
       [`agents: ${Buffer.byteLength(added.stdout)} bytes, over its main size of ${Buffer.byteLength(before.stdout)}`]);
-    t.diagnostic(JSON.stringify({ source: treeSource(tree), processObservation: sample.sha256, beforeBytes: Buffer.byteLength(before.stdout), addedBytes: Buffer.byteLength(added.stdout) }));
+    t.diagnostic(JSON.stringify({ source: treeSource(tree), rendererBefore: createHash('sha256').update(original).digest('hex'), rendererAdded: createHash('sha256').update(readFileSync(renderer)).digest('hex'), processObservation: sample.sha256, beforeBytes: Buffer.byteLength(before.stdout), addedBytes: Buffer.byteLength(added.stdout) }));
   } finally { rmSync(tree, { recursive: true, force: true }); }
 });

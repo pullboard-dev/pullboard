@@ -118,7 +118,7 @@ export function createBudgetMeasure(helpers) {
     const sizeOf = async command => {
       const args = [command, ...(DEFAULT_ARGS[command] ?? [])];
       if (command === 'agents' && processSample) {
-        const result = await renderAgents(box, bin, processSample, { inProcess: bin === helpers.BIN ? box.runIn : null });
+        const result = await renderAgents(box, bin, processSample, { inProcess: bin === helpers.BIN ? box.inProcess ?? box.runIn : null });
         sizes[command] = result.signal ? Infinity : sizeOfText(command, result.stdout);
         return;
       }
