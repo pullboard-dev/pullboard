@@ -1,5 +1,7 @@
 /** Give independently loaded normal CLI renderers one immutable process observation for a paired output measurement [C7,N26]. */
 import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import {
   rmSync,
   writeFileSync,
@@ -18,6 +20,7 @@ import {
 
 /** Preserve the existing measured-command child limit; it is not a size allowance. */
 export const BUDGET_COMMAND_KILL_MS = 20_000;
+const sampleProcesses = promisify(execFile);
 
 /** Bind bytes to their digest; a sample string and its identity cannot change halfway through the pair. */
 export function processObservation(text) {
@@ -27,8 +30,9 @@ export function processObservation(text) {
 
 /** Capture the real producer's ps input once, without logging command lines or inventing an empty successful observation. */
 export async function observeProcesses() {
-  const result = await runFixtureChildAsync('/bin/ps', ['-axo', 'pcpu=,args='], { encoding: 'utf8', timeout: 5000, maxBuffer: 16 * 1024 * 1024 });
-  if (result.status !== 0 || result.signal) throw new Error(`process observation unavailable: status ${result.status}, signal ${result.signal ?? 'none'}`);
+  let result;
+  try { result = await sampleProcesses('/bin/ps', ['-axo', 'pcpu=,args='], { encoding: 'utf8', timeout: 5000, maxBuffer: 16 * 1024 * 1024 }); }
+  catch (error) { throw new Error(`process observation unavailable: ${error.code ?? 'unknown'}, signal ${error.signal ?? 'none'}`); }
   return processObservation(result.stdout);
 }
 
