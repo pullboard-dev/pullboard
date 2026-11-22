@@ -2,10 +2,12 @@
 /** The pre-commit shared reads answer each cells plan shard as one record, however many paths a commit stages [C7,#10657]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 import { preCommitProblems } from '../../index.js';
 
@@ -291,4 +293,98 @@ test('commits.io-hooks.plain-commit-checked-set-unchanged: clause 3: a plain non
   const { problems, paths } = checkedPaths(root);
   assert.deepEqual(problems, []);
   assert.deepEqual(paths, ['src/f0.js', 'src/f1.js', 'src/item.js']);
+});
+
+/** Observe real Git operations during the policy check, excluding fixture setup. */
+function tracedMergeCheck(root) {
+  const trace = join(root, 'policy-trace.jsonl'), prior = process.env.GIT_TRACE2_EVENT;
+  process.env.GIT_TRACE2_EVENT = trace;
+  const notices = [];
+  let problems;
+  try {
+    problems = preCommitProblems({ ...FOLDER_OPTIONS, root, agent: { agent_lane: 'core', agent_id: 'seat-1' }, onNotice: line => notices.push(line) });
+  } finally {
+    if (prior === undefined) delete process.env.GIT_TRACE2_EVENT;
+    else process.env.GIT_TRACE2_EVENT = prior;
+  }
+  const operations = readFileSync(trace, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.event === 'start').map(row => row.argv);
+  return { problems, notices, operations };
+}
+
+test('commits.io-hooks.resolve-undo-skips-stage-zero: clause 2: ordinary and sparse-index merges never probe each uninvolved stage-zero path to discover conflicts [C7,#12931]', t => {
+  for (const sparse of [false, true]) {
+    const root = stagedMainMerge(t, 200);
+    if (sparse) {
+      runFixtureSetupGit(['sparse-checkout', 'init', '--cone', '--sparse-index'], { cwd: root });
+      runFixtureSetupGit(['sparse-checkout', 'set', 'src'], { cwd: root });
+    }
+    const { problems, notices, operations } = tracedMergeCheck(root);
+    assert.deepEqual(problems, []);
+    assert.deepEqual(notices, []);
+    const uninvolved = operations.filter(args => args.some(arg => arg === 'ls-files' || arg === 'ls-tree') && args.some(arg => /^:\(literal\)src\/f\d+\.js$/u.test(arg)));
+    assert.equal(uninvolved.length, 0, `${sparse ? 'sparse' : 'ordinary'} merge launched ${uninvolved.length} per-path probes for uninvolved files`);
+  }
+});
+
+/** A real conflict on a foreign path, resolved to main while an item-owned edit remains staged. */
+function resolvedForeignMerge(t, kind) {
+  const graph = fixtureCommittedGraph('pullboard-undo-conflict-'), main = graph.root, root = `${main}-item-7`;
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const path = 'foreign/shared name.txt', renamed = 'foreign/renamed name.txt';
+  const binary = kind === 'binary';
+  const body = label => binary ? Buffer.from([0, ...Buffer.from(label)]) : `${label}\n`;
+  const run = (cwd, args) => runFixtureSetupGit(['-c', 'user.name=Test Agent', '-c', 'user.email=agent@example.com', ...args], { cwd });
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { core: { owns: ['src/'], specs: ['G1'] } } }) + '\n');
+  graph.put('src/item.js', 'export const item = 0;\n');
+  graph.put(`${path}.copy`, 'ordinary stage zero\n');
+  if (kind !== 'add/add') graph.put(path, body('base'));
+  graph.commit();
+  run(main, ['worktree', 'add', '-b', 'core/item-7', root]);
+  writeFileSync(join(root, 'src/item.js'), 'export const item = 1;\n');
+  if (kind === 'rename/delete') run(root, ['mv', path, renamed]);
+  else writeFileSync(join(root, path), body('item'));
+  run(root, ['add', '-A']);
+  run(root, ['commit', '-qm', 'feat: item conflict']);
+  if (kind === 'rename/delete' || kind === 'modify/delete') rmSync(join(main, path));
+  else graph.put(path, body('main'));
+  graph.commit();
+  const merge = runFixtureChild('git', ['merge', '-q', '--no-ff', '--no-commit', 'main'], { cwd: root, encoding: 'utf8' });
+  assert.equal(merge.status, 1, `${kind} creates a real conflict: ${merge.stdout} ${merge.stderr}`);
+  const conflictPath = kind === 'rename/delete' ? renamed : path;
+  if (kind === 'rename/delete' || kind === 'modify/delete') run(root, ['rm', '-f', '--', conflictPath]);
+  else { writeFileSync(join(root, path), body('main')); run(root, ['add', '--', path]); }
+  const undo = runFixtureChild('git', ['ls-files', '--resolve-undo', '--stage', '-z'], { cwd: root, encoding: 'utf8' });
+  assert.equal(undo.status, 0, undo.stderr);
+  const records = undo.stdout.split('\0').filter(Boolean).filter(record => record.slice(record.indexOf('\t') + 1) === conflictPath);
+  const stages = records.map(record => Number(record.slice(0, record.indexOf('\t')).split(' ')[2])).filter(stage => stage > 0);
+  assert.ok(stages.length > 0, `${kind} retained actual conflict stages`);
+  assert.ok(stages.every(stage => [1, 2, 3].includes(stage)));
+  return { root, path: conflictPath, stages, run };
+}
+
+test('commits.io-hooks.resolve-undo-keeps-conflicts: clause 1: text, binary, add/add, modify/delete and rename/delete undo stages retain their exact foreign path and required conflict notice [C7,#12931]', t => {
+  const seen = new Set();
+  for (const kind of ['text', 'binary', 'add/add', 'modify/delete', 'rename/delete']) {
+    const { root, path, stages } = resolvedForeignMerge(t, kind);
+    stages.forEach(stage => seen.add(stage));
+    const { problems, notices } = tracedMergeCheck(root);
+    assert.deepEqual(problems, [], kind);
+    assert.deepEqual(notices, [`resolved accepted-main conflict in ${path}; the coordinator owns ${path}`], kind);
+  }
+  assert.deepEqual([...seen].sort(), [1, 2, 3]);
+});
+
+test('commits.io-hooks.resolve-undo-hostile-still-refused: clause 2: a forged conflict base and a unilateral foreign addition never acquire merge authority [C7,#12931]', t => {
+  const { root, path, run } = resolvedForeignMerge(t, 'text');
+  run(root, ['update-index', '--unresolve', '--', path]);
+  const wrong = run(root, ['rev-parse', 'HEAD:src/item.js']);
+  const forged = runFixtureChild('git', ['update-index', '--index-info'], { cwd: root, encoding: 'utf8', input: `100644 ${wrong} 1\t${path}\n` });
+  assert.equal(forged.status, 0, forged.stderr);
+  writeFileSync(join(root, path), 'hostile content from neither parent\n');
+  writeFileSync(join(root, 'foreign/unilateral.txt'), 'not a merge conflict\n');
+  run(root, ['add', '--', path, 'foreign/unilateral.txt']);
+  const { problems } = tracedMergeCheck(root);
+  assert.ok(problems.some(problem => problem.includes(`outside the core lane: ${path}`)), problems.join('\n'));
+  assert.ok(problems.some(problem => problem.includes('outside the core lane: foreign/unilateral.txt')), problems.join('\n'));
 });
