@@ -10,7 +10,8 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { loadavg } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
-import { HISTORY_BOARD, largeBoard } from './board/large.js';
+import { HISTORY_BOARD } from './board/large.js';
+import { largeBoard } from './board/large.js';
 import {
   fileFixtureItem,
   joinFixtureSeat,
