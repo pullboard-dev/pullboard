@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -56,4 +58,11 @@ test('landing.conflict.receipt-recorded-conflict: clause 2: a recorded Git confl
     trunk: repo.trunk, files: ['conflict.txt'], at: '2026-11-22T00:00:00.000Z', submission: 1 };
   const receipt = { ...fields, digest: createHash('sha256').update(JSON.stringify(fields)).digest('hex') };
   assert.deepEqual(requireComputedConflictObjects(board, receipt), ['conflict.txt']);
+});
+
+/** @pullboard-world-pin the landing callers use the merge public door without widening the light door or layout. */
+test('landing.conflict.light-door-unchanged: clause 3: merge light has no trunk exports and no trunk entry door is added [C7]', () => {
+  const light = readFileSync(join(REPO, 'packages/merge/light.js'), 'utf8');
+  assert.doesNotMatch(light, /^\s*export\s.*(?:trunkMerge|recordedTrunkMerge|refuseRecordedHistoryOverrides)/mu);
+  assert.equal(existsSync(join(REPO, 'packages/merge/trunk.js')), false);
 });
