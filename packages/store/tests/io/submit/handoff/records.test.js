@@ -221,6 +221,36 @@ function evidenceRows(db) {
     .map(({ name }) => [name, db.prepare(`SELECT * FROM "${name}"`).all()]);
 }
 
+test('store.submit-handoff-records.bounded-item-read: clause 1: [M1,B28,C7] undeclared item columns are never evaluated and each selected column retains its native scalar type', async t => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec(`CREATE TABLE recovery_item_source (item_id INTEGER, item_status TEXT, item_owner,
+    item_commit TEXT, item_claim_head TEXT, item_frozen_digest TEXT, item_lease_until TEXT, item_updated_at TEXT);
+    CREATE TABLE board_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT);
+    CREATE VIEW item AS SELECT recovery_item_source.*, abs(-9223372036854775808) AS private_column FROM recovery_item_source`);
+  const item = { item_id: 1, item_status: 'claimed', item_owner: 'native-owner', item_commit: 'a'.repeat(40),
+    item_claim_head: null, item_frozen_digest: 'b'.repeat(64), item_lease_until: null, item_updated_at: '2026-11-22T12:00:00.000Z' };
+  db.prepare('INSERT INTO recovery_item_source VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(...Object.values(item));
+  assert.throws(() => db.prepare('SELECT * FROM item WHERE item_id = 1').get(), /integer overflow/u,
+    'SQLite evaluates the undeclared column if a reader requests it');
+  const rows = () => db.prepare('SELECT * FROM recovery_item_source').all();
+  const before = rows();
+  const board = { db, clock: { now: () => new Date('2026-11-22T12:00:00.000Z') } };
+  const read = () => captureGateRecoveryEvidence(board, 1);
+  const got = await read();
+  assert.deepEqual(got.item, item, 'numeric id, text values and nulls are preserved without coercion');
+  assert.equal(got.itemSource, 'board.item:1');
+  assert.equal(got.exhaustion, null);
+  assert.ok(got.reasons.includes('unavailable:board:read'), 'missing gate tables remain explicit unknown');
+  assert.deepEqual(rows(), before, 'the observation performs no item status or other source write');
+  db.prepare('UPDATE recovery_item_source SET item_owner = ?').run(Buffer.from('SYNTHETIC-INVALID-OWNER-12942'));
+  assert.equal(Object.hasOwn((await read()).item, 'item_owner'), false, 'a non-text owner is omitted, never coerced or exported');
+  db.prepare('DELETE FROM recovery_item_source').run();
+  const absent = await read();
+  assert.equal(absent.item, null);
+  assert.ok(absent.reasons.includes('missing:item'));
+});
+
 /** Persist through the actual store run-record producer; it does not invent a runner attempt. */
 function nativeRunFixture(t) {
   const f = recoveryFixture(t);
