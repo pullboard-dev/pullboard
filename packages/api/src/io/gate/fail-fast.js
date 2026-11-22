@@ -29,7 +29,7 @@ export function endShardsOnItemRed(board, { parent, job, ports }, gate) {
   if (posted.receipt?.status === 0 && shardGate.green === true && (shardGate.phases ?? []).find(row => row.role === 'proof')?.status === 0) return [];
   let own = Boolean(shardGate.error);
   if (!own) {
-    const one = gate.combinedReceipt(gateReceipt, [{ job, posted }], { signatures: ports.settleOnMainReceipt === true });
+    const one = gate.combinedReceipt(gateReceipt, [{ job, posted, selected: gate.selectedShardContext(board.db, job) }], { signatures: ports.settleOnMainReceipt === true });
     const compared = gate.compareGateWithMain(board, one, gate.offeredGate(board.db, parent)?.main, ports.compareWithMain ?? null);
     own = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === false);
   }

@@ -113,3 +113,15 @@ test('api.gate-retry.port-off-red-applies: clause 3: with the port off the same 
   assert.equal(f.last.outcome, 'red', JSON.stringify(f.last));
   assert.equal(shardJobs(f.board.db, f.parent).filter(row => row.job_id.endsWith(':shard:retry')).length, 0);
 });
+
+test('api.gate-owner.retry-dispatches-authenticated-owner: clause 1: a routed fixture failure retries only its selected wrapper and retains the defining fixture separately [C7]', t => {
+  const f = shardedGate(t, { options: {} });
+  const owner = FILES[0], source = 'tests/fixtures/shared.js';
+  const result = retryNewReds(f.board, { parent: f.parent, combined: {}, compared: { cases: [{ phase: 'proof', file: owner, caseFile: source,
+    name: 'shared case [C7]', signature: 'b'.repeat(64), shard: `${f.parent}:shard:1`, attempt: 1, head: f.head, onMain: false }] } });
+  assert.deepEqual(result, { retried: true });
+  const retry = shardJobs(f.board.db, f.parent).find(row => row.job_id === `${f.parent}:shard:retry`);
+  const request = JSON.parse(f.board.db.prepare("SELECT job_step_payload AS p FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(retry.job_id).p).request;
+  assert.deepEqual(request.input.data.shard.files, [owner], 'the retry selects the authenticated owner only');
+  assert.equal(request.input.data.shard.command, `node --test './${owner}'`, 'the fixture is never dispatched');
+});

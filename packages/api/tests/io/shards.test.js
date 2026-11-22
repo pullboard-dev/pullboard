@@ -7,6 +7,8 @@ import { claimJob } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { shardClaimCap } from '../../index.js';
 import { releaseJob } from '../../index.js';
+import { combinedReceipt } from '../../index.js';
+import { compareGateWithMain } from '../../index.js';
 
 const boardWith = t => cellBoard(t, ':memory:').db;
 
@@ -81,4 +83,62 @@ test('api.shards.cores-per-shard-sets-cap: clause 1: shardClaimCap(10, 2) is 5 w
   };
   assert.equal(held(2), 5);
   assert.equal(held(null), 3);
+});
+
+test('api.gate-owner.routes-authenticated-failure-to-selected-shard: clause 1: an authenticated failed unskipped fixture case is compared under its exact selected owner while retaining its source, name, signature and shard [C7]', t => {
+  const db = boardWith(t), board = { db, gitRoot: '.' };
+  const head = 'a'.repeat(40), main = 'c'.repeat(40), source = 'tests/fixtures/shared.js', owner = 'tests/wrappers/one.test.js';
+  const name = 'shared fixture case [C7]';
+  const signature = 'b'.repeat(64), inputKey = 'd'.repeat(64), shard = 'gate:12922:shard:1';
+  const phase = { role: 'proof', status: 1, failures: [{ file: source, name }], failureSignatures: [signature],
+    testOutcomes: [{ file: source, name, owner, passed: false, skipped: false, failure: 'assertion' }], tail: 'not ok' };
+  const posted = { attempt: 1, runner: 'runner-one', receipt: { status: 1, gate: { source: head, green: false, shard: { files: [owner] }, phases: [phase] } } };
+  const combined = combinedReceipt({ status: 0, gate: { source: head, green: true, phases: [{ role: 'check', status: 0 }], proofPlan: {} } },
+    [{ job: shard, posted, selected: { files: [owner], keys: { [owner]: inputKey } } }], { signatures: true });
+  let observed;
+  const compared = compareGateWithMain(board, combined, main, request => {
+    observed = request;
+    return { classes: [{ file: owner, owner: 'item', own: [name], receipt: null, job: null }] };
+  });
+  assert.deepEqual(observed.cases, [{ file: owner, name }], 'lookup receives the selected wrapper, not the fixture');
+  assert.equal(observed.inputKeys[owner], inputKey, 'lookup receives the selected wrapper input key');
+  assert.equal(observed.inputKeys[source], undefined, 'the fixture input key is not borrowed');
+  assert.deepEqual({ file: compared.cases[0].file, caseFile: compared.cases[0].caseFile, name: compared.cases[0].name,
+    signature: compared.cases[0].signature, shard: compared.cases[0].shard, attempt: compared.cases[0].attempt, head: compared.cases[0].head },
+  { file: owner, caseFile: source, name, signature, shard, attempt: 1, head });
+});
+
+test("api.gate-owner.rejects-foreign-and-malformed-owner-routes: clause 2: each shard's own selection governs ownership and malformed, skipped, missing and duplicate identities never receive an owner route [C7]", t => {
+  const db = boardWith(t), board = { db, gitRoot: '.' };
+  const head = 'e'.repeat(40), main = 'f'.repeat(40), source = 'tests/fixtures/shared.js', owner = 'tests/wrappers/one.test.js';
+  const name = 'same case [C7]', signature = '1'.repeat(64), inputKey = '2'.repeat(64), shard = 'gate:12922:shard:1';
+  const make = (outcomes, selectedFiles = [owner]) => combinedReceipt({ status: 0, gate: { source: head, green: true, phases: [], proofPlan: {} } }, [{ job: shard,
+    selected: { files: selectedFiles, keys: { [owner]: inputKey } }, posted: { attempt: 1, runner: 'runner', receipt: { status: 1, gate: { source: head, green: false, phases: [{ role: 'proof', status: 1,
+      failures: [{ file: source, name }], failureSignatures: [signature], ...(outcomes === undefined ? {} : { testOutcomes: outcomes }) }] } } } }], { signatures: true });
+  const lookup = () => ({ classes: [{ file: owner, owner: 'item', own: [name], receipt: null, job: null }] });
+  for (const [outcomes, files] of [
+    [[{ file: source, name, owner, passed: false, skipped: false, failure: 'assertion' }], ['tests/wrappers/two.test.js']],
+    [[{ file: source, name, owner: '../outside.test.js', passed: false, skipped: false, failure: 'assertion' }], [owner]],
+    [[{ file: source, name, owner, passed: false, skipped: true, failure: 'assertion' }], [owner]],
+    [[{ file: source, name, owner, passed: false, skipped: false, failure: 'assertion' }, { file: source, name, owner, passed: false, skipped: false, failure: 'assertion' }], [owner]],
+    [[], [owner]],
+  ]) assert.equal(compareGateWithMain(board, make(outcomes, files), main, lookup), null, 'untrusted or ambiguous owner evidence is fail closed');
+  const other = 'tests/wrappers/two.test.js';
+  const parts = [owner, other].map((selectedOwner, index) => ({ job: `gate:12922:shard:${index + 1}`,
+    selected: { files: [selectedOwner], keys: { [selectedOwner]: String(index + 3).repeat(64) } },
+    posted: { attempt: 1, runner: `runner-${index}`, receipt: { status: 1, gate: { source: head, green: false, phases: [{ role: 'proof', status: 1,
+      failures: [{ file: source, name }], failureSignatures: [signature], testOutcomes: [{ file: source, name, owner: selectedOwner, passed: false, skipped: false, failure: 'assertion' }] }] } } } }));
+  let observed;
+  const shared = compareGateWithMain(board, combinedReceipt({ status: 0, gate: { source: head, green: true, phases: [], proofPlan: {} } }, parts, { signatures: true }), main, request => {
+    observed = request;
+    return { classes: [owner, other].map(file => ({ file, owner: 'item', own: [name], receipt: null, job: null })) };
+  });
+  assert.deepEqual(observed.cases, [{ file: owner, name }, { file: other, name }], 'same fixture identity is resolved independently inside each shard');
+  assert.deepEqual(observed.inputKeys, { [owner]: '3'.repeat(64), [other]: '4'.repeat(64) }, 'each wrapper keeps only its shard input key');
+  assert.deepEqual(shared.cases.map(row => [row.file, row.caseFile, row.shard]), [[owner, source, 'gate:12922:shard:1'], [other, source, 'gate:12922:shard:2']]);
+  const legacy = compareGateWithMain(board, make(undefined), main, request => {
+    assert.deepEqual(request.cases, [{ file: source, name }], 'an old receipt keeps conservative source-path comparison');
+    return { classes: [{ file: source, owner: 'item', own: [name], receipt: null, job: null }] };
+  });
+  assert.equal(legacy.cases[0].file, source, 'legacy proof never borrows an inferred owner');
 });
