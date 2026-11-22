@@ -13,14 +13,14 @@ import {
   after,
   test,
 } from 'node:test';
-import { createE2eHelpers } from '../../../fixtures/e2e.js';
-import { settleSubmit } from '../../../fixtures/submit/settle.js';
-import { fileFixtureItem } from '../../../fixtures/testkit.js';
-import { fixtureJoin } from '../../../fixtures/testkit.js';
-import { fixturePolicy } from '../../../fixtures/testkit.js';
+import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { settleSubmit } from '../../fixtures/submit/settle.js';
+import { fileFixtureItem } from '../../fixtures/testkit.js';
+import { fixtureJoin } from '../../fixtures/testkit.js';
+import { fixturePolicy } from '../../fixtures/testkit.js';
 import * as store from '../../../../../packages/store/index.js';
-import { cli } from '../../../fixtures/next/take.js';
-import { fixture } from '../../../fixtures/next/take.js';
+import { cli } from '../../fixtures/next/take.js';
+import { fixture } from '../../fixtures/next/take.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
