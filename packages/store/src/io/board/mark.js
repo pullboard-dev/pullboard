@@ -13,5 +13,5 @@ import { logEvent } from "./event/log.js";
  */
 export function appendMark(board, id, { agentId, stage, edge, reason, ref, at, id: markId }) {
   itemById(board, id);
-  logEvent(board, agentId, 'mark', id, { stage, edge, reason, ref, at, ...(markId === undefined ? {} : { id: markId }) });
+  logEvent(board, agentId, 'mark', id, { stage, edge, reason, ref, at, ...(markId === undefined ? {} : { id: markId }) }, new Date(at));
 }

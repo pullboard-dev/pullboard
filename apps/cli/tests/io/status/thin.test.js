@@ -100,5 +100,21 @@ test('cli.io-status-thin.wired-behind-setting: clause 2: status.js calls the doo
   const on = await box.runLocal(box.repo, 'status');
   assert.equal(off.code, 0, off.err);
   assert.equal(on.code, 0, on.err);
-  assert.deepEqual(lines(on), lines(off), 'status prints the same lines with the door on');
+  const thin = lines(on).filter(line => Boolean(line) && line !== 'next: pullboard next');
+  const full = lines(off).filter(Boolean);
+  assert.equal(on.code, off.code, 'thin and full status return the same exit code');
+  assert.ok(thin.some(line => line.startsWith('board:')), 'thin status keeps item counts');
+  assert.ok(thin.some(line => line.startsWith('lanes:')), 'thin status keeps lane names');
+  assert.ok(thin.some(line => line.startsWith('capacity:')), 'thin status keeps capacity');
+  assert.ok(thin.some(line => line.startsWith('Max useful builders:')), 'thin status keeps useful builders');
+  assert.ok(thin.every(line => line.startsWith('board:') || line.startsWith('verdicts:') || line.startsWith('lanes:')
+    || line.startsWith('ready buffer:') || line.startsWith('capacity:')
+    || line.startsWith('Max useful agents now:') || line.endsWith('items can be built at once now.')
+    || line.startsWith('Finish in about ') || line === 'Finish time: unknown.'
+    || line.startsWith('Binding: ') || line.startsWith('Lever: ')
+    || line.startsWith('Approval evidence count:') || line.startsWith('Unknown: ')
+    || line.startsWith('Max useful builders:')), `thin status prints only counts, lanes, capacity and useful builders: ${thin.join(' | ')}`);
+  for (const line of thin.filter(line => !line.startsWith('lanes:') && !line.startsWith('Max useful builders:'))) assert.ok(full.includes(line), `thin status shares the full-path field: ${line}`);
+  assert.ok(full.some(line => line.startsWith('seats:')), 'full status keeps detailed sections');
+  assert.ok(thin.length < full.length, 'thin status omits full-path details');
 });

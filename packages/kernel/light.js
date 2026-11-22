@@ -6,7 +6,7 @@ export { createRelayAdapter, createFakeRelayAdapter } from './src/logic/adapter.
 export { machineHome, processMachineHome } from './src/logic/machine.js';
 export { repoPath } from './src/logic/repo-paths.js';
 export { lex, lineAt } from './src/logic/lex.js';
-export { registryGuardsProblem, shoutItemId } from './src/logic/registry.js';
+export { registryGuardsProblem, shoutItemId, boardLinkName, boardReferenceId } from './src/logic/registry.js';
 export { AGENT_SESSION_IDS, AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS, COMMAND_CANDIDATE, COMMAND_FILE, ENGINE_CANDIDATE, ENGINE_FILE, discovered } from './src/logic/discovery.js';
 export { auditAdapterEnvironment } from './src/logic/audit.js';
 export { parseProcessCensus } from './src/logic/census.js';
