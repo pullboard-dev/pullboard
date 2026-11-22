@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board */
 /** Completed board writes over one second add named machine telemetry and a keyed status counter [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -5,16 +6,16 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellProject } from '../../../fixtures/cell.js';
-import { boardWriteHoldAlarm } from '../../../../src/io/board/write/lock.js';
+import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
+import { boardWriteHoldAlarm } from '../../../../../../store/index.js';
 import { writeFileSync } from 'node:fs';
-import { boardWriteCounterRows } from '../../../../src/io/board/write/lock.js';
-import { boardWriteLog } from '../../../../src/io/board/write/lock.js';
-import { finishBoardWrite } from '../../../../src/io/board/write/lock.js';
-import * as store from '../../../../index.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { temporaryRepository } from '../../../fixtures/submit.js';
+import { boardWriteCounterRows } from '../../../../../../store/index.js';
+import { boardWriteLog } from '../../../../../../store/index.js';
+import { finishBoardWrite } from '../../../../../../store/index.js';
+import * as store from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { temporaryRepository } from '../../../../../../store/tests/fixtures/submit.js';
 
 /** Give this test a private machine home and restore the caller's setting. */
 function withHome(t, body) {

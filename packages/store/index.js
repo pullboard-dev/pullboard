@@ -57,7 +57,7 @@ export { diagnoseWanted, returnedRecord, gateAtHead, nextEligible } from './src/
 export { companionPlan, applyCompanionRequest } from './src/io/companion.js';
 export { dispatchWork } from './src/io/eligibility.js';
 export { heldClaim } from './src/io/claim.js';
-export { allItemsNeedingRescope, ineligibleReleaseIds, itemsNeedingRescope, nextWithReleaseCooldown, recentlyReleased, RESCOPE_REASONS } from './src/io/cooldown.js';
+export { allItemsNeedingRescope, ineligibleReleaseIds, itemsNeedingRescope, nextWithReleaseCooldown, parkedClaims, recentlyReleased, RESCOPE_REASONS } from './src/io/cooldown.js';
 export { jsonChunks, writeJsonChunks } from './src/io/chunks.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/io/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/io/history.js';
@@ -153,7 +153,7 @@ export {
   sealClauseInspection,
 } from './src/io/board/repository.js';
 
-export { boardWriteLog, boardWriteHoldAlarm } from './src/io/board/write/lock.js';
+export { boardWriteCounterRows, boardWriteLog, boardWriteHoldAlarm } from './src/io/board/write/lock.js';
 export { objectItemPatch } from './src/io/board.js';
 export { expediteItem, expeditedItems } from './src/io/board.js';
 
@@ -167,7 +167,8 @@ export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } f
 export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
 export { mergedDecision } from './src/io/board/merged-table.js';
 export { claimDecision } from './src/io/board/claim-table.js';
-export { saveItemNeeds, saveAgentAbilities } from './src/io/needs.js';
+export { saveItemNeeds, saveAgentAbilities, validateItemNeeds, validateAgentAbilities } from './src/io/needs.js';
+export { refusesFamilyRelaxation } from './src/io/board/next-refused-pairings.js';
 export { itemPace } from './src/io/board/sprint-pace.js';
 export { recordPulled, pullingLanding } from './src/io/board/pulled.js';
 export { readShadows } from './src/io/board/shadow-record.js';
