@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/tests/io/commands/relay/pair.test.js apps/cli/journeys/relay/setup.test.js */
+/** @pullboard-test-input apps/cli/tests/io/commands/relay/pair.test.js apps/cli/journeys/relay/setup.test.js apps/cli/tests/fixtures/registry-10548.json */
 /** @pullboard-test-input source-cell apps/cli */
 /** Relay pair command proof: code and phone labels [H17]. */
 import assert from 'node:assert/strict';
