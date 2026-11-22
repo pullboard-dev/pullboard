@@ -1,11 +1,11 @@
 /** The clock health document counts items without an owner or deadline, overdue items and per-rule counts, and each clock pass stores it and alarms the coordinator once per such item [B4,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../store/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { cellItem } from '../../../../store/tests/fixtures/cell.js';
-import { clockHealth } from '../../../index.js';
-import { clockSweep } from '../../../index.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { clockHealth } from '../../../../../health/index.js';
+import { clockSweep } from '../../../../../health/index.js';
 
 const MINUTE = 60_000;
 const T0 = Date.UTC(2026, 10, 20, 12, 0, 0);
