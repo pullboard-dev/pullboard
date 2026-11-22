@@ -145,3 +145,40 @@ test('gate.config.crystal-globs: #10512 clause 2: detectTestGlobs for a shard.ym
   assert.deepEqual(detectTestGlobs(root), ['spec/**/*_spec.cr', '**/spec/**/*_spec.cr']);
   assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['crystal'], unknown: [] });
 });
+
+test('gate.config.node-manager-selection: #12896 clause 1: declared pnpm or Yarn and a sole matching lockfile select their test command, while npm defaults and missing scripts stay unchanged [C7]', (t) => {
+  const cases = [
+    [{ 'package.json': '{"packageManager":"pnpm@9.0.0","scripts":{"test":"node test.js"}}\n' }, 'pnpm test'],
+    [{ 'package.json': '{"packageManager":"yarn@4.0.0","scripts":{"test":"node test.js"}}\n' }, 'yarn test'],
+    [{ 'package.json': '{"scripts":{"test":"node test.js"}}\n', 'pnpm-lock.yaml': '' }, 'pnpm test'],
+    [{ 'package.json': '{"scripts":{"test":"node test.js"}}\n', 'yarn.lock': '' }, 'yarn test'],
+    [{ 'package.json': '{"scripts":{"test":"node test.js"}}\n' }, 'npm test'],
+  ];
+  for (const [files, command] of cases) {
+    const root = rootWith(t, files);
+    assert.deepEqual(detectLanguages(root), [{ language: 'node', command }]);
+  }
+  for (const manifest of ['{}\n', '{"scripts":{"test":"echo \\"Error: no test specified\\" && exit 1"}}\n']) {
+    const root = rootWith(t, { 'package.json': manifest, 'pnpm-lock.yaml': '' });
+    assert.deepEqual(detectLanguages(root), []);
+  }
+});
+
+test('gate.config.node-manager-guidance: #12896 clause 2: mismatched declarations and ambiguous lockfiles give actionable guidance, including for nested projects [C7]', (t) => {
+  const contradictory = rootWith(t, {
+    'package.json': '{"packageManager":"pnpm@9.0.0","scripts":{"test":"node test.js"}}\n',
+    'yarn.lock': '',
+  });
+  assert.throws(() => detectLanguages(contradictory), /packageManager declares pnpm but lockfiles identify yarn/u);
+  const ambiguous = rootWith(t, {
+    'package.json': '{"scripts":{"test":"node test.js"}}\n',
+    'pnpm-lock.yaml': '',
+    'yarn.lock': '',
+  });
+  assert.throws(() => detectLanguages(ambiguous), /remove conflicting lockfiles or declare packageManager/u);
+  const nested = rootWith(t, {
+    'service/package.json': '{"packageManager":"yarn@4.0.0","scripts":{"test":"node test.js"}}\n',
+  });
+  assert.deepEqual(detectLanguages(nested), [{ language: 'node', command: 'yarn test', folder: 'service' }]);
+  assert.equal(detectGate(nested), "(cd 'service' && yarn test)");
+});

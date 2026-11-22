@@ -70,10 +70,14 @@ function detectHere(root, rows) {
   const add = (language, command) => found.push({ language, command });
   const file = join(root, 'package.json');
   if (fs.exists(file)) {
+    let manifest = null;
     try {
-      const test = JSON.parse(fs.readFile(file, 'utf8'))?.scripts?.test;
-      if (typeof test === 'string' && test.trim() && test.trim() !== NPM_DEFAULT_TEST) add('node', 'npm test');
+      manifest = JSON.parse(fs.readFile(file, 'utf8'));
     } catch { /* An unreadable package does not hide another ecosystem. */ }
+    const test = manifest?.scripts?.test;
+    if (typeof test === 'string' && test.trim() && test.trim() !== NPM_DEFAULT_TEST) {
+      add('node', nodeTestCommand(root, manifest));
+    }
   }
   if (fs.exists(join(root, 'go.mod'))) add('go', 'go test ./...');
   if (fs.exists(join(root, 'Cargo.toml'))) add('rust', 'cargo test');
@@ -115,6 +119,30 @@ function detectHere(root, rows) {
     break;
   }
   return found;
+}
+
+/** Select the package manager from a declaration or an unambiguous lockfile set. */
+function nodeTestCommand(root, manifest) {
+  const names = ['npm', 'pnpm', 'yarn'];
+  const locks = {
+    npm: ['package-lock.json', 'npm-shrinkwrap.json'],
+    pnpm: ['pnpm-lock.yaml'],
+    yarn: ['yarn.lock'],
+  };
+  const declared = typeof manifest.packageManager === 'string'
+    ? /^(npm|pnpm|yarn)@/u.exec(manifest.packageManager)?.[1] ?? null
+    : null;
+  const present = names.filter((name) => locks[name].some((lock) => fs.exists(join(root, lock))));
+  if (manifest.packageManager && !declared) {
+    throw new Refused('NODE_PACKAGE_MANAGER', `unrecognized packageManager declaration "${manifest.packageManager}"; use npm@, pnpm@ or yarn@`);
+  }
+  if (declared && present.some((name) => name !== declared)) {
+    throw new Refused('NODE_PACKAGE_MANAGER', `packageManager declares ${declared} but lockfiles identify ${present.join(', ')}; align the declaration and lockfiles`);
+  }
+  if (!declared && present.length > 1) {
+    throw new Refused('NODE_PACKAGE_MANAGER', `lockfiles identify multiple package managers (${present.join(', ')}); remove conflicting lockfiles or declare packageManager in package.json`);
+  }
+  return `${declared ?? present[0] ?? 'npm'} test`;
 }
 
 /** Detect an existing ecosystem's test command without executing it during setup; several join with &&. */
