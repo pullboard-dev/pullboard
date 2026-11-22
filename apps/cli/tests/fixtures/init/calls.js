@@ -39,14 +39,9 @@ function realGitPath() {
 /** Build a private real repo and linked agent worktree with an instrumented Git executable. */
 export async function fixture(t, { ruleProof = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-git-calls-'));
-  const diagnosticPhase = t.pullboardDiagnosticPhase;
   t.after(() => {
-    diagnosticPhase?.('cleanup-stop-runner:start');
     stopFixtureLocalRunner(join(dir, 'home', '.pullboard-machine')); // a pulled gate starts the loopback runner, which heartbeats into the fixture [C7]
-    diagnosticPhase?.('cleanup-stop-runner:end');
-    diagnosticPhase?.('cleanup-remove:start');
     rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 }); // a submitted run may still be writing [C7]
-    diagnosticPhase?.('cleanup-remove:end');
   });
   const repo = join(dir, 'repo');
   const worker = join(dir, 'worker');
@@ -111,9 +106,7 @@ export async function fixture(t, { ruleProof = false } = {}) {
   };
   /** Run one setup command through production dispatch in this process; the measured commands stay real children [C7]. */
   const setup = async (cwd, ...args) => {
-    diagnosticPhase?.(`setup-${args[0]}:start`);
     const result = await runCliInProcess(args, { cwd, env });
-    diagnosticPhase?.(`setup-${args[0]}:end`);
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   };
   git(repo, 'init', '-q', '-b', 'main');

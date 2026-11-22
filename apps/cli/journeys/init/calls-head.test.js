@@ -26,37 +26,22 @@ const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../packa
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/config/src/io/main.js')).href;
 
 test('cli.journeys-init-calls-head.a-runner-sees-the-new-head: a runner sees the new HEAD after it commits its item [C7]', async (t) => {
-  const diagnosticStartedAt = process.hrtime.bigint();
-  t.pullboardDiagnosticPhase = (phase) => {
-    const elapsedMs = Number(process.hrtime.bigint() - diagnosticStartedAt) / 1e6;
-    console.log(`[diagnostic:12894-sol] ${phase} ${elapsedMs.toFixed(3)}ms`);
-  };
-  t.pullboardDiagnosticPhase('fixture:start');
   const box = await fixture(t);
-  t.pullboardDiagnosticPhase('fixture:end');
-  t.pullboardDiagnosticPhase('file-item:start');
   fileFixtureItem(box, box.repo, { lane: 'core', title: 'Refresh cached HEAD', route: 'mid',
     criterion: 'the runner reads the commit it just made', check: 'test -f src/result.txt',
     brief: 'Files: src/result.txt\nChange: create the runner result file.\nTest: the runner reads the commit it just made.',
     diagnosis: 'Files: src/result.txt\nChange: create the runner result file.\nTest case: the runner reads the commit it just made.',
     args: ['--specs', 'C7'] });
-  t.pullboardDiagnosticPhase('file-item:end');
   const agent = join(box.dir, 'agent.sh');
   writeFileSync(agent, '#!/bin/sh\nmkdir -p src\nprintf result > src/result.txt\n');
   chmodSync(agent, 0o700);
   // No detached review comparison: it keeps writing into the fixture, and the cleanup then retries past the file budget [C7].
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { mainComparison: 'off' } });
-  t.pullboardDiagnosticPhase('nested-run:start');
   const run = box.ok(box.worker, 'run', '--agent-light', `sh ${agent}`, '--items', '1', '--attempts', '1', '--minutes', '1');
-  t.pullboardDiagnosticPhase('nested-run:end');
   assert.match(run.stdout, /#1 is in the gate as job /u);
-  t.pullboardDiagnosticPhase('git-head:start');
   const current = box.git(box.worker, 'rev-parse', 'HEAD');
-  t.pullboardDiagnosticPhase('git-head:end');
   // A pull submit offers its gate at the commit the run made, and names it in the job id, so the offered job proves the runner's new HEAD [C7].
-  t.pullboardDiagnosticPhase('board-show:start');
   const shown = JSON.parse(box.ok(box.repo, 'show', '1', '--json').stdout);
-  t.pullboardDiagnosticPhase('board-show:end');
   assert.equal(shown.gateJob?.id.split(':')[2], current.slice(0, 12), 'submit offers the HEAD created by this command');
 });
 
