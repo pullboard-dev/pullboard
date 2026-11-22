@@ -1,8 +1,7 @@
-/** @pullboard-test-input source-cell packages/store */
 /** appendMark writes one mark event for an open item and nothing else, and refuses an item that does not exist [C7,#12157]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appendMark } from '../../../../../store/src/io/board/mark.js';
+import { appendMark } from '../../../../../store/index.js';
 import { cellBoard } from '../../../fixtures/cell-board.js';
 import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
 

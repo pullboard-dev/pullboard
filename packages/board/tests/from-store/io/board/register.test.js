@@ -7,7 +7,7 @@ import { agentAt } from '../../../../../store/index.js';
 import { register } from '../../../../../store/index.js';
 import { ADVISOR_ROLE_ENGINE } from '../../../../../state/light.js';
 import { NEEDS_ENGINE } from '../../../../../state/light.js';
-import { agentAbilities } from '../../../../../store/src/io/needs.js';
+import { agentAbilities } from '../../../../../store/index.js';
 import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const MAIN = '/fixture/project';
