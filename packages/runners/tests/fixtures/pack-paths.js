@@ -29,13 +29,19 @@ const LEGACY_PATH_CHECK = `
 
 /** Copy actual tooling into a private Git repository, retaining every production scanner dependency. */
 function copiedTooling(root) {
-  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
+  const source = resolve(import.meta.dirname, '../../../..');
+  copyPackageFiles(source, root);
+  // The comparator has its own manifest-validated source copy; never hand-copy installed runtime bytes.
+  copyPackageFiles(source, root, { files: [{
+    path: 'packages/runners/src/io/pack.js', as: 'packages/runners/src/io/legacy-pack.js',
+  }] });
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  const packFile = join(root, 'packages/runners/src/io/pack.js');
-  const current = readFileSync(packFile, 'utf8');
+  const legacyFile = join(root, 'packages/runners/src/io/legacy-pack.js');
+  const legacy = readFileSync(legacyFile, 'utf8');
   const call = '  checkHistoricalPaths(root, historicalTrees, config.protect, directory, treeEntries);';
-  assert.ok(current.includes(call), 'only the full-path check differs in the comparator');
-  writeFileSync(join(root, 'packages/runners/src/io/legacy-pack.js'), current.replace(call, LEGACY_PATH_CHECK));
+  assert.ok(legacy.includes(call), 'only the full-path check differs in the comparator');
+  // Only this explicit synthetic comparator changes; the current module remains the complete manifest copy.
+  writeFileSync(legacyFile, legacy.replace(call, LEGACY_PATH_CHECK));
   const scanFile = join(root, 'packages/runners/src/io/source/scan.js');
   const scan = readFileSync(scanFile, 'utf8');
   const signature = 'export function protectedHistoryPath(path, protect) {';
