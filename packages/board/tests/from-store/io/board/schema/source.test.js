@@ -12,7 +12,7 @@ import { temporaryDirectory } from "../../../../../../store/tests/fixtures/tmp.j
 /** The exit guard's claimed-by-owner query exactly as requireExitActive runs it. */
 const OWNER_LOOKUP = "SELECT item_id FROM item WHERE item_status = 'claimed' AND item_owner = ?";
 
-test("store.io-board-schema-source.owner-status-index: clause 1: a board opened from the schema answers the claimed-by-owner lookup with an index search, not a scan of item [C7]", t => {
+test('store.io-board-schema-source.owner-status-index: clause 1: a board opened from the schema answers the claimed-by-owner lookup with an index search, not a scan of item [C7]', t => {
   const directory = temporaryDirectory("pullboard-owner-index-");
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, "board.sqlite");
