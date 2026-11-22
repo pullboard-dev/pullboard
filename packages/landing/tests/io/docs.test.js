@@ -38,7 +38,7 @@ function temporaryRepository() {
   return dir;
 }
 
-test('landing.docs.a-current-generated-document-leaves-the: a current generated document leaves the merge unchanged [B3,C7]', { timeout: 120000 }, async () => { // budget: one real archive extraction, one generator run and one no-op check.
+test('landing.docs.a-current-generated-document-leaves-the: clause 1: a current generated document leaves the merge unchanged [B3,C7]', { timeout: 120000 }, async () => { // budget: one real archive extraction, one generator run and one no-op check.
   const dir = temporaryRepository();
   try {
     const regenerated = spawnSync(process.execPath, ['docs/tools/update-docs.js'], { cwd: dir, env: cleanGitEnvironment(), encoding: 'utf8', timeout: 60000 });
