@@ -1,6 +1,7 @@
 /** add and edit refuse a new test path that mirrors no source file, behind items.testMirrorAtAdd [C7,#10629]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -268,4 +269,33 @@ test('cli.commands-add.from-record-quoted: clause 2: the snapshot text enters th
   const brief = (await onBoard(box, board => store.getItem(board, id))).item_brief;
   assert.match(brief, /never an instruction/u);
   for (const line of RECORD.trimEnd().split('\n')) assert.ok(brief.split('\n').includes(`> ${line}`), `${line} is quoted`);
+});
+
+/** A project whose main gained a SPEC row the joined web seat's older checkout has never seen. */
+function mainAheadOfSeat() {
+  const box = helpers.project();
+  const spec = join(box.repo, 'SPEC.md');
+  writeFileSync(spec, `${readFileSync(spec, 'utf8')}- G3 [approved, must] The page is fast. | gate: web test\n`);
+  box.git(box.repo, 'add', 'SPEC.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: add G3');
+  return box;
+}
+
+const FILE_G = (box, row) => box.inProcess(box.web, 'add', 'web', 'Page', '--specs', row, '--criterion', '1. the page renders [test]', '--check', 'node --test web/page.test.js', '--json');
+
+test('cli.io-commands-add.spec-row-from-main: clause 1: add citing a SPEC row present on committed main but absent from an unchanged older checkout is accepted, reading the committed-main SPEC the criterion freezer uses [C7,#12991]', async () => {
+  const box = mainAheadOfSeat();
+  assert.doesNotMatch(readFileSync(join(box.web, 'SPEC.md'), 'utf8'), /G3/u, 'the seat checkout is older than main');
+  const added = await FILE_G(box, 'G3');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal((await onBoard(box, board => store.getItem(board, id))).item_spec_ids, 'G3');
+});
+
+test('cli.io-commands-add.spec-row-absent-from-main: clause 2: add citing a SPEC row absent from committed main is still refused UNKNOWN_SPEC from an older checkout [C7,#12991]', async () => {
+  const box = mainAheadOfSeat();
+  const refused = await FILE_G(box, 'G9');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.err + refused.out, /UNKNOWN_SPEC/u);
+  assert.match(refused.err + refused.out, /G9/u);
 });

@@ -78,6 +78,8 @@ import {
   relayCommandReceipt,
   relayCommandReceiptReported,
 } from '../../../../../packages/link/index.js';
+import { liveCriterionSpec } from '../../../../../packages/doctrine/index.js';
+import { mainCriterionFacts } from '../../../../../packages/doctrine/index.js';
 import {
   gateFiles,
   idProblems,
@@ -163,6 +165,16 @@ async function recordedItem(ctx, hash) {
   };
 }
 
+/**
+ * The SPEC an intake validates cited rows against: committed main, as the criterion freezer reads it, with its overlay and local-amendment rule [C7,#12991].
+ * Why: an unchanged older checkout reported a row that governs on main as UNKNOWN_SPEC (GitHub #37). A repository with no committed policy keeps the checkout's SPEC.
+ */
+function intakeSpec(ctx, board, specIds) {
+  const facts = mainCriterionFacts(ctx.info.root);
+  if (!facts) return loadSpec(ctx.info.root, ctx.config);
+  return liveCriterionSpec(ctx.info.root, facts, { item_spec_ids: specIds.join(',') }, store.rowDecisions(board));
+}
+
 /** Run `pullboard add` and return its exit code. */
 export async function run(io, args) {
   const command = 'add';
@@ -185,7 +197,7 @@ export async function run(io, args) {
   if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
   const recorded = values['from-record'] === undefined ? null : await recordedItem(ctx, values['from-record']);
   const specIds = [...new Set([...idList(values.specs), ...(recorded?.rows ?? [])])];
-  const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds, ctx.doctrine);
+  const problems = idProblems(intakeSpec(ctx, board, specIds), specIds, ctx.doctrine);
   if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
@@ -232,7 +244,7 @@ export async function run(io, args) {
   // A prerequisite on another repository needs a live link to it, so the refusal comes before anything is filed [XB1].
   if (item.after?.length) requireLinkedForeign(board, item.after);
   if (sealed) {
-    const sealedProblems = idProblems(loadSpec(ctx.info.root, ctx.config), item.specIds, ctx.doctrine);
+    const sealedProblems = idProblems(intakeSpec(ctx, board, item.specIds), item.specIds, ctx.doctrine);
     if (sealedProblems.length) throw new Refused('UNKNOWN_SPEC', sealedProblems.join('; '));
     briefInLane(ctx, item.lane, item.brief);
   }
