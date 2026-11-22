@@ -31,9 +31,35 @@ async function openItem(t, { review = false } = {}) {
     box.git(box.root, 'update-ref', 'refs/heads/main', next);
   };
   /** The item id next hands the actor seat, or null with the reasons it gave. */
-  const handed = async () => {
-    const taken = await cli(box, box.seats.actor.path, ['next']);
-    assert.equal(taken.code, 0, taken.out + taken.err);
+  const handed = async ({ idle = false } = {}) => {
+    let fake = 0;
+    const nextWaitClock = { now: () => fake, sleep: async (_wake, { deadline }) => { fake = deadline; } };
+    const custody = () => {
+      const item = store.getItem(box.board, id);
+      return Object.fromEntries(['item_status', 'item_owner', 'item_lease_until', 'item_review_by', 'item_review_until',
+        'item_built_by', 'item_reservation_holder'].map(key => [key, item[key]]));
+    };
+    const before = custody();
+    const claimsBefore = box.board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='claim'").get(id).n;
+    const taken = await cli(box, box.seats.actor.path, ['next'], idle ? { nextWaitClock } : {});
+    if (idle) {
+      assert.equal(taken.code, 4, taken.out + taken.err);
+      assert.equal(fake, 90_000, 'the idle branch traverses the full default deadline');
+      assert.equal(taken.document.timeout.seconds, 90);
+      assert.equal(taken.document.item, null);
+      assert.equal(taken.document.idleReason, 'nothing-eligible');
+      assert.deepEqual(taken.document.reasons, [
+        '[IDLE_TIMEOUT] nothing for this seat in 90 seconds; the board is not finished. Stop, or call next again.',
+        `#${id}: ${SENTINEL}; nothing to build`,
+      ]);
+      assert.deepEqual(custody(), before, 'the idle answer leaves item custody unchanged');
+      assert.equal(before.item_status, 'open');
+      assert.equal(before.item_owner, null);
+      assert.equal(box.board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='claim'").get(id).n,
+        claimsBefore, 'waiting never transiently claims the excluded item');
+    } else {
+      assert.equal(taken.code, 0, taken.out + taken.err);
+    }
     return { id: taken.document.item?.item_id ?? null, text: taken.out };
   };
   /** Rewrite the outside seat's family row in the swept table to the builder's, so only the table says the two seats share a family. */
@@ -61,7 +87,7 @@ test('cli.journeys-next-derived-state.a-current-table-answers-the-gate: clause 1
   const named = await openItem(t);
   named.setting(true);
   named.sweep(SENTINEL);
-  const answer = await named.handed();
+  const answer = await named.handed({ idle: true });
   assert.equal(answer.id, null, 'an item the table names gate-at-head is not offered');
   assert.ok(answer.text.includes(SENTINEL), 'the reason comes from the table row, not from a computed gate');
 });

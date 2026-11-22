@@ -1,0 +1,3 @@
+{
+  "cli.journeys-relay-rebuild-resume.a-queued-fact-keeps-its-returned-id": {"proves": {"specs": ["C7"], "claim": "A fact queued while the relay is down keeps the id it returned, so a queued correction that supersedes it survives a rebuild stopped after its apply step."}, "why": "A queued local fact took a random id while its replay took the move id, so a later correction naming the returned id was refused NO_FACT and lost (GitHub #30).", "kind": "journey", "inputs": ["apps/cli/journeys/relay/rebuild-resume.test.js"]}
+}

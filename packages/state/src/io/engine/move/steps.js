@@ -24,8 +24,9 @@ import * as verify from '../../../logic/engine/move/verify.js';
  * Each operation's own sealing and replay steps, one module per operation, so the engine keeps only
  * the shared skeleton [C7,H16]. A module may export prepareArgs (before the arguments are copied),
  * prepareBefore (before the engine floor check), prepareAfter (after it) and replayArgs (when a
- * receiver restores the sealed arguments), validate (after wire identity validation), or replayBefore
- * (before replay installs its clock or records any receipt); an operation without a module seals its arguments as given.
+ * receiver restores the sealed arguments), validate (after wire identity validation), replayBefore
+ * (before replay installs its clock or records any receipt), or localArgs (the identities a queued local write takes
+ * from its move, GitHub #30); an operation without a module seals its arguments as given.
  */
 export const ENGINE_MOVE_STEPS = Object.freeze({
   deferOwnership,

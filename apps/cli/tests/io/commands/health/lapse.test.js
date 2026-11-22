@@ -4,6 +4,8 @@ import {
   after,
   test,
 } from 'node:test';
+import { captureCommandInProcess } from '../../../fixtures/process.js';
+import { main } from '../../../fixtures/native.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
 import { fixtureAdd } from '../../../fixtures/testkit.js';
 import { fixtureSettledMachine } from '../../../fixtures/testkit.js';
@@ -13,6 +15,24 @@ after(e2e.cleanup);
 
 /** The wait reasons next answered with, from its JSON. */
 function reasonsOf(run) { return JSON.parse(run.out.slice(run.out.indexOf('{'))).reasons ?? []; }
+
+/** Reach the real plain-next idle deadline on its clock seam, retaining the native answer. */
+async function idleNext(project) {
+  let fake = 0;
+  const nextWaitClock = {
+    now: () => fake,
+    sleep: async (_wake, { deadline }) => { fake = Math.min(fake + 30_000, deadline); },
+  };
+  const next = await captureCommandInProcess((argv, io) => main(argv, { ...io, nextWaitClock }),
+    ['next', '--json'], { cwd: project.web, env: project.env });
+  assert.equal(next.code, 4, next.out + next.err);
+  assert.equal(fake, 90_000, 'plain next reaches its unchanged default deadline');
+  const answer = JSON.parse(next.out);
+  assert.equal(answer.item, null, 'held work is not claimed');
+  assert.equal(answer.timeout.seconds, 90);
+  assert.match(answer.reasons[0], /\[IDLE_TIMEOUT\]/u);
+  return next;
+}
 
 /** A project with one open web item held by the coordinator for the web lane, its deadline already past, and the setting as given. */
 async function lapsedHold(requireOwner) {
@@ -38,7 +58,7 @@ test('cli.journeys-health-hold-lapse.an-expired-hold-appears-in-health: clause 1
 
 test('cli.journeys-health-hold-lapse.an-expired-hold-appears-in-the: clause 2: an expired hold appears in the owner\'s next [C7,#8541]', async () => {
   const { project, id } = await lapsedHold(true);
-  const next = await project.runLocal(project.web, 'next', '--json');
+  const next = await idleNext(project);
   assert.match(reasonsOf(next).join('\n'), new RegExp(`#${id} hold lapsed 2020-01-01`, 'u'));
 });
 
@@ -46,6 +66,6 @@ test('cli.journeys-health-hold-lapse.with-holds-requireowner-off-an-expired: cla
   const { project } = await lapsedHold(false);
   const report = JSON.parse((await project.runLocal(project.repo, 'health', '--json')).out);
   assert.equal(report.stuck.some(entry => entry.cause === 'HOLD_LAPSED'), false);
-  const next = await project.runLocal(project.web, 'next', '--json');
+  const next = await idleNext(project);
   assert.doesNotMatch(reasonsOf(next).join('\n'), /hold lapsed/u);
 });

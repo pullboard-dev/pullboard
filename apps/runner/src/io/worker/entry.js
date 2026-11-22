@@ -130,7 +130,7 @@ export async function main(S) {
     setupStep = 'trusted resource API';
     api = loadResourceApi(spec.runtime);
     // The registration travels with the job; this machine's own settings never size a runner (#1066).
-    const { gateCapacity, browserCapacity } = registeredCapacity(api, spec, runnerRoot, machineHomePath);
+    const { gateCapacity, browserCapacity } = await retrySlotLocked(S, () => registeredCapacity(api, spec, runnerRoot, machineHomePath));
     setupStep = 'job directories';
     const base = join(runnerRoot, 'jobs');
     fs.mkdir(base, { recursive: true, mode: 0o700 });
