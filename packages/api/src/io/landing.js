@@ -16,6 +16,7 @@ import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
 import { STORED_REQUEST_BYTES } from './jobs.js';
 import { holdJob } from '../../../jobs/index.js';
+import { landingMembers } from './landing-members.js';
 
 const fs = fileSystemAdapter();
 
@@ -131,6 +132,7 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
   const defer = deferredPayload(deferred, config?.affectedTests, landed);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect, { reuseGate: reuseGateReceipts === true && !forced });
+  if (proof && !forced) proof.members = landingMembers(db, landed, { runs: queue?.runs ?? null });
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
   // A deferred selection replaces only the affected tests; the project's own gate still judges the merged tree [C7].
   const deferGate = defer && !forced && typeof config?.gate === 'string' && config.gate.trim() ? ['sh', '-c', config.gate.trim()] : null;
@@ -171,7 +173,7 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
   // proof to that smaller allowance after the ordinary payload has already moved it into the stored request.
   if (reuseGateReceipts === true && !forced && spilled.request?.land?.proof) {
     const complete = landingProof(db, landed, config?.affectedTests, expect, { reuseGate: true, budget: STORED_REQUEST_BYTES });
-    const expanded = spillLargeInputs({ ...payload, proof: complete });
+    const expanded = spillLargeInputs({ ...payload, proof: { ...complete, members: proof.members } });
     if (expanded.request && Buffer.byteLength(JSON.stringify(expanded.request)) <= STORED_REQUEST_BYTES) spilled = expanded;
   }
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) }, queue);
