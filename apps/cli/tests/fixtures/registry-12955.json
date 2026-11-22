@@ -29,5 +29,19 @@
       "apps/cli/src/io/item/folder.js",
       "apps/cli/src/io/cli-main/run.js"
     ]
+  },
+  "cli.item-folder.deferred-failure-retains-branch": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: a real locked worktree removal failure reaches its observer, preserves folder and branch, attempts no branch deletion and retains the existing deferred callback return contract; normal unlocked cleanup succeeds."
+    },
+    "why": "Deferred cleanup previously discarded the real Git status and attempted branch deletion even after failed removal.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/tests/io/item/folder.test.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
   }
 }
