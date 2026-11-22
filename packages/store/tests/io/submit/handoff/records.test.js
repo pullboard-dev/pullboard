@@ -346,6 +346,11 @@ test('store.submit-handoff-records.recovery-safe-evidence: clause 1: [B28,C7] ty
   f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES ('safe-proof', 'queued', ?, ?)")
     .run(JSON.stringify({ agent: f.record.agentId, token: sentinel }), at);
   f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES ('safe-proof', 'claimed', ?, ?)").run(JSON.stringify(claimed), at);
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'receipt', 7, ?, ?)")
+    .run(f.record.id, JSON.stringify({ runner: 'synthetic-runner', attempt: 7, token: sentinel,
+      receipt: { id: 'synthetic-receipt', status: 1, token: sentinel,
+        gate: { deferred: true, green: false, outcome: 'UNKNOWN', token: sentinel },
+        error: { code: 'MAIN_RECEIPT_MISSING', message: 'Exact missing main refusal', next: 'collect main proof', token: sentinel } } }), at);
   const before = evidenceRows(f.db);
   const got = await f.read();
   assert.equal(JSON.stringify(got).includes(sentinel), false, 'no raw row, parsed payload, nested handoff, progress or proof-run escape');
@@ -362,6 +367,11 @@ test('store.submit-handoff-records.recovery-safe-evidence: clause 1: [B28,C7] ty
   assert.equal(step.row.job_step_seq, 7);
   assert.equal(step.source, `board.job_step:${step.row.job_step_id}`);
   assert.equal(step.row.job_step_at, at);
+  const receipt = gate.steps.find(entry => entry.row.job_step_name === 'receipt');
+  assert.equal(receipt.payload.receipt.id, 'synthetic-receipt');
+  assert.deepEqual(receipt.payload.receipt.gate, { deferred: true, green: false, outcome: 'UNKNOWN' });
+  assert.deepEqual(receipt.payload.receipt.error, { code: 'MAIN_RECEIPT_MISSING', message: 'Exact missing main refusal', next: 'collect main proof' });
+  assert.ok(got.reasons.includes(`unsettled:${receipt.source}`), 'native receipt wrapper retains UNKNOWN/deferred evidence');
   assert.equal(step.payload.token, undefined);
   assert.equal(step.payload.gate.main, undefined, 'objects cannot hide under an allowed scalar key');
   assert.ok(got.reasons.some(reason => reason.startsWith('unknown-field:')));

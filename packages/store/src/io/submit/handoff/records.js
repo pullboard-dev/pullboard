@@ -269,13 +269,18 @@ const HANDOFF_FIELDS = { version: 'number', id: 'string', item: 'number', agentI
   companionDigest: 'string', leaseMs: 'number', state: 'string', at: 'string', startedAt: 'string', completedAt: 'string',
   attempt: 'number', infrastructureRetries: 'number', recoveryRetries: 'number', retryOf: 'string',
   infrastructureNotified: 'boolean', error: REFUSAL_FIELDS };
-const GATE_FIELDS = { deferred: 'boolean', outcome: 'string', green: 'boolean', full: 'boolean', main: 'string' };
+const GATE_FIELDS = { deferred: 'boolean', outcome: 'string', green: 'boolean', full: 'boolean', main: 'string',
+  source: 'string', tree: 'string', digest: 'string', status: 'number' };
+const COUNT_FIELDS = { passed: 'number', failed: 'number', skipped: 'number' };
+const RECEIPT_FIELDS = { id: 'string', job: 'string', run: 'string', attempt: 'number', status: 'number',
+  outcome: 'string', commit: 'string', tree: 'string', main: 'string', digest: 'string',
+  queueWaitSeconds: 'number', error: REFUSAL_FIELDS, gate: GATE_FIELDS, counts: COUNT_FIELDS };
 const BINDING_FIELDS = { agentId: 'string', commit: 'string', tree: 'string', main: 'string', digest: 'string' };
 const PAYLOAD_FIELDS = { agent: 'string', commit: 'string', tree: 'string', digest: 'string', runner: 'string',
   attempt: 'number', hopEpoch: 'number', at: 'number', leaseUntil: 'number', heartbeat: 'boolean',
   outcome: 'string', status: 'number', exactResult: 'string', error: 'string', record: HANDOFF_FIELDS,
   gate: GATE_FIELDS, request: { submit: BINDING_FIELDS },
-  counts: { passed: 'number', failed: 'number', skipped: 'number' } };
+  counts: COUNT_FIELDS, receipt: RECEIPT_FIELDS, selected: 'number', finished: 'number', failures: 'number' };
 const ITEM_FIELDS = { item_id: 'number', item_status: 'string', item_owner: 'string', item_commit: 'string',
   item_claim_head: 'string', item_frozen_digest: 'string', item_lease_until: 'string', item_updated_at: 'string' };
 const JOB_FIELDS = { job_id: 'string', job_kind: 'string', job_item: 'number', job_candidate: 'string', job_base: 'string',
@@ -399,8 +404,10 @@ export async function captureGateRecoveryEvidence(board, id, { runs = null } = {
     for (const entry of gateJobs) {
       if (['offered', 'claimed', 'queued', 'running'].includes(entry.row.job_step) || entry.lease === 'live') reasons.push(`work-in-flight:${entry.source}`);
       for (const step of entry.steps) {
-        if (step.payload?.gate?.deferred === true || String(step.payload?.outcome ?? step.payload?.gate?.outcome).toLowerCase() === 'unknown') {
-          reasons.push(`unsettled:${step.source}`);
+        for (const payload of [step.payload, step.payload?.receipt]) {
+          if (payload?.gate?.deferred === true || String(payload?.outcome ?? payload?.gate?.outcome).toLowerCase() === 'unknown') {
+            reasons.push(`unsettled:${step.source}`);
+          }
         }
       }
     }
