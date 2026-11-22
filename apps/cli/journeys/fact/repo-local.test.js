@@ -109,7 +109,7 @@ test('cli.journeys-fact-repo-local.verified-provider-refreshes-consumer-before-c
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const verified = provider.run(provider.repo, 'verify', String(providerId), 'accept', '--as', 'coordinator', '--note', 'the provider gate passed');
   assert.equal(verified.code, 0, verified.err + verified.out);
-  const providerState = JSON.parse(provider.run(provider.repo, 'show', String(providerId), '--json').out).item.item_status;
+  const providerState = JSON.parse(provider.run(provider.repo, 'show', String(providerId), '--json').out).item_status;
   assert.equal(providerState, 'verified', 'the provider verify command installs its verdict');
   const deliveryFolder = join(consumer.repo, '.git', 'pullboard', 'board-links');
   assert.equal(existsSync(deliveryFolder), true, 'provider verification writes a local delivery for its linked parent');
