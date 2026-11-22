@@ -1,10 +1,20 @@
 /** Give independently loaded normal CLI renderers one immutable process observation for a paired output measurement [C7,N26]. */
 import { createHash } from 'node:crypto';
-import { rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import {
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  dirname,
+  join,
+  resolve,
+} from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setProcessSamplePort } from '../../../../packages/resources/index.js';
-import { privateFixtureFiles, runFixtureChildAsync } from './child.js';
+import {
+  privateFixtureFiles,
+  runFixtureChildAsync,
+} from './child.js';
 
 /** Preserve the existing measured-command child limit; it is not a size allowance. */
 export const BUDGET_COMMAND_KILL_MS = 20_000;

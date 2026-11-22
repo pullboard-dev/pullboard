@@ -12,7 +12,10 @@ import { COMMANDS } from '../../index.js';
 import { FIXTURE_MODEL } from './child.js';
 import { privateFixtureFiles } from './child.js';
 import { runFixtureChildAsync } from './child.js';
-import { BUDGET_COMMAND_KILL_MS, renderAgents } from './budget-process-sample.js';
+import {
+  BUDGET_COMMAND_KILL_MS,
+  renderAgents,
+} from './budget-process-sample.js';
 
 /**
  * `pullboard waits` text without its orphan rows. Orphans are machine-wide (every /tmp/pullboard-* process whose parent

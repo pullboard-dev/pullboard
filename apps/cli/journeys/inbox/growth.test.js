@@ -1,13 +1,21 @@
 /** No command's default text grows past its size on merge-base main [C7,N26]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { createBudgetMeasure } from '../../tests/fixtures/budget-measure.js';
-import { observeProcesses, processObservation, renderAgents } from '../../tests/fixtures/budget-process-sample.js';
+import {
+  observeProcesses,
+  processObservation,
+  renderAgents,
+} from '../../tests/fixtures/budget-process-sample.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
