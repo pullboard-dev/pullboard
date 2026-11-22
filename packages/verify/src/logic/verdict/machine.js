@@ -1,4 +1,5 @@
 /** Explicit, frozen machine authority never treats an evidence narrative as executable proof [V1,V4,H16]. */
+import { createHash } from 'node:crypto';
 import { criterionClauses } from '../../../../state/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { machineBarDigest } from './machine-read.js';
