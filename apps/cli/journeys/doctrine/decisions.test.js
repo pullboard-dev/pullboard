@@ -43,3 +43,18 @@ test('cli.doctrine-decisions.decline-standard-default: clause 2: spec decline do
   succeeds(await box.runIn(box.repo, 'spec', 'apply'));
   assert.match(readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8'), new RegExp(`^- ${target.id} \\[wont\\] we deploy by hand$`, 'mu'));
 });
+
+test('cli.doctrine-decisions.override-standard-default: clause 3: spec approve doctrine:<standard id> --text then apply writes the exact overridden text into DOCTRINE.md [C7,#2007]', { timeout: 180_000 }, async () => {
+  const box = fixtures.project('true');
+  const standard = (await doctrineRows(box)).filter(row => row.origin === 'standard');
+  const target = standard[0];
+  const overridden = 'Every change here ships behind a reviewed pull request.';
+  succeeds(await box.runIn(box.repo, 'spec', 'approve', `doctrine:${target.id}`, '--text', overridden));
+  succeeds(await box.runIn(box.repo, 'spec', 'apply'));
+  const doctrine = readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8');
+  assert.match(doctrine, new RegExp(`^- ${target.id} \\[approved[^\\n]*${overridden.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'mu'), 'the overridden text is the repo doctrine line');
+  const after = await doctrineRows(box);
+  const row = after.find(entry => entry.id === target.id);
+  assert.equal(row.status, 'approved');
+  assert.equal(row.text, overridden);
+});
