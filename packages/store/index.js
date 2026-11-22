@@ -9,6 +9,12 @@ export { recordCapacityWeek, capacityWeeks } from './src/io/board/capacity-week.
 export { writeBoardMeta, readBoardMeta, deleteBoardMeta, deleteBoardMetaWithPrefix, listBoardMetaWithPrefix } from './src/io/board/meta.js';
 export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { afterBoardWrite, atomic, logEvent, writeOrigin } from './src/io/board/event/log.js';
+export { appendMark } from './src/io/board/mark.js';
+export { agentAbilities } from './src/io/needs.js';
+export { reviewFamilyRelaxation } from './src/io/board/review/family.js';
+export { confirmFamilyRelaxation } from './src/io/board/review/family.js';
+export { reservedRelaxation } from './src/io/board/review/family.js';
+export { relaxationRecordLine } from './src/io/board/review/family.js';
 export { writeFileAtomic } from './src/io/atomic.js';
 export { applyHealthFindings } from './src/io/board/health.js';
 export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
