@@ -33,6 +33,21 @@ export function run(io, { first, second, rest }) {
   return 0;
 }
 
+/**
+ * The reader the served home page calls for its Flow panel: the same flowWhy document `pullboard why` prints, or null when the board cannot be read [N26,C7].
+ * Why here: the view must not import health, so the serve entry injects this reader.
+ */
+export function flowReader(io) {
+  return () => {
+    try {
+      const ctx = context(io);
+      return withBoardRead(ctx, (board) => releaseFlow(board, { config: ctx.config, now: () => ctx.clock.now().getTime(), refuse: (code, message) => new Refused(code, message, 'pullboard roadmap') }));
+    } catch {
+      return null;
+    }
+  };
+}
+
 /** Print the release flow on one screen: a line per unlanded item, per idle seat, and the landings [N26,C7]. */
 function runFlow(io, ctx, release) {
   const refuse = (code, message) => new Refused(code, message, 'pullboard roadmap');
