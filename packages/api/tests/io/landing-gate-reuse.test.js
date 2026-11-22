@@ -7,6 +7,11 @@ import { offerLandingJob } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
+import { acceptedLandingMembers } from '../fixtures/landing-members.js';
+import { CRITERION_ONLY } from '../fixtures/landing-members.js';
+import { CROSS_RUN } from '../fixtures/landing-members.js';
+import { DEFERRED } from '../fixtures/landing-members.js';
+import { OWED } from '../fixtures/landing-members.js';
 
 const COMMIT = 'a'.repeat(40);
 const OTHER = 'd'.repeat(40);
@@ -34,6 +39,36 @@ function offered(db, extra = {}) {
 
 /** The hit list as [file, inputKey] pairs. */
 const hits = payload => payload.proof.ledger.files.map(([file, inputKey]) => `${file}@${Number.parseInt(inputKey, 16)}`).sort();
+
+test('api.landing-gate-reuse.complete-member-obligations: the actual two-member offer binds each accepted finite selection and frozen cross-file obligations independently of import reach [C7,#12971]', t => {
+  const { board, members, base } = acceptedLandingMembers(t);
+  const job = offerLandingJob(board.db, { items: members.map(({ id, commit }) => ({ id, commit })), expect: base,
+    config: { trunk: { remote: '/trunk.git' }, affectedTests: 'node --test' }, reuseGateReceipts: true });
+  const offered = job.steps.find(step => step.name === 'offered').payload;
+  const proof = offered.payload.proof ?? offered.request.land.proof;
+  assert.equal(proof.members.length, 2);
+  for (const [index, member] of members.entries()) {
+    const scope = proof.members[index];
+    assert.equal(scope.status, 'complete', JSON.stringify(scope));
+    assert.deepEqual([scope.item, scope.commit, scope.tree, scope.policyCommit, scope.claimBase, scope.tooling], [member.id, member.commit, member.tree, base, base, base]);
+    assert.equal(scope.frozenDigest, member.digest);
+    assert.deepEqual(scope.frozen, member.frozen);
+    assert.equal(scope.check, member.check);
+    assert.deepEqual(scope.selection.files, member.proofFiles);
+    assert.equal(scope.selection.full, false);
+    assert.equal(scope.selection.deferred, true);
+    assert.deepEqual(scope.selection.deferredFiles, [DEFERRED]);
+    assert.deepEqual(scope.selection.owedFiles, [OWED]);
+    assert.deepEqual(scope.required, [...new Set([...member.proofFiles, CRITERION_ONLY, DEFERRED, OWED])].sort());
+    assert.ok(scope.required.includes(CROSS_RUN), 'the accepted cross-run selection remains required');
+    assert.equal(scope.provenance.job, member.job);
+    assert.equal(scope.provenance.receipts.length, 2, 'both native admission-bound phases authorize the plan');
+  }
+  assert.ok(!members[0].proofFiles.includes(CRITERION_ONLY), 'the explicit frozen obligation is outside web import selection');
+  assert.ok(proof.members[0].required.includes(CRITERION_ONLY), 'a test importing only sibling API source still belongs to web\'s explicit frozen bar');
+  assert.ok(!proof.members[0].required.includes('api/own.test.js'), 'the sibling\'s unrelated selection does not become web\'s own obligation');
+  console.log(`member-obligations observation ${JSON.stringify(proof.members.map(({ item, required, provenance }) => ({ item, required, job: provenance.job, receipts: provenance.receipts.length })))}`);
+});
 
 test('api.landing-gate-reuse.landing-reusegatereceipts-hit-list-lists: clause 1: with landing.reuseGateReceipts on, the hit list lists the item\'s green gate results for its files [C7,#9243]', t => {
   const payload = offered(board(t), { reuseGateReceipts: true });
