@@ -93,7 +93,10 @@ function stillCaptured(captured) {
 /**
  * Save one key's result only in the directory captured earlier, never creating it: a removed directory stays absent
  * and a replacement directory is left alone. Returns { ok: true } once the result is published, or
- * { ok: false, unavailable: true, reason } when safe publication cannot be established [C7].
+ * { ok: false, unavailable: true, reason } when safe publication cannot be established [C7]. The bytes are staged
+ * beside the directory, so a replacement is never written to before the identity check. Known limit: Node has no
+ * directory-relative rename, so a swap in the instant between the final check and the rename cannot be excluded; it is
+ * reported as unavailable by the check after the rename, not prevented.
  *
  * @param {{ folder: string, dev: number, ino: number } | null} captured
  * @param {string} key
@@ -105,17 +108,18 @@ export function publishKeyedResult(captured, key, bytes) {
   if (!captured || typeof captured.folder !== 'string') return unavailable('no captured directory');
   if (!stillCaptured(captured)) return unavailable('directory removed or replaced');
   const path = keyedResultPath(captured.folder, key);
-  const temporary = `${path}.${process.pid}.partial`;
-  let published = false;
+  // Staged beside the directory, never inside it: a replacement that appears while the bytes are written is not touched.
+  const temporary = `${captured.folder}.${process.pid}.stage`;
   try {
     fs.writeFile(temporary, bytes);
-    if (stillCaptured(captured)) { fs.rename(temporary, path); published = true; }
+    if (!stillCaptured(captured)) return unavailable('directory replaced before publication');
+    fs.rename(temporary, path);
   } catch (error) {
     return unavailable(`write failed: ${error.code ?? 'error'}`);
   } finally {
     fs.rm(temporary, { force: true });
   }
-  return published ? { ok: true } : unavailable('directory replaced during publication');
+  return stillCaptured(captured) ? { ok: true } : unavailable('directory replaced during publication');
 }
 
 /**

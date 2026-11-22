@@ -64,6 +64,7 @@ test('pin.keyed.publish-refuses-replacement: clause 2: a replacement directory s
   assert.deepEqual(readdirSync(folder), [], 'the replacement holds no file');
   assert.equal(statSync(folder).mtimeMs, before.mtimeMs, 'the replacement is untouched');
   assert.deepEqual(readdirSync(original), [], 'the moved original is not written either');
+  assert.deepEqual(readdirSync(root).sort(), ['moved', 'results'], 'no staged file is left beside the directories');
   assert.equal(publishKeyedResult(null, 'key', Buffer.from('x')).unavailable, true);
   const fresh = join(root, 'fresh', 'deep');
   saveKeyedResult(fresh, 'key', Buffer.from('made'));
