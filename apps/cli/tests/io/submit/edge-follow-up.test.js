@@ -5,16 +5,36 @@ import { test } from 'node:test';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { inProcess } from '../../fixtures/submit/fail.js';
 import { project } from '../../fixtures/submit/fail.js';
-import { submitAndSettle } from '../../fixtures/submit/fail.js';
+import { submitStep } from '../../fixtures/submit/fail.js';
 import { commitAll } from '../../fixtures/submit/gate.js';
 import { put } from '../../fixtures/submit/gate.js';
+import { settleSubmit } from '../../fixtures/submit/settle.js';
+
+/**
+ * Observe the receipt application's completion before reading its side effects [C7].
+ * The job is done before application, and submit records the item before edge filing. gate_settled is written only
+ * after applyGateReceiptReads returns, including when edge filing is disabled; neither a child nor a green note proves it.
+ */
+async function completedSubmit(t, box) {
+  const queued = await submitStep(box, 'submit', '1', '--json', '--no-next', '--infra', 'the edge follow-up fixture');
+  assert.equal(queued.code, 0, JSON.stringify(queued));
+  const submission = JSON.parse(queued.out);
+  const shown = { repo: box.root, env: box.env, run: (cwd, ...args) => inProcess(box, cwd, ...args) };
+  const done = await settleSubmit(t, shown, submission, {
+    until: doc => doc.thread.some(entry => entry.kind === 'gate_settled' && entry.detail.job === submission.gateJob),
+  });
+  const submitted = await inProcess(box, box.root, 'show', '1', '--json', '--no-next');
+  assert.equal(submitted.code, 0, submitted.err);
+  assert.equal(JSON.parse(submitted.out).item_status, 'submitted', submitted.out);
+  return done;
+}
 
 /** A project whose item adds an import edge between two modules, submitted and settled with the setting on or off; returns the box and the item's children. */
 async function settled(t, edgeFollowUps, expectChild = edgeFollowUps, files = { 'src/b.js': 'export const b = 1;\n', 'src/a.js': "import './b.js';\nexport const value = 1;\n" }) {
   const { box } = await project(t, { extra: { submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps } } });
   for (const [file, text] of Object.entries(files)) put(box.root, file, text);
   commitAll(box, 'feat(core): a imports b [G1]');
-  const done = await submitAndSettle(t, box);
+  const done = await completedSubmit(t, box);
   assert.equal(done.gate?.green, true, JSON.stringify(done.gate));
   const exported = await inProcess(box, box.root, 'export', '--json');
   assert.equal(exported.code, 0, exported.err);
@@ -42,7 +62,7 @@ test('cli.journeys-submit-edge-follow-up.a-second-submit-of-the-same-edge: claus
   put(box.root, 'src/b.js', 'export const b = 1;\n');
   put(box.root, 'src/a.js', "import './b.js';\nexport const value = 1;\n");
   commitAll(box, 'feat(core): a imports b [G1]');
-  const done = await submitAndSettle(t, box);
+  const done = await completedSubmit(t, box);
   assert.equal(done.gate?.green, true, JSON.stringify(done.gate));
   const children = async () => JSON.parse((await inProcess(box, box.root, 'export', '--json')).out).tables.item.filter(row => row.item_parent_id === 1);
   const first = await children();
@@ -60,7 +80,7 @@ test('cli.journeys-submit-edge-follow-up.a-second-submit-of-the-same-edge: claus
   assert.equal(claimed.code, 0, JSON.stringify(claimed));
   put(box.root, 'src/a.js', "import './b.js';\nexport const value = 2;\n");
   commitAll(box, 'feat(core): a imports b, value 2 [G1]');
-  const again = await submitAndSettle(t, box);
+  const again = await completedSubmit(t, box);
   assert.equal(again.gate?.green, true, JSON.stringify(again.gate));
   const second = await children();
   assert.equal(second.length, 1, `no second follow-up: ${JSON.stringify(second)}`);

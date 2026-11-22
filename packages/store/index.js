@@ -180,3 +180,5 @@ export { verifySnapshot } from './src/io/board/verify-table.js';
 export { carriedClauseTickNotes } from './src/io/board/submit.js';
 export { commitPrepared } from './src/io/board/write/sequencer.js';
 export { prepareEventAppend } from './src/io/board/write/event.js';
+
+export { gateRecoveryPolicy, captureGateRecoveryEvidence } from './src/io/submit/handoff/records.js';
