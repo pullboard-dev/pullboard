@@ -2,9 +2,12 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { closeBoard } from '../../../../../packages/store/index.js';
-import { apiHttpBox } from '../../../../cli/tests/fixtures/api.js';
-import { openKitBoard } from '../../../../cli/tests/fixtures/board.js';
+import { serveApi } from '../../../../../packages/api/index.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
+import { openBoardForRead } from '../../../../../packages/store/index.js';
+import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { viewApiPorts } from '../../../src/io/ports.js';
 import { activityRuntime } from '../../../src/io/activity/runtime.js';
 
 const ITEMS = 10_000;
@@ -12,6 +15,7 @@ const EVENTS = 120_000;
 const SHOUTS = 5_000;
 const DETAIL_CHARS = 700;
 const HEAP_LIMIT = 1024 ** 3;
+const SECRET = 'fixture-secret';
 
 /** Put a fake page in place for the runtime: the node it draws into and the document it listens on. */
 function fakePage(t) {
@@ -59,28 +63,41 @@ test('view.activity.events-paged: clause 1: the Activity page reads events in pa
 });
 
 /** Fill the board with the live board's scale: items, events of a real detail size and shouts, all inside the Activity window. */
-function fillBoard(root, now) {
-  const board = openKitBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+function fillBoard(board, now) {
   const first = Math.floor(now / 1000) - EVENTS / 2 - 600;
-  try {
-    board.db.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${ITEMS})
-      INSERT INTO item (item_lane, item_title, item_created_by, item_created_at, item_updated_at)
-      SELECT 'app', 'Item ' || i, 'coordinator', strftime('%Y-%m-%dT%H:%M:%fZ', ${first} + i, 'unixepoch'), strftime('%Y-%m-%dT%H:%M:%fZ', ${first} + i, 'unixepoch') FROM n`);
-    board.db.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${EVENTS})
-      INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail)
-      SELECT strftime('%Y-%m-%dT%H:%M:%fZ', ${first} + i * 0.5, 'unixepoch'), 'coordinator', CASE WHEN i % 10 = 0 THEN 'merged' ELSE 'shout' END, 1 + i % ${ITEMS},
-        '{"note":"' || substr(replace(hex(zeroblob(${DETAIL_CHARS})), '0', 'x'), 1, ${DETAIL_CHARS}) || '"}' FROM n`);
-    board.db.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${SHOUTS})
-      INSERT INTO shout (shout_from, shout_to, shout_text, shout_at)
-      SELECT 'coordinator', 'person', 'Shout ' || i, strftime('%Y-%m-%dT%H:%M:%fZ', ${first} + i, 'unixepoch') FROM n`);
-    return board.db.prepare('SELECT MAX(event_id) AS last FROM event').get().last;
-  } finally { closeBoard(board); }
+  board.db.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${ITEMS})
+    INSERT INTO item (item_lane, item_title, item_created_by, item_created_at, item_updated_at)
+    SELECT 'app', 'Item ' || i, 'coordinator', strftime('%Y-%m-%dT%H:%M:%fZ', ${first} + i, 'unixepoch'), strftime('%Y-%m-%dT%H:%M:%fZ', ${first} + i, 'unixepoch') FROM n`);
+  board.db.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${EVENTS})
+    INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail)
+    SELECT strftime('%Y-%m-%dT%H:%M:%fZ', ${first} + i * 0.5, 'unixepoch'), 'coordinator', CASE WHEN i % 10 = 0 THEN 'merged' ELSE 'shout' END, 1 + i % ${ITEMS},
+      '{"note":"' || substr(replace(hex(zeroblob(${DETAIL_CHARS})), '0', 'x'), 1, ${DETAIL_CHARS}) || '"}' FROM n`);
+  board.db.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${SHOUTS})
+    INSERT INTO shout (shout_from, shout_to, shout_text, shout_at)
+    SELECT 'coordinator', 'person', 'Shout ' || i, strftime('%Y-%m-%dT%H:%M:%fZ', ${first} + i, 'unixepoch') FROM n`);
+  return board.db.prepare('SELECT MAX(event_id) AS last FROM event').get().last;
+}
+
+/** Serve the real API over the filled board and return a reader of its JSON answers. */
+async function servedBoard(t, project) {
+  const api = await serveApi({ projects: () => [{ root: project.repo, name: 'Heap fixture' }], secret: SECRET, runCommand: async () => 0, isMain: false,
+    refusalDocument: error => ({ error: { code: error.code ?? 'INTERNAL', message: String(error.message) } }),
+    boardOpeners: { openBoard: openCellBoard, openBoardForRead }, viewPorts: viewApiPorts });
+  t.after(() => api.close());
+  const call = async path => {
+    const response = await fetch(`http://127.0.0.1:${api.port}${path}`, { headers: { 'x-pullboard-key': SECRET }, signal: AbortSignal.timeout(60_000) });
+    return { status: response.status, document: await response.json() };
+  };
+  const listed = await call('/api/v1/boards');
+  return { call, path: '/api/v1/boards/' + listed.document.boards[0].id };
 }
 
 test('view.activity.large-board-heap: clause 1: on a board of 10,000 items and 120,000 events the Activity page reads in bounded pages and peak heap stays under 1 GB [N26,C7]', { timeout: 300_000 }, async t => {
-  const box = await apiHttpBox(t);
+  const project = cellProject(t, { real: true, gate: 'true' });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   const now = Date.now();
-  const sequence = fillBoard(box.root, now);
+  const sequence = fillBoard(board, now);
+  const box = { root: project.repo, ...(await servedBoard(t, project)) };
   fakePage(t);
   const snapshot = { root: box.root, sequence, observedAt: new Date(now).toISOString() };
   let peak = 0, widest = 0, held = [], finished;
