@@ -19,6 +19,7 @@ import { compareGateWithMain } from '../../src/io/gate.js';
 import { seedWideMainTests } from '../../src/io/recheck.js';
 import { boardJobQueueCall } from '../../src/io/gate.js';
 import { MAIN_TEST_ENTRY } from '../../src/io/recheck.js';
+import { MAIN_CASE_NAME_UNITS } from '../../src/io/recheck.js';
 
 const root = fileURLToPath(new URL('../../../..', import.meta.url));
 const id = '12345678-1234-1234-1234-123456789abc';
@@ -85,7 +86,8 @@ function admissionStreams() {
 }
 
 const admissionNames = ['p95 stays below twice standalone', 'native',
-  'gate.io-main-admission-loans-p95-native.four-concurrent-runs-start-only-token: four concurrent runs start only token-owned file processes and keep p95 below twice standalone [C7]'];
+  'gate.io-main-admission-loans-p95-native.four-concurrent-runs-start-only-token: four concurrent runs start only token-owned file processes and keep p95 below twice standalone [C7]']
+  .map(name => name.slice(0, MAIN_CASE_NAME_UNITS));
 
 test('api.recheck.cpu-admission-nested-stderr: clause 1: the exact native CPU diagnostic on stderr preserves nested named failures, signatures and input key through receipt application [C7,P7]', async t => {
   const streams = admissionStreams();
