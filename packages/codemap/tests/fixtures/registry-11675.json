@@ -1,125 +1,41 @@
 {
   "codemap.io-shim-ratchet.added-import-refuses": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "new static, re-export and literal dynamic imports through a compatibility shim are refused"
-    },
+    "proves": { "specs": ["C7"], "claim": "new static, re-export and literal dynamic imports through a compatibility shim are refused" },
     "why": "A new dependency must cross the moved cell through its public front door.",
     "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/ratchet.test.js",
-      "packages/codemap/src/io/shim/ratchet.js"
-    ]
+    "inputs": ["packages/codemap/tests/io/shim/ratchet.test.js", "packages/codemap/src/io/shim/ratchet.js"]
   },
   "codemap.io-shim-ratchet.unchanged-multiset-passes": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "before and accepted declaration multisets, including duplicate counts, remain allowed"
-    },
+    "proves": { "specs": ["C7"], "claim": "before and accepted declaration multisets, including duplicate counts, remain allowed" },
     "why": "Existing dependencies must not be mistaken for newly introduced imports.",
     "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/ratchet.test.js",
-      "packages/codemap/src/io/shim/ratchet.js"
-    ]
+    "inputs": ["packages/codemap/tests/io/shim/ratchet.test.js", "packages/codemap/src/io/shim/ratchet.js"]
   },
   "codemap.io-shim-ratchet.temporary-edge-is-bounded": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "only an exact criterion edge with valid unexpired metadata permits a shim import"
-    },
+    "proves": { "specs": ["C7"], "claim": "only an exact criterion edge with valid unexpired metadata permits a shim import" },
     "why": "Temporary migration authority must remain exact and time bounded.",
     "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/ratchet.test.js",
-      "packages/codemap/src/io/shim/ratchet.js"
-    ]
+    "inputs": ["packages/codemap/tests/io/shim/ratchet.test.js", "packages/codemap/src/io/shim/ratchet.js"]
   },
   "codemap.io-shim-ratchet.no-added-import-no-plan-read": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "a change with no added import does not read the cells plan"
-    },
+    "proves": { "specs": ["C7"], "claim": "a change with no added import does not read the cells plan" },
     "why": "Unrelated edits should not incur plan reads or plan parsing.",
     "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/ratchet.test.js",
-      "packages/codemap/src/io/shim/ratchet.js"
-    ]
+    "inputs": ["packages/codemap/tests/io/shim/ratchet.test.js", "packages/codemap/src/io/shim/ratchet.js"]
   },
   "codemap.io-shim-ratchet.parser-required": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "an added import without the canonical parser is refused"
-    },
+    "proves": { "specs": ["C7"], "claim": "an added import without the canonical parser is refused" },
     "why": "Import admission must use the compile-only canonical parser.",
     "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/ratchet.test.js",
-      "packages/codemap/src/io/shim/ratchet.js"
-    ]
+    "inputs": ["packages/codemap/tests/io/shim/ratchet.test.js", "packages/codemap/src/io/shim/ratchet.js"]
   },
   "codemap.io-shim-ratchet.malformed-plan-refuses": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "noncanonical plan shard paths retain their explicit refusal"
-    },
+    "proves": { "specs": ["C7"], "claim": "noncanonical plan shard paths retain their explicit refusal" },
     "why": "Malformed plans must not authorize imports through shims.",
     "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/ratchet.test.js",
-      "packages/codemap/src/io/shim/ratchet.js"
-    ]
+    "inputs": ["packages/codemap/tests/io/shim/ratchet.test.js", "packages/codemap/src/io/shim/ratchet.js"]
   },
-  "codemap.io-shim-lifecycle.first-parent-date": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "Distinct dated first-parent commits retain the original shim mapping introduction date after source edits and relocation into a cell shard."
-    },
-    "why": "A filesystem timestamp or a later edit must not reset shim age.",
-    "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/lifecycle.test.js"
-    ]
-  },
-  "codemap.io-shim-lifecycle.exact-selected-commit": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "lifecycle history is read from the selected commit and excludes later shims"
-    },
-    "why": "History results must match the snapshot being inspected.",
-    "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/lifecycle.test.js"
-    ]
-  },
-  "codemap.io-shim-lifecycle.removal-item-choice": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "Never-present and physically removed shim files are excluded; actionable exact-path native removal work ranks before verified or cell-wide work."
-    },
-    "why": "Removal advice must refer to extant shims and actionable work.",
-    "kind": "cell unit",
-    "inputs": [
-      "packages/codemap/tests/io/shim/lifecycle.test.js"
-    ]
-  }
+  "codemap.io-shim-lifecycle.first-parent-date": {"proves": {"specs": ["C7"], "claim": "Distinct dated first-parent commits retain the original shim mapping introduction date after source edits and relocation into a cell shard."}, "why": "A filesystem timestamp or a later edit must not reset shim age.", "kind": "cell unit", "inputs": ["packages/codemap/tests/io/shim/lifecycle.test.js"]},
+  "codemap.io-shim-lifecycle.exact-selected-commit": {"proves": {"specs": ["C7"], "claim": "lifecycle history is read from the selected commit and excludes later shims"}, "why": "History results must match the snapshot being inspected.", "kind": "cell unit", "inputs": ["packages/codemap/tests/io/shim/lifecycle.test.js"]},
+  "codemap.io-shim-lifecycle.removal-item-choice": {"proves": {"specs": ["C7"], "claim": "Never-present and physically removed shim files are excluded; actionable exact-path native removal work ranks before verified or cell-wide work."}, "why": "Removal advice must refer to extant shims and actionable work.", "kind": "cell unit", "inputs": ["packages/codemap/tests/io/shim/lifecycle.test.js"]}
 }
