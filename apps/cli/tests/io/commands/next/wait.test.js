@@ -66,13 +66,14 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   const box = helpers.project('true');
   box.env.PULLBOARD_NEXT_PROFILE = '1';
   const began = Date.now(), notifications = [];
-  let subscribed;
+  let subscribed, subscriptions = 0;
   const ready = new Promise(resolve => { subscribed = resolve; });
   // This diagnostic clock uses the actual time and native waiter, without changing any deadline.
+  // The add is filed once the second (2 s) recheck sleep is subscribed, so its commit lands inside that sleep and not at a recheck boundary.
   const clock = { now: Date.now, sleep: async (wake, options) => {
     if (notifications.length < 64) notifications.push({ sleepAt: Date.now() - began, after: options.after, until: options.deadline - began });
     const sleeping = wake.wait(options);
-    if (wake.version() === options.after && Date.now() < options.deadline) subscribed();
+    if (wake.version() === options.after && Date.now() < options.deadline) { subscriptions += 1; if (subscriptions === 2) subscribed(); }
     await sleeping;
     if (notifications.length < 64) notifications.push({ wokeAt: Date.now() - began, after: options.after, version: wake.version() });
   } };
