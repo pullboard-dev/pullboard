@@ -201,7 +201,7 @@ test('cli.journeys-spec-e2e-next.a-deleted-spec-row-is-refused: a deleted spec r
 });
 
 
-test('cli.comparison-settle.current-source-terminal: #12958 clause 2: delayed genuine current-source completion preserves empty selection and uses no recorded journey reads [C7]', async t => {
+test('cli.comparison-settle.current-source-terminal: #12958 clause 1: samples read an actual terminal comparison; clause 2: delayed genuine completion preserves empty selection with unrecorded reads [C7]', async t => {
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Comparison observation', '--specs', 'G1', '--criterion', 'keeps its comparison evidence');
   assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
@@ -229,7 +229,7 @@ test('cli.comparison-settle.current-source-terminal: #12958 clause 2: delayed ge
     return answer;
   };
   const waiting = settledComparison({ repo: box.repo, run }, 1, { signal: t.signal }).then(value => { completed = true; return value; });
-  await Promise.race([terminalObservation, waiting.then(() => assert.fail('completion arrived before its record was delivered'))]);
+  await Promise.race([terminalObservation, waiting.then(() => { if (!terminal) assert.fail('completion arrived before its record was delivered'); })]);
   assert.equal(completed, false, 'a delayed genuine terminal observation cannot settle the sample early');
   release();
   assert.deepEqual(await waiting, terminal);
