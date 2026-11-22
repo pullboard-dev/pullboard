@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { workerScreenshotPolicy } from '../../../light.js';
 import { workerScreenshotPolicy as entryPolicy } from '../../../src/io/worker/entry.js';
 import { collectScreenshots } from '../../../src/io/worker/screenshots.js';
+import { workerState } from '../../../src/io/worker.js';
 import { screenshotPlan } from '../../../../../packages/runners/light.js';
 import { SCREENSHOT_MAX_BYTES } from '../../../../../packages/runners/light.js';
 import { SCREENSHOT_DIRECTORY } from '../../../../../packages/runners/light.js';
@@ -14,7 +15,7 @@ import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures
 test('runner.screenshot-policy.canonical-runtime-capability: clause 1: the public capability is the actual worker factory and unchanged planner, cap and directory collect normal PNGs, ignore other paths and preserve bounded refusal [C7]', t => {
   assert.equal(typeof workerScreenshotPolicy, 'function');
   assert.equal(workerScreenshotPolicy, entryPolicy);
-  const rules = workerScreenshotPolicy();
+  const stateBefore = { ...workerState }, rules = workerScreenshotPolicy();
   assert.deepEqual(Object.keys(rules).sort(), ['directory', 'maxBytes', 'screenshotPlan']);
   assert.equal(rules.screenshotPlan, screenshotPlan);
   assert.equal(rules.maxBytes, SCREENSHOT_MAX_BYTES);
@@ -39,4 +40,5 @@ test('runner.screenshot-policy.canonical-runtime-capability: clause 1: the publi
   assert.equal(refused.refused.code, 'SCREENSHOTS_TOO_LARGE');
   assert.ok(refused.refused.message.includes(String(SCREENSHOT_MAX_BYTES + 1 + 2 * png.length)));
   assert.deepEqual(workerScreenshotPolicy(), rules, 'collection did not mutate the canonical policy');
+  assert.deepEqual(workerState, stateBefore, 'calling the capability never starts or mutates worker state');
 });
