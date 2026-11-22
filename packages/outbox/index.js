@@ -7,6 +7,7 @@ export { leaveConflictNotice, takeConflictNotices } from "./src/io/relay/conflic
 export { relayOrdering } from "./src/io/relay/ordering.js";
 export { outboxGuardFile, withOutboxGuard, withFileLock } from "./src/io/relay/guard.js";
 export { invertChangeset } from "./src/logic/undo.js";
+export { pathTree, treePaths, treeView } from "./src/logic/path-tree.js";
 export { undoQueued } from "./src/io/relay/undo.js";
 export { watchRebuild } from "./src/io/relay/rebuild-journal.js";
 export { outboxAhead, outboxParkedOnly, readOutbox, outboxHasPendingCreatedItem, writeOutbox, removeOutbox, describeMove, outboxEntrySummary, earlierMoves, keepRefusal, refusalLine, strayItemRefs, bindRefs, resolveMove, outboxFields, outboxQueueable, outboxWaiting, outboxGeneration, queueMove, liveOutbox, flushOutbox, ITEM_SLOTS, ACKNOWLEDGED_OPERATIONS, outboxFile, outboxSummaryFile, readOutboxSummary } from "./src/io/relay.js";
