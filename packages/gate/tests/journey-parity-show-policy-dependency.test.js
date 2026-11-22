@@ -20,13 +20,15 @@ test('gate.journey-parity-show-policy-dependency.a-sample-of-the-show-policy-dep
 
 test('gate.journey-parity-show-policy-dependency.ignores-only-stage-mark-detail-time: clause 2: parity ignores only a valid stage mark detail time while preserving event time and every other at field [C7]', () => {
   const eventAt = '2026-11-21T23:00:00.000Z';
-  const row = { args: ['show', '--json'], code: 0, json: { thread: [{ type: 'move', kind: 'mark', at: eventAt,
+  const row = { args: ['show', '--json'], code: 0, json: { at: eventAt, thread: [{ type: 'move', kind: 'mark', at: eventAt,
     detail: { stage: 'seat-ready', edge: 'point', reason: null, ref: 'abc', at: 1_700_000_000_000 } }] }, out: null, err: '', board: { items: [], events: [] } };
   const changedDetailTime = structuredClone(row);
   changedDetailTime.json.thread[0].detail.at += 1;
   assert.ok(Number.isFinite(Date.parse(row.json.thread[0].at)), 'the event timestamp metadata is a valid timestamp');
   assert.deepEqual(parityDifferences([row], [changedDetailTime]), [], 'only the independent stage mark detail time is ignored');
-  assert.match(parityDifferences([row], [{ ...row, at: `${eventAt}!` }]).join('\n'), /json differs/u, 'a top-level at difference still fails');
+  const changedTopLevelAt = structuredClone(row);
+  changedTopLevelAt.json.at = '2026-11-21T23:00:00.001Z';
+  assert.match(parityDifferences([row], [changedTopLevelAt]).join('\n'), /json differs/u, 'a top-level at difference still fails');
   const changedEventTime = structuredClone(row);
   changedEventTime.json.thread[0].at = '2026-11-21T23:00:00.001Z';
   assert.match(parityDifferences([row], [changedEventTime]).join('\n'), /json differs/u, 'the event timestamp remains compared');
