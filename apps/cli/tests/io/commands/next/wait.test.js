@@ -43,14 +43,15 @@ test('cli.io-commands-next-wait.busy-board-cpu: clause 1: a real next --wait on 
   assert.equal(made.code, 0, made.out + made.err);
   const seat = JSON.parse(made.out).path;
   // One plain answer first warms this process's modules, so the next one is the cost of answering once.
-  await measured(box, seat);
-  const plain = await measured(box, seat);
+  await measured(box, seat, '--no-wait');
+  const plain = await measured(box, seat, '--no-wait');
   const writing = startBoardWriter(join(repo, '.git', 'pullboard', 'board.sqlite'));
   const waiting = await measured(box, seat, '--wait', WAIT_MINUTES);
   const wrote = await writing;
   assert.equal(wrote.code, 0, wrote.err);
   assert.doesNotMatch(waiting.err, /\n\s+at [^\n]*\.js:\d+/u, `the wait ended in an error: ${waiting.err}`);
-  assert.ok(waiting.code === 0 || waiting.code === 1, `exit ${waiting.code}: ${waiting.err}`);
+  assert.equal(waiting.code, 4, `exit ${waiting.code}: ${waiting.err}`);
+  assert.match(waiting.out + waiting.err, /\[IDLE_TIMEOUT\]/u, `the wait omitted its idle line: ${waiting.out}${waiting.err}`);
   assert.ok(waiting.seconds >= 5, `the wait returned after ${waiting.seconds} s, so it did not wait under the writes: ${waiting.err}`);
   const figure = Math.round((waiting.cpu - plain.cpu) * 100) / 100;
   t.diagnostic(`the wait ran ${waiting.seconds} s, exit ${waiting.code}: ${(waiting.out + waiting.err).replace(/\s+/gu, ' ').slice(0, 300)}`);
@@ -63,18 +64,36 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const began = Date.now();
-  const waiting = measured(box, box.web, '--wait', '1');
-  // The waiting seat has recorded its idle answer once it is resting on the board.
+  box.env.PULLBOARD_NEXT_PROFILE = '1';
+  const began = Date.now(), notifications = [];
+  let subscribed, subscriptions = 0;
+  const ready = new Promise(resolve => { subscribed = resolve; });
+  // This diagnostic clock uses the actual time and native waiter, without changing any deadline.
+  // The add is filed once the second (2 s) recheck sleep is subscribed, so its commit lands inside that sleep and not at a recheck boundary.
+  const clock = { now: Date.now, sleep: async (wake, options) => {
+    if (notifications.length < 64) notifications.push({ sleepAt: Date.now() - began, after: options.after, until: options.deadline - began });
+    const sleeping = wake.wait(options);
+    if (wake.version() === options.after && Date.now() < options.deadline) { subscriptions += 1; if (subscriptions === 2) subscribed(); }
+    await sleeping;
+    if (notifications.length < 64) notifications.push({ wokeAt: Date.now() - began, after: options.after, version: wake.version() });
+  } };
+  const waiting = drivenNext(box, box.web, clock, '--wait', '1').then(result => ({ ...result, finishedAt: Date.now() }));
+  // The first idle event precedes sleep; wait for the actual native subscription before offering work.
   const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  while (!withFixtureBoard(board, open => open.db.prepare("SELECT 1 AS found FROM event WHERE event_kind = 'next-idle'").get())) await yieldEventLoop();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Offered while a seat waits', '--specs', 'G1', '--criterion', 'renders', '--json');
+  await ready;
+  const added = await fixtureAdd(box.runAsync, box.repo, 'web', 'Offered while a seat waits', '--specs', 'G1', '--criterion', 'renders', '--json');
   assert.equal(added.status ?? added.code, 0, `${added.out ?? added.stdout}\n${added.err ?? added.stderr}`);
   const item = JSON.parse(added.out ?? added.stdout).item;
-  const filedAt = Date.now();
+  const filed = withFixtureBoard(board, open => open.db.prepare("SELECT event_at FROM event WHERE event_kind='add' AND item_id=? ORDER BY event_id DESC LIMIT 1").get(item.item_id));
+  const filedAt = Date.parse(filed.event_at);
+  assert.ok(Number.isFinite(filedAt), 'the board records the actual add timestamp');
   t.diagnostic(`item ${item.item_id} status ${item.item_status} filed ${(filedAt - began) / 1000} s after the wait began`);
   const result = await waiting;
-  const delay = (Date.now() - filedAt) / 1000;
+  const delay = (result.finishedAt - filedAt) / 1000;
+  assert.ok(result.finishedAt >= filedAt, 'the waiting command answers after the committed add');
+  assert.ok(notifications.some(entry => entry.wokeAt + began >= filedAt && entry.version !== entry.after),
+    'the native file waiter received a notification after the add');
+  t.diagnostic(`native offer wake ${delay} s; notifications ${JSON.stringify(notifications)}; ${result.err.replace(/\s+/gu, ' ')}`);
   assert.equal(result.code, 0, `filed ${(filedAt - began) / 1000} s in, item ${JSON.stringify(item).slice(0, 400)}: ${result.out}\n${result.err}`);
   assert.match(result.out, new RegExp(`#${item.item_id}\\b`, 'u'), `the wait did not hand over the offered item: ${result.out}`);
   assert.ok(delay < OFFER_WAKE_SECONDS, `the wait returned ${delay} s after the item was filed`); // budget: declared by the bar of #11798 clause 2
@@ -97,7 +116,7 @@ test('cli.io-commands-next-wait.fake-clock-idle: clause 1: a next --wait 2 again
     sleep: async (wake, { deadline }) => { sleeps += 1; fake = Math.min(fake + FAKE_STEP_MS, Number.isFinite(deadline) ? Math.max(deadline, fake) : Infinity); },
   };
   const result = await drivenNext(box, box.web, clock, '--wait', '2');
-  assert.ok(result.code === 0 || result.code === 1, `exit ${result.code}: ${result.err}`);
+  assert.equal(result.code, 4, `exit ${result.code}: ${result.err}`);
   assert.doesNotMatch(result.err, /\n\s+at [^\n]*\.js:\d+/u, `the wait ended in an error: ${result.err}`);
   assert.ok(fake >= began + FAKE_WAIT_MS, `the idle answer came with the fake clock at ${fake - began} ms, before 2 minutes`);
   assert.ok(fake - began < FAKE_WAIT_MS + FAKE_STEP_MS, `the fake clock ran on to ${fake - began} ms after the deadline`);

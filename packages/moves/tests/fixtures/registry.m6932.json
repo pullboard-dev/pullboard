@@ -1,0 +1,4 @@
+{
+  "moves.floor.pair-max": {"proves":{"specs":["H16"],"claim":"floorMax returns the larger floor for every pair of the real floor triggers, in either order, and a lone matching trigger returns its own."},"why":"A first-match chain that ignores the larger floor must fail a named, registered test.","kind":"cell unit","inputs":["packages/moves/src/logic/floor.js"]},
+  "moves.floor.pair-none": {"proves":{"specs":["H16"],"claim":"floorMax returns 1 when no trigger matches."},"why":"A floor below 1 must fail a named, registered test.","kind":"cell unit","inputs":["packages/moves/src/logic/floor.js"]}
+}

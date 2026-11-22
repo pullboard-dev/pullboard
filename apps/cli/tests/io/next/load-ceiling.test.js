@@ -36,7 +36,17 @@ test('cli.io-next-load-ceiling.cli-next-load-ceiling-above-machine-loadceiling: 
   machineSettings({ holdAboveLoad: true });
   injectLoad(t, 30);
   for (const args of [['next', '--take'], ['next'], ['next', '--verify']]) {
-    const answer = await cli(box, box.seats.actor.path, args);
+    const plain = args.length === 1;
+    let fake = 0;
+    const nextWaitClock = { now: () => fake, sleep: async (_wake, { deadline }) => { fake = deadline; } };
+    const before = [open, review].map(id => store.getItem(box.board, id));
+    const answer = await cli(box, box.seats.actor.path, args, plain ? { nextWaitClock } : {});
+    if (plain) {
+      assert.equal(answer.code, 4, answer.out + answer.err);
+      assert.equal(fake, 90_000, 'plain next keeps the full idle deadline under the load hold');
+      assert.equal(answer.document.timeout.seconds, 90);
+      assert.deepEqual([open, review].map(id => store.getItem(box.board, id)), before, 'the idle load hold leaves custody unchanged');
+    }
     assert.equal(answer.document?.item ?? null, null, `${args.join(' ')} hands no item: ${answer.out}${answer.err}`);
     assert.match(answer.out + answer.err, /1-minute load 30 on 4 cores \(ceiling 6\)/u, `${args.join(' ')} names the load`);
   }

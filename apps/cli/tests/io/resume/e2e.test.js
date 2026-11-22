@@ -113,7 +113,10 @@ test('cli.journeys-resume-e2e.spec-check-at-an-older-commit: spec check at an ol
   const older = (await box.runLocal(box.web, 'spec', 'check'));
   assert.equal(older.code, 0, older.out);
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n- G4 [draft, must] Not committed.\n`);
+  // Intake reads committed main (#12991), so the row is on main while the item is filed, then leaves it again: it was never committed on any kept history.
+  box.git(box.repo, 'commit', '-qam', 'docs(spec): a row that will not stay');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Ghost', '--specs', 'G4');
+  box.git(box.repo, 'reset', '-q', 'HEAD~1');
   const ghost = (await box.runLocal(box.web, 'spec', 'check'));
   assert.equal(ghost.code, 1);
   assert.match(ghost.out, /SPEC.md: G4 error: item #2 cites it, but it was never committed/);

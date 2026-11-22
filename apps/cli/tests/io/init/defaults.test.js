@@ -131,17 +131,18 @@ test('cli.journeys-init-defaults.clause-2-and-clause-3-an: clause 2 and clause 3
   const ownSession = box.add('Ineligible review');
   box.submit(ownSession);
   const seat = box.seats.sibling;
-  const json = await cli(box, seat.path, ['next']);
-  assert.equal(json.code, 0, json.out + json.err);
+  // Plain next waits up to its 90 s default and then ends the turn with the idle line and exit 4 [N41].
+  const idleClock = () => { let fake = 0; return { now: () => fake, sleep: async (_wake, { deadline }) => { fake = Math.min(fake + 30_000, deadline); } }; };
+  const json = await cli(box, seat.path, ['next'], { nextWaitClock: idleClock() });
+  assert.equal(json.code, 4, json.out + json.err);
   assert.equal(json.document.item, null);
   let out = '', err = '';
-  const code = await main(['next'], { cwd: seat.path, clock: box.clock,
+  const code = await main(['next'], { cwd: seat.path, clock: box.clock, nextWaitClock: idleClock(),
     stdout: { isTTY: false, write: part => { out += part; } },
     stderr: { write: part => { err += part; } } });
-  assert.equal(code, 0, out + err);
-  assert.match(out, /nothing for this seat: end your turn/u);
-  assert.equal(out.trim(), 'next: nothing for this seat: end your turn', 'one empty-turn action, without a duplicate footer');
-  assert.doesNotMatch(out + err, /--wait|next waiting/u);
+  assert.equal(code, 4, out + err);
+  assert.match(out, /\[IDLE_TIMEOUT\] nothing for this seat in 90 seconds/u);
+  assert.match(out + err, /next waiting for /u, 'the default wait names what it waited for');
   assert.ok(Buffer.byteLength(out + err) <= 2048);
   assert.equal(store.getItem(box.board, ownSession).item_review_by, null);
 });
