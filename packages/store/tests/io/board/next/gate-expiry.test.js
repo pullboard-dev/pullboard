@@ -6,6 +6,7 @@ import { nextFor } from '../../../../index.js';
 import { getItem } from '../../../../index.js';
 import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 import { fixture } from '../../../fixtures/dispatch.js';
+import { cellBoard } from '../../../fixtures/cell.js';
 import { GATE_SETTLE_HOLD_MS } from '../../../../src/io/submit/handoff/records.js';
 import { GATE_UNKNOWN_HOLD_MS } from '../../../../src/io/submit/handoff/records.js';
 import { gateShardsUnsettled } from '../../../../src/io/submit/handoff/records.js';
@@ -55,7 +56,7 @@ test('store.io-board-next-gate-expiry.deferred-gate-expires: clause 1: a deferre
 
 /** A claimed item whose gate job, submitted by `submitter` (the holder when omitted), settled with `outcome`; the box clock is then at the settled note. */
 function settledGate(t, outcome, submitter) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = box.add('Item whose gate settled');
   box.claim(id);
   const owner = getItem(box.board, id).item_owner;

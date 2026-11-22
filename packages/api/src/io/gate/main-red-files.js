@@ -85,9 +85,22 @@ export function mainRedFileExcuse(board, receipt) {
   if (!red.length || red.some(phase => phase.role !== 'proof' || !(caseRows(phase).length || wholeFiles(phase).length)
     || caseRows(phase).some(row => typeof row?.name !== 'string' || !row.name || !PROJECT_FILE.test(row?.file ?? '')))) return null;
   const keys = Object.assign({}, ...red.map(failingKeys));
+  const rows = [];
+  for (const phase of red) {
+    if (phase.ownerRoutesInvalid === true || phase.ownerRoutes !== undefined && (!Array.isArray(phase.ownerRoutes) || phase.ownerRoutes.length !== (phase.failures?.length ?? 0))) return null;
+    for (let index = 0; index < (phase.failures ?? []).length; index += 1) {
+      const route = phase.ownerRoutes?.[index];
+      if (!route) { rows.push(phase.failures[index]); continue; }
+      if (!PROJECT_FILE.test(route.file ?? '') || !INPUT_KEY.test(route.inputKey ?? '') || route.sourceFile !== phase.failures[index].file || route.name !== phase.failures[index].name) return null;
+      if (keys[route.file] && keys[route.file] !== route.inputKey) return null;
+      keys[route.file] = route.inputKey;
+      rows.push({ ...phase.failures[index], file: route.file });
+    }
+    rows.push(...(phase.errors ?? []));
+  }
   const listed = new Set(listedMainRedFiles(board.db));
   const excused = [];
-  for (const file of [...new Set(red.flatMap(phase => [...caseRows(phase).map(row => row.file), ...wholeFiles(phase)]))]) {
+  for (const file of [...new Set([...rows.map(row => row.file), ...red.flatMap(wholeFiles)])]) {
     const inputKey = keys[file];
     if (!INPUT_KEY.test(inputKey ?? '')) return null;
     const main = mainReceiptAtKey(board.db, file, inputKey);

@@ -44,24 +44,26 @@ Agents think; Pullboard does everything deterministic.
 
 Never wait, never sleep, never poll, never stop while the board has work.
 
-1. `pullboard next --wait 1`: a build or a verify. On an empty answer, run it again at once. Verifying: `pullboard next --verify --wait 1`.
+1. `pullboard next --wait 1`: build/verify. On an empty answer, run it again at once. Verify: `pullboard next --verify --wait 1`.
 2. `next` printed your bar; `pullboard show <id>` only for the thread and history.
-3. **Build** in your lane.
-4. **Commit**, then `pullboard submit <id>`.
-5. **Repeat.** `next` returns reds and rejects; fix and resubmit.
+3. **Build** in lane.
+4. **Commit**; `pullboard submit <id>`.
+5. **Repeat:** `next` returns reds/rejects; fix/resubmit.
 
 ### Building
 
-- **Gate:** Pullboard runs it; never run whole suites.
-- **Long commands:** background anything over 1 min.
-- **Can't build:** `pullboard release <id> --reason <CODE>`, then `next`.
+- **Gate:** Pullboard runs it; never run suites.
+- **Long commands:** background >1 min.
+- **Can't build:** `pullboard release <id> --reason <CODE>`; `next`.
 - **Stop:** only when `pullboard status` shows nothing open, building, in gate or in review.
 
 ### Verifying
 
-- **Judge:** the diff against the bar and the gate's receipts; rerun only if none covers a clause.
+- **Judge:** compare diff with bar and receipts; rerun only if a clause lacks coverage.
 - **Accept:** `pullboard verify <id> accept`.
-- **Reject:** `pullboard verify <id> reject --reason <CODE> --clause "<clause>" --note "..."`.
+- **Reject:** `pullboard verify <id> reject --reason TEST_FAILURE|BEHAVIOR_MISMATCH|INSUFFICIENT_EVIDENCE|STALE_HEAD|OTHER --clause "<clause>" --note "..."`.
+
+Run `next`, `status` and `shout` from your seat folder, not its item folder; the item folder gets `NOT_JOINED` otherwise.
 
 ## Troubleshoot
 

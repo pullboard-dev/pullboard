@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { atomic } from '../../index.js';
 import { fixture } from '../fixtures/dispatch.js';
+import { cellBoard } from '../fixtures/cell.js';
 import { createWriteQueue } from '../../src/io/write-queue.js';
 
 /** A queue over the real fixture board, counting the transactions it opens. */
 function groupQueue(t) {
-  const { board } = fixture(t);
+  const { board } = fixture(t, { boardOpener: cellBoard });
   const opened = { transactions: 0, savepoints: 0 };
   const queue = createWriteQueue({
     transaction: work => { opened.transactions++; return atomic(board, work); },

@@ -12,6 +12,7 @@ import { claim } from '../../../index.js';
 import { largestDisjointWave } from '../../../../items/index.js';
 import { submitFixture } from '../../fixtures/submit.js';
 import { FIXTURE_MODEL } from '../../fixtures/cell.js';
+import { cellBoard } from '../../fixtures/cell.js';
 import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 import { recordSubmitHandoff } from '../../../../jobs/index.js';
 import { setAfterGate } from '../../../src/io/board/item/after-gate.js';
@@ -293,7 +294,7 @@ test('store.io-board-next.needs-ability-idle-skip: clause 2: with observeIdle th
 
 /** A dispatch board whose builder seat submits parents; each parent records its gate in the given state at its own head or at `jobHead`. */
 function gateBoard(t) {
-  const box = dispatchFixture(t);
+  const box = dispatchFixture(t, { boardOpener: cellBoard });
   let n = 0;
   const parentWith = (job, jobHead) => {
     const parent = box.add(`Parent ${n += 1}`);
@@ -391,7 +392,7 @@ test('store.io-board-next.cost-flat-with-meta-history: clause 2: nextFor stays u
  * minutes than the build budget, an item whose released claim still waits on an unlanded item, and an unmet after-chain.
  */
 function eligibilityBoard(t) {
-  const box = dispatchFixture(t, { route: 'mid' });
+  const box = dispatchFixture(t, { route: 'mid', boardOpener: cellBoard });
   const { board } = box;
   const place = (id, fields) => {
     board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
