@@ -369,12 +369,12 @@ export function offerProofShards(board, { job, receipt, offered, rebuilt = null,
  */
 export function combinedReceipt(gateReceipt, shards, { signatures = false, mainRed = null } = {}) {
   const gate = gateReceipt.gate ?? {};
-  const parts = shards.map(({ job, posted, ended = null }) => {
+  const parts = shards.map(({ job, posted, ended = null, selected = null }) => {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = mainRed?.has(job) === true || (posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0);
     return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
-      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null };
+      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null, selected };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));

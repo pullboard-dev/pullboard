@@ -58,10 +58,15 @@ export function outcomeOwnerRoute(part, failure, index) {
 export function combinedReceiptRouting(reds, failures) {
   const ownerRoutes = [];
   let ownerRoutesInvalid = false;
-  if (failures) for (const part of reds) for (let index = 0; index < (part.phase?.failures ?? []).length; index += 1) {
-    const route = outcomeOwnerRoute(part, part.phase.failures[index], index);
-    if (!route) { ownerRoutesInvalid = true; ownerRoutes.push(null); }
-    else ownerRoutes.push(route.legacy ? null : route);
+  if (failures) for (const part of reds) {
+    const identities = new Set();
+    for (let index = 0; index < (part.phase?.failures ?? []).length; index += 1) {
+      const failure = part.phase.failures[index], identity = JSON.stringify([failure.file, failure.name]);
+      const route = identities.has(identity) ? null : outcomeOwnerRoute(part, failure, index);
+      identities.add(identity);
+      if (!route) { ownerRoutesInvalid = true; ownerRoutes.push(null); }
+      else ownerRoutes.push(route.legacy ? null : route);
+    }
   }
   const keys = Object.fromEntries(reds.flatMap(part => {
     const own = ledgerInputKeys([part.phase]);
