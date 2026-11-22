@@ -99,7 +99,7 @@
 .sx-ph .sx-lk:hover { color: var(--ink); }
 .sx-xb { flex: none; width: 22px; height: 22px; border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink-faint); font-size: var(--text-lg); line-height: 20px; text-align: center; cursor: pointer; }
 .sx-xb:hover { background: var(--surface-2); color: var(--ink); }
-.sx-msg { display: grid; grid-template-columns: 118px minmax(0, 1fr) 62px; column-gap: var(--space-3); align-items: baseline; min-height: 26px; padding: var(--space-1) var(--sx-msg-pad) var(--space-1) var(--sx-msg-in); font-size: var(--text-xs); white-space: nowrap; cursor: pointer; }
+.sx-msg { display: grid; grid-template-columns: 118px minmax(0, 1fr) auto 62px; column-gap: var(--space-3); align-items: baseline; min-height: 26px; padding: var(--space-1) var(--sx-msg-pad) var(--space-1) var(--sx-msg-in); font-size: var(--text-xs); white-space: nowrap; cursor: pointer; }
 .sx-msg:hover { background: var(--sx-hover); }
 .sx-msg .sx-snd { overflow: hidden; } .sx-msg .sx-si { align-self: center; }
 .sx-msg .sx-tx { display: block; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
@@ -109,6 +109,7 @@
 .sx-msg.full .sx-tx { overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: var(--leading-body); }
 .sx-msg.full .sx-tx .sx-mk { margin-right: var(--space-2); vertical-align: 1px; }
 .sx-msg time { color: var(--ink-faint); font-size: var(--text-xs); text-align: right; }
+.sx-sid { color: var(--ink-faint); font: 400 var(--text-xs) var(--mono); white-space: nowrap; }
 /* In a message a chip says what it is: an item, a path, a commit, a command; a long one stays one piece and ends in an ellipsis. */
 .sx-msg button.ref[data-go], .sx-msg a.ref[data-go] { padding: 0 var(--space-2); border-radius: var(--radius-sm); background: var(--violet-soft); color: var(--violet); font-weight: 600; text-decoration: none; }
 .sx-msg code.inline.path { background: var(--blue-soft); color: var(--blue); }
@@ -195,8 +196,8 @@
   .sx-act { display: none; }
   .sx-l2 .sx-snd .sx-sn { display: none; }
   .sx-ph { padding-inline: var(--space-4); }
-  .sx-msg { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: var(--space-0); padding: var(--space-2) var(--space-4); }
-  .sx-msg .sx-snd { grid-column: 1; grid-row: 1; } .sx-msg time { grid-column: 2; grid-row: 1; } .sx-msg .sx-tx { grid-column: 1 / -1; grid-row: 2; }
+  .sx-msg { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto; row-gap: var(--space-0); padding: var(--space-2) var(--space-4); }
+  .sx-msg .sx-snd { grid-column: 1; grid-row: 1; } .sx-msg .sx-sid { grid-column: 2; grid-row: 1; } .sx-msg time { grid-column: 3; grid-row: 1; } .sx-msg .sx-tx { grid-column: 1 / -1; grid-row: 2; }
   .sx-reply { height: var(--tap); margin: var(--space-2) var(--space-4) var(--space-4); }
   .sx-reach { display: none; }
   .sx-send { height: 36px; }
