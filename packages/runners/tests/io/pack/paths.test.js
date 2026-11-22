@@ -1,11 +1,17 @@
 /** @pullboard-test-input source-tree */
 /** Call-local historical path reuse preserves full prefixes and refuses incomplete inventories [C7]. */
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../index.js';
-import { privateFixtureFiles, runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 
 /** Synthetic repositories and Git observations live only beneath this test's owned fixture root. */
 const LEGACY_PATH_CHECK = `
