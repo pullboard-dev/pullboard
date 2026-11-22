@@ -373,6 +373,10 @@ test('store.submit-handoff-records.recovery-authority-ordering: clause 1: [B28,C
   const f = recoveryFixture(t);
   const sentinel = 'SYNTHETIC-RUN-SECRET-12920';
   const at = f.box.clock.now().getTime();
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'malformed-record', ?, ?)")
+    .run(f.record.id, JSON.stringify({ record: sentinel }), at);
+  assert.equal((await f.read()).handoff.record, null, 'a present malformed newest record must not fall back to an older valid record');
+  assert.equal((await f.read()).exhaustion, null);
   f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_created, job_updated) VALUES ('latest-gate', 'gate', ?, ?, ?)").run(f.id, at + 1, at + 1);
   f.save();
   assert.equal((await f.read()).gate.row.job_id, 'latest-gate');

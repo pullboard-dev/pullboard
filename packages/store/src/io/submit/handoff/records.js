@@ -296,7 +296,10 @@ function evidenceFields(value, fields, reasons = [], source = 'row') {
     const entry = value[key];
     if (entry === null || (typeof type === 'string' && typeof entry === type && (type !== 'number' || Number.isFinite(entry)))) result[key] = entry;
     else if (typeof type === 'object' && entry && typeof entry === 'object' && !Array.isArray(entry)) result[key] = evidenceFields(entry, type, reasons, source);
-    else reasons.push(`unknown-field:${source}:${key}`);
+    else {
+      if (typeof type === 'object') result[key] = null;
+      reasons.push(`unknown-field:${source}:${key}`);
+    }
   }
   if (Object.keys(value).some(key => !Object.hasOwn(fields, key))) reasons.push(`omitted-fields:${source}`);
   return result;
