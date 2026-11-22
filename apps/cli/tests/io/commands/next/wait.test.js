@@ -43,7 +43,7 @@ test('cli.io-commands-next-wait.busy-board-cpu: clause 1: a real next --wait on 
   assert.equal(made.code, 0, made.out + made.err);
   const seat = JSON.parse(made.out).path;
   // One plain answer first warms this process's modules, so the next one is the cost of answering once.
-  await measured(box, seat);
+  await measured(box, seat, '--no-wait');
   const plain = await measured(box, seat);
   const writing = startBoardWriter(join(repo, '.git', 'pullboard', 'board.sqlite'));
   const waiting = await measured(box, seat, '--wait', WAIT_MINUTES);
