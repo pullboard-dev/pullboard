@@ -8,12 +8,25 @@ import { copyPackageFiles } from '../../../index.js';
 import { privateFixtureFiles, runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 
 /** Synthetic repositories and Git observations live only beneath this test's owned fixture root. */
+const LEGACY_PATH_CHECK = `
+  for (const tree of historicalTrees) {
+    for (const record of streamedSourceGit(root, ['ls-tree', '-r', '-z', '--full-tree', tree], directory, 'history.tree').split('\\0').filter(Boolean)) {
+      const match = /^(\\d+) (\\w+) [a-f0-9]{40,64}\\t([\\s\\S]+)$/u.exec(record);
+      if (!match || match[2] !== 'blob' || protectedHistoryPath(match[3], config.protect)) {
+        throw new Refused('RUNNER_SECRET', 'historical source includes a blocked private path or submodule; keep this run local');
+      }
+    }
+  }
+`;
+
+/** Both implementations run on exactly the same synthetic graph, scanner, policy and root arguments. */
 const SETUP = `
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { historyPack } from './packages/runners/src/io/pack.js';
+import { historyPack as legacyHistoryPack } from './packages/runners/src/io/legacy-pack.js';
 const env = { ...process.env, GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.test', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.test' };
 const repo = mkdtempSync(join(process.cwd(), 'repo-'));
 const git = (...args) => execFileSync(process.env.FIXTURE_REAL_GIT, args, { cwd: repo, env, encoding: 'utf8' }).trim();
@@ -28,9 +41,10 @@ for (let n = 0; n < 12; n++) {
 }
 assert.equal(git('rev-parse', 'HEAD:a'), git('rev-parse', 'HEAD:z'), 'one exact subtree is mounted at two prefixes');
 const protect = { blocked: [], allowed: [], secrets: true };
-const pack = (source = {}, tips = []) => {
+const pack = (source = {}, tips = [], implementation = historyPack) => {
   const directory = mkdtempSync(join(process.cwd(), 'pack-'));
-  try { return { bytes: readFileSync(historyPack(repo, { commit: commits.at(-1), protect, ...source }, tips, directory)), directory }; }
+  globalThis.fixturePathChecks = 0;
+  try { return { bytes: readFileSync(implementation(repo, { commit: commits.at(-1), protect, ...source }, tips, directory)), checks: globalThis.fixturePathChecks, directory }; }
   catch (error) { return { code: error.code, message: error.message, directory }; }
 };
 const launches = () => readFileSync(process.env.FIXTURE_LAUNCHES, 'utf8').trim().split('\\n').filter(Boolean);
@@ -43,13 +57,28 @@ function run(t, script) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
+  const packFile = join(root, 'packages/runners/src/io/pack.js');
+  const current = readFileSync(packFile, 'utf8');
+  const call = '  checkHistoricalPaths(root, historicalTrees, config.protect, directory, treeEntries);';
+  assert.ok(current.includes(call), 'the fixture comparator replaces only the historical full-path check');
+  writeFileSync(join(root, 'packages/runners/src/io/legacy-pack.js'), current.replace(call, LEGACY_PATH_CHECK));
+  const scanFile = join(root, 'packages/runners/src/io/source/scan.js');
+  const scan = readFileSync(scanFile, 'utf8');
+  const signature = 'export function protectedHistoryPath(path, protect) {';
+  assert.ok(scan.includes(signature));
+  writeFileSync(scanFile, scan.replace(signature, signature + '\n  globalThis.fixturePathChecks = (globalThis.fixturePathChecks ?? 0) + 1;'));
   const bin = join(root, 'shim');
   mkdirSync(bin);
   const real = runFixtureChild('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
   writeFileSync(join(bin, 'git'), `#!/bin/sh
+echo "$*" >> "$FIXTURE_LAUNCHES"
 case " $* " in
+  *"cat-file --batch "*)
+    case "$FIXTURE_TREE_REPLY" in
+      fail) exit 1;;
+      malformed) printf 'invalid\\000'; exit 0;;
+    esac;;
   *" ls-tree "*)
-    echo "$*" >> "$FIXTURE_LAUNCHES"
     case "$FIXTURE_TREE_REPLY" in
       fail) exit 1;;
       malformed) printf 'invalid\\000'; exit 0;;
@@ -68,51 +97,75 @@ exec "$FIXTURE_REAL_GIT" "$@"
   return result.stdout;
 }
 
-test('runners.pack-paths.shared-prefixes: clause 1: shared subtrees retain both full prefixes, exact pack bytes and duplicate roots with fewer recursive Git jobs [C7]', t => {
+test('runners.pack-paths.shared-prefixes: clause 1: existing tree stream reduces total Git jobs and repeated path checks with exact full-prefix, policy, root and object-order parity [C7]', t => {
   const output = run(t, `
 const expected = execFileSync(process.env.FIXTURE_REAL_GIT, ['pack-objects', '--stdout'], {
   cwd: repo, env, input: git('rev-list', '--objects', commits.at(-1)).split('\\n').map(line => line.split(' ')[0]).join('\\n') + '\\n',
 });
 reset();
-const first = pack();
-assert.deepEqual(first.bytes, expected, 'pack object selection and order are unchanged');
-const observed = launches();
-const recursive = observed.filter(line => line.split(' ').includes('-r')).length;
-assert.equal(recursive, 0, 'full root expansions are replaced with call-local subtree inventories');
-assert.equal(observed.length, 13, 'twelve distinct roots and one shared subtree are each read once');
+const baseline = pack({}, [], legacyHistoryPack);
+const before = launches().length;
 reset();
-assert.deepEqual(pack({ extraCommits: [commits[0], commits.at(-1), commits[0]] }).bytes, expected, 'duplicate roots do not alter output or order');
-assert.equal(launches().length, 13, 'another call reads its own inventory; no persistent shortcut');
-assert.deepEqual(pack({}, [commits.at(-1)]).bytes, execFileSync(process.env.FIXTURE_REAL_GIT, ['pack-objects', '--stdout'], { cwd: repo, env, input: '' }), 'a known root still gives the exact empty object pack');
-const blocked = pack({ protect: { ...protect, blocked: ['z/leaf0.txt'] } });
-assert.equal(blocked.code, 'RUNNER_SECRET', 'a clean shared subtree at a does not vouch for z');
-const allowed = pack({ protect: { ...protect, blocked: ['z/leaf0.txt'], allowed: ['z/leaf0.txt'] } });
-assert.deepEqual(allowed.bytes, expected, 'each call applies its own exact allowed and blocked policy');
-console.log(JSON.stringify({ historicalRoots: 12, recursiveJobs: recursive, inventoryJobs: observed.length }));
+const first = pack();
+const after = launches().length;
+assert.deepEqual(first.bytes, expected, 'exact object order matches independent Git selection');
+assert.deepEqual(first.bytes, baseline.bytes, 'the original recursive path walk produces identical bytes');
+assert.equal(before - after, 12, 'the twelve root ls-tree processes disappear without replacement Git launches');
+assert.ok(first.checks < baseline.checks, 'actual full-path policy invocations fall across repeated subtrees');
+assert.ok(first.checks > 128, 'both mounts and each root still undergo their full-prefix checks');
+reset();
+const duplicate = { extraCommits: [commits[0], commits.at(-1), commits[0]] };
+assert.deepEqual(pack(duplicate).bytes, pack(duplicate, [], legacyHistoryPack).bytes, 'duplicate root argument ordering matches the original exactly');
+const policies = [
+  protect,
+  { ...protect, blocked: ['z/leaf0.txt'] },
+  { ...protect, blocked: ['z/leaf0.txt'], allowed: ['z/leaf0.txt'] },
+  { ...protect, blocked: ['a/leaf0.txt'] },
+];
+for (const policy of policies) {
+  const source = { protect: policy };
+  const actual = pack(source), original = pack(source, [], legacyHistoryPack);
+  assert.equal(actual.code, original.code);
+  assert.equal(actual.message, original.message);
+  assert.deepEqual(actual.bytes, original.bytes, 'each exact policy retains its original result');
+}
+assert.equal(pack({ protect: policies[1] }).code, 'RUNNER_SECRET', 'a clean mount at a cannot vouch for z');
+assert.ok(pack({ protect: policies[2] }).bytes, 'the exact allowed exception remains effective');
+for (const tips of [[commits.at(-1)], [commits[0]]]) {
+  assert.deepEqual(pack({}, tips).bytes, pack({}, tips, legacyHistoryPack).bytes, 'known history and incomplete tree-stream closures retain exact original output');
+}
+reset(); pack();
+assert.equal(launches().length, after, 'another call performs its own complete scan without persistent proofs');
+console.log(JSON.stringify({ historicalRoots: 12, totalGitBefore: before, totalGitAfter: after, pathChecksBefore: baseline.checks, pathChecksAfter: first.checks }));
 `);
   t.diagnostic(output.trim());
 });
 
-test('runners.pack-paths.fail-closed: clause 1: malformed and failed Git scans refuse without a pack and an extra historical root retains its policy binding [C7]', t => {
+test('runners.pack-paths.fail-closed: clause 1: unknown scanner identity still scans, failed or malformed streams refuse, and every extra historical root retains exact policy and error parity [C7]', t => {
   run(t, `
-for (const [reply, code] of [['malformed', 'RUNNER_SECRET'], ['fail', 'RUNNER_SOURCE']]) {
+for (const [reply, code] of [['malformed', 'RUNNER_SOURCE'], ['fail', 'RUNNER_SOURCE']]) {
   process.env.FIXTURE_TREE_REPLY = reply;
-  const refused = pack();
+  const refused = pack(), original = pack({}, [], legacyHistoryPack);
   assert.equal(refused.code, code);
+  assert.equal(refused.code, original.code);
+  assert.equal(refused.message, original.message);
   assert.throws(() => readFileSync(join(refused.directory, 'source.pack')), { code: 'ENOENT' });
 }
 process.env.FIXTURE_TREE_REPLY = '';
 const tree = git('mktree', '-z');
 const extra = git('commit-tree', tree, '-m', 'empty side');
-const safe = pack({ extraCommits: [extra] });
-assert.ok(safe.bytes);
+const source = { extraCommits: [extra] };
+const safe = pack(source);
+assert.deepEqual(safe.bytes, pack(source, [], legacyHistoryPack).bytes);
 const empty = mkdtempSync(join(process.cwd(), 'cold-'));
 execFileSync(process.env.FIXTURE_REAL_GIT, ['init', '-q', '--bare', empty], { env });
 execFileSync(process.env.FIXTURE_REAL_GIT, ['index-pack', '--stdin'], { cwd: empty, env, input: safe.bytes });
 execFileSync(process.env.FIXTURE_REAL_GIT, ['cat-file', '-e', extra], { cwd: empty, env });
 const old = commits[0];
-const refused = pack({ commit: extra, extraCommits: [old], protect: { ...protect, blocked: ['z/leaf0.txt'] } });
-assert.equal(refused.code, 'RUNNER_SECRET', 'an extra root is checked even when the primary root is empty');
+const blocked = { commit: extra, extraCommits: [old], protect: { ...protect, blocked: ['z/leaf0.txt'] } };
+const refused = pack(blocked), original = pack(blocked, [], legacyHistoryPack);
+assert.equal(refused.code, 'RUNNER_SECRET', 'unknown scanner identity never skips checks on an extra root');
+assert.equal(refused.message, original.message);
 assert.throws(() => readFileSync(join(refused.directory, 'source.pack')), { code: 'ENOENT' });
 `);
 });
