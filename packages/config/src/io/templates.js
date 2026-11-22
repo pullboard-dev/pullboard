@@ -99,10 +99,10 @@ export const SEAT_LOOP = `## Worker loop
 Never wait, never sleep, never poll, never stop while the board has work.
 
 1. \`pullboard next --wait 1\`: build/verify. On an empty answer, run it again at once. \`pullboard next --verify --wait 1\`.
-2. \`next\` prints your bar; \`pullboard show <id>\` for thread/history only.
+2. \`next\` printed your bar; \`pullboard show <id>\` only for the thread and history.
 3. **Build**.
 4. **Commit**; \`pullboard submit <id>\`.
-5. **Repeat:** fix reds/rejects and resubmit.
+5. **Repeat:** fix reds/rejects; resubmit.
 
 - **Review:** A review-lane seat reviews; loop with \`pullboard next --verify --wait 1\`.
 
@@ -115,7 +115,7 @@ Never wait, never sleep, never poll, never stop while the board has work.
 
 ### Verifying
 
-- **Judge:** check bar, diff and receipts; rerun gaps.
+- **Judge:** check bar, diff, receipts; rerun gaps.
 - **Accept:** \`pullboard verify <id> accept\`.
 - **Reject:** \`pullboard verify <id> reject --reason TEST_FAILURE|BEHAVIOR_MISMATCH|INSUFFICIENT_EVIDENCE|STALE_HEAD|OTHER --clause "<clause>" --note "..."\`.
 
