@@ -1,6 +1,6 @@
 import { QUEUE_PREEMPT_ENGINE } from '../../../state/light.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { localDependencyIds } from '../../../items/index.js';
+import { localDependencyIds } from '../../../items/light.js';
 import { pendingSubmitHandoff } from './submit/handoff/records.js';
 import { ineligibleReleaseIds } from './cooldown.js';
 /** Plan main-red build offers without taking another seat's work or releasing a claim [C7,N2]. */

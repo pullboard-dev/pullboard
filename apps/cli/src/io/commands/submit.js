@@ -6,7 +6,7 @@ import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { frozenTestsProblem } from '../../../../../packages/verify/index.js';
 import { authorSplitProblem } from '../../../../../packages/verify/index.js';
 import { testAuthorNotes } from '../../../../../packages/verify/index.js';
-import { seatFamily } from '../../../../../packages/items/index.js';
+import { seatFamily } from '../../../../../packages/items/light.js';
 import { itemFolderIdentity } from '../item/folder.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 import { seatRoot } from '../item/folder/identity.js';
