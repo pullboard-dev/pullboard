@@ -86,7 +86,7 @@ test('cli.io-worktree.primary-root-cost-flat: clause 3: lookup median stays belo
   }
   const oneSamples = [];
   const manySamples = [];
-  for (let index = 0; index < 20; index += 1) {
+  for (let index = 0; index < 60; index += 1) {
     oneSamples.push(timed(oneTarget));
     manySamples.push(timed(manyTarget));
   }
