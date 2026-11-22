@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { runOnRunnerAsync } from '../../../../../packages/runners/index.js';
-import { captureCommandInProcess } from '../../../../cli/tests/fixtures/process.js';
+import { withEnvironment } from '../../../../../packages/resources/index.js';
 import { HOST } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 
@@ -52,7 +52,7 @@ DatabaseSync.prototype.exec = function(sql) {
     nodeCommand: process.execPath, nodeOptions: `--import=${pathToFileURL(preload).href}` });
   const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
   delete env.NODE_TEST_CONTEXT;
-  const result = await captureCommandInProcess(async (_argv, { stdout }) => {
+  const result = await withEnvironment(env, async () => {
     const db = new DatabaseSync(join(machineHome, 'resources.sqlite'));
     db.exec('BEGIN EXCLUSIVE');
     let held = true;
@@ -71,11 +71,10 @@ DatabaseSync.prototype.exec = function(sql) {
         .then(result => ({ exitCode: result.exitCode, output: result.output, kind: result.executionReceipt?.kind }),
           error => ({ refused: error.code ?? error.name, message: error.message }));
       deadline.throwIfAborted();
-      stdout.write(JSON.stringify({ observation: existsSync(observed) ? JSON.parse(readFileSync(observed, 'utf8')) : null, outcome,
-        attempts: existsSync(attempts) ? readFileSync(attempts, 'utf8').trim().split('\n').filter(Boolean).length : 0 }));
-      return 0;
+      return { status: 0, stdout: JSON.stringify({ observation: existsSync(observed) ? JSON.parse(readFileSync(observed, 'utf8')) : null, outcome,
+        attempts: existsSync(attempts) ? readFileSync(attempts, 'utf8').trim().split('\n').filter(Boolean).length : 0 }) };
     } finally { watcher.close(); release(); db.close(); }
-  }, [], { cwd: box.repo, env });
+  });
   assert.equal(result.status, 0, result.failure || result.stderr);
   return JSON.parse(result.stdout.trim().split('\n').at(-1));
 }
