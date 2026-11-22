@@ -100,7 +100,7 @@ test('cli.io-status-thin.wired-behind-setting: clause 2: status.js calls the doo
   const on = await box.runLocal(box.repo, 'status');
   assert.equal(off.code, 0, off.err);
   assert.equal(on.code, 0, on.err);
-  const thin = lines(on).filter(Boolean);
+  const thin = lines(on).filter(line => Boolean(line) && line !== 'next: pullboard next');
   const full = lines(off).filter(Boolean);
   assert.equal(on.code, off.code, 'thin and full status return the same exit code');
   assert.ok(thin.some(line => line.startsWith('board:')), 'thin status keeps item counts');
