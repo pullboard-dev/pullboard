@@ -12,6 +12,10 @@ import { COMMANDS } from '../../index.js';
 import { FIXTURE_MODEL } from './child.js';
 import { privateFixtureFiles } from './child.js';
 import { runFixtureChildAsync } from './child.js';
+import {
+  BUDGET_COMMAND_KILL_MS,
+  renderAgents,
+} from './budget-process-sample.js';
 
 /**
  * `pullboard waits` text without its orphan rows. Orphans are machine-wide (every /tmp/pullboard-* process whose parent
@@ -40,6 +44,7 @@ export function withoutOrphanRows(text) {
  * @param {{ sandbox: Function, project: Function }} helpers
  */
 export function createBudgetMeasure(helpers) {
+  const treeSources = new Map();
   /** Give the real project seat the model required by the current join contract. */
   function outputBudgetProject() {
     const box = helpers.sandbox();
@@ -84,11 +89,19 @@ export function createBudgetMeasure(helpers) {
   function mainTree() {
     const base = spawnSync('git', ['merge-base', 'HEAD', 'main'], { cwd: ROOT, encoding: 'utf8' });
     if (base.status !== 0) return null;
+    return sourceTree(base.stdout.trim());
+  }
+
+  /** Extract a real committed source, never a generated runtime; private mutations cannot touch this checkout. */
+  function sourceTree(commit = 'HEAD') {
+    const pinned = spawnSync('git', ['rev-parse', `${commit}^{commit}`], { cwd: ROOT, encoding: 'utf8' });
+    if (pinned.status !== 0) throw new Error('could not pin the comparison source');
     const dir = privateFixtureFiles('pullboard-budget-main-').root;
-    // Stream the archive into tar: a whole checkout overflows spawnSync's default output buffer.
-    const extract = spawnSync('sh', ['-c', 'set -o pipefail 2>/dev/null; git archive "$0" | tar -x -C "$1"', base.stdout.trim(), dir], { cwd: ROOT, encoding: 'utf8' });
-    if (extract.status !== 0 || !existsSync(join(dir, 'apps/cli/pullboard.js'))) throw new Error(`could not extract merge-base main: ${extract.stderr}`);
+    // Stream the actual immutable source archive: no linked writable source or synthetic package tree.
+    const extract = spawnSync('sh', ['-c', 'set -o pipefail 2>/dev/null; git archive "$0" | tar -x -C "$1"', pinned.stdout.trim(), dir], { cwd: ROOT, encoding: 'utf8' });
+    if (extract.status !== 0 || !existsSync(join(dir, 'apps/cli/pullboard.js'))) throw new Error(`could not extract comparison source: ${extract.stderr}`);
     if (existsSync(join(ROOT, 'node_modules'))) symlinkSync(join(ROOT, 'node_modules'), join(dir, 'node_modules'), 'dir');
+    treeSources.set(dir, pinned.stdout.trim());
     return dir;
   }
 
@@ -101,19 +114,24 @@ export function createBudgetMeasure(helpers) {
    * @param {string} bin
    * @returns {Promise<Record<string, number>>}
    */
-  async function measure(box, bin) {
+  async function measure(box, bin, { processSample = null } = {}) {
     const sizes = {};
     const commands = Object.keys(COMMANDS).filter(name => !Object.hasOwn(EXCLUDED, name));
     /** A refusal still prints its default text; only stdout lands in a reader's context as output. */
     const sizeOf = async command => {
       const args = [command, ...(DEFAULT_ARGS[command] ?? [])];
+      if (command === 'agents' && processSample) {
+        const result = await renderAgents(box, bin, processSample, { inProcess: bin === helpers.BIN ? box.inProcess ?? box.runIn : null });
+        sizes[command] = result.signal ? Infinity : sizeOfText(command, result.stdout);
+        return;
+      }
       if (!REAL_PROCESS.has(command) && bin === helpers.BIN && box.runIn) {
         const result = await box.runIn(box.repo, ...args);
         sizes[command] = sizeOfText(command, result.stdout);
         return;
       }
       const pending = runFixtureChildAsync(process.execPath, [bin, ...args], { cwd: box.repo, env: box.env });
-      const timer = setTimeout(() => pending.child.kill('SIGKILL'), 20_000);
+      const timer = setTimeout(() => pending.child.kill('SIGKILL'), BUDGET_COMMAND_KILL_MS);
       const result = await pending;
       clearTimeout(timer);
       sizes[command] = result.signal ? Infinity : sizeOfText(command, result.stdout);
@@ -155,5 +173,5 @@ export function createBudgetMeasure(helpers) {
     } finally { store.closeBoard(board); }
     return box;
   }
-  return { outputBudgetProject, measure, mainTree, ratchetProblems, seeded };
+  return { outputBudgetProject, measure, mainTree, sourceTree, treeSource: tree => treeSources.get(tree), ratchetProblems, seeded };
 }
