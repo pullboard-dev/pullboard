@@ -85,6 +85,42 @@ await refreshRunnerMeasurements(${JSON.stringify(SETTINGS)}, {
   assert.equal(shared.filter(line => line === 'runner-b:8').length, 10, 'every waiter ends with runner-b measured facts');
 });
 
+test('runners.probe.earlier-waiter-clock-shares-live-owner: clause 1: a waiter sampled one millisecond before the live owner starts no duplicate transport and both record the owner facts [C7]', async t => {
+  const probeDirectory = probes(t), now = Date.parse('2026-11-04T22:00:00Z');
+  const settings = { gate: { loadAwareDispatch: true }, runners: [{ host: 'runner-a' }] };
+  let release, entered, calls = 0;
+  const held = new Promise(done => { release = done; });
+  const started = new Promise(done => { entered = done; });
+  const records = [];
+  const measure = async () => { calls += 1; if (calls === 1) { entered(); await held; } return HEALTHY; };
+  const record = (host, facts) => records.push({ host, facts });
+  const owner = refreshRunnerMeasurements(settings, { measure, record, now, probeDirectory });
+  await started;
+  const lock = join(probeDirectory, `${createHash('sha256').update('runner-a').digest('hex').slice(0, 24)}.lock`);
+  assert.deepEqual(JSON.parse(readFileSync(lock, 'utf8')), { pid: process.pid, at: now }, 'the owner has written its actual live claim');
+  const waiter = refreshRunnerMeasurements(settings, { measure, record, now: now - 1, probeDirectory });
+  try {
+    await Promise.resolve();
+    assert.equal(calls, 1, 'the earlier waiter must not replace the live owner and start a second transport');
+  } finally { release(); await Promise.all([owner, waiter]); }
+  assert.equal(calls, 1);
+  assert.equal(records.length, 2, 'owner and waiter both persist the measurement');
+  assert.deepEqual(records[0], records[1], 'the waiter records the owner facts, not a separate probe');
+  assert.equal(records[0].facts.measuredAt, new Date(now).toISOString());
+});
+
+test('runners.probe.claim-clock-boundaries: clause 2: fresh and invalid owner records retain their claim while expired and grossly future claims remain eligible for takeover [C7]', async t => {
+  const now = Date.parse('2026-11-04T22:00:00Z');
+  const settings = { gate: { loadAwareDispatch: true }, runners: [{ host: 'runner-a' }] };
+  for (const [name, at, calls] of [['fresh', now - 59_999, 0], ['expired', now - 60_000, 1], ['grossly-future', now + 60_001, 1], ['invalid-fresh', 'invalid', 0]]) {
+    const probeDirectory = probes(t), fake = counting();
+    const lock = join(probeDirectory, `${createHash('sha256').update('runner-a').digest('hex').slice(0, 24)}.lock`);
+    writeFileSync(lock, JSON.stringify({ pid: process.pid, at }));
+    await refreshRunnerMeasurements(settings, { measure: fake.measure, record: () => {}, now, probeDirectory, waitMs: 0 });
+    assert.equal(fake.calls.length, calls, name);
+  }
+});
+
 test('runners.probe.a-shared-result-is-reused-for: a shared result is reused for 15 s, then the next waiter probes again [C7]', async t => {
   const probeDirectory = probes(t), fake = counting(), now = Date.parse('2026-11-04T22:00:00Z');
   const recorded = [];

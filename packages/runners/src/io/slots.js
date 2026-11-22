@@ -103,7 +103,8 @@ async function waitForShared(state, now, waitMs) {
  */
 function claimHeld(lock, now) {
   const held = readJson(lock), at = Number(held?.at);
-  if (Number.isFinite(at)) return now >= at && now - at < RUNNER_PROBE_STALE_MS;
+  // A waiter may sample its clock just before the owner writes; use the shared result's existing future bound.
+  if (Number.isFinite(at)) return at - now <= RUNNER_PROBE_STALE_MS && Math.max(0, now - at) < RUNNER_PROBE_STALE_MS;
   try { return Date.now() - fs.stat(lock).mtimeMs < RUNNER_PROBE_STALE_MS; } catch { return false; }
 }
 
