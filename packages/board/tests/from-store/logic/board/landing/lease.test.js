@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../../../../../store/index.js';
-import { inFlightBatches } from '../../../../../store/src/logic/board/landing/in-flight.js';
-import { cellBoard } from '../../../fixtures/cell-board.js';
+import * as store from '../../../../../../store/index.js';
+import { inFlightBatches } from '../../../../../../store/src/logic/board/landing/in-flight.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
 
 const AT = Date.parse('2026-11-16T12:00:00.000Z');
 
