@@ -8,7 +8,9 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { loadavg } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
+import { HISTORY_BOARD, largeBoard } from './board/large.js';
 import {
   fileFixtureItem,
   joinFixtureSeat,
@@ -97,15 +99,30 @@ export async function measureNext(box, command) {
 export async function measureColdNext(box, t) {
   const dir = seatOnRealSizeBoard(box);
   const samples = { 'cold next': [] };
+  t.diagnostic(`cold next runner load average before samples: ${loadavg().map(value => value.toFixed(2)).join(' ')}`);
   for (let round = -1; round < ROUNDS; round++) {
     await file(box, `Cold work ${round}.0`);
     await file(box, `Cold work ${round}.1`);
     const run = timed(box, dir, 'next');
+    assert.equal(run.code, 0, `cold next exited ${run.code}: ${run.err}${run.out}`);
     if (round >= 0) samples['cold next'].push(run.ms);
   }
   const { floor, top, children } = coldNextPhases(box, dir);
   t.diagnostic(`cold next phases: process start and exit alone ${floor.toFixed(0)} ms; next's self time by file: ${top.join('; ')}`);
   t.diagnostic(`cold next child processes (${children.length}): ${children.slice(0, 12).join(' | ')}`);
+  return samples;
+}
+
+/** Measure five cold spawned `next` processes on the recorded 1:4 live history board. */
+export async function measureColdHistoryNext(t) {
+  const box = largeBoard(t, { scale: HISTORY_BOARD });
+  const samples = { 'HISTORY_BOARD cold next': [] };
+  t.diagnostic(`HISTORY_BOARD cold next runner load average before samples: ${loadavg().map(value => value.toFixed(2)).join(' ')}`);
+  for (let round = -1; round < ROUNDS; round++) {
+    const run = timed(box, box.web, 'next');
+    assert.equal(run.code, 0, `HISTORY_BOARD cold next exited ${run.code}: ${run.err}${run.out}`);
+    if (round >= 0) samples['HISTORY_BOARD cold next'].push(run.ms);
+  }
   return samples;
 }
 
@@ -164,6 +181,7 @@ export async function measureClaimRelease(box) {
 
 /** Print each command's p50 against the goal and return the ones at or over the bar. */
 export function slowCommands(t, samples) {
+  t.diagnostic(`runner load average after samples: ${loadavg().map(value => value.toFixed(2)).join(' ')}`);
   const slow = [];
   for (const [name, values] of Object.entries(samples)) {
     const middle = p50(values);
@@ -172,3 +190,6 @@ export function slowCommands(t, samples) {
   }
   return slow;
 }
+
+/** Report the runner load that surrounded one timing case. */
+export function runnerLoad() { return loadavg().map(value => value.toFixed(2)).join(' '); }

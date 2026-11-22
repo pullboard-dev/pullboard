@@ -8,6 +8,7 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import {
   MAX_P50_MS,
   measureColdNext,
+  measureColdHistoryNext,
   measureNext,
   p50,
   slowCommands,
@@ -26,6 +27,10 @@ test('cli.journeys-release-size.the-budget-fails-when-any-command: clause 2: the
   assert.equal(p50([999, 1000, 1001]) < MAX_P50_MS, false, 'a p50 of exactly one second fails');
 });
 
-test('clause 1: one cold spawned next, node start-up included, has a p50 under 1 s over 5 runs [C7,#8547]', async t => {
+test('cli.journeys-release-size.cold-next-under-1-second: clause 1: one cold spawned next, node start-up included, has a p50 under 1 s over 5 runs [C7,#8547]', async t => {
   assert.deepEqual(slowCommands(t, await measureColdNext(helpers.project('true'), t)), [], 'a cold spawned next has a p50 under 1 s');
+});
+
+test('cli.journeys-release-size.history-cold-next-under-1-second: clause 2: five cold spawned next processes on HISTORY_BOARD at its 1:4 history scale have a p50 under 1 s [C7,#8547]', async t => {
+  assert.deepEqual(slowCommands(t, await measureColdHistoryNext(t)), [], 'HISTORY_BOARD cold next has a p50 under 1 s');
 });
