@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/runners/index.js */
 /** Exercise capacity registration through a real pinned worker and real SQLite contention [C7,#12952]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
