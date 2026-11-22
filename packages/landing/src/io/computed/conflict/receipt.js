@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/merge/index.js */
 import { effectiveItemHead } from '../../../../../verify/read.js';
 import { isRecordedConflictContext } from '../../../../../state/index.js';
 /** Board-bound computed conflict evidence is verified against immutable Git commits before sealing and on replay [V4,H16]. */
