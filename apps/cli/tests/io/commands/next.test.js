@@ -253,12 +253,22 @@ test('cli.io-commands-next.lag-keeps-waiting: clause 2: the current behind-main 
   writeFileSync(join(box.root, 'main-only.txt'), 'A new main commit.\n');
   box.git(box.root, 'add', 'main-only.txt');
   box.git(box.root, 'commit', '-q', '-m', 'chore: advance fixture main [G1]');
-  let fake = 0;
-  const clock = { now: () => fake, sleep: async (wake, { deadline }) => { fake = deadline; } };
-  const result = await drivenNext(box, box.seats.actor.path, clock);
-  assert.equal(result.code, 4, printed(result));
-  assert.equal(fake, DEFAULT_IDLE_MS);
-  assert.match(printed(result), /this checkout is 1 commit behind main/u);
-  assert.match(printed(result), /submit composes current main/u);
-  assert.match(printed(result), /next waiting for/u);
+  for (const [args, expected] of [[[], DEFAULT_IDLE_MS], [['--wait', '2'], 120_000]]) {
+    let fake = 0, observed = '', sleeps = 0;
+    const clock = { now: () => fake, sleep: async (wake, { deadline }) => {
+      assert.match(observed, /this checkout is 1 commit behind main/u, 'the lag line arrives before sleeping');
+      assert.match(observed, /submit composes current main/u);
+      assert.doesNotMatch(observed, /IDLE_TIMEOUT/u, 'the lag line does not end the wait');
+      sleeps += 1;
+      fake = deadline;
+    } };
+    const result = await captureCommandInProcess((argv, io) => main(argv, { ...io, nextWaitClock: clock,
+      stdout: { ...io.stdout, write: text => { observed += text; return io.stdout.write(text); } },
+    }), ['next', ...args], { cwd: box.seats.actor.path, env: box.env });
+    assert.equal(result.code, 4, printed(result));
+    assert.equal(fake, expected);
+    assert.ok(sleeps > 0, 'the behind-main seat continues waiting');
+    assert.equal((observed.match(/this checkout is 1 commit behind main/gu) ?? []).length, 1);
+    assert.match(printed(result), /next waiting for/u);
+  }
 });

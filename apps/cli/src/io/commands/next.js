@@ -355,7 +355,7 @@ async function nextWithProgress(io, values, progress) {
   let wakeVersion = wake?.version();
   // What this seat's last selection could see, read before that selection; a wake that leaves it equal waits again without selecting [C7,#11798].
   let passSignature = null, quiet = null, quietAt = 0;
-  let recheckDelay = 1000;
+  let recheckDelay = 1000, waitLagSaid = false;
   try { for (;;) {
     // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
     store.refreshItemSnapshot();
@@ -597,6 +597,12 @@ async function nextWithProgress(io, values, progress) {
     finishFirstDefaultPass();
     if (found.retry) await progress.retry(found, { until: deadline });
     else {
+      if (!waitLagSaid) {
+        // A lag notice informs the waiting seat; it neither ends the wait nor repeats on each wake.
+        sayLag(io, ctx);
+        io.lagSilent = true;
+        waitLagSaid = true;
+      }
       if (recordedIdle && wake) {
         // The idle record itself changes the watched board; rebuild and reread selection before waiting so that
         // its own notification is not mistaken for external work, while changes during rearming remain visible.
