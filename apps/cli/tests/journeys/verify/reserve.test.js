@@ -135,23 +135,21 @@ test('cli.verify-reserve.lease-holder-refused: clause 1: next --verify reserves 
 });
 
 
-// A detached comparison-worker stand-in: it leads its own group, appends beside its request every 10 ms, and starts a
-// child in that group that appends too; it prints the child's pid once both write.
-const WRITER = `const { spawn } = require('node:child_process');
-const fs = require('node:fs');
-const path = require('node:path');
-const dir = path.dirname(process.argv[1]);
-const inner = "const fs = require('node:fs'); const f = process.argv[1]; fs.appendFileSync(f, 'x'); setInterval(() => fs.appendFileSync(f, 'x'), 10); process.stdout.write('ready');";
-const child = spawn(process.execPath, ['-e', inner, path.join(dir, 'child.txt')], { stdio: ['ignore', 'pipe', 'ignore'] });
-setInterval(() => fs.appendFileSync(path.join(dir, 'parent.txt'), 'x'), 10);
-child.stdout.once('data', () => process.stdout.write(child.pid + '\\n'));`;
+// A detached comparison-worker stand-in: a shell that leads its own group and holds an append handle beside its request,
+// with a child in that group holding its own; it prints the child's pid once both handles are open, then waits.
+const WRITER = `dir=$(dirname "$1")
+exec 3>>"$dir/parent.txt"
+printf x >&3
+tail -f /dev/null 3>&- >>"$dir/child.txt" &
+echo $!
+wait`;
 
 /** Start a live writer group for a job folder, record it as the launcher does, and return it with its child's pid once both write. */
 async function startWriter(job) {
   fs.mkdirSync(job, { recursive: true });
   const request = join(job, 'request.json');
   fs.writeFileSync(request, '{}\n');
-  const writer = startFixtureChild(process.execPath, ['-e', WRITER, request], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  const writer = startFixtureChild('sh', ['-c', WRITER, 'sh', request], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
   const closed = once(writer, 'close');
   fs.writeFileSync(join(job, 'worker.json'), JSON.stringify({ pid: writer.pid }) + '\n');
   const [line] = await once(writer.stdout, 'data');
