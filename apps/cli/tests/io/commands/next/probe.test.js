@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-cell apps/cli */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /** The built CLI returns a claim, finished and idle answer with the documented exit codes [C7,#12807]. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
