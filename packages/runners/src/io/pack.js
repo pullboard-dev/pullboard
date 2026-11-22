@@ -228,15 +228,7 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
       }
     } finally { fs.close(input); fs.rm(scanFile, { force: true }); }
   }
-  // Check every full historical path, including reused cached blobs moved beneath a newly blocked prefix.
-  for (const tree of historicalTrees) {
-    for (const record of streamedSourceGit(root, ['ls-tree', '-r', '-z', '--full-tree', tree], directory, 'history.tree').split('\0').filter(Boolean)) {
-      const match = /^(\d+) (\w+) [a-f0-9]{40,64}\t([\s\S]+)$/u.exec(record);
-      if (!match || match[2] !== 'blob' || protectedHistoryPath(match[3], config.protect)) {
-        throw new Refused('RUNNER_SECRET', 'historical source includes a blocked private path or submodule; keep this run local');
-      }
-    }
-  }
+  checkHistoricalPaths(root, historicalTrees, config.protect, directory);
   const pack = join(directory, 'source.pack');
   const output = fs.open(pack, 'wx', 0o600);
   try { sourceGit(root, ['pack-objects', '--stdout'], { input: objects.map(object => `${object}\n`).join(''), stdio: ['pipe', output, 'pipe'] }); }
@@ -246,6 +238,42 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
     saveCleanPackCommits(cleanFile, [...new Set([...roots, ...saved])].slice(0, CLEAN_PACK_KEEP));
   }
   return pack;
+}
+
+/**
+ * Check full historical paths once per immutable subtree and full prefix in this call's fixed policy.
+ * Read a root's entire subtree inventory before checking paths, as recursive ls-tree did: a Git read failure must
+ * still precede a path refusal in that root. Shared listings and successful prefix checks never outlive this call.
+ */
+function checkHistoricalPaths(root, trees, protect, directory) {
+  const listings = new Map();
+  const checked = new Map();
+  /** Read every subtree needed by this root before applying path policy, retaining Git's entry order. */
+  function inventory(tree) {
+    if (listings.has(tree)) return;
+    const rows = streamedSourceGit(root, ['ls-tree', '-z', '--full-tree', tree], directory, 'history.tree')
+      .split('\0').filter(Boolean).map(record => /^(\d+) (\w+) ([a-f0-9]{40,64})\t([\s\S]+)$/u.exec(record));
+    listings.set(tree, rows);
+    for (const row of rows) if (row?.[2] === 'tree') inventory(row[3]);
+  }
+  /** Validate leaf paths at this exact prefix; a reused tree under another prefix needs its own check. */
+  function check(tree, prefix) {
+    if (checked.get(tree)?.has(prefix)) return;
+    for (const row of listings.get(tree)) {
+      if (!row) throw new Refused('RUNNER_SECRET', 'historical source includes a blocked private path or submodule; keep this run local');
+      const path = prefix + row[4];
+      if (row[2] === 'tree') check(row[3], path + '/');
+      else if (row[2] !== 'blob' || protectedHistoryPath(path, protect)) {
+        throw new Refused('RUNNER_SECRET', 'historical source includes a blocked private path or submodule; keep this run local');
+      }
+    }
+    if (!checked.has(tree)) checked.set(tree, new Set());
+    checked.get(tree).add(prefix);
+  }
+  for (const tree of trees) {
+    inventory(tree);
+    check(tree, '');
+  }
 }
 
 /** Use only a credential-free anonymous HTTPS origin; SSH authentication is never forwarded. */
