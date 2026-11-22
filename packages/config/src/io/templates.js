@@ -115,7 +115,9 @@ Never wait, never sleep, never poll, never stop while the board has work.
 
 - **Judge:** the diff against the bar and the gate's receipts; rerun only if none covers a clause.
 - **Accept:** \`pullboard verify <id> accept\`.
-- **Reject:** \`pullboard verify <id> reject --reason <CODE> --clause "<clause>" --note "..."\`.
+- **Reject:** \`pullboard verify <id> reject --reason TEST_FAILURE|BEHAVIOR_MISMATCH|INSUFFICIENT_EVIDENCE|STALE_HEAD|OTHER --clause "<clause>" --note "..."\`.
+
+Run \`next\`, \`status\` and \`shout\` from your seat folder, not its item folder; the item folder gets \`NOT_JOINED\` otherwise.
 `;
 
 /**

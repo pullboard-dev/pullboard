@@ -2,6 +2,7 @@
 /** The seat loop tells a seat to wait one minute on next, repeat at once, and stop only on an idle board [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { REJECT_REASONS } from '../../../store/index.js';
 import { SEAT_LOOP } from '../../src/io/templates.js';
 import { SEAT_LOOP_WORD_BUDGET } from '../../src/io/templates.js';
 import { renderCodexAutomation } from '../../src/io/templates.js';
@@ -32,4 +33,16 @@ test('config.io-templates.skill-and-automation-match: clause 2: the worker skill
   }
   assert.doesNotMatch(skill, /after 4 empty/u);
   assert.doesNotMatch(prompt, /after 4 empty/u);
+});
+
+test('config.io-templates.seat-loop-reject-reasons: SEAT_LOOP lists every exported reject reason on its Reject line [C7]', () => {
+  const rejectLine = SEAT_LOOP.split('\n').find(line => line.startsWith('- **Reject:**'));
+  assert.ok(rejectLine, 'SEAT_LOOP has a Reject line');
+  for (const reason of REJECT_REASONS) assert.ok(rejectLine.includes(reason), `Reject line carries ${reason}`);
+});
+
+test('config.io-templates.seat-loop-seat-folder: next, status and shout name the seat folder and NOT_JOINED refusal [C7]', () => {
+  const seatFolderLine = 'Run `next`, `status` and `shout` from your seat folder, not its item folder; the item folder gets `NOT_JOINED` otherwise.';
+  assert.ok(SEAT_LOOP.includes(seatFolderLine));
+  assert.ok(renderWorkerSkill().includes(seatFolderLine));
 });
