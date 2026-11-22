@@ -154,6 +154,18 @@ function lazyCallees(file, body, source) {
   for (const [, wrapper, specifier] of source.matchAll(new RegExp(memo, 'gm'))) {
     for (const [, name] of body.matchAll(new RegExp(String.raw`(?<![\w.])${wrapper}\(\)\.(\w+)\(`, 'g'))) callees.push(`${under(specifier)}#${name}`);
   }
+  // A function wrapper that memoizes a createRequire result is still a real call edge; its
+  // consumers may use either `load().name()` or destructure names from `load()`.
+  const lazy = String.raw`^function (\w+)\(\) \{\n\s*(\w+) \?\?= (?:${[...loaders].join('|')})\(\s*(['"])(\.{1,2}\/[^'"]+\.js)\3\s*\);\n\s*return \2;\n\}$`;
+  for (const [, wrapper, , specifier] of source.matchAll(new RegExp(lazy, 'gm'))) {
+    for (const [, name] of body.matchAll(new RegExp(String.raw`(?<![\w.])${wrapper}\(\)\.(\w+)\(`, 'g'))) callees.push(`${under(specifier)}#${name}`);
+    for (const [, names] of body.matchAll(new RegExp(String.raw`\{([^{}]*)\}\s*=\s*${wrapper}\(\)`, 'g'))) {
+      for (const part of names.split(',').map(text => text.trim()).filter(Boolean)) {
+        const [original, local = original] = part.split(/\s*:\s*/);
+        if (new RegExp(String.raw`(?<![\w.])${local}\(`).test(body)) callees.push(`${under(specifier)}#${original}`);
+      }
+    }
+  }
   return callees;
 }
 
@@ -317,7 +329,7 @@ function codeWalk(read, { caught = false, decision = null } = {}) {
     if (!facts) {
       const body = specific ? verdictArm(bodies.get(name) ?? '', decision) : bodies.get(name) ?? '';
       const callbacks = CALLBACKS[file];
-      const codes = new Set([...[...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]), ...(body ? tableDataCodes(file, source) : [])]);
+      const codes = new Set([...[...body.matchAll(/new Refus(?:ed|al)\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]), ...(body ? tableDataCodes(file, source) : [])]);
       const callees = [
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? callbacks?.[callee])),
         ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : callbacks?.[`${space}.${callee}`])),
