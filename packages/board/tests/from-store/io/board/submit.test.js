@@ -4,14 +4,14 @@ import { test } from 'node:test';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../index.js';
-import { openKitBoard } from '../../fixtures/cell.js';
-import { fixtureCommittedGraph } from '../../fixtures/cell.js';
-import { checklistEvidenceProblem } from '../../../../state/index.js';
-import { carriedClauseTickNotes } from '../../../src/io/board/submit.js';
-import { setAfterGate } from '../../../src/io/board/item/after-gate.js';
-import { writeBoardMeta } from '../../../src/io/board/meta.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { fixtureCommittedGraph } from '../../../../../store/tests/fixtures/cell.js';
+import { checklistEvidenceProblem } from '../../../../../state/index.js';
+import { carriedClauseTickNotes } from '../../../../../store/index.js';
+import { setAfterGate } from '../../../../../store/index.js';
+import { writeBoardMeta } from '../../../../../store/index.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 
 // fixture-subject: addItem (a store unit test of submit over a seeded item; the board is opened through the kit)
 
@@ -21,8 +21,7 @@ const freeze = () => ({ text: '{}', digest: 'synthetic-skipped-run-bar' });
 
 /** A claimed item whose only [test] clause names FILE, with one green proof receipt of COMMIT holding the given outcomes. */
 function fixture(t, outcomes) {
-  const board = openKitBoard(':memory:');
-  t.after(() => store.closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Skipped run fixture', criterion: `1. ${FILE} passes [test]`, specIds: ['C7'], route: 'mid', brief: 'Files: src/a.js\nTest: one named case', check: 'true' });
@@ -66,8 +65,7 @@ function carryFixture(t, { criterion = '1. A dead lock holder is taken over [tes
   if (changeTest) graph.put(LOCK, `test('${LOCK_CASE}: clause 1: a dead holder is taken over', () => { /* weakened */ });\n`);
   else graph.put('src/main.js', 'export const main = 1;\n');
   const b = graph.commit();
-  const board = openKitBoard(':memory:');
-  t.after(() => store.closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const earlier = store.register(board, { lane: 'core', path: '/earlier', route: 'strong' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'strong' });
@@ -150,8 +148,7 @@ const OLD = 'c'.repeat(40);
 
 /** A submitted dependent behind an after-gate on a parent whose claim recorded `base`, and the parent ready to submit at COMMIT. */
 function afterGateFixture(t, base) {
-  const board = openKitBoard(':memory:');
-  t.after(() => store.closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid' });
   const file = name => `test/${name}.test.js`;

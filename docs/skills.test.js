@@ -1,3 +1,4 @@
+/** @pullboard-test-input skills/pullboard-plan/SKILL.md */
 /** The shipped skills teach one lean loop and none of the patterns that make builders wait */
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -7,6 +8,8 @@ const skillsDirectory = new URL('../skills/', import.meta.url);
 const skills = readdirSync(skillsDirectory, { withFileTypes: true })
   .filter(entry => entry.isDirectory())
   .map(entry => ({ name: entry.name, text: readFileSync(new URL(`${entry.name}/SKILL.md`, skillsDirectory), 'utf8') }));
+/** @pullboard-world-pin reads the shipped plan skill to verify the instructions covered by the planning bar. */
+const planSkill = readFileSync(new URL('../skills/pullboard-plan/SKILL.md', import.meta.url), 'utf8');
 
 /** Return the run skill's lean-loop section, from its heading to the next heading. */
 function leanLoop() {
@@ -42,4 +45,13 @@ test('clause 2: no shipped skill teaches a sleep loop, a status poll or a main-c
       assert.equal(found, null, `${skill.name} teaches ${label}: ${found?.[0]}`);
     }
   }
+});
+
+test('docs.skills.plan-one-item-per-file: clause 1: plan items keep source and test together and split above about 400 new lines [N31]', () => {
+  assert.match(planSkill, /One item per source file\. Keep a module and its test file in the same item\. Split only when the change is more than about 400 new lines\./u);
+});
+
+test('docs.skills.plan-layers-as-wide-as-seats: clause 2: plan only code dependencies and re-cut work below seat capacity [N31]', () => {
+  assert.match(planSkill, /`--after` only where code imports another item's file\. Plan layers as wide as the builder seats\. Before filing, count the items buildable at once; if that count is below the number of seats, re-cut the work\./u);
+  assert.match(planSkill, /For a whole-module item, use a clause shaped like: `<test file> has one case per public method and documented behavior of <module>, all green`/u);
 });
