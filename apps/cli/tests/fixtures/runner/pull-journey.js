@@ -10,6 +10,7 @@ import { executionServicesSource } from '../gate/execution.js';
 import { HOST } from './ssh.js';
 import { installSshStandIn } from './ssh.js';
 import { fixtureAdd } from '../testkit.js';
+import { pullFailureSnapshot } from './pull-failure.js';
 
 /** Register the pull journey for `count` concurrent pulled jobs: one file each keeps every file under its time budget. */
 export function definePullJourney(count) {
@@ -65,7 +66,13 @@ export function definePullJourney(count) {
   `;
   const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
   delete env.NODE_TEST_CONTEXT;
+  const startedAt = Date.now();
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.dir, env, encoding: 'utf8', timeout: 150000 });
+  if (result.status !== 0 || result.error || result.signal) {
+    t.diagnostic('PULL_FIXTURE_FAILURE ' + JSON.stringify(pullFailureSnapshot({
+      home, machineHome: box.env.PULLBOARD_MACHINE_HOME, requests, startedAt,
+    })));
+  }
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   const actual = JSON.parse(result.stdout.trim().split('\n').at(-1));
   assert.equal(actual.viaController.exitCode, 3, `the control run finished: ${JSON.stringify(actual.viaController)}`);
