@@ -1,11 +1,11 @@
 /** The store reads the frozen pace through one reader, so the merged writer and the verify snapshot take a sprint item's sprint rows and leave steady and strict as they were [V2,M1,#12173]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { itemPace } from '../../../index.js';
-import { merged } from '../../../index.js';
-import { getItem } from '../../../index.js';
-import { verifySnapshot } from '../../../src/io/board/verify-table.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import { itemPace } from '../../../../../store/index.js';
+import { merged } from '../../../../../store/index.js';
+import { getItem } from '../../../../../store/index.js';
+import { verifySnapshot } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const AT = Date.parse('2026-11-19T12:00:00.000Z');
 const STAMP = new Date(AT).toISOString();
