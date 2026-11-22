@@ -26,6 +26,18 @@ after(e2e.cleanup);
 
 const BROKE = 'ran node --test on the changed file with the guard removed and the case failed';
 
+test('cli.journeys-verify-checks-output-digest.accept-reports-failed-install-as-check: clause 1: accept reports failed install as CHECK_UNVERIFIED with an output digest; clause 2: the migrated case keeps its registered ID and every assertion [V18,V2]', async () => {
+  const box = e2e.privateCheckSubmission({ install: 'echo install-failed; exit 9', check: 'true' });
+  const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'install must complete before verification', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /install failed/);
+  assert.match(error.message, /output digest/);
+  assert.match(error.message, /install-failed/);
+  assert.match(error.next, /^restore the install or check environment, then retry verification/);
+});
+
 /** A submitted item on a board whose review.requireProvenBreak is set as named, or left unset. */
 function submitted(requireProvenBreak) {
   const box = e2e.privateCheckSubmission({ check: 'true' });

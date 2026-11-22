@@ -1,19 +1,29 @@
-/** @pullboard-test-input docs/formats.md docs/formats/* */
-/** @pullboard-world-pin reads docs/formats.md, the page map and each user page to compare their text. */
+/** @pullboard-test-input docs/formats/map.md docs/formats/* */
+/** @pullboard-world-pin reads the page map and each authored user page, and takes docs/formats.md and the generated pages from generatedDocs. */
 /** Each user page of the formats map exists, holds its section of docs/formats.md unchanged, and stays short [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { openBoard } from '../packages/board/index.js';
+import { generatedDocs } from '../apps/cli/src/io/generated/docs.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
+
+/** Pages the generator renders, by path; no committed copy of them is read. */
+const generated = generatedDocs(ROOT, { openBoard });
+
+/** The text of a page: rendered by the generator when it is generated, else the authored page on disk. */
+function pageText(path) {
+  return generated.get(path) ?? readFileSync(resolve(ROOT, path), 'utf8');
+}
 
 /** Sections of docs/formats.md by title, each as its exact text from the heading to the next, ignoring fenced code. */
 function sections() {
   const out = new Map();
   let fenced = false;
   let title = null;
-  for (const line of readFileSync(resolve(ROOT, 'docs/formats.md'), 'utf8').split('\n')) {
+  for (const line of generated.get('docs/formats.md').split('\n')) {
     if (line.startsWith('```')) fenced = !fenced;
     if (!fenced && line.startsWith('## ')) {
       title = line.slice(3).trim();
@@ -32,6 +42,8 @@ function isLinkOnly(section, path) {
 /** Whether the page holds the section: its text verbatim, or for a link-only section its heading and some body. */
 function pageHoldsSection(page, title, section, path) {
   if (!isLinkOnly(section, path)) return page.includes(section);
+  const pageTitle = `# ${title}\n`;
+  if (page.startsWith(pageTitle)) return page.slice(pageTitle.length).trim() !== '';
   return page.includes(`## ${title}\n`) && page.split(`## ${title}\n`)[1].trim() !== '';
 }
 
@@ -49,7 +61,7 @@ test('clause 1: each user page named in the map exists under docs/formats [C7]',
   assert.ok(pages.length > 0, 'the map names user pages');
   for (const { title, path } of pages) {
     assert.match(path, /^docs\/formats\/[a-z-]+\.md$/u, title);
-    assert.ok(existsSync(resolve(ROOT, path)), `${title}: ${path} exists`);
+    assert.ok(generated.has(path) || existsSync(resolve(ROOT, path)), `${title}: ${path} exists`);
   }
 });
 
@@ -57,7 +69,7 @@ test('clause 1: each user page holds the text of its section of docs/formats.md 
   const all = sections();
   for (const { title, path } of userPages()) {
     assert.ok(all.has(title), `${title} is a section of docs/formats.md`);
-    assert.ok(pageHoldsSection(readFileSync(resolve(ROOT, path), 'utf8'), title, all.get(title), path), `${path} holds the ${title} section`);
+    assert.ok(pageHoldsSection(pageText(path), title, all.get(title), path), `${path} holds the ${title} section`);
   }
 });
 
@@ -68,7 +80,10 @@ test('clause 1: a section that is only its heading and a link to its page passes
   assert.ok(!isLinkOnly('## Spec\n\nMoved to [the page](formats/spec.md).\nMore prose.', path));
   assert.ok(!isLinkOnly('## Spec\n\nMoved to [other](formats/other.md).', path));
   assert.ok(pageHoldsSection('# Page\n\n## Spec\n\nThe prose.\n', 'Spec', link, path));
+  assert.ok(pageHoldsSection('# Spec\n\nThe prose.\n', 'Spec', link, path), 'the matching page title heads its link-only section');
+  assert.ok(!pageHoldsSection('# Spec\n', 'Spec', link, path), 'the matching page title needs body text');
   assert.ok(!pageHoldsSection('# Page\n\nNo section.\n', 'Spec', link, path), 'a page without the section fails');
+  assert.ok(!pageHoldsSection('# Other\n\nThe prose.\n', 'Spec', link, path), 'a page with neither matching heading fails');
   assert.ok(!pageHoldsSection('# Page\n\n## Spec\n', 'Spec', link, path), 'a page with an empty section fails');
   assert.ok(pageHoldsSection('x\n## Spec\n\nBody\n', 'Spec', '## Spec\n\nBody', path), 'a full section still needs verbatim text');
   assert.ok(!pageHoldsSection('x\n', 'Spec', '## Spec\n\nBody', path));
@@ -76,7 +91,7 @@ test('clause 1: a section that is only its heading and a link to its page passes
 
 test('clause 1: each user page is under 150 lines [C7]', () => {
   for (const { path } of userPages()) {
-    const lines = readFileSync(resolve(ROOT, path), 'utf8').split('\n').length;
+    const lines = pageText(path).split('\n').length;
     assert.ok(lines < 150, `${path} has ${lines} lines`);
   }
 });
