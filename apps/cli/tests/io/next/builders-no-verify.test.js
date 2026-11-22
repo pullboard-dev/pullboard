@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { machineSettingsFile } from '../../../../../packages/config/index.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { runCliInProcess } from '../../fixtures/process.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
 
