@@ -125,6 +125,7 @@ test('api.recheck.cpu-admission-negative-controls: clause 2: unknown stderr, unb
     ['cancellation', streams.stdout.replace('# cancelled 0', '# cancelled 1'), streams.stderr],
     ['foreign file', streams.stdout.split(`${root}/${file}`).join(`/outside/${file}`), streams.stderr],
     ['duplicate nested identity', streams.stdout.replace('not ok 1 - native\n', 'not ok 1 - p95 stays below twice standalone\n'), streams.stderr],
+    ['ambiguous bounded identity', streams.stdout.replace('not ok 1 - native\n', `not ok 1 - ${admissionNames[2]} distinct suffix\n`), streams.stderr],
   ];
   for (const [name, output, diagnostic] of cases) {
     const measured = await entryVerdict(output, { stderr: diagnostic });
