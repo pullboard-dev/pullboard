@@ -54,7 +54,7 @@ test('verify.io-review-default.written-item: clause 1: the written-item default 
   const verified = addJudgmentItem(board, 'finished verified');
   const withdrawn = addJudgmentItem(board, 'finished withdrawn');
   const builder = cellSeat(board, { lane: 'core', path: '/fixture/default-builder', family: 'openai' });
-  const reviewer = cellSeat(board, { lane: 'core', path: '/fixture/default-reviewer', family: 'openai' });
+  const reviewer = cellSeat(board, { lane: 'core', path: '/fixture/default-reviewer', family: 'anthropic' });
   cellClaim(board, verified, builder, { root: project.repo });
   submitFixture(board, verified, { agentId: builder.id, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
   cellReviewAccept(board, verified, reviewer);
