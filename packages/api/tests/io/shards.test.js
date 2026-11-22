@@ -9,6 +9,7 @@ import { shardClaimCap } from '../../index.js';
 import { releaseJob } from '../../index.js';
 import { combinedReceipt } from '../../index.js';
 import { compareGateWithMain } from '../../index.js';
+import { selectedShardContext } from '../../src/io/gate/owner-routing.js';
 
 const boardWith = t => cellBoard(t, ':memory:').db;
 
@@ -90,11 +91,14 @@ test('api.gate-owner.routes-authenticated-failure-to-selected-shard: clause 1: a
   const head = 'a'.repeat(40), main = 'c'.repeat(40), source = 'tests/fixtures/shared.js', owner = 'tests/wrappers/one.test.js';
   const name = 'shared fixture case [C7]';
   const signature = 'b'.repeat(64), inputKey = 'd'.repeat(64), shard = 'gate:12922:shard:1';
+  offerJob(db, { id: shard, kind: SHARD_JOB_KIND, now: 1, request: { input: { data: { shard: { files: [owner], ledger: { files: [[owner, inputKey, 0, 'fail']] } } } } } });
+  const selected = selectedShardContext(db, shard);
+  assert.deepEqual(selected, { files: [owner], keys: { [owner]: inputKey } }, 'selection and key come from the immutable offered request');
   const phase = { role: 'proof', status: 1, failures: [{ file: source, name }], failureSignatures: [signature],
     testOutcomes: [{ file: source, name, owner, passed: false, skipped: false, failure: 'assertion' }], tail: 'not ok' };
   const posted = { attempt: 1, runner: 'runner-one', receipt: { status: 1, gate: { source: head, green: false, shard: { files: [owner] }, phases: [phase] } } };
   const combined = combinedReceipt({ status: 0, gate: { source: head, green: true, phases: [{ role: 'check', status: 0 }], proofPlan: {} } },
-    [{ job: shard, posted, selected: { files: [owner], keys: { [owner]: inputKey } } }], { signatures: true });
+    [{ job: shard, posted, selected }], { signatures: true });
   let observed;
   const compared = compareGateWithMain(board, combined, main, request => {
     observed = request;
