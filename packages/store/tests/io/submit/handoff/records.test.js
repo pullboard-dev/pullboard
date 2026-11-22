@@ -12,6 +12,8 @@ import { handoffRecords } from '../../../../src/io/submit/handoff/records.js';
 import { gateShardsUnsettled } from '../../../../src/io/submit/handoff/records.js';
 import { awaitingGateOrReview } from '../../../../src/io/submit/handoff/records.js';
 import { getItem } from '../../../../index.js';
+import { saveSubmitHandoff } from '../../../../index.js';
+import { applyRunReceipt } from '../../../../index.js';
 
 /** A claimed item whose gate job, submitted by its holder, is done, with two shard jobs done; `settle(outcome)` notes the combined result. */
 function settledGate(t) {
@@ -218,6 +220,79 @@ function evidenceRows(db) {
   return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all()
     .map(({ name }) => [name, db.prepare(`SELECT * FROM "${name}"`).all()]);
 }
+
+/** Persist through the actual store run-record producer; it does not invent a runner attempt. */
+function nativeRunFixture(t) {
+  const f = recoveryFixture(t);
+  f.db.prepare("INSERT INTO board_meta (meta_key, meta_value) VALUES ('runs_store', '1') ON CONFLICT(meta_key) DO UPDATE SET meta_value = '1'").run();
+  const record = { ...f.record, id: 'native-recovery-run' };
+  delete record.attempt;
+  const save = value => saveSubmitHandoff(f.db, f.id, value, { now: f.box.clock.now().getTime() });
+  save(record);
+  return { ...f, record, save };
+}
+
+test('store.submit-handoff-records.native-run-envelope: clause 1: [B28,C7] the native run-record producer supplies its own authoritative envelope without a job-step fallback', async t => {
+  const f = nativeRunFixture(t);
+  const before = evidenceRows(f.db);
+  const got = await f.read();
+  assert.equal(got.authority, 'board.run');
+  assert.equal(got.gate.row.run_job, f.record.id);
+  assert.equal(got.handoff.source, `board.run:${f.record.id}.run_record`);
+  assert.deepEqual(got.handoff.record, f.record);
+  assert.equal(got.reasons.includes('unknown-binding:envelope'), false, 'a board.run record is not a job-step envelope');
+  assert.ok(got.reasons.includes('unknown-binding:attempt'), 'the native producer supplied no attempt');
+  assert.equal(got.exhaustion.binding, 'unknown');
+  assert.ok(Object.isFrozen(got.handoff.record.error));
+  assert.throws(() => { got.handoff.record.error.code = 'forged'; }, TypeError);
+  assert.deepEqual(evidenceRows(f.db), before, 'observing the actual producer writes nothing');
+  f.save({ ...f.record, id: 'newest-native-run', agentId: 'foreign' });
+  const newest = await f.read();
+  assert.equal(newest.gate.row.run_job, 'newest-native-run');
+  assert.equal(newest.handoff.record.agentId, 'foreign', 'no older matching job or run fallback');
+  assert.ok(newest.reasons.includes('unknown-binding:owner'));
+  assert.equal(got.handoff.record.id, f.record.id, 'a later producer write cannot mutate an observation');
+});
+
+test('store.submit-handoff-records.native-missing-binding: clause 2: [B28,C7] actual run receipts never fill absent or stale handoff bindings or turn split observations into exhaustion proof', async t => {
+  const f = nativeRunFixture(t);
+  assert.deepEqual(applyRunReceipt(f.box.board, { by: 'coordinator', job: f.record.id, attempt: 2,
+    outcome: 'unknown', summary: { gate: { deferred: true, green: false, outcome: 'UNKNOWN' } } },
+  { machineVerifyPulled: false }), { applied: true });
+  let got = await f.read();
+  assert.equal(got.gate.row.run_attempt, 2);
+  assert.equal(got.gate.row.run_outcome, 'unknown');
+  assert.equal(got.handoff.record.attempt, undefined, 'a receipt attempt is not a historical handoff attempt');
+  assert.ok(got.reasons.includes('unknown-binding:attempt'));
+  assert.ok(got.reasons.includes('separate-store-snapshot'));
+  assert.ok(got.reasons.includes('unavailable:runs.jobs'));
+  assert.equal(got.exhaustion.binding, 'unknown');
+  for (const [field, value, reason] of [['attempt', 1, 'attempt'], ['agentId', 'foreign', 'owner'],
+    ['commit', 'd'.repeat(40), 'head'], ['digest', 'foreign', 'digest'], ['main', 'e'.repeat(40), 'base'], ['tree', null, 'tree']]) {
+    f.save({ ...f.record, [field]: value });
+    got = await f.read();
+    assert.ok(got.reasons.includes(`unknown-binding:${reason}`), field);
+    assert.equal(got.exhaustion.binding, 'unknown', field);
+  }
+  const sentinel = 'SYNTHETIC-NATIVE-RUN-SECRET-12935';
+  f.save({ ...f.record, token: sentinel, error: { ...f.record.error, token: sentinel } });
+  got = await f.read();
+  assert.equal(JSON.stringify(got).includes(sentinel), false);
+  assert.ok(got.reasons.some(reason => reason.startsWith('omitted-fields:')));
+  assert.ok(got.reasons.includes('unknown-binding:attempt'));
+  const runs = new DatabaseSync(':memory:');
+  t.after(() => runs.close());
+  runs.exec("CREATE TABLE runs_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT); INSERT INTO runs_meta VALUES ('board_id', 'foreign-board')");
+  got = await captureGateRecoveryEvidence(f.box.board, f.id, { runs: { db: runs } });
+  assert.ok(got.reasons.includes('foreign:runs.board_id'));
+  assert.deepEqual(got.jobs, []);
+  assert.equal(got.exhaustion.binding, 'unknown');
+  f.db.prepare("UPDATE run SET run_record = '{' WHERE run_job = ?").run(f.record.id);
+  got = await f.read();
+  assert.equal(got.handoff.record, null);
+  assert.ok(got.reasons.includes(`unreadable:board.run:${f.record.id}.run_record`));
+  assert.equal(got.exhaustion, null);
+});
 
 test('store.submit-handoff-records.recovery-policy: clause 1: [B28,C7] public policy uses existing bounds and budget; observations are detached, deeply immutable and read only', async t => {
   const policy = await gateRecoveryPolicy();
