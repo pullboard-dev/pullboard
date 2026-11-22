@@ -103,6 +103,16 @@ export async function run(io, args) {
   const act = (work) => actOn(io, work);
   const code = await act(async (ctx, board, me) => {
   const args = [idArg(first), me.id, textArg(io, values, 'note') ?? ''];
+  if (values.review) {
+    if (values.stale || values.reason !== undefined || values.note !== undefined || values.on !== undefined) {
+      throw new Refused('USAGE', '--review clears a review reservation; do not combine it with other release options', 'pullboard release <id> --review');
+    }
+    store.coordinatorOnly(me.id, 'clears a review reservation');
+    await ordered(ctx, board, 'clearReviewReservation', [args[0], { agentId: me.id }]);
+    io.result?.({ id: args[0], reviewReservationCleared: true });
+    io.say(`cleared the review reservation of #${args[0]}; the review is free again`);
+    return 0;
+  }
   if (values.on !== undefined && (values.reason !== 'BLOCKED' || values.stale)) throw new Refused('USAGE', '--on requires an ordinary release with --reason BLOCKED');
   const blockedOn = values.on === undefined ? undefined : editAfter(values.on);
   if (blockedOn && (!blockedOn.length || blockedOn.some(value => typeof value !== 'number'))) throw new Refused('BAD_DEPENDENCIES', '--on needs one or more local item ids');
