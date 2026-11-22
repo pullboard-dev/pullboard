@@ -1,0 +1,11 @@
+{
+  "store.submit-handoff-records.bounded-item-read": {
+    "proves": {
+      "specs": ["M1", "B28", "C7"],
+      "claim": "The recovery reader selects only declared item columns, retains native scalar types and performs no status write."
+    },
+    "why": "An undeclared SQLite view column must remain unread rather than being fetched and discarded by an output schema.",
+    "kind": "cell unit",
+    "inputs": ["packages/store/src/io/submit/handoff/records.js", "packages/store/index.js", "packages/store/tests/io/submit/handoff/records.test.js"]
+  }
+}

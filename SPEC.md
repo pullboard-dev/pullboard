@@ -159,6 +159,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - D6 [draft, must] The standard changes only by an accepted RFC in docs/rfcs, and each change bumps its version. | gate: review | serves: D1
 
 ## C · Commits
+- GB47 [retired] Merge 0cc15ceb13 cited this tag by mistake.
 - C1 [approved, must] Header: type(scope): subject [ids], 72 characters at most. | gate: apps/cli/journeys/hooks/main.test.js
 - C2 [approved, must] Cited ids exist. feat and fix commits cite at least one. | gate: apps/cli/journeys/hooks/main.test.js | serves: S1
 - C3 [approved, must] Pre-push runs the gate, unless this exact tree already passed it. | gate: apps/cli/journeys/merged/e2e.test.js | serves: V4
@@ -232,7 +233,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - N38 [draft, must] Every tab, item, row and shout in the view has its own address, so any of them can be linked. | gate: test/cockpit.test.js | serves: N26
 - N39 [approved, must] The view's secret never stays in the address bar: the first link trades it for a cookie. | gate: apps/cli/journeys/view/e2e.test.js | serves: N26
 - N40 [draft, must] Every action in the view answers within 100 ms and never over 250 ms, on a board of 3,000 items with eight projects open. | gate: apps/cli/journeys/init/perf.test.js | serves: N26
-- N41 [approved, must] `pullboard next` never blocks. Whenever my work waits (a gate, a proof run, a review), I call next and get other work, up to my seat's in-flight limit (a board setting sized to my model's context). next returns first any item of mine whose wait has ended, so I resume what I was doing. Otherwise, while I'm under my limit, it takes an eligible review, then the next free build my route covers. At my limit, or with nothing free, it tells me what my waiting items are waiting on and to end my turn. --verify names work I did not build. | gate: review
+- N41 [approved, must] `pullboard next` waits for work instead of telling me to end my turn. Whenever my work waits (a gate, a proof run, a review), I call next and get other work, up to my seat's in-flight limit (a board setting sized to my model's context). next returns first any item of mine whose wait has ended, so I resume what I was doing. Otherwise, while I'm under my limit, it takes an eligible review, then the next free build my route covers. At my limit, or with nothing free, it waits, re-checking after 1, 2, 4, 8 and 16 s and then every 30 s, and returns the moment work appears (exit 0), when the board is finished (exit 3), or after at most 90 s with what my waiting items are waiting on (exit 4). `next --no-wait` answers at once. --verify names work I did not build. | gate: review
 - N42 [draft, must] Pullboard never suggests a wait; every next step names work to take now, or says to end the turn. (Proposed replacement for N25, Corey approved 3 Nov.) | gate: review
 
 ## A · API: the engine others build on

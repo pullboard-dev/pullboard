@@ -1,0 +1,11 @@
+{
+  "cli.io-commands-view.home-carries-flow-panel": {
+    "proves": {
+      "specs": ["N26", "C7"],
+      "claim": "clause 1: the real foreground view serves each unlanded releaseFlow row with its actual cause, omits a merged control and lists every idle seat; clause 2: the same case preserves the full Flow panel behavior."
+    },
+    "why": "The home page needs to show the production Flow reader's actual rows and idle seats, rather than only showing an empty panel.",
+    "kind": "journey",
+    "inputs": ["apps/cli/src/io/commands/view.js", "apps/cli/tests/io/commands/view/flow.test.js"]
+  }
+}

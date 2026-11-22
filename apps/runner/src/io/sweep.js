@@ -8,6 +8,7 @@ import { Refused } from '../../../../packages/kernel/light.js';
 import { environmentAdapter } from '../../../../packages/env/index.js';
 import { processCensus } from './custody.js';
 import { acquireResourceApi } from './worker/environment.js';
+import { runnerMachineSettingsFile } from './worker/environment.js';
 import { DatabaseSync } from 'node:sqlite';
 import { maintainTestResults } from './results.js';
 import { fileSystemAdapter } from '../../../../packages/fs/index.js';
@@ -278,7 +279,7 @@ function envBytes(name, fallback) {
  */
 export function diskFloorBytes(machineHome) {
   try {
-    const megabytes = JSON.parse(fs.readFile(join(machineHome, 'settings.json'), 'utf8')).gate?.diskFloorMB;
+    const megabytes = JSON.parse(fs.readFile(runnerMachineSettingsFile(machineHome), 'utf8')).gate?.diskFloorMB;
     return Number.isSafeInteger(megabytes) && megabytes >= 0 ? megabytes * 1024 ** 2 : DEFAULT_MIN_FREE_BYTES;
   } catch { return DEFAULT_MIN_FREE_BYTES; }
 }

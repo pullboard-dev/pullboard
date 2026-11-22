@@ -1,0 +1,110 @@
+{
+  "landing.job.redundant-checked-already": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "Exact redundant C(P,Q) on a later fetched B uses the ordinary already receipt without merging, checking, deriving or pushing."
+    },
+    "why": "A checked synthetic descendant can add no tree change even though it is absent from trunk history.",
+    "kind": "contract",
+    "inputs": [
+      "packages/landing/tests/io/runner/job.test.js",
+      "packages/landing/src/io/runner/job.js"
+    ]
+  },
+  "landing.job.redundant-checked-exclusions": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "Changed trees, uncontained source or first parent, reversed and non-two-parent heads remain pending and obey the ordinary check."
+    },
+    "why": "Equal trees or source containment alone must never discard a real reviewed resolution or unlanded first parent.",
+    "kind": "contract",
+    "inputs": [
+      "packages/landing/tests/io/runner/job.test.js",
+      "packages/landing/src/io/runner/job.js"
+    ]
+  },
+  "landing.job.redundant-checked-mixed": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "A redundant checked head is already while a real sibling still checks and lands normally."
+    },
+    "why": "Metadata-only recognition must not swallow a real sibling or skip its landing checks.",
+    "kind": "contract",
+    "inputs": [
+      "packages/landing/tests/io/runner/job.test.js",
+      "packages/landing/src/io/runner/job.js"
+    ]
+  },
+  "landing.job.redundant-checked-sprint-excluded": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "A redundant checked Sprint head still reaches its check and exact-tree proof, and a red proof cannot move trunk."
+    },
+    "why": "The steady recovery must not weaken Sprint exact-tree proof or its red no-push limit.",
+    "kind": "contract",
+    "inputs": [
+      "packages/landing/tests/io/runner/job.test.js",
+      "packages/landing/src/io/runner/job.js",
+      "packages/landing/src/io/runner/sprint.js",
+      "packages/landing/src/io/exact.js"
+    ]
+  },
+  "landing.job.redundant-checked-invalid-objects": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "Missing, malformed and non-commit objects and Git failures never establish redundant containment."
+    },
+    "why": "Missing objects, grafted history and Git errors must fail closed rather than count as containment.",
+    "kind": "contract",
+    "inputs": [
+      "packages/landing/tests/io/runner/job.test.js",
+      "packages/landing/src/io/runner/job.js"
+    ]
+  },
+  "landing.job.redundant-checked-object-identity": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "Replacement refs and inherited selectors cannot change the immutable redundant-merge decision."
+    },
+    "why": "Replacement refs and inherited Git selectors must not substitute objects for the accepted checked head.",
+    "kind": "contract",
+    "inputs": [
+      "packages/landing/tests/io/runner/job.test.js",
+      "packages/landing/src/io/runner/job.js",
+      "packages/git/src/io/main.js"
+    ]
+  },
+  "landing.job.redundant-checked-ref-moved": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "A redundant shape never skips the native fetched-ref identity check."
+    },
+    "why": "Object classification must remain behind the native fetched-ref identity guard.",
+    "kind": "contract",
+    "inputs": [
+      "packages/landing/tests/io/runner/job.test.js",
+      "packages/landing/src/io/runner/job.js"
+    ]
+  }
+}

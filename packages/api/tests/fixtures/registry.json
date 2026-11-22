@@ -1,4 +1,10 @@
 {
+  "api.landing-gate-reuse.member-inline-roundtrip": {"proves":{"specs":["C7"],"claim":"Authenticated inline landing offer/readback preserves complete and unknown member authority, each mandatory cross-run floor and the full combined union under existing bounds."},"why":"Member isolation evidence must survive the real public door without replacing batch obligations.","kind":"contract","inputs":["packages/api/src/io/landing.js","packages/api/src/io/landing-members.js","packages/api/src/io/jobs.js","packages/api/tests/fixtures/landing-members.js"]},
+  "api.landing-gate-reuse.member-stored-roundtrip": {"proves":{"specs":["C7"],"claim":"Authenticated stored landing offer/readback preserves complete and unknown scopes and every combined file beyond inline size while retaining existing limits."},"why":"Large owner evidence must not be silently dropped or truncated during hydration.","kind":"contract","inputs":["packages/api/src/io/landing.js","packages/api/src/io/landing-members.js","packages/api/src/io/jobs.js","packages/api/tests/fixtures/landing-members.js"]},
+  "api.landing-gate-reuse.member-unknown-authority": {"proves":{"specs":["C7"],"claim":"Missing, incomplete, stale and ambiguous native obligation evidence remains unknown even with passing flat test rows; the combined mandatory floor remains intact."},"why":"A result list cannot authorize narrowing an owner's required proof.","kind":"contract","inputs":["packages/api/src/io/landing.js","packages/api/src/io/landing-members.js","packages/api/tests/fixtures/landing-members.js"]},
+  "api.landing-gate-reuse.complete-member-obligations": {"proves":{"specs":["C7"],"claim":"The real two-item API offer carries complete accepted per-member obligations with source, policy, frozen criterion and admission-bound receipts, including an explicit required test that imports only sibling source."},"why":"Culprit isolation must retain each member's own required files without carrying unrelated sibling selections or treating pass-ledger rows as completeness authority.","kind":"contract","inputs":["packages/api/src/io/landing-members.js","packages/api/src/io/landing.js","packages/api/src/io/gate.js","packages/api/src/logic/gate/reuse-plan.js","packages/api/tests/fixtures/landing-members.js"]},
+  "api.landing-gate-reuse.stored-proof-negative-controls": {"proves":{"specs":["C7"],"claim":"Stored proof preserves accepted precedence, excludes shadowed passes, retains exact file/input/context tuples and keeps original payload and request refusals."},"why":"Larger transport must not turn missing, changed, incompatible or failed evidence into an accepted proof.","kind":"contract","inputs":["packages/api/index.js","packages/store/index.js","packages/board/tests/fixtures/cell-board.js"]},
+  "api.landing-gate-reuse.stored-accepted-proof-complete": {"proves":{"specs":["C7"],"claim":"A real stored landing offer and authenticated readback retain all697 accepted file proof tuples beyond the16KB inline ledger while preserving existing request bounds and claim authorization."},"why":"Eligible proofs must not be truncated to the inline ledger budget after the job has selected bounded stored transport.","kind":"contract","inputs":["packages/api/index.js","packages/store/index.js","packages/board/tests/fixtures/cell-board.js"]},
   "api.detail.mechanical-reader-wired": {"proves":{"specs":["C7"],"claim":"The item detail hands its verdict projector the mechanical conflict reader as residualConflicts."},"why":"Without this test the detail drops the reader and shows STALE_VERDICT again for a conflict the landing resolves itself.","kind":"contract","inputs":["packages/api/src/io/detail.js"]},
   "api.detail.mechanical-conflict-keeps-accept-fresh": {"proves":{"specs":["C7"],"claim":"The item detail reports no stale verdict for an accepted item whose only conflict with main is mechanical, and a stale one naming the file for a real source conflict."},"why":"Without this test the detail shows STALE_VERDICT for a conflict the landing resolves itself, and the item is re-reviewed for nothing.","kind":"contract","inputs":["packages/api/src/io/detail.js"]},
   "api.jobs-claim-order.aged-gate-job-outranks-shards": {"proves":{"specs":["C7"],"claim":"A runner holding a test job is handed a gate job offered 6 minutes earlier before 40 queued shards, then the shards."},"why":"Without this test gate analysis waits behind a shard backlog until it is the last job left.","kind":"contract","inputs":["packages/api/index.js"]},
@@ -316,5 +322,69 @@
   "api.jobs-claim-order.expedited-item-shards-first": {"proves":{"specs":["C7"],"claim":"An expedited item gets its gate shards before an aged test job and another item's older shards, and once it leaves the expedited set its leftover shards queue by age again."},"why":"Without this test, a regression in the claim order would leave an expedited item's gate waiting behind a backlog of older shards.","kind":"cell unit","inputs":["packages/api/src/io/jobs.js","packages/api/tests/io/jobs/claim-order.test.js"]},
   "api.gate.rebase-before-shards.rebuilt-on-main": {"proves":{"specs":["C7"],"claim":"A passing gate receipt with a proof plan, posted through boardJobQueueCall with a trunk port when the trunk head is not in the candidate, offers every shard at the candidate rebuilt on the trunk head, with the head as base."},"why":"Without this test a gate's proof shards would run on a candidate that lacks what trunk gained since the claim, proving a tree that never lands.","kind":"cell unit","inputs":["packages/api/src/io/gate.js","packages/api/src/io/gate/rebuild.js","packages/api/tests/io/gate/rebase-before-shards.test.js"]},
   "api.gate.rebase-before-shards.current-unchanged": {"proves":{"specs":["C7"],"claim":"When the trunk head is already in the candidate, or the call has no trunk port, the shards are offered at the unchanged candidate and base."},"why":"Without this test the rebuild could change the shards of a gate that needs none, or of a board with no trunk port.","kind":"cell unit","inputs":["packages/api/src/io/gate.js","packages/api/src/io/gate/rebuild.js","packages/api/tests/io/gate/rebase-before-shards.test.js"]},
-  "api.gate.rebase-before-shards.conflict-returns": {"proves":{"specs":["C7"],"claim":"When the gate candidate conflicts with the trunk head, a passing receipt posted through boardJobQueueCall offers no shard, the item stays with its builder with a fact naming each conflicting file and the merge-main wording, and the gate job ends."},"why":"Without this test a conflicting candidate would have its shards judged on a tree that never lands, or return with no word of which files collide.","kind":"cell unit","inputs":["packages/api/src/io/gate.js","packages/api/src/io/gate/rebuild.js","packages/api/tests/io/gate/rebase-before-shards.test.js"]}
+  "api.gate.rebase-before-shards.conflict-returns": {"proves":{"specs":["C7"],"claim":"When the gate candidate conflicts with the trunk head, a passing receipt posted through boardJobQueueCall offers no shard, the item stays with its builder with a fact naming each conflicting file and the merge-main wording, and the gate job ends."},"why":"Without this test a conflicting candidate would have its shards judged on a tree that never lands, or return with no word of which files collide.","kind":"cell unit","inputs":["packages/api/src/io/gate.js","packages/api/src/io/gate/rebuild.js","packages/api/tests/io/gate/rebase-before-shards.test.js"]},
+  "api.recheck.cpu-admission-nested-stderr": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "cpu admission nested stderr"
+    },
+    "why": "Preserve main test failure reporting without admitting unknown stderr or inventing nested outcome identity.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/tests/io/recheck.test.js",
+      "packages/api/src/io/recheck.js",
+      "packages/api/tests/fixtures/recheck-admission-retained.json"
+    ]
+  },
+  "api.recheck.cpu-admission-negative-controls": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "cpu admission negative controls"
+    },
+    "why": "Preserve main test failure reporting without admitting unknown stderr or inventing nested outcome identity.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/tests/io/recheck.test.js",
+      "packages/api/src/io/recheck.js",
+      "packages/api/tests/fixtures/recheck-admission-retained.json"
+    ]
+  },
+  "api.recheck.cpu-admission-changed-signature": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "cpu admission changed signature"
+    },
+    "why": "Preserve main test failure reporting without admitting unknown stderr or inventing nested outcome identity.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/tests/io/recheck.test.js",
+      "packages/api/src/io/recheck.js",
+      "packages/api/tests/fixtures/recheck-admission-retained.json"
+    ]
+  },
+  "api.recheck.cpu-admission-success-preserved": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "cpu admission success preserved"
+    },
+    "why": "Preserve main test failure reporting without admitting unknown stderr or inventing nested outcome identity.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/tests/io/recheck.test.js",
+      "packages/api/src/io/recheck.js",
+      "packages/api/tests/fixtures/recheck-admission-retained.json"
+    ]
+  }
 }

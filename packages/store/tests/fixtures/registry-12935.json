@@ -1,0 +1,20 @@
+{
+  "store.submit-handoff-records.native-run-envelope": {
+    "proves": {
+      "specs": ["B28", "C7"],
+      "claim": "The existing run-record writer supplies an authoritative observation envelope without a job-step fallback."
+    },
+    "why": "Recovery must describe the native producer rather than only manually seeded records.",
+    "kind": "cell unit",
+    "inputs": ["packages/store/src/io/submit/handoff/records.js", "packages/store/src/io/board/run.js", "packages/store/index.js", "packages/store/tests/io/submit/handoff/records.test.js"]
+  },
+  "store.submit-handoff-records.native-missing-binding": {
+    "proves": {
+      "specs": ["B28", "C7"],
+      "claim": "Native receipt attempts never synthesize missing historical bindings or exhaustion authority."
+    },
+    "why": "A producer observation must retain UNKNOWN while preserving source and result custody.",
+    "kind": "cell unit",
+    "inputs": ["packages/store/src/io/submit/handoff/records.js", "packages/store/src/io/board/run.js", "packages/store/index.js", "packages/store/tests/io/submit/handoff/records.test.js"]
+  }
+}
