@@ -99,6 +99,9 @@ test('api.gate-owner.routes-authenticated-failure-to-selected-shard: clause 1: a
   const posted = { attempt: 1, runner: 'runner-one', receipt: { status: 1, gate: { source: head, green: false, shard: { files: [owner] }, phases: [phase] } } };
   const combined = combinedReceipt({ status: 0, gate: { source: head, green: true, phases: [{ role: 'check', status: 0 }], proofPlan: {} } },
     [{ job: shard, posted, selected }], { signatures: true });
+  const combinedProof = combined.gate.phases.find(row => row.role === 'proof');
+  assert.equal(combinedProof.ownerRoutesInvalid, false, 'the same-shard outcome and selected request produce valid routing evidence');
+  assert.equal(combinedProof.ownerRoutes[0].file, owner, 'the combined proof carries the selected owner');
   let observed;
   const compared = compareGateWithMain(board, combined, main, request => {
     observed = request;
