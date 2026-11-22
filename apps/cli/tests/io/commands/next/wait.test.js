@@ -66,23 +66,32 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   const box = helpers.project('true');
   box.env.PULLBOARD_NEXT_PROFILE = '1';
   const began = Date.now(), notifications = [];
+  let subscribed, notified = false;
+  const ready = new Promise(resolve => { subscribed = resolve; });
   // This diagnostic clock uses the actual time and native waiter, without changing any deadline.
   const clock = { now: Date.now, sleep: async (wake, options) => {
     if (notifications.length < 64) notifications.push({ sleepAt: Date.now() - began, after: options.after, until: options.deadline - began });
-    await wake.wait(options);
+    const sleeping = wake.wait(options);
+    subscribed();
+    await sleeping;
+    notified ||= wake.version() !== options.after;
     if (notifications.length < 64) notifications.push({ wokeAt: Date.now() - began, version: wake.version() });
   } };
-  const waiting = drivenNext(box, box.web, clock, '--wait', '1');
-  // The waiting seat has recorded its idle answer once it is resting on the board.
+  const waiting = drivenNext(box, box.web, clock, '--wait', '1').then(result => ({ ...result, finishedAt: Date.now() }));
+  // The first idle event precedes sleep; wait for the actual native subscription before offering work.
   const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  while (!withFixtureBoard(board, open => open.db.prepare("SELECT 1 AS found FROM event WHERE event_kind = 'next-idle'").get())) await yieldEventLoop();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Offered while a seat waits', '--specs', 'G1', '--criterion', 'renders', '--json');
+  await ready;
+  const added = await fixtureAdd(box.runAsync, box.repo, 'web', 'Offered while a seat waits', '--specs', 'G1', '--criterion', 'renders', '--json');
   assert.equal(added.status ?? added.code, 0, `${added.out ?? added.stdout}\n${added.err ?? added.stderr}`);
   const item = JSON.parse(added.out ?? added.stdout).item;
-  const filedAt = Date.now();
+  const filed = withFixtureBoard(board, open => open.db.prepare("SELECT event_at FROM event WHERE event_kind='add' AND item_id=? ORDER BY event_id DESC LIMIT 1").get(item.item_id));
+  const filedAt = Date.parse(filed.event_at);
+  assert.ok(Number.isFinite(filedAt), 'the board records the actual add timestamp');
   t.diagnostic(`item ${item.item_id} status ${item.item_status} filed ${(filedAt - began) / 1000} s after the wait began`);
   const result = await waiting;
-  const delay = (Date.now() - filedAt) / 1000;
+  const delay = (result.finishedAt - filedAt) / 1000;
+  assert.ok(result.finishedAt >= filedAt, 'the waiting command answers after the committed add');
+  assert.ok(notified, 'the native file waiter received a notification');
   t.diagnostic(`native offer wake ${delay} s; notifications ${JSON.stringify(notifications)}; ${result.err.replace(/\s+/gu, ' ')}`);
   assert.equal(result.code, 0, `filed ${(filedAt - began) / 1000} s in, item ${JSON.stringify(item).slice(0, 400)}: ${result.out}\n${result.err}`);
   assert.match(result.out, new RegExp(`#${item.item_id}\\b`, 'u'), `the wait did not hand over the offered item: ${result.out}`);
