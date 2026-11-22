@@ -131,7 +131,7 @@ export async function nextHere(io, values) {
     if (submitted !== 0) return submitted;
     values = { ...values, done: undefined };
   }
-  const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
+  const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined && !values['no-wait'];
   values = { ...values, defaultLoop };
   const monitor = startNextProgressMonitor(io);
   const previousDefaultLoop = io.defaultLoop;
@@ -324,7 +324,7 @@ async function nextWithProgress(io, values, progress) {
   if (values.verifyId !== undefined) idArg(values.verifyId, 'an item id after --verify');
   // review.builderOffers (off by default): while a seat in lane review is alive, a builder's next takes the build path and never offers or reserves a review [C7,#11946].
   if (!values.verify && !values.build && reviewBuilderOffers() && withBoardRead(ctx, board => builderWithLiveReviewSeat(board, whoAmI(ctx, board)))) values = { ...values, build: true };
-  const minutes = values.wait === undefined ? 0 : Number(values.wait);
+  const minutes = values.wait === undefined ? (values.defaultLoop ? Math.min(nextIdleMinutes(ctx.config), 1.5) : 0) : Number(values.wait);
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
   }
@@ -549,15 +549,9 @@ async function nextWithProgress(io, values, progress) {
         return 0;
       }
       if (values.verify) refuseWhileBuilding(ctx);
-      if (values['no-wait'] && !found.laneWork) return answerNoWait(io, ctx, found, values, ordered);
-      if (values.defaultLoop && !found.laneWork) {
-        // A named step, such as waiting on another seat's rework, says what to do instead of ending the turn (#7922).
-        const step = found.nextStep ?? 'nothing for this seat: end your turn';
-        const lapsed = withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()));
-        io.result?.({ item: null, next: step, reasons: [...(found.reasons ?? []), ...lapsed] });
-        for (const line of lapsed) io.say(line);
-        io.say(`next: ${step}`);
-        return 0;
+      if (!values.take && !values.build && !values.verify && (values['no-wait'] || values.defaultLoop || values.wait !== undefined) && !found.laneWork) {
+        const seconds = values.wait === undefined ? undefined : minutes * 60;
+        return answerNoWait(io, ctx, found, values, ordered, seconds);
       }
       found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => reasons().inboxReasons(board, whoAmI(ctx, board))), ...withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()))];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
@@ -614,15 +608,15 @@ async function nextWithProgress(io, values, progress) {
 }
 
 /**
- * next --no-wait with nothing free: the board-finished line with exit 3 when every item in the seat's lane is verified,
+ * An idle wait with nothing free: the board-finished line with exit 3 when every item in the seat's lane is verified,
  * otherwise the idle line with exit 4. Each records its observation, and a recording failure never changes the exit code [C7,#12779].
  */
-async function answerNoWait(io, ctx, found, values, ordered) {
+async function answerNoWait(io, ctx, found, values, ordered, waitedSeconds) {
   const { seat, finished } = withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
     return { seat: me, finished: laneFinished(store.listItems(board, { lane: me.lane, all: true }), me.lane) };
   });
-  const seconds = idleSeconds(nextIdleMinutes(ctx.config));
+  const seconds = waitedSeconds ?? idleSeconds(nextIdleMinutes(ctx.config));
   const observation = finished ? { finished: true } : { timeout: { minutes: Math.floor(seconds / 60), awaited: 'work for this seat' } };
   try {
     await withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...observation }]));

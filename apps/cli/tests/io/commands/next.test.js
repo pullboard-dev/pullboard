@@ -107,7 +107,7 @@ const printed = ran => ran.out + ran.err;
 test('cli.io-commands-next.no-wait-idle-exit-4: clause 1: next --no-wait on a board with nothing for the seat prints the IDLE_TIMEOUT line first and exits 4 at once; a held review still refuses REVIEW_HELD at once, and plain next without the flag is unchanged [C7,#12779]', async t => {
   const box = await fixture(t);
   const plain = await cli(box, box.seats.actor.path, ['next']);
-  assert.doesNotMatch(printed(plain), /IDLE_TIMEOUT|board finished/u, 'plain next prints neither new line');
+  assert.ok(printed(plain).includes(IDLE_LINE), 'plain next on a lane with no items reports the idle timeout');
   const ran = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
   assert.equal(ran.code, 4, printed(ran));
   assert.ok(printed(ran).includes(IDLE_LINE), printed(ran));

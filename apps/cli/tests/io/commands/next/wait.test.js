@@ -97,7 +97,7 @@ test('cli.io-commands-next-wait.fake-clock-idle: clause 1: a next --wait 2 again
     sleep: async (wake, { deadline }) => { sleeps += 1; fake = Math.min(fake + FAKE_STEP_MS, Number.isFinite(deadline) ? Math.max(deadline, fake) : Infinity); },
   };
   const result = await drivenNext(box, box.web, clock, '--wait', '2');
-  assert.ok(result.code === 0 || result.code === 1, `exit ${result.code}: ${result.err}`);
+  assert.equal(result.code, 4, `exit ${result.code}: ${result.err}`);
   assert.doesNotMatch(result.err, /\n\s+at [^\n]*\.js:\d+/u, `the wait ended in an error: ${result.err}`);
   assert.ok(fake >= began + FAKE_WAIT_MS, `the idle answer came with the fake clock at ${fake - began} ms, before 2 minutes`);
   assert.ok(fake - began < FAKE_WAIT_MS + FAKE_STEP_MS, `the fake clock ran on to ${fake - began} ms after the deadline`);
