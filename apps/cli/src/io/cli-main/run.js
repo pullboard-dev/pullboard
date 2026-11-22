@@ -12,7 +12,8 @@ import { CHECKOUT_BOARD_ONLY } from './session.js';
 import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
-import { appendTrace, captureTraceContext } from '../trace.js';
+import { appendTrace } from '../trace.js';
+import { captureTraceContext } from '../trace.js';
 import { liveCwd } from './live-cwd.js';
 import { extractWhy } from '../../logic/why.js';
 
