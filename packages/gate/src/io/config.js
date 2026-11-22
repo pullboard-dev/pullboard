@@ -134,13 +134,13 @@ function nodeTestCommand(root, manifest) {
     : null;
   const present = names.filter((name) => locks[name].some((lock) => fs.exists(join(root, lock))));
   if (manifest.packageManager && !declared) {
-    throw new Refused('NODE_PACKAGE_MANAGER', `unrecognized packageManager declaration "${manifest.packageManager}"; use npm@, pnpm@ or yarn@`);
+    throw new Refused('NODE_PACKAGE_MANAGER', `unrecognized packageManager declaration "${manifest.packageManager}"; use npm@, pnpm@ or yarn@`, 'set packageManager in package.json to npm@<version>, pnpm@<version> or yarn@<version>');
   }
   if (declared && present.some((name) => name !== declared)) {
-    throw new Refused('NODE_PACKAGE_MANAGER', `packageManager declares ${declared} but lockfiles identify ${present.join(', ')}; align the declaration and lockfiles`);
+    throw new Refused('NODE_PACKAGE_MANAGER', `packageManager declares ${declared} but lockfiles identify ${present.join(', ')}; align the declaration and lockfiles`, 'align packageManager in package.json with the lockfiles in the detected project folder');
   }
   if (!declared && present.length > 1) {
-    throw new Refused('NODE_PACKAGE_MANAGER', `lockfiles identify multiple package managers (${present.join(', ')}); remove conflicting lockfiles or declare packageManager in package.json`);
+    throw new Refused('NODE_PACKAGE_MANAGER', `lockfiles identify multiple package managers (${present.join(', ')}); remove conflicting lockfiles or declare packageManager in package.json`, 'remove conflicting lockfiles or declare packageManager in package.json in the detected project folder');
   }
   return `${declared ?? present[0] ?? 'npm'} test`;
 }

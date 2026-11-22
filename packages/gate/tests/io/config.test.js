@@ -153,14 +153,18 @@ test('gate.config.node-manager-selection: #12896 clause 1: declared pnpm or Yarn
     [{ 'package.json': '{"scripts":{"test":"node test.js"}}\n', 'pnpm-lock.yaml': '' }, 'pnpm test'],
     [{ 'package.json': '{"scripts":{"test":"node test.js"}}\n', 'yarn.lock': '' }, 'yarn test'],
     [{ 'package.json': '{"scripts":{"test":"node test.js"}}\n' }, 'npm test'],
+    ...['package-lock.json', 'npm-shrinkwrap.json'].map((lock) => [{ 'package.json': JSON.stringify({ scripts: { test: 'node test.js' } }), [lock]: '' }, 'npm test']),
+    ...['npm', 'pnpm', 'yarn'].map((manager) => [{ 'package.json': JSON.stringify({ packageManager: `${manager}@1.0.0`, scripts: { test: 'node test.js' } }), [{ npm: 'package-lock.json', pnpm: 'pnpm-lock.yaml', yarn: 'yarn.lock' }[manager]]: '' }, `${manager} test`]),
   ];
   for (const [files, command] of cases) {
     const root = rootWith(t, files);
     assert.deepEqual(detectLanguages(root), [{ language: 'node', command }]);
   }
-  for (const manifest of ['{}\n', '{"scripts":{"test":"echo \\"Error: no test specified\\" && exit 1"}}\n']) {
-    const root = rootWith(t, { 'package.json': manifest, 'pnpm-lock.yaml': '' });
-    assert.deepEqual(detectLanguages(root), []);
+  for (const manifest of [{}, { scripts: { test: '' } }, { scripts: { test: 'echo "Error: no test specified" && exit 1' } }]) {
+    for (const manager of ['npm', 'pnpm', 'yarn']) {
+      const root = rootWith(t, { 'package.json': JSON.stringify({ ...manifest, packageManager: `${manager}@1.0.0` }) });
+      assert.deepEqual(detectLanguages(root), []);
+    }
   }
 });
 
@@ -169,7 +173,7 @@ test('gate.config.node-manager-guidance: #12896 clause 2: mismatched declaration
     'package.json': '{"packageManager":"pnpm@9.0.0","scripts":{"test":"node test.js"}}\n',
     'yarn.lock': '',
   });
-  assert.throws(() => detectLanguages(contradictory), /packageManager declares pnpm but lockfiles identify yarn/u);
+  assert.throws(() => detectLanguages(contradictory), (error) => error.code === 'NODE_PACKAGE_MANAGER' && /align/u.test(error.next));
   const ambiguous = rootWith(t, {
     'package.json': '{"scripts":{"test":"node test.js"}}\n',
     'pnpm-lock.yaml': '',
