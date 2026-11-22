@@ -110,6 +110,7 @@ export const workHelp = `Work
   pullboard shadow-batch <id> <id>... [--json]  compose accepted items onto main in a scratch tree and run the tier-2 checks once; board and main stay unchanged
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full; --review prints the review packet
+                                        --compact prints its queued relay moves, each review's paths as a nested path tree
   pullboard fact <id> <kind> <text> [--answers <bar-check-fact-id>] [--supersedes <fact-id>] [--ref path:lines@full-sha] [--implies <ids>]
                                         append item notes (question, answer, plan, risk), evidence or authorised judgements
                                         a bar-answer uses --answers to name the bar-check fact it reviewed
