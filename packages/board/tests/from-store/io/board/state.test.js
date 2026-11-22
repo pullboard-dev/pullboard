@@ -1,20 +1,20 @@
-/** The board state the view reads keeps an accept whose only conflict with main is mechanical fresh, and marks a real source conflict stale naming the file [C7,#3064]. @pullboard-test-input source-cell store */
+/** The board state the view reads keeps an accept whose only conflict with main is mechanical fresh, and marks a real source conflict stale naming the file [C7,#3064]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
-import { loadStopRules } from '../../../../items/index.js';
-import { buildLocalBoardState } from '../../../src/io/board/state.js';
-import { mechanicalConflictFiles } from '../../../src/io/board.js';
-import { ENGINE_VERSION } from '../../../../state/index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
-import { temporaryRepository } from '../../fixtures/submit.js';
+import * as store from '../../../../../store/index.js';
+import { fixtureMachineSettings } from '../../../../../gate/tests/fixtures/testkit.js';
+import { loadStopRules } from '../../../../../items/index.js';
+import { buildLocalBoardState } from '../../../../../store/index.js';
+import { mechanicalConflictFiles } from '../../../../../store/index.js';
+import { ENGINE_VERSION } from '../../../../../state/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
+import { temporaryRepository } from '../../../../../store/tests/fixtures/submit.js';
 
 const POLICY = { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } };
 const PROOF = { version: 1, files: [], full: false, deferred: true, reason: 'synthetic board-state fixture; no gate execution' };
