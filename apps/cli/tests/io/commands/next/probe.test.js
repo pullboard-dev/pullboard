@@ -28,20 +28,20 @@ function verify(box, id) {
 test('cli.io-commands-next.built-cli-contract: clause 3: the built CLI prints a claimed line with exit 0, a finished line with exit 3, and an idle line with exit 4 within 95 seconds [C7,#12807]', async t => {
   const claimBox = await fixture(t);
   claimBox.add('A claimable item for the native CLI probe');
-  const claimed = runNext(claimBox, claimBox.seats.actor.path, 'next');
+  const claimed = await runNext(claimBox, claimBox.seats.actor.path, 'next');
   assert.equal(claimed.status, 0, `${claimed.stdout}\n${claimed.stderr}`);
   assert.match(claimed.stdout, /claimed #\d+/u);
 
   const finishedBox = await fixture(t);
   const item = finishedBox.add('A verified item for the native CLI probe');
   verify(finishedBox, item);
-  const finished = runNext(finishedBox, finishedBox.seats.actor.path, 'next', '--no-wait');
+  const finished = await runNext(finishedBox, finishedBox.seats.actor.path, 'next', '--no-wait');
   assert.equal(finished.status, 3, `${finished.stdout}\n${finished.stderr}`);
   assert.match(finished.stdout, /board finished/u);
 
   const idleBox = await fixture(t);
   const began = performance.now();
-  const idle = runNext(idleBox, idleBox.seats.actor.path, 'next');
+  const idle = await runNext(idleBox, idleBox.seats.actor.path, 'next');
   const elapsed = performance.now() - began;
   assert.equal(idle.status, 4, `${idle.stdout}\n${idle.stderr}`);
   assert.match(idle.stdout, /\[IDLE_TIMEOUT\]/u);
