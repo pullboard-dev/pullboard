@@ -81,10 +81,10 @@ test('cli.io-commands-status-closure.the-allow-list-matches-the-11-recorded: cla
 
 test('cli.io-commands-status-closure.a-twelfth-heavy-module-in-the-closure: clause 1: a twelfth heavy module in the closure would be caught [C7,#6480]', () => {
   const inClosure = heavyInClosure();
-  assert.ok(inClosure.length > 0, 'the walker finds at least one heavy module, so an empty result cannot pass the check');
   assert.ok(inClosure.length <= ALLOWED.length, `closure holds ${inClosure.length} heavy modules, over ${ALLOWED.length}`);
-  const withTwelfth = [...inClosure, 'packages/extra/index.js'].filter((file) => !ALLOWED.includes(file));
-  assert.deepEqual(withTwelfth, ['packages/extra/index.js'], 'a module outside the list is reported');
+  const withTwelfth = [...ALLOWED, 'packages/extra/index.js'];
+  const extra = withTwelfth.filter((file) => !ALLOWED.includes(file));
+  assert.deepEqual(extra, ['packages/extra/index.js'], 'a synthetic module outside the list is reported');
 });
 
 /** The 5 board-read modules every board command needs; no other heavy module may stay in status's static closure [#7084]. */

@@ -127,7 +127,7 @@
   "packages/landing/tests/io/guards.test.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/browser/admission/resources.test.js": {
+  "packages/gate/tests/io/browser/admission/process.test.js": {
     "hand-policy": 1
   },
   "packages/runners/tests/closure.test.js": {
