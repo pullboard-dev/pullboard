@@ -175,11 +175,11 @@ export async function run(io, args) {
   if (pending?.length > before && io.afterDeferred) {
     // The board closes before final-step removal. Retain its committed state, never repeat the release.
     const item = store.getItem(board, idArg(first)), flush = io.flush;
-    io.flush = () => {}; // This release's single document waits for its own deferred cleanup outcome.
+    if (values.json) io.flush = () => {}; // Only JSON waits; normal text must finish while the folder stands.
     io.afterDeferred(code => {
       if (failures.length) code = incompleteCleanup(io, item, idArg(first), review,
         new AggregateError(failures, failures.map(error => error.message).join('\n')), true);
-      flush(code);
+      if (values.json) flush(code);
       return code;
     });
   }
