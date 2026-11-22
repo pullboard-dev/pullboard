@@ -69,7 +69,6 @@ import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
 import { settleQueuedAccept } from './test/accept.js';
 import { caseReworkLines } from './gate/files.js';
-import { ledgerInputKeys } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
 import { retryNewReds } from './gate/retry.js';
 import { retryShardId } from './gate/retry.js';
@@ -78,6 +77,7 @@ import { handUnknownGatesToReview } from './gate/unknown-review.js';
 import { mainRedFileLines } from './gate/main-red-files.js';
 import { caseRows } from './gate/main-red-files.js';
 import { shardNote } from './gate/retry.js';
+import * as ownerRouting from './gate/owner-routing.js';
 
 const fs = fileSystemAdapter();
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
@@ -307,6 +307,7 @@ const shellWord = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 export function shardJobs(db, job, { runs = null } = {}) {
   return prepared(runs ? runs.db : db, SHARD_JOBS_SQL).all(SHARD_JOB_KIND, `${job}:shard:`, `${job}:shard:\uFFFF`);
 }
+
 export const SHARD_JOBS_SQL = 'SELECT job_id, job_step FROM job WHERE +job_kind = ? AND job_id >= ? AND job_id < ? ORDER BY job_created, job_id';
 const STATEMENTS = new WeakMap(), prepared = (db, sql, byText = STATEMENTS.get(db) ?? STATEMENTS.set(db, new Map()).get(db)) => byText.get(sql) ?? byText.set(sql, db.prepare(sql)).get(sql); // One prepared statement per connection and SQL text: a settle pass looks up two per done gate on every pull claim, and preparing them each time cost more than running them [C7,#12095].
 
@@ -368,12 +369,12 @@ export function offerProofShards(board, { job, receipt, offered, rebuilt = null,
  */
 export function combinedReceipt(gateReceipt, shards, { signatures = false, mainRed = null } = {}) {
   const gate = gateReceipt.gate ?? {};
-  const parts = shards.map(({ job, posted, ended = null }) => {
+  const parts = shards.map(({ job, posted, ended = null, selected = null }) => {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = mainRed?.has(job) === true || (posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0);
-    return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
-      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null };
+    return { job, runner: posted?.runner ?? null, attempt: posted?.attempt ?? null, head: shardGate.source ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
+      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null, selected };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));
@@ -382,12 +383,10 @@ export function combinedReceipt(gateReceipt, shards, { signatures = false, mainR
   const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? (part.ended ? `ended: ${part.ended}` : 'no proof phase')).slice(-PART_TEXT)}`), ...totals].join('\n');
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const signed = signatures && failures ? reds.flatMap(part => part.phase.failures.map((_, index) => part.phase.failureSignatures?.[index] ?? null)) : null;
-  // Each failing file's input key from its own shard's ledger row, so the main-red file excuse can match main's receipt at the same inputs [C7,#12130].
-  // A shard that names its case only in errors[] (failures[] empty) keeps its keys too [C7,#12130].
-  const keys = Object.fromEntries(reds.flatMap(part => { const own = ledgerInputKeys([part.phase]); return caseRows(part.phase).filter(row => own[row?.file]).map(row => [row.file, own[row.file]]); }));
+  const routing = ownerRouting.combinedReceiptRouting(reds, failures);
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
     sha256: createHash('sha256').update(parts.map(part => part.phase?.sha256 ?? '').join('\n')).digest('hex'), bytes: parts.reduce((total, part) => total + (part.phase?.bytes ?? 0), 0), tail,
-    ...(reds.length ? { failures, ...(signed ? { failureSignatures: signed } : {}), ...(Object.keys(keys).length ? { failedInputKeys: keys } : {}), shardReds: reds.map(redShard), errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
+    ...(reds.length ? { failures, ...(signed ? { failureSignatures: signed } : {}), ...routing, shardReds: reds.map(redShard), errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
       errorCount: reds.reduce((total, part) => total + (part.phase?.errorCount ?? part.phase?.errors?.length ?? 0), 0) } : {}) };
   const { proofPlan, ...rest } = gate;
   const green = !reds.length;
@@ -404,7 +403,7 @@ export function combinedReceipt(gateReceipt, shards, { signatures = false, mainR
 export function applyShardReceipt(board, { job }, ports = {}) {
   const parent = offeredRequest(board.db, job)?.gate;
   if (typeof parent !== 'string') return { applied: false, outcome: 'not-shard' };
-  if (ports.failFastShards === true) endShardsOnItemRed(board, { parent, job, ports }, { postedReceipt, shardJobs, combinedReceipt, compareGateWithMain, offeredGate });
+  if (ports.failFastShards === true) endShardsOnItemRed(board, { parent, job, ports }, { postedReceipt, shardJobs, combinedReceipt, compareGateWithMain, offeredGate, selectedShardContext: ownerRouting.selectedShardContext });
   const every = shardJobs(board.db, parent);
   // The one retry shard (gate.retryNewRedsOnce) is no part of the proof's own split; it only replaces red shards when green [C7,P7].
   const retry = every.find(row => row.job_id === retryShardId(parent)) ?? null;
@@ -417,7 +416,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   // The last shard's post and every board process's claim reconcile reach here at once; one claims the apply, the rest return (#10862) [C7,P7].
   if (!claimShardSettle(board.db, parent, now)) return { applied: false, outcome: 'already-settling' };
   const signatures = { signatures: ports.settleOnMainReceipt === true };
-  const parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, ended: posted ? null : endedDetail(board.db, row.job_id) }; });
+  const parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, selected: ownerRouting.selectedShardContext(board.db, row.job_id), ended: posted ? null : endedDetail(board.db, row.job_id) }; });
   let combined = combinedReceipt(gateReceipt, parts, signatures);
   let retried = null, mainRed = null;
   try {
@@ -430,7 +429,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
       const shardGate = posted?.receipt?.gate ?? {};
       if (posted?.receipt?.status === 0 && shardGate.green === true && (shardGate.phases ?? []).find(row => row.role === 'proof')?.status === 0) {
         const green = part => part.posted?.receipt?.status === 0 && part.posted.receipt.gate?.green === true && (part.posted.receipt.gate.phases ?? []).find(row => row.role === 'proof')?.status === 0;
-        combined = combinedReceipt(gateReceipt, [...parts.filter(green), { job: retry.job_id, posted }], signatures);
+        combined = combinedReceipt(gateReceipt, [...parts.filter(green), { job: retry.job_id, posted, selected: ownerRouting.selectedShardContext(board.db, retry.job_id) }], signatures);
         retried = shardGate.shard?.files ?? [];
       }
     } else if (ports.retryNewRedsOnce === true && combined.status !== 0) {
@@ -587,11 +586,11 @@ export function compareGateWithMain(board, receipt, main, lookup, options = {}) 
   if (!red.length || red.some(phase => !Array.isArray(phase.failures) || !phase.failures.length
     || phase.failures.some(row => typeof row?.name !== 'string' || !row.name || !PROJECT_FILE.test(row?.file ?? '')))) return null;
   // Each case carries its diagnostic signature from the receipt; a receipt that predates them carries null [V4,B3].
-  const signed = (phase, index) => Array.isArray(phase.failureSignatures) && /^[0-9a-f]{64}$/u.test(phase.failureSignatures[index] ?? '') ? phase.failureSignatures[index] : null;
-  const cases = red.flatMap(phase => phase.failures.map(({ file, name }, index) => ({ phase: String(phase.role), file, name, signature: signed(phase, index) })));
+  const routed = ownerRouting.ownerComparisonCases(red, gate); if (!routed) return null;
+  const { cases, inputKeys } = routed;
   let found = null;
   // Each failed file's test input key rides along, so a receipt from another main with the same closure answers [C7,SC11].
-  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: cases.map(({ file, name }) => ({ file, name })), inputKeys: ledgerInputKeys(red) }); } catch (error) { if (!error?.code) throw error; }
+  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: cases.map(({ file, name }) => ({ file, name })), inputKeys }); } catch (error) { if (!error?.code) throw error; }
   const classes = new Map((found?.classes ?? []).map(row => [row.file, row]));
   if (cases.some(row => !classes.has(row.file))) return null;
   const receiptId = value => typeof value === 'string' ? value : typeof value?.id === 'string' ? value.id : null;
@@ -1395,7 +1394,7 @@ export function shardedResult(db, job, gateReceipt, { runs = null } = {}) {
   const home = runs ? runs.db : db;
   const shards = shardJobs(home, job);
   if (!shards.length || shards.some(row => row.job_step !== 'done')) return null;
-  return combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(home, row.job_id) })), { signatures: true });
+  return combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(home, row.job_id), selected: ownerRouting.selectedShardContext(home, row.job_id) })), { signatures: true });
 }
 
 /** Shout the coordinator once that one job was claimed 3 times within 60 s, naming the job and its runners (#7445). */
