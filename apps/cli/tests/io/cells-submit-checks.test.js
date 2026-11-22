@@ -91,6 +91,34 @@ const submitOptions = (pair, extra) => ({
   readCutItems: () => [], onInventory: () => {}, onAllCells: () => {}, ...extra,
 });
 
+test('cli.io-cells-submit-checks.accepted-object-survives-distinct-commit-dates: clause 1: unchanged candidates contain the exact accepted object and real edits descend from it at a different commit date [C7]', t => {
+  const dates = { mainDate: '2020-02-01T00:00:00Z', candidateDate: '2020-02-02T00:00:00Z' };
+  const same = cellsSnapshotPair(t, undefined, dates);
+  assert.deepEqual(cellsSnapshotProblems(same.main.root, same.candidate.root, submitOptions(same)).problems, []);
+  assert.equal(git(same.candidate.root, 'cat-file', '-t', same.main.commit), 'commit', 'the candidate contains the actual accepted commit object');
+  assert.equal(same.candidate.commit, same.main.commit, 'an unchanged candidate stays at the accepted commit');
+  assert.equal(git(same.candidate.root, 'cat-file', '-p', same.main.commit), git(same.main.root, 'cat-file', '-p', same.main.commit), 'the accepted object bytes are identical');
+
+  const edited = cellsSnapshotPair(t, put => put('packages/demo/index.js', "export const demo = 'descendant';\n"), dates);
+  assert.notEqual(edited.candidate.commit, edited.main.commit, 'the edit creates a real new commit');
+  git(edited.candidate.root, 'merge-base', '--is-ancestor', edited.main.commit, edited.candidate.commit);
+  assert.equal(git(edited.candidate.root, 'rev-parse', 'HEAD^'), edited.main.commit, 'the edited commit directly descends from the accepted base');
+  assert.equal(Number(git(edited.main.root, 'show', '-s', '--format=%at', 'HEAD')), Date.parse(dates.mainDate) / 1000);
+  assert.equal(Number(git(edited.candidate.root, 'show', '-s', '--format=%at', 'HEAD')), Date.parse(dates.candidateDate) / 1000);
+  assert.equal(git(edited.candidate.root, 'diff', '--name-only', edited.main.commit, 'HEAD'), 'packages/demo/index.js');
+  assert.equal(git(edited.candidate.root, 'show', 'HEAD:packages/demo/index.js'), "export const demo = 'descendant';");
+  assert.equal(git(edited.candidate.root, 'show', `${edited.main.commit}:packages/demo/index.js`), "export const demo = 'demo';");
+  assert.deepEqual(cellsSnapshotProblems(edited.main.root, edited.candidate.root, submitOptions(edited)).problems, []);
+});
+
+test('cli.io-cells-submit-checks.unrelated-accepted-object-still-refuses: clause 1: a separately committed graph at different dates cannot substitute for the actual accepted Git object [C7]', t => {
+  const accepted = cellsSnapshotPair(t);
+  const unrelated = cellsSnapshotPair(t, undefined, { mainDate: '2021-01-01T00:00:00Z', candidateDate: '2021-01-02T00:00:00Z' });
+  assert.notEqual(accepted.main.commit, unrelated.main.commit);
+  assert.equal(git(accepted.main.root, 'rev-parse', 'HEAD^{tree}'), git(unrelated.candidate.root, 'rev-parse', 'HEAD^{tree}'), 'equal trees alone do not establish shared history');
+  assert.throws(() => cellsSnapshotProblems(accepted.main.root, unrelated.candidate.root, submitOptions(accepted)), /bad object/iu);
+});
+
 test('cli.io-cells-submit-checks.plan-identity-edits-raise-no-problem-but-a-vanished-path-map-row-does: clause 1: policyProblems takes only the two path maps and the candidate root, a cell order, root and front door change in a plan shard raises no problem, and a disappeared accepted path-map row still does [C7,#10717]', (t) => {
   assert.equal(policyProblems.length, 3, 'two path maps and the candidate root');
   const pair = cellsSnapshotPair(t, (put) => {
