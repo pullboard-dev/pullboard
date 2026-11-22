@@ -73,18 +73,25 @@ test('cli.io-worktree.primary-root-cost-flat: clause 3: lookup median stays belo
     box.git(root, 'worktree', 'add', '-q', '--detach', path, 'HEAD');
     many.push(path);
   }
-  const measure = linked => {
-    const target = info(linked, env);
-    const samples = [];
-    for (let index = 0; index < 20; index += 1) {
-      const start = performance.now();
-      assert.equal(primaryCheckoutRoot(target), root);
-      samples.push(performance.now() - start);
-    }
-    return median(samples);
+  const oneTarget = info(one, env);
+  const manyTarget = info(many.at(-1), env);
+  const timed = target => {
+    const start = performance.now();
+    assert.equal(primaryCheckoutRoot(target), root);
+    return performance.now() - start;
   };
-  const oneMedian = measure(one);
-  const manyMedian = measure(many.at(-1));
+  for (let index = 0; index < 5; index += 1) {
+    timed(oneTarget);
+    timed(manyTarget);
+  }
+  const oneSamples = [];
+  const manySamples = [];
+  for (let index = 0; index < 20; index += 1) {
+    oneSamples.push(timed(oneTarget));
+    manySamples.push(timed(manyTarget));
+  }
+  const oneMedian = median(oneSamples);
+  const manyMedian = median(manySamples);
   assert.ok(manyMedian < 5, `40-worktree median was ${manyMedian.toFixed(3)} ms`);
   assert.ok(manyMedian <= oneMedian * 2, `40-worktree median ${manyMedian.toFixed(3)} ms exceeded 2x 1-worktree median ${oneMedian.toFixed(3)} ms`);
 });
