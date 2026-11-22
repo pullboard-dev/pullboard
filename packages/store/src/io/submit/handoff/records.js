@@ -1,5 +1,3 @@
-import { INFRASTRUCTURE_RETRY_LIMIT } from "./retry.js";
-
 /** Read-only queued-submit projections never grant proof or actor authority [V4,H16]. */
 
 /**
@@ -257,12 +255,12 @@ export function endedSubmitHandoff(board, job) {
 }
 
 
-/** Existing store policy values, read lazily because retry also consumes these records. No custody decision is implied. */
-export const gateRecoveryPolicy = Object.freeze({
-  get settleHoldMs() { return GATE_SETTLE_HOLD_MS; },
-  get unknownHoldMs() { return GATE_UNKNOWN_HOLD_MS; },
-  get infrastructureRetryLimit() { return INFRASTRUCTURE_RETRY_LIMIT; },
-});
+/** Read existing store policy lazily, after module initialization; retry also consumes the record readers. */
+export async function gateRecoveryPolicy() {
+  const { INFRASTRUCTURE_RETRY_LIMIT } = await import('./retry.js');
+  return Object.freeze({ settleHoldMs: GATE_SETTLE_HOLD_MS, unknownHoldMs: GATE_UNKNOWN_HOLD_MS,
+    infrastructureRetryLimit: INFRASTRUCTURE_RETRY_LIMIT });
+}
 
 /** Freeze detached JSON observations recursively, including raw source rows and refusal payloads. */
 function freezeEvidence(value) {
@@ -305,9 +303,10 @@ function recoveryJobs(db, item, source, now, reasons) {
  * @param {any} board - Open board with db and clock.
  * @param {number} id - Native item identity.
  * @param {{ runs?: { db: import('node:sqlite').DatabaseSync | null } | null }} [options]
- * @returns {Readonly<object>} Detached, deeply frozen source observations; never a release or settlement verdict.
+ * @returns {Promise<Readonly<object>>} Detached, deeply frozen source observations; never a release or settlement verdict.
  */
-export function captureGateRecoveryEvidence(board, id, { runs = null } = {}) {
+export async function captureGateRecoveryEvidence(board, id, { runs = null } = {}) {
+  const policy = await gateRecoveryPolicy();
   const db = board.db;
   const reasons = [];
   const answer = { observedAt: board.clock.now().getTime(), item: null, authority: null, gate: null,
@@ -381,7 +380,7 @@ export function captureGateRecoveryEvidence(board, id, { runs = null } = {}) {
         // Keep the producer's record; count or text alone is never exhaustion authority.
         answer.exhaustion = { source: answer.handoff.source, record,
           binding: reasons.length === 0 && record.state === 'infrastructure'
-            && Number.isSafeInteger(record.infrastructureRetries) && record.infrastructureRetries >= INFRASTRUCTURE_RETRY_LIMIT
+            && Number.isSafeInteger(record.infrastructureRetries) && record.infrastructureRetries >= policy.infrastructureRetryLimit
             ? 'matching-record' : 'unknown' };
       }
     }

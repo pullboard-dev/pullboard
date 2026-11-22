@@ -219,74 +219,75 @@ function evidenceRows(db) {
     .map(({ name }) => [name, db.prepare(`SELECT * FROM "${name}"`).all()]);
 }
 
-test('store.submit-handoff-records.recovery-policy: clause 1: [B28,C7] public policy uses existing bounds and budget; observations are detached, deeply immutable and read only', t => {
-  assert.equal(gateRecoveryPolicy.settleHoldMs, GATE_SETTLE_HOLD_MS);
-  assert.equal(gateRecoveryPolicy.settleHoldMs / 60_000, 120);
-  assert.equal(gateRecoveryPolicy.unknownHoldMs / 60_000, 240);
-  assert.equal(gateRecoveryPolicy.infrastructureRetryLimit, INFRASTRUCTURE_RETRY_LIMIT);
-  assert.ok(Object.isFrozen(gateRecoveryPolicy));
+test('store.submit-handoff-records.recovery-policy: clause 1: [B28,C7] public policy uses existing bounds and budget; observations are detached, deeply immutable and read only', async t => {
+  const policy = await gateRecoveryPolicy();
+  assert.equal(policy.settleHoldMs, GATE_SETTLE_HOLD_MS);
+  assert.equal(policy.settleHoldMs / 60_000, 120);
+  assert.equal(policy.unknownHoldMs / 60_000, 240);
+  assert.equal(policy.infrastructureRetryLimit, INFRASTRUCTURE_RETRY_LIMIT);
+  assert.ok(Object.isFrozen(policy));
   const f = recoveryFixture(t);
   const before = evidenceRows(f.db);
-  const observation = f.read();
+  const observation = (await f.read());
   assert.deepEqual(observation.reasons, []);
   assert.equal(observation.exhaustion.binding, 'matching-record');
   assert.equal(observation.handoff.record.error.message, 'Exact producer refusal');
   assert.throws(() => { observation.handoff.record.error.message = 'forged'; }, TypeError);
   assert.throws(() => observation.jobs.push({}), TypeError);
   assert.throws(() => { observation.item.item_owner = 'foreign'; }, TypeError);
-  assert.deepEqual(f.read(), observation);
+  assert.deepEqual((await f.read()), observation);
   assert.deepEqual(evidenceRows(f.db), before, 'no item, job, step, event, setting or sequence changes');
   f.db.prepare('UPDATE item SET item_owner = ? WHERE item_id = ?').run('changed', f.id);
-  assert.notEqual(f.read().item.item_owner, observation.item.item_owner, 'a later producer write cannot alter the detached capture');
+  assert.notEqual((await f.read()).item.item_owner, observation.item.item_owner, 'a later producer write cannot alter the detached capture');
 });
 
-test('store.submit-handoff-records.recovery-source-binding: clause 1: [B28,C7] latest authoritative identity wins before binding; foreign or missing identities and malformed schemas fail closed', t => {
+test('store.submit-handoff-records.recovery-source-binding: clause 1: [B28,C7] latest authoritative identity wins before binding; foreign or missing identities and malformed schemas fail closed', async t => {
   const f = recoveryFixture(t);
   for (const [field, value, reason] of [['item_owner', 'foreign', 'owner'], ['item_commit', 'd'.repeat(40), 'head'], ['item_frozen_digest', 'foreign', 'digest']]) {
     const old = getItem(f.box.board, f.id)[field];
     f.db.prepare(`UPDATE item SET ${field} = ? WHERE item_id = ?`).run(value, f.id);
-    assert.ok(f.read().reasons.includes(`unknown-binding:${reason}`));
-    assert.equal(f.read().exhaustion.binding, 'unknown');
+    assert.ok((await f.read()).reasons.includes(`unknown-binding:${reason}`));
+    assert.equal((await f.read()).exhaustion.binding, 'unknown');
     f.db.prepare(`UPDATE item SET ${field} = ? WHERE item_id = ?`).run(old, f.id);
   }
   f.db.prepare('UPDATE job SET job_attempt = 2 WHERE job_id = ?').run(f.record.id);
-  assert.ok(f.read().reasons.includes('unknown-binding:attempt'));
+  assert.ok((await f.read()).reasons.includes('unknown-binding:attempt'));
   f.db.prepare('UPDATE job SET job_attempt = 1 WHERE job_id = ?').run(f.record.id);
   f.db.prepare("UPDATE job_step SET job_step_payload = '{' WHERE job_step_name = 'infrastructure'").run();
-  assert.ok(f.read().reasons.some(reason => reason.startsWith('unreadable:board.job_step:')));
-  assert.equal(f.read().exhaustion, null);
+  assert.ok((await f.read()).reasons.some(reason => reason.startsWith('unreadable:board.job_step:')));
+  assert.equal((await f.read()).exhaustion, null);
   f.save();
   f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_created, job_updated) VALUES ('newer', 'gate', ?, ?, ?)")
     .run(f.id, f.box.clock.now().getTime() + 1, f.box.clock.now().getTime() + 1);
-  assert.equal(f.read().gate.row.job_id, 'newer');
-  assert.equal(f.read().handoff, null, 'no older matching gate fallback');
+  assert.equal((await f.read()).gate.row.job_id, 'newer');
+  assert.equal((await f.read()).handoff, null, 'no older matching gate fallback');
   f.db.prepare("INSERT INTO board_meta (meta_key, meta_value) VALUES ('runs_store', '1') ON CONFLICT(meta_key) DO UPDATE SET meta_value = '1'").run();
   f.db.prepare("INSERT INTO run (run_job, run_kind, run_item, run_candidate, run_base, run_state, run_attempt, run_record, run_created, run_updated) VALUES (?, 'gate', ?, ?, ?, 'done', 1, ?, 1, 1)")
     .run(f.record.id, f.id, f.record.commit, f.record.main, JSON.stringify(f.record));
-  const split = f.read();
+  const split = (await f.read());
   assert.equal(split.authority, 'board.run');
   assert.equal(split.handoff.record.id, f.record.id);
   assert.equal(split.exhaustion.binding, 'unknown', 'missing runner-store binding cannot prove exhaustion');
   assert.deepEqual(split.jobs, [], 'never substitute legacy jobs');
   f.db.prepare("INSERT INTO run (run_job, run_kind, run_item, run_state, run_record, run_created, run_updated) VALUES ('new-run', 'gate', ?, 'queued', NULL, 2, 2)").run(f.id);
-  assert.equal(f.read().gate.row.run_job, 'new-run');
-  assert.equal(f.read().handoff.record, null, 'no older non-null run fallback');
+  assert.equal((await f.read()).gate.row.run_job, 'new-run');
+  assert.equal((await f.read()).handoff.record, null, 'no older non-null run fallback');
   const old = new DatabaseSync(':memory:');
   t.after(() => old.close());
-  const missing = captureGateRecoveryEvidence({ db: old, clock: f.box.clock }, f.id);
+  const missing = await captureGateRecoveryEvidence({ db: old, clock: f.box.clock }, f.id);
   assert.ok(missing.reasons.some(reason => reason.startsWith('unavailable:board:')));
   assert.equal(missing.exhaustion, null);
   assert.equal(old.isTransaction, false);
 });
 
-test('store.submit-handoff-records.recovery-unknown-deferred: clause 2: [B28,C7] exact UNKNOWN, deferred receipts and done shards survive both old age bounds without a custody verdict', t => {
+test('store.submit-handoff-records.recovery-unknown-deferred: clause 2: [B28,C7] exact UNKNOWN, deferred receipts and done shards survive both old age bounds without a custody verdict', async t => {
   const f = recoveryFixture(t);
   f.settle('unknown');
   f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'receipt', 1, ?, ?)")
     .run(f.record.id, JSON.stringify({ gate: { deferred: true, outcome: 'UNKNOWN', main: null } }), f.box.clock.now().getTime());
   for (const age of [121, 241]) {
     f.box.advance(age * 60_000);
-    const got = f.read();
+    const got = (await f.read());
     const gate = got.jobs.find(entry => entry.row.job_id === f.record.id);
     const receipt = gate.steps.find(step => step.row.job_step_name === 'receipt');
     assert.deepEqual(receipt.payload, { gate: { deferred: true, outcome: 'UNKNOWN', main: null } });
@@ -297,32 +298,32 @@ test('store.submit-handoff-records.recovery-unknown-deferred: clause 2: [B28,C7]
   }
 });
 
-test('store.submit-handoff-records.recovery-progress-exhaustion: clause 2: [B28,C7] leases and heartbeat renewal remain separate from source steps/results and producer recovery counts', t => {
+test('store.submit-handoff-records.recovery-progress-exhaustion: clause 2: [B28,C7] leases and heartbeat renewal remain separate from source steps/results and producer recovery counts', async t => {
   const f = recoveryFixture(t);
   const at = f.box.clock.now().getTime();
   f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated) VALUES ('proof', 'test-run', ?, 'claimed', 'worker', ?, ?, ?)").run(f.id, at + 1, at, at);
   const step = (name, payload, time) => f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES ('proof', ?, ?, ?)").run(name, JSON.stringify(payload), time);
   step('queued', { agent: f.record.agentId }, at);
   step('alive', { heartbeat: true }, at + 1);
-  let proof = f.read().proofRuns[0];
+  let proof = (await f.read()).proofRuns[0];
   assert.equal(proof.lease, 'live');
   assert.deepEqual(proof.progress.map(entry => entry.row.job_step_name), ['queued']);
   f.box.advance(241 * 60_000);
-  assert.equal(f.read().proofRuns[0].lease, 'lapsed');
+  assert.equal((await f.read()).proofRuns[0].lease, 'lapsed');
   f.db.prepare("UPDATE job SET job_lease_until = ? WHERE job_id = 'proof'").run(f.box.clock.now().getTime() + 1);
-  assert.deepEqual(f.read().proofRuns[0].progress, proof.progress, 'lease renewal alone adds no result or step');
+  assert.deepEqual((await f.read()).proofRuns[0].progress, proof.progress, 'lease renewal alone adds no result or step');
   step('result', { outcome: 'infra', exactResult: 'source-result' }, f.box.clock.now().getTime());
-  assert.equal(f.read().proofRuns[0].progress.at(-1).payload.exactResult, 'source-result');
+  assert.equal((await f.read()).proofRuns[0].progress.at(-1).payload.exactResult, 'source-result');
   for (const state of ['offered', 'claimed']) {
     f.db.prepare('UPDATE job SET job_step = ? WHERE job_id = ?').run(state, f.record.id);
-    assert.equal(f.read().jobs.find(entry => entry.row.job_id === f.record.id).row.job_step, state);
-    assert.equal(f.read().exhaustion.binding, 'unknown');
+    assert.equal((await f.read()).jobs.find(entry => entry.row.job_id === f.record.id).row.job_step, state);
+    assert.equal((await f.read()).exhaustion.binding, 'unknown');
   }
   f.record.infrastructureRetries = 0;
   f.save();
-  assert.equal(f.read().exhaustion.binding, 'unknown', 'unspent budget is retained, not promoted');
+  assert.equal((await f.read()).exhaustion.binding, 'unknown', 'unspent budget is retained, not promoted');
   f.record.error.code = 'RUNNER_UNAVAILABLE';
   f.record.infrastructureRetries = INFRASTRUCTURE_RETRY_LIMIT;
   f.save();
-  assert.equal(f.read().exhaustion, null, 'count alone is not a producer exhaustion record');
+  assert.equal((await f.read()).exhaustion, null, 'count alone is not a producer exhaustion record');
 });
