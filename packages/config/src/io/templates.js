@@ -98,24 +98,24 @@ export const SEAT_LOOP = `## Worker loop
 
 Never wait, never sleep, never poll, never stop while the board has work.
 
-1. \`pullboard next --wait 1\`: build/verify. On an empty answer, run it again at once. Verify: \`pullboard next --verify --wait 1\`.
+1. \`pullboard next --wait 1\`: build/verify. On an empty answer, run it again at once. \`pullboard next --verify --wait 1\`.
 2. \`next\` printed your bar; \`pullboard show <id>\` only for the thread and history.
-3. **Build** in lane.
+3. **Build**.
 4. **Commit**; \`pullboard submit <id>\`.
-5. **Repeat:** \`next\` returns reds/rejects; fix/resubmit.
+5. **Repeat:** fix reds/rejects and resubmit.
 
-- **Review:** A seat joined to \`review\` reviews submissions; it loops with \`pullboard next --verify --wait 1\`.
+- **Review:** A review-lane seat reviews; loop with \`pullboard next --verify --wait 1\`.
 
 ### Building
 
-- **Gate:** Pullboard runs it; never run suites.
-- **Long commands:** background >1 min.
+- **Gate:** Pullboard checks; never run suites.
+- **Long:** background >1 min.
 - **Can't build:** \`pullboard release <id> --reason <CODE>\`; \`next\`.
 - **Stop:** only when \`pullboard status\` shows nothing open, building, in gate or in review.
 
 ### Verifying
 
-- **Judge:** compare diff with bar and receipts; rerun only if a clause lacks coverage.
+- **Judge:** check bar, diff and receipts; rerun gaps.
 - **Accept:** \`pullboard verify <id> accept\`.
 - **Reject:** \`pullboard verify <id> reject --reason TEST_FAILURE|BEHAVIOR_MISMATCH|INSUFFICIENT_EVIDENCE|STALE_HEAD|OTHER --clause "<clause>" --note "..."\`.
 

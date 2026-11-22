@@ -47,7 +47,7 @@ test('config.io-templates.agents-worktree: #11782 clause 1: the generated Lanes 
 });
 
 test('config.io-templates.seat-loop-reviewer: #11782 clause 2: a review-lane seat reviews submissions, loops on next --verify and stays within the unchanged word budget [C7]', () => {
-  assert.ok(SEAT_LOOP.includes('- **Review:** A seat joined to `review` reviews submissions; it loops with `pullboard next --verify --wait 1`.'));
+  assert.ok(SEAT_LOOP.includes('- **Review:** A review-lane seat reviews; loop with `pullboard next --verify --wait 1`.'));
   assert.equal(SEAT_LOOP_WORD_BUDGET, 160, 'the approved word budget stays unchanged');
   const words = SEAT_LOOP.split(/\s+/u).filter(Boolean).length;
   assert.ok(words <= SEAT_LOOP_WORD_BUDGET, `${words} words exceed ${SEAT_LOOP_WORD_BUDGET}`);
