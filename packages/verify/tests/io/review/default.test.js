@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { REVIEW_DEFAULT_ENGINE } from '../../../../state/light.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
+import { cellReviewAccept } from '../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
+import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
+import { withdraw } from '../../../../store/index.js';
 import { normalizeReviewDefaults } from '../../../src/io/review/default.js';
 import { itemReviewPolicy } from '../../../src/logic/review/policy.js';
 
@@ -11,9 +16,9 @@ const NOW = '2026-01-01T00:00:00.000Z';
 const JUDGMENT_FILE = 'packages/verify/src/logic/review/policy.js';
 
 /** Seed one judgment item whose row can be compared before and after the bounded write. */
-function addJudgmentItem(board, title, status = 'open') {
+function addJudgmentItem(board, title) {
   const { item_id: id } = cellItem(board, { lane: 'core', title, criterion: 'prove the written item' });
-  board.db.prepare('UPDATE item SET item_files=?, item_status=? WHERE item_id=?').run(JUDGMENT_FILE, status, id);
+  board.db.prepare('UPDATE item SET item_files=? WHERE item_id=?').run(JUDGMENT_FILE, id);
   return id;
 }
 
@@ -46,8 +51,14 @@ test('verify.io-review-default.written-item: clause 1: the written-item default 
   const sensitive = addJudgmentItem(board, 'explicit sensitive');
   const family = addJudgmentItem(board, 'review family');
   const strict = addJudgmentItem(board, 'explicit strict tier');
-  const verified = addJudgmentItem(board, 'finished verified', 'verified');
-  const withdrawn = addJudgmentItem(board, 'finished withdrawn', 'withdrawn');
+  const verified = addJudgmentItem(board, 'finished verified');
+  const withdrawn = addJudgmentItem(board, 'finished withdrawn');
+  const builder = cellSeat(board, { lane: 'core', path: '/fixture/default-builder', family: 'openai' });
+  const reviewer = cellSeat(board, { lane: 'core', path: '/fixture/default-reviewer', family: 'openai' });
+  cellClaim(board, verified, builder, { root: project.repo });
+  submitFixture(board, verified, { agentId: builder.id, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+  cellReviewAccept(board, verified, reviewer);
+  withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'fixture withdrawal' });
   const unrelated = Array.from({ length: 24 }, (_, index) => addJudgmentItem(board, `unrelated ${index}`));
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(`review_independence:${sensitive}`, JSON.stringify({ version: 1, sensitive: true, reviewFamily: null }));
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(`item_review_family:${family}`, 'anthropic');
