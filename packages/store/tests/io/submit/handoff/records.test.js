@@ -1,6 +1,10 @@
 /** A claimed item's sharded gate that settled unknown (main receipt missing) stays unsettled until a later settle replaces it; red and review are settled [#11711,C7]. The hold counts from the shard offer, not the gate's creation [#11921]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
+import { gateRecoveryPolicy } from '../../../../index.js';
+import { captureGateRecoveryEvidence } from '../../../../index.js';
+import { INFRASTRUCTURE_RETRY_LIMIT } from '../../../../index.js';
 import { fixture } from '../../../fixtures/dispatch.js';
 import { cellBoard } from '../../../fixtures/cell.js';
 import { GATE_SETTLE_HOLD_MS } from '../../../../src/io/submit/handoff/records.js';
@@ -187,4 +191,228 @@ test('store.submit-handoff-records.pruned-step-skipped: clause 1: a listed step 
   assert.equal(got.get(ids[0]).job, 0, 'the pruned step is skipped and the item\'s next-older step is used');
   assert.equal(got.get(ids[2]).job, 1, 'the other items keep their records');
   assert.equal(got.size, ids.length);
+});
+
+
+/** A source-labelled record on a real claimed board; fixture SQL models producer records, never passing runner proof. */
+function recoveryFixture(t) {
+  const f = settledGate(t);
+  const db = f.box.board.db;
+  const id = f.item.item_id;
+  const item = getItem(f.box.board, id);
+  const gate = db.prepare("SELECT * FROM job WHERE job_kind = 'gate'").get();
+  const record = { id: gate.job_id, agentId: item.item_owner, commit: 'a'.repeat(40), tree: 'b'.repeat(40),
+    main: 'c'.repeat(40), digest: item.item_frozen_digest, attempt: 1, state: 'infrastructure',
+    infrastructureRetries: INFRASTRUCTURE_RETRY_LIMIT, error: { code: 'GATE_INFRA_EXHAUSTED', message: 'Exact producer refusal' } };
+  db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(record.commit, id);
+  db.prepare('UPDATE job SET job_candidate = ?, job_base = ?, job_attempt = ? WHERE job_id = ?').run(record.commit, record.main, record.attempt, record.id);
+  const save = () => db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'infrastructure', ?, ?, ?)")
+    .run(record.id, db.prepare("SELECT COUNT(*) AS n FROM job_step WHERE job_step_name = 'infrastructure'").get().n,
+      JSON.stringify({ agent: record.agentId, commit: record.commit, tree: record.tree, digest: record.digest, record }), f.box.clock.now().getTime());
+  save();
+  return { ...f, db, id, record, save, read: () => captureGateRecoveryEvidence(f.box.board, id) };
+}
+
+/** Exact table contents, including event/settings and sequence counters, before and after a provider observation. */
+function evidenceRows(db) {
+  return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all()
+    .map(({ name }) => [name, db.prepare(`SELECT * FROM "${name}"`).all()]);
+}
+
+test('store.submit-handoff-records.recovery-policy: clause 1: [B28,C7] public policy uses existing bounds and budget; observations are detached, deeply immutable and read only', async t => {
+  const policy = await gateRecoveryPolicy();
+  assert.equal(policy.settleHoldMs, GATE_SETTLE_HOLD_MS);
+  assert.equal(policy.settleHoldMs / 60_000, 120);
+  assert.equal(policy.unknownHoldMs / 60_000, 240);
+  assert.equal(policy.infrastructureRetryLimit, INFRASTRUCTURE_RETRY_LIMIT);
+  assert.ok(Object.isFrozen(policy));
+  const f = recoveryFixture(t);
+  const before = evidenceRows(f.db);
+  const observation = (await f.read());
+  assert.deepEqual(observation.reasons, []);
+  assert.equal(observation.exhaustion.binding, 'matching-record');
+  assert.equal(observation.handoff.record.error.message, 'Exact producer refusal');
+  assert.throws(() => { observation.handoff.record.error.message = 'forged'; }, TypeError);
+  assert.throws(() => observation.jobs.push({}), TypeError);
+  assert.throws(() => { observation.item.item_owner = 'foreign'; }, TypeError);
+  assert.deepEqual((await f.read()), observation);
+  assert.deepEqual(evidenceRows(f.db), before, 'no item, job, step, event, setting or sequence changes');
+  f.db.prepare('UPDATE item SET item_owner = ? WHERE item_id = ?').run('changed', f.id);
+  assert.notEqual((await f.read()).item.item_owner, observation.item.item_owner, 'a later producer write cannot alter the detached capture');
+});
+
+test('store.submit-handoff-records.recovery-source-binding: clause 1: [B28,C7] latest authoritative identity wins before binding; foreign or missing identities and malformed schemas fail closed', async t => {
+  const f = recoveryFixture(t);
+  for (const [field, value, reason] of [['item_owner', 'foreign', 'owner'], ['item_commit', 'd'.repeat(40), 'head'], ['item_frozen_digest', 'foreign', 'digest']]) {
+    const old = getItem(f.box.board, f.id)[field];
+    f.db.prepare(`UPDATE item SET ${field} = ? WHERE item_id = ?`).run(value, f.id);
+    assert.ok((await f.read()).reasons.includes(`unknown-binding:${reason}`));
+    assert.equal((await f.read()).exhaustion.binding, 'unknown');
+    f.db.prepare(`UPDATE item SET ${field} = ? WHERE item_id = ?`).run(old, f.id);
+  }
+  f.db.prepare('UPDATE job SET job_attempt = 2 WHERE job_id = ?').run(f.record.id);
+  assert.ok((await f.read()).reasons.includes('unknown-binding:attempt'));
+  f.db.prepare('UPDATE job SET job_attempt = 1 WHERE job_id = ?').run(f.record.id);
+  f.db.prepare("UPDATE job_step SET job_step_payload = '{' WHERE job_step_name = 'infrastructure'").run();
+  assert.ok((await f.read()).reasons.some(reason => reason.startsWith('unreadable:board.job_step:')));
+  assert.equal((await f.read()).exhaustion, null);
+  f.save();
+  f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_created, job_updated) VALUES ('newer', 'gate', ?, ?, ?)")
+    .run(f.id, f.box.clock.now().getTime() + 1, f.box.clock.now().getTime() + 1);
+  assert.equal((await f.read()).gate.row.job_id, 'newer');
+  assert.equal((await f.read()).handoff, null, 'no older matching gate fallback');
+  f.db.prepare("INSERT INTO board_meta (meta_key, meta_value) VALUES ('runs_store', '1') ON CONFLICT(meta_key) DO UPDATE SET meta_value = '1'").run();
+  f.db.prepare("INSERT INTO run (run_job, run_kind, run_item, run_candidate, run_base, run_state, run_attempt, run_record, run_created, run_updated) VALUES (?, 'gate', ?, ?, ?, 'done', 1, ?, 1, 1)")
+    .run(f.record.id, f.id, f.record.commit, f.record.main, JSON.stringify(f.record));
+  const split = (await f.read());
+  assert.equal(split.authority, 'board.run');
+  assert.equal(split.handoff.record.id, f.record.id);
+  assert.equal(split.exhaustion.binding, 'unknown', 'missing runner-store binding cannot prove exhaustion');
+  assert.deepEqual(split.jobs, [], 'never substitute legacy jobs');
+  f.db.prepare("INSERT INTO run (run_job, run_kind, run_item, run_state, run_record, run_created, run_updated) VALUES ('new-run', 'gate', ?, 'queued', NULL, 2, 2)").run(f.id);
+  assert.equal((await f.read()).gate.row.run_job, 'new-run');
+  assert.equal((await f.read()).handoff.record, null, 'no older non-null run fallback');
+  const old = new DatabaseSync(':memory:');
+  t.after(() => old.close());
+  const missing = await captureGateRecoveryEvidence({ db: old, clock: f.box.clock }, f.id);
+  assert.ok(missing.reasons.some(reason => reason.startsWith('unavailable:board:')));
+  assert.equal(missing.exhaustion, null);
+  assert.equal(old.isTransaction, false);
+});
+
+test('store.submit-handoff-records.recovery-unknown-deferred: clause 2: [B28,C7] exact UNKNOWN, deferred receipts and done shards survive both old age bounds without a custody verdict', async t => {
+  const f = recoveryFixture(t);
+  f.settle('unknown');
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'receipt', 1, ?, ?)")
+    .run(f.record.id, JSON.stringify({ gate: { deferred: true, outcome: 'UNKNOWN', main: null } }), f.box.clock.now().getTime());
+  for (const age of [121, 241]) {
+    f.box.advance(age * 60_000);
+    const got = (await f.read());
+    const gate = got.jobs.find(entry => entry.row.job_id === f.record.id);
+    const receipt = gate.steps.find(step => step.row.job_step_name === 'receipt');
+    assert.deepEqual(receipt.payload, { gate: { deferred: true, outcome: 'UNKNOWN', main: null } });
+    assert.match(receipt.source, /board\.job_step:\d+/u);
+    assert.equal(gate.steps.find(step => step.row.job_step_name === 'note:shards.settled').payload.outcome, 'unknown');
+    assert.equal(got.jobs.filter(entry => entry.row.job_kind === 'gate-shard' && entry.row.job_step === 'done').length, 2);
+    assert.equal(got.exhaustion.binding, 'unknown', 'missing main proof and UNKNOWN settlement are not exhaustion');
+  }
+});
+
+test('store.submit-handoff-records.recovery-progress-exhaustion: clause 2: [B28,C7] leases and heartbeat renewal remain separate from source steps/results and producer recovery counts', async t => {
+  const f = recoveryFixture(t);
+  const at = f.box.clock.now().getTime();
+  f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated) VALUES ('proof', 'test-run', ?, 'claimed', 'worker', ?, ?, ?)").run(f.id, at + 1, at, at);
+  const step = (name, payload, time) => f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES ('proof', ?, ?, ?)").run(name, JSON.stringify(payload), time);
+  step('queued', { agent: f.record.agentId }, at);
+  step('alive', { heartbeat: true }, at + 1);
+  let proof = (await f.read()).proofRuns[0];
+  assert.equal(proof.lease, 'live');
+  assert.deepEqual(proof.progress.map(entry => entry.row.job_step_name), ['queued']);
+  f.box.advance(241 * 60_000);
+  assert.equal((await f.read()).proofRuns[0].lease, 'lapsed');
+  f.db.prepare("UPDATE job SET job_lease_until = ? WHERE job_id = 'proof'").run(f.box.clock.now().getTime() + 1);
+  assert.deepEqual((await f.read()).proofRuns[0].progress, proof.progress, 'lease renewal alone adds no result or step');
+  step('result', { outcome: 'infra', exactResult: 'source-result' }, f.box.clock.now().getTime());
+  assert.equal((await f.read()).proofRuns[0].progress.at(-1).payload.exactResult, 'source-result');
+  for (const state of ['offered', 'claimed']) {
+    f.db.prepare('UPDATE job SET job_step = ? WHERE job_id = ?').run(state, f.record.id);
+    assert.equal((await f.read()).jobs.find(entry => entry.row.job_id === f.record.id).row.job_step, state);
+    assert.equal((await f.read()).exhaustion.binding, 'unknown');
+  }
+  f.record.infrastructureRetries = 0;
+  f.save();
+  assert.equal((await f.read()).exhaustion.binding, 'unknown', 'unspent budget is retained, not promoted');
+  f.record.error.code = 'RUNNER_UNAVAILABLE';
+  f.record.infrastructureRetries = INFRASTRUCTURE_RETRY_LIMIT;
+  f.save();
+  assert.equal((await f.read()).exhaustion, null, 'count alone is not a producer exhaustion record');
+});
+
+
+/** Synthetic secret material is intentionally never taken from a live store. */
+test('store.submit-handoff-records.recovery-safe-evidence: clause 1: [B28,C7] typed allow-lists exclude claimed bearer credentials and every nested raw copy while retaining provenance and exact refusals', async t => {
+  const f = recoveryFixture(t);
+  const sentinel = 'SYNTHETIC-BEARER-12920-DO-NOT-EXPORT';
+  const claimed = { runner: 'synthetic-runner', token: sentinel, hopEpoch: 7,
+    request: { token: sentinel, submit: { agentId: f.record.agentId, token: sentinel } },
+    record: { ...f.record, token: sentinel, error: { ...f.record.error, token: sentinel },
+      debug: { job_step_payload: sentinel }, treeCopy: { token: sentinel } },
+    gate: { deferred: true, token: sentinel, main: { token: sentinel } },
+    job_step_payload: sentinel, payload: { token: sentinel } };
+  const at = f.box.clock.now().getTime();
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'claimed', 7, ?, ?)")
+    .run(f.record.id, JSON.stringify(claimed), at);
+  f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_step, job_created, job_updated) VALUES ('safe-proof', 'test-run', ?, 'claimed', ?, ?)").run(f.id, at, at);
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES ('safe-proof', 'queued', ?, ?)")
+    .run(JSON.stringify({ agent: f.record.agentId, token: sentinel }), at);
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES ('safe-proof', 'claimed', ?, ?)").run(JSON.stringify(claimed), at);
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'receipt', 7, ?, ?)")
+    .run(f.record.id, JSON.stringify({ runner: 'synthetic-runner', attempt: 7, token: sentinel,
+      receipt: { id: 'synthetic-receipt', status: 1, token: sentinel,
+        gate: { deferred: true, green: false, outcome: 'UNKNOWN', token: sentinel },
+        error: { code: 'MAIN_RECEIPT_MISSING', message: 'Exact missing main refusal', next: 'collect main proof', token: sentinel } } }), at);
+  const before = evidenceRows(f.db);
+  const got = await f.read();
+  assert.equal(JSON.stringify(got).includes(sentinel), false, 'no raw row, parsed payload, nested handoff, progress or proof-run escape');
+  assert.equal(JSON.stringify(got).includes('job_step_payload'), false);
+  assert.deepEqual(evidenceRows(f.db), before, 'projection does not rewrite producer evidence');
+  assert.equal(got.itemSource, `board.item:${f.id}`);
+  assert.equal(got.handoff.record.id, f.record.id);
+  assert.deepEqual(got.handoff.record.error, f.record.error, 'exact approved refusal fields retained');
+  assert.equal(got.exhaustion.binding, 'unknown', 'omitted or malformed evidence cannot become exhaustion authority');
+  const gate = got.jobs.find(entry => entry.row.job_id === f.record.id);
+  const step = gate.steps.find(entry => entry.row.job_step_name === 'claimed');
+  assert.equal(step.payload.runner, 'synthetic-runner');
+  assert.equal(step.payload.hopEpoch, 7);
+  assert.equal(step.row.job_step_seq, 7);
+  assert.equal(step.source, `board.job_step:${step.row.job_step_id}`);
+  assert.equal(step.row.job_step_at, at);
+  const receipt = gate.steps.find(entry => entry.row.job_step_name === 'receipt');
+  assert.equal(receipt.payload.receipt.id, 'synthetic-receipt');
+  assert.deepEqual(receipt.payload.receipt.gate, { deferred: true, green: false, outcome: 'UNKNOWN' });
+  assert.deepEqual(receipt.payload.receipt.error, { code: 'MAIN_RECEIPT_MISSING', message: 'Exact missing main refusal', next: 'collect main proof' });
+  assert.ok(got.reasons.includes(`unsettled:${receipt.source}`), 'native receipt wrapper retains UNKNOWN/deferred evidence');
+  assert.equal(step.payload.token, undefined);
+  assert.equal(step.payload.gate.main, undefined, 'objects cannot hide under an allowed scalar key');
+  assert.ok(got.reasons.some(reason => reason.startsWith('unknown-field:')));
+  assert.ok(got.reasons.some(reason => reason.startsWith('omitted-fields:')));
+  assert.ok(Object.isFrozen(got.proofRuns[0].progress[1].payload.record.error));
+});
+
+test('store.submit-handoff-records.recovery-authority-ordering: clause 1: [B28,C7] sanitization preserves latest gate and run authority before checking binding, without raw run-record escapes', async t => {
+  const f = recoveryFixture(t);
+  const sentinel = 'SYNTHETIC-RUN-SECRET-12920';
+  const at = f.box.clock.now().getTime();
+  f.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'malformed-record', ?, ?)")
+    .run(f.record.id, JSON.stringify({ record: sentinel }), at);
+  assert.equal((await f.read()).handoff.record, null, 'a present malformed newest record must not fall back to an older valid record');
+  assert.equal((await f.read()).exhaustion, null);
+  f.db.prepare("INSERT INTO job (job_id, job_kind, job_item, job_created, job_updated) VALUES ('latest-gate', 'gate', ?, ?, ?)").run(f.id, at + 1, at + 1);
+  f.save();
+  assert.equal((await f.read()).gate.row.job_id, 'latest-gate');
+  assert.equal((await f.read()).handoff, null, 'a later step on an older gate does not replace latest gate authority');
+  f.db.prepare("INSERT INTO board_meta (meta_key, meta_value) VALUES ('runs_store', '1') ON CONFLICT(meta_key) DO UPDATE SET meta_value = '1'").run();
+  const addRun = (job, record, time) => f.db.prepare("INSERT INTO run (run_job, run_kind, run_item, run_candidate, run_base, run_state, run_attempt, run_record, run_summary, run_created, run_updated) VALUES (?, 'gate', ?, ?, ?, 'done', 1, ?, ?, ?, ?)")
+    .run(job, f.id, f.record.commit, f.record.main, JSON.stringify(record), JSON.stringify({ token: sentinel }), time, time);
+  addRun(f.record.id, f.record, 1);
+  addRun('latest-run', { ...f.record, id: 'latest-run', agentId: 'foreign-owner', token: sentinel,
+    error: { ...f.record.error, token: sentinel } }, 2);
+  const got = await f.read();
+  assert.equal(got.authority, 'board.run');
+  assert.equal(got.gate.row.run_job, 'latest-run');
+  assert.equal(got.handoff.source, 'board.run:latest-run.run_record');
+  assert.equal(got.handoff.record.agentId, 'foreign-owner', 'never fall back to older matching run');
+  assert.ok(got.reasons.includes('unknown-binding:owner'));
+  assert.equal(got.exhaustion.binding, 'unknown');
+  assert.deepEqual(got.handoff.record.error, f.record.error);
+  assert.equal(JSON.stringify(got).includes(sentinel), false);
+  assert.equal(got.gate.row.run_record, undefined);
+  assert.equal(got.gate.row.run_summary, undefined);
+  assert.deepEqual(got.jobs, [], 'no legacy job fallback when runs_store is authoritative');
+  f.db.prepare("UPDATE run SET run_record = '{' WHERE run_job = 'latest-run'").run();
+  const malformed = await f.read();
+  assert.equal(malformed.gate.row.run_job, 'latest-run');
+  assert.equal(malformed.handoff.record, null);
+  assert.ok(malformed.reasons.includes('unreadable:board.run:latest-run.run_record'));
+  assert.equal(malformed.exhaustion, null);
 });
