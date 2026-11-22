@@ -53,7 +53,7 @@ test('landing.conflict.return-current-trunk: clause 2: a real synchronous return
   const item = { item_id: 17, item_status: 'submitted', item_commit: repo.head };
   const actor = 'core-fixture';
   const boardId = 'b'.repeat(32);
-  const board = { db: { prepare(sql) {
+  const board = { clock: { now: () => new Date('2026-11-22T00:00:00.000Z') }, db: { prepare(sql) {
     return {
       all: () => sql === 'PRAGMA database_list' ? [{ name: 'main', file: repo.boardFile }] : [],
       get: (...args) => {
