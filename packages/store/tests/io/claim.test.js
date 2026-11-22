@@ -12,6 +12,7 @@ import { queueSubmitHandoff } from '../../index.js';
 import { setItem } from '../../index.js';
 import { setLineSetting } from '../../index.js';
 import { fixture } from '../fixtures/dispatch.js';
+import { cellBoard } from '../fixtures/cell.js';
 
 /** Require both native selection paths to return the same item for the same board and seat. */
 function assertSameSelection(board, seat) {
@@ -21,7 +22,7 @@ function assertSameSelection(board, seat) {
 }
 
 test('store.io-claim.interactive-and-automatic-selection-agree-with: interactive and automatic selection agree with no claim or a live claim [C7,#2899]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const seat = box.seats.builder;
   const open = box.add('One eligible item');
   assertSameSelection(box.board, seat);
@@ -30,7 +31,7 @@ test('store.io-claim.interactive-and-automatic-selection-agree-with: interactive
 });
 
 test('store.io-claim.interactive-and-automatic-selection-ignore-a: interactive and automatic selection ignore a claim with a queued submit handoff [C7,#2899]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const seat = box.seats.builder;
   const queued = box.add('Claim with a queued gate');
   const available = box.add('Next eligible item');
@@ -48,7 +49,7 @@ test('store.io-claim.interactive-and-automatic-selection-ignore-a: interactive a
 });
 
 test('store.io-claim.interactive-and-automatic-selection-agree-on: interactive and automatic selection agree on an own rejected item [C7,#2899]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const seat = box.seats.builder;
   const rejected = box.add('Own rejected item');
   setLineSetting(box.board, { agentId: 'coordinator', key: 'returnRejectedWork', value: true,
@@ -77,7 +78,7 @@ function claimAtOne(box, id) {
 }
 
 test('store.io-claim.child-of-unheld-parent-counts: clause 1: at claims.perSeat 1 a held child of an unheld parent fills the seat, and heldClaim hands it back [C7,#10846]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const seat = box.seats.builder;
   const parent = box.add('Umbrella item nobody holds');
   const [first, second] = ['First slice', 'Second slice'].map(title => box.add(title, { parentId: parent }));
@@ -92,7 +93,7 @@ test('store.io-claim.child-of-unheld-parent-counts: clause 1: at claims.perSeat 
 });
 
 test('store.io-claim.child-of-own-parent-free: clause 2: a seat holding the parent still claims its children beside it [C7,#10846]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const seat = box.seats.builder;
   const parent = box.add('Parent this seat holds');
   const children = ['Child one', 'Child two'].map(title => box.add(title, { parentId: parent }));

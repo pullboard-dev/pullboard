@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture } from '../../../fixtures/dispatch.js';
+import { cellBoard } from '../../../fixtures/cell.js';
 import { GATE_SETTLE_HOLD_MS } from '../../../../src/io/submit/handoff/records.js';
 import { handoffRecords } from '../../../../src/io/submit/handoff/records.js';
 import { gateShardsUnsettled } from '../../../../src/io/submit/handoff/records.js';
@@ -10,7 +11,7 @@ import { getItem } from '../../../../index.js';
 
 /** A claimed item whose gate job, submitted by its holder, is done, with two shard jobs done; `settle(outcome)` notes the combined result. */
 function settledGate(t) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = box.add('Item whose gate settled');
   box.claim(id);
   const at = box.clock.now().getTime();
@@ -58,7 +59,7 @@ test('store.submit-handoff-records.unknown-settles-red: clause 2: once the recei
 
 /** A claimed item whose gate job was created 3 h ago, queued, and passed its checks 1 h ago, offering two shards that are still open. */
 function lateGate(t) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = box.add('Item whose gate queued before its checks');
   box.claim(id);
   const now = box.clock.now().getTime();
@@ -129,7 +130,7 @@ function referenceRecords(db, live) {
 
 /** Items with two gate jobs each: the newer job's last step may lack a record, and a later note step never counts. */
 function twoJobBoard(t) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const db = box.board.db;
   const at = box.clock.now().getTime();
   const step = (job, name, payload) => db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, ?, ?, ?)').run(job, name, JSON.stringify(payload), at);

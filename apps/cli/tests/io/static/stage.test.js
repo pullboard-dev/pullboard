@@ -129,6 +129,7 @@ test('cli.io-static-stage.lease-not-held-while-waiting-for-runner: clause 1: a r
     memo: () => false,
     now: () => clock,
     wait: async milliseconds => { clock += milliseconds; },
+    run: async () => 0,
     runner: async (_io, _root, { now, wait }) => {
       remoteStarted.resolve();
       await wait(120_001);

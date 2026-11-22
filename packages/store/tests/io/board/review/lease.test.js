@@ -6,6 +6,7 @@ import { clearReviewReservation } from '../../../../src/io/board/review/lease.js
 import { sweepLapsedReviews } from '../../../../src/io/board/review/lease.js';
 import { reserveReview } from '../../../../src/io/board.js';
 import { fixture } from '../../../fixtures/dispatch.js';
+import { cellBoard } from '../../../fixtures/cell.js';
 
 const MINUTE = 60_000;
 /** An engine below the board-release-codes leaf (277). */
@@ -13,7 +14,7 @@ const OLDER_BOARD_VERSION = 276;
 
 /** A submitted item whose reviewer holds a reservation, and the sweep over a lease the jobs cell reports as lapsed. */
 function lapsed(t, engine) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = box.add('Item whose review lease lapses');
   box.submit(id);
   const reviewer = box.seats.reviewer?.id ?? 'reviewer-fixture';
@@ -44,7 +45,7 @@ const HOUR = 60 * MINUTE;
 
 /** A submitted item reserved for review by the sibling seat, with an in-memory review-lease port that records what ends. */
 function held(t) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = box.add('Item whose review reservation the coordinator clears');
   box.submit(id);
   const holders = new Map();
