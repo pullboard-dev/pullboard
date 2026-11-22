@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture } from '../../fixtures/plan.js';
 import { git } from '../../fixtures/plan.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { redundantCheckedMerge } from '../../../src/io/runner/job.js';
+import { cleanGitEnvironment } from '../../../../git/index.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { retryableLandingRefusal } from '../../../index.js';
 import { runLandingJob } from '../../../index.js';
@@ -29,7 +32,7 @@ function landFixture(t, files = { 'item.txt': 'item\n' }, pace = undefined) {
   const tip = () => git(dir, '--git-dir', remote, 'rev-parse', 'refs/heads/main').trim();
   const payload = { remote, trunk: 'refs/heads/main', expect: tip(), publish: 'separate', items: [{ id: ITEM, commit, ref: `refs/heads/item-${ITEM}`, ...(pace ? { pace } : {}) }] };
   const rev = (...args) => git(dir, '--git-dir', remote, ...args).trim();
-  return { dir, payload, tip, rev, workdir: join(dir, 'runner') };
+  return { dir, work, put, payload, tip, rev, workdir: join(dir, 'runner') };
 }
 
 /** The refusal a runner raises when its checkout is not the queued candidate. */
@@ -211,4 +214,136 @@ test('landing.io-runner-job.receipt-merged-at-unchanged: clause 2: every other r
   assert.deepEqual(rest.landed, [ITEM]);
   assert.deepEqual(Object.keys(rest.merges), [String(ITEM)]);
   assert.equal(rest.merges[ITEM], rest.trunk, 'a lone item merges at the tip');
+});
+
+/** Exact C(P,Q) graph on a later B; variants each violate one required classification condition. */
+function redundantFixture(t, variant = 'redundant') {
+  const box = landFixture(t);
+  const q = box.payload.items[0].commit;
+  const a = box.payload.expect;
+  const tree = git(box.work, 'rev-parse', `${q}^{tree}`).trim();
+  const aTree = git(box.work, 'rev-parse', `${a}^{tree}`).trim();
+  const make = (tree, parents, name) => git(box.work, 'commit-tree', tree, ...parents.flatMap(p => ['-p', p]), '-m', name).trim();
+  const p = make(variant === 'source-outside-parent' ? aTree : tree, [variant === 'source-outside-parent' ? a : q], 'composition trunk');
+  const parents = variant === 'one-parent' ? [p] : variant === 'three-parents' ? [p, q, a] : variant === 'reversed' ? [q, p] : [p, q];
+  const cTree = variant === 'tree-change' ? aTree : variant === 'source-outside-parent' ? aTree : tree;
+  const c = make(cTree, parents, 'checked composition');
+  box.put('later.txt', 'later trunk change\n');
+  git(box.work, 'add', '-A');
+  const laterTree = git(box.work, 'write-tree').trim();
+  const b = variant === 'parent-outside-base' ? a : make(laterTree, [p], 'later trunk');
+  git(box.work, 'push', '-q', box.payload.remote, `${b}:refs/heads/main`, `+${c}:${box.payload.items[0].ref}`);
+  box.payload.items[0].commit = c;
+  return { ...box, a, b, c, p, q, tree, make };
+}
+
+test('landing.job.redundant-checked-already: clause 1: exact redundant C(P,Q) on a later fetched B uses the ordinary already receipt without merging, checking, deriving or pushing [C7,P7,#12456]', async t => {
+  for (const pace of [undefined, 'steady']) {
+    const box = redundantFixture(t);
+    if (pace) box.payload.items[0].pace = pace;
+    const payload = structuredClone(box.payload);
+    const refs = box.rev('show-ref');
+    const receipt = await runLandingJob(box.payload, { workdir: box.workdir, checks: () => { assert.fail('an all-already job must not check'); } });
+    assert.equal(receipt.outcome, 'landed');
+    assert.deepEqual([receipt.already, receipt.landed, receipt.base, receipt.trunk], [[ITEM], [], box.b, box.b]);
+    assert.notEqual(receipt.base, box.a, 'the stale offer expect is not the containment base');
+    assert.notEqual(box.rev('rev-parse', `${box.b}^{tree}`), box.tree, 'B has later changes; only C.tree and P.tree must match');
+    assert.deepEqual(receipt.phases.map(row => row.phase), ['fetch items', 'fetch trunk'], 'no merge, derive, check or push phase');
+    assert.equal('exactTree' in receipt, false);
+    assert.equal(box.rev('show-ref'), refs, 'all remote refs, including the checked ref and trunk, stay fixed');
+    assert.deepEqual(box.payload, payload, 'the offered checked head and ref are preserved');
+  }
+});
+
+test('landing.job.redundant-checked-exclusions: clause 1: changed trees, uncontained source or first parent, reversed and non-two-parent heads remain pending and obey the ordinary check [C7,P7,#12456]', async t => {
+  for (const variant of ['tree-change', 'source-outside-parent', 'parent-outside-base', 'reversed', 'one-parent', 'three-parents']) {
+    const box = redundantFixture(t, variant);
+    assert.equal(redundantCheckedMerge(box.work, box.c, box.b), false, variant);
+    let checks = 0;
+    const receipt = await runLandingJob(box.payload, { workdir: box.workdir, checks: () => { checks++; return { ok: false, detail: variant }; } });
+    assert.deepEqual(receipt.already, [], variant);
+    assert.equal(receipt.outcome, 'red', variant);
+    assert.equal(checks, 1, `${variant}: the real pending item reaches its check`);
+    assert.equal(box.tip(), box.b, `${variant}: red never pushes`);
+  }
+});
+
+test('landing.job.redundant-checked-mixed: clause 2: a redundant checked head is already while a real sibling still checks and lands normally [C7,P7,#12456]', async t => {
+  const box = redundantFixture(t);
+  git(box.work, 'checkout', '-q', '--detach', box.b);
+  box.put('sibling.txt', 'real change\n');
+  git(box.work, 'add', '-A');
+  git(box.work, 'commit', '-qm', 'feat: sibling [C7]');
+  const sibling = git(box.work, 'rev-parse', 'HEAD').trim();
+  git(box.work, 'push', '-q', box.payload.remote, `${sibling}:refs/heads/item-42`);
+  box.payload.items.push({ id: 42, commit: sibling, ref: 'refs/heads/item-42', pace: 'steady' });
+  const checked = [];
+  const receipt = await runLandingJob(box.payload, { workdir: box.workdir, checks: context => { checked.push(context.items); return { ok: true }; } });
+  assert.equal(receipt.outcome, 'landed', receipt.detail ?? '');
+  assert.deepEqual([receipt.already, receipt.landed, checked], [[ITEM], [42], [[42]]]);
+  assert.equal(box.rev('show', 'refs/heads/main:sibling.txt'), 'real change');
+  assert.equal(receipt.trunk, box.tip());
+  assert.notEqual(box.tip(), box.b);
+});
+
+test('landing.job.redundant-checked-sprint-excluded: clause 2: a redundant checked Sprint head still reaches its check and exact-tree proof, and a red proof cannot move trunk [C7,P7,#12456]', async t => {
+  const box = redundantFixture(t);
+  box.payload.items[0].pace = 'sprint';
+  let checks = 0;
+  const sprint = { ...sprintCommands(), static: [process.execPath, '-e', 'process.exit(3)'] };
+  const receipt = await runLandingJob({ ...box.payload, sprint }, { workdir: box.workdir, checks: () => { checks++; return { ok: true }; } });
+  assert.deepEqual(receipt.already, []);
+  assert.equal(checks, 1);
+  assert.equal(receipt.outcome, 'red');
+  assert.equal(receipt.exactTree.result, 'red');
+  assert.equal(box.tip(), box.b);
+});
+
+test('landing.job.redundant-checked-invalid-objects: clause 1: missing, malformed and non-commit objects and Git failures never establish redundant containment [C7,P7,#12456]', t => {
+  const box = redundantFixture(t);
+  const missing = 'f'.repeat(40);
+  const blob = git(box.work, 'rev-parse', `${box.q}:item.txt`).trim();
+  const raw = body => runFixtureGit(['hash-object', '--literally', '-t', 'commit', '-w', '--stdin'], { cwd: box.work, env: cleanGitEnvironment(), input: body, encoding: 'utf8' }).trim();
+  for (const [commit, base] of [[missing, box.b], [box.c, missing], [blob, box.b], [box.c, blob], ['HEAD', box.b], [null, box.b]]) {
+    assert.equal(redundantCheckedMerge(box.work, commit, base), false);
+  }
+  for (const body of [
+    `tree ${box.tree}\nparent ${box.p}\nparent ${missing}\n\nmissing parent\n`,
+    `tree ${missing}\nparent ${box.p}\nparent ${box.q}\n\nmissing tree\n`,
+    `tree ${box.tree}\nparent broken\nparent ${box.q}\n\nmalformed parent\n`,
+  ]) assert.equal(redundantCheckedMerge(box.work, raw(body), box.b), false);
+  const brokenParent = raw(`tree ${box.tree}\nparent ${missing}\n\nmissing ancestry\n`);
+  const brokenHead = raw(`tree ${box.tree}\nparent ${brokenParent}\nparent ${box.q}\n\nunknown ancestry\n`);
+  assert.equal(redundantCheckedMerge(box.work, brokenHead, box.b), false, 'an ancestry error is not containment');
+  assert.equal(redundantCheckedMerge(join(box.dir, 'absent'), box.c, box.b), false, 'Git execution error is not already');
+  writeFileSync(join(box.work, '.git', 'info', 'grafts'), `${box.p} ${box.q}\n`);
+  assert.equal(redundantCheckedMerge(box.work, box.c, box.b), false, 'grafted ancestry is not object proof');
+});
+
+
+test('landing.job.redundant-checked-object-identity: clause 1: replacement refs and inherited selectors cannot change the immutable redundant-merge decision [C7,P7,#12456]', t => {
+  const box = redundantFixture(t);
+  const changed = box.make(git(box.work, 'rev-parse', `${box.a}^{tree}`).trim(), [box.p, box.q], 'real resolution');
+  git(box.work, 'replace', changed, box.c);
+  git(box.work, 'replace', box.c, box.q);
+  assert.equal(redundantCheckedMerge(box.work, changed, box.b), false, 'a replacement cannot hide a resolution');
+  const selectors = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_NO_REPLACE_OBJECTS'];
+  const saved = selectors.map(name => [name, process.env[name]]);
+  try {
+    process.env.GIT_DIR = join(box.dir, 'not-a-repository');
+    process.env.GIT_WORK_TREE = box.dir;
+    process.env.GIT_NO_REPLACE_OBJECTS = '0';
+    assert.equal(redundantCheckedMerge(box.work, box.c, box.b), true, 'the clean reader sees the original objects');
+  } finally {
+    for (const [name, value] of saved) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
+  }
+});
+
+test('landing.job.redundant-checked-ref-moved: clause 1: a redundant shape never skips the native fetched-ref identity check [C7,P7,#12456]', async t => {
+  const box = redundantFixture(t);
+  box.payload.items[0].commit = box.q;
+  const receipt = await runLandingJob(box.payload, { workdir: box.workdir, checks: () => { assert.fail('moved ref must stop before checks'); } });
+  assert.equal(receipt.outcome, 'item-moved');
+  assert.deepEqual([receipt.already, receipt.landed], [[], []]);
+  assert.equal(box.tip(), box.b);
 });
