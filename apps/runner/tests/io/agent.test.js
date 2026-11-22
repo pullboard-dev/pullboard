@@ -18,12 +18,23 @@ import { agentVersion } from '../../src/io/agent.js';
 import { runnerAgentStartCommand } from '../../src/io/agent.js';
 import { sourceCacheJobGone } from '../../../../packages/resources/index.js';
 import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../cli/tests/fixtures/child.js';
 import { HOST } from '../../../cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../cli/tests/fixtures/runner/ssh.js';
 
 /** A grandchild that notes the TERM it receives, which only a signal to the whole process group delivers. */
 const GRANDCHILD = '(trap "echo gone > gone; exit" TERM; sleep 60 & echo $! > grand.pid; wait) & wait';
 const FAST = 'PULLBOARD_AGENT_POLL=0.1 PULLBOARD_AGENT_IDLE_SECONDS=3 PULLBOARD_AGENT_WANTED_SECONDS=2 PULLBOARD_AGENT_CORES=1000';
+
+/** A real queued child waits for the observer's acknowledgment without consuming its file stdin. */
+const OBSERVER_JOB = `import { existsSync, watch, writeFileSync, renameSync } from 'node:fs';
+await new Promise(resolve => {
+  const release = () => { if (existsSync('observed')) { watcher.close(); resolve(); } };
+  const watcher = watch('.', release);
+  writeFileSync('ready.tmp', String(process.pid)); renameSync('ready.tmp', 'ready');
+  release();
+});`;
+
 
 /** A private runner root plus the ssh stand-in that starts the agent exactly as an enqueue would. */
 function machine(t, settings = FAST) {
@@ -158,21 +169,58 @@ test('runner.agent.deadline-completed-without-delivery: clause 1: a real complet
 test('runner.agent.deadline-completed-with-live-agent: clause 1: a real completed worker resolves before extending for a live agent despite withheld watcher delivery [C7]', async t => deadlineObservation(t, { keepAlive: true }));
 test('runner.agent.deadline-incomplete-without-liveness: clause 2: an unsuccessful real result still fails once actual progress and agent liveness cease [C7]', async t => deadlineObservation(t, { code: 7 }));
 
-test('runner.agent.a-queued-job-is-claimed-by-rename: a queued job is claimed by rename and runs on file stdin, stdout and stderr with a heartbeat [C7,#5467]', async t => {
-  const { root, start } = machine(t);
+test('runner.agent.a-queued-job-is-claimed-by-rename: clause 1: a queued job is claimed by rename and runs on file stdin, stdout and stderr with a heartbeat [C7,#5467]', async t => {
+  const { root, start, agentPid } = machine(t);
+  const running = join(root, 'running', 'job1'), done = join(root, 'done', 'job1');
+  const beat = join(running, 'beat'), ready = join(running, 'ready');
+  let lastBeat = 0, phase = 'queued', childPid = 0, control = null;
   mkdirSync(join(root, 'queue'), { recursive: true });
-  enqueue(root, 'job1', { command: 'cat; echo err >&2; echo "$PULLBOARD_QUEUE_JOB" > folder.txt; sleep 1', input: 'frame-bytes' });
-  start();
-  await until('the job to run', root, () => existsSync(join(root, 'running', 'job1', 'beat')));
-  assert.ok(!existsSync(join(root, 'queue', 'job1')), 'claim moved the row out of queue/');
-  const owner = JSON.parse(readFileSync(join(root, 'running', 'job1', 'owner.json'), 'utf8'));
-  assert.ok(Number.isInteger(owner.pid) && owner.pid > 0);
-  await until('the job to finish', root, () => existsSync(join(root, 'done', 'job1', 'exit')));
-  const done = join(root, 'done', 'job1');
-  assert.equal(readFileSync(join(done, 'out.bin'), 'utf8'), 'frame-bytes');
-  assert.equal(readFileSync(join(done, 'control.log'), 'utf8'), 'err\n');
-  assert.equal(readFileSync(join(done, 'folder.txt'), 'utf8').trim(), join(root, 'running', 'job1'));
-  assert.deepEqual({ code: exitOf(root, 'job1').code, signal: exitOf(root, 'job1').signal }, { code: 0, signal: null });
+  enqueue(root, 'job1', { command: 'node observer.mjs && { cat; echo err >&2; echo "$PULLBOARD_QUEUE_JOB" > folder.txt; }', input: 'frame-bytes', extra: { 'observer.mjs': OBSERVER_JOB } });
+  // The controller remains interested while its observer is gated; renew only on a real agent beat.
+  const interested = watch(root, { recursive: true }, () => {
+    try {
+      const at = statSync(beat).mtimeMs;
+      if (at !== lastBeat) { lastBeat = at; const now = new Date(); utimesSync(join(running, 'wanted'), now, now); }
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  });
+  try {
+    start();
+    phase = 'ready';
+    await until('the queued child readiness', root, () => existsSync(ready) && existsSync(beat));
+    childPid = Number(readFileSync(ready, 'utf8'));
+    const deferredAt = performance.now();
+    phase = 'deferred observer control';
+    // The original job's sleep runs as an owned fixture control, starting only after actual child readiness.
+    control = runFixtureChildAsync('sleep', ['1'], { cwd: running });
+    const delayed = await control;
+    assert.equal(delayed.status, 0, delayed.context);
+    assert.equal(delayed.signal, null, delayed.context);
+    t.diagnostic(`observer control completed; elapsed diagnostic ${performance.now() - deferredAt} ms`);
+    assert.ok(!existsSync(join(done, 'exit')), 'the real queued child cannot complete before acknowledgment');
+    assert.ok(Number.isInteger(childPid) && childPid > 0);
+    assert.doesNotThrow(() => process.kill(childPid, 0), 'the queued child remains live');
+    assert.ok(statSync(beat).isFile(), 'read the actual live heartbeat before acknowledging');
+    assert.equal(readFileSync(beat, 'utf8'), '');
+    assert.ok(!existsSync(join(root, 'queue', 'job1')), 'claim moved the row out of queue/');
+    const owner = JSON.parse(readFileSync(join(root, 'running', 'job1', 'owner.json'), 'utf8'));
+    assert.ok(Number.isInteger(owner.pid) && owner.pid > 0);
+    phase = 'acknowledged';
+    writeFileSync(join(running, 'observed'), 'beat and owner read');
+    await until('the job to finish', root, () => existsSync(join(root, 'done', 'job1', 'exit')));
+    assert.equal(readFileSync(join(done, 'out.bin'), 'utf8'), 'frame-bytes');
+    assert.equal(readFileSync(join(done, 'control.log'), 'utf8'), 'err\n');
+    assert.equal(readFileSync(join(done, 'folder.txt'), 'utf8').trim(), join(root, 'running', 'job1'));
+    assert.deepEqual({ code: exitOf(root, 'job1').code, signal: exitOf(root, 'job1').signal }, { code: 0, signal: null });
+  } catch (error) {
+    const alive = pid => { try { if (!pid) return false; process.kill(pid, 0); return true; } catch { return false; } };
+    t.diagnostic(JSON.stringify({ phase, agentAlive: alive(agentPid()), childPid, childAlive: alive(childPid), queued: existsSync(join(root, 'queue', 'job1')), running: existsSync(running), completed: existsSync(join(done, 'exit')) }));
+    throw error;
+  } finally {
+    interested.close();
+    if (control && control.child.exitCode === null && control.child.signalCode === null) { control.child.kill('SIGKILL'); await control; }
+    // Release the rendezvous even after an assertion fails; machine's existing cleanup also ends owned processes.
+    try { writeFileSync(join(running, 'observed'), 'cleanup'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
 });
 
 test('runner.agent.a-failing-job-records-its-exit-code: a failing job records its exit code and cancel stops its whole process group [C7,#5467]', async t => {
