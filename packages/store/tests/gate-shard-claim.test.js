@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { getItem } from '../index.js';
 import { itemWorkInFlight } from '../index.js';
+import { cellBoard } from './fixtures/cell.js';
 import { fixture } from './fixtures/dispatch.js';
 
 /** Put one gate or shard job row on the board as the jobs cell writes it, created at the board clock's now unless `at` is given. */
@@ -20,7 +21,7 @@ function settle(board, gate) {
 
 /** A claimed item whose newest gate job is done and which has shards in the given steps. */
 function claimedWithShards(t, steps) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = box.add('Item in the gate');
   box.claim(id);
   const at = box.clock.now().getTime();
