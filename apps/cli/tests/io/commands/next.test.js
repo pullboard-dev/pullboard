@@ -108,11 +108,13 @@ test('cli.io-commands-next.no-wait-idle-exit-4: clause 1: next --no-wait on a bo
   const box = await fixture(t);
   const plain = await cli(box, box.seats.actor.path, ['next']);
   assert.ok(printed(plain).includes(IDLE_LINE), 'plain next on a lane with no items reports the idle timeout');
+  const plainEvents = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind IN ('next-idle-timeout','next-finished')").all().map(row => row.k);
+  assert.deepEqual(plainEvents, ['next-idle-timeout'], 'plain next records one timeout and no finished event');
   const ran = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
   assert.equal(ran.code, 4, printed(ran));
   assert.ok(printed(ran).includes(IDLE_LINE), printed(ran));
   const events = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind IN ('next-idle-timeout','next-finished')").all().map(row => row.k);
-  assert.deepEqual(events, ['next-idle-timeout'], 'the timeout observation was recorded once');
+  assert.deepEqual(events, ['next-idle-timeout', 'next-idle-timeout'], 'explicit --no-wait adds one timeout and no finished event');
   // A held review refuses at once, with no idle line and no exit 4.
   const reviewed = box.add('A submission whose review another seat holds');
   box.claim(reviewed);
