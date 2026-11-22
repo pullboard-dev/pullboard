@@ -33,6 +33,9 @@ import {
 import { idArg } from '../context.js';
 import { whoAmI } from '../join.js';
 import { sayLag } from '../lag.js';
+import { listProjects } from '../../../../../packages/seats/index.js';
+import { readBoardKey } from '../../../../../packages/keys/index.js';
+import { receiveLocalBoardStates } from '../link/ports.js';
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
@@ -40,6 +43,7 @@ export async function run(io, { first }) {
   const act = (work) => withGitCommandMemo(() => actOn(io, work));
   return act(async (ctx, board, me) => {
   const id = idArg(first);
+  await receiveLocalBoardStates(ctx, board, { projects: listProjects(), readKey: id => readBoardKey(id, { legacyKeychain: false }) });
   const phase = claimPhases();
   phase.time('sayQueuedReds', () => sayQueuedReds(io, board, () => me));
   phase.time('sayLag', () => sayLag(io, ctx));

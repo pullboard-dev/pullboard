@@ -12,6 +12,9 @@ import { createBoardLinkFileTransport } from '../../../../../packages/store/inde
 import { readBoardLinks } from '../../../../../packages/store/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
 import { boardId } from '../../../../../packages/store/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { closeBoard } from '../../../../../packages/store/index.js';
+import { receiveBoardState } from '../../../../../packages/store/index.js';
 import { join } from 'node:path';
 
 /** The refusal every missing piece of link authority raises, naming the command that sets the link up. */
@@ -66,4 +69,28 @@ export function announcePorts(child, { projects, openBoard, closeBoard, readKey,
     }
   }
   return { links, close: () => { for (const board of opened) closeBoard(board); } };
+}
+
+/** Install pending authenticated file deliveries into a board before a command checks its foreign prerequisites. */
+export async function receiveLocalBoardStates(ctx, board, { projects, readKey }) {
+  const destinationId = boardId(board);
+  const transport = createBoardLinkFileTransport(join(ctx.info.gitDir, 'pullboard', 'board-links'), { board: destinationId });
+  for (const record of readBoardLinks(board)) {
+    if (record.revocation || record.parent.boardId !== destinationId) continue;
+    const project = projects.find(row => row.name === record.child.handle && row.root !== ctx.info.root);
+    if (!project) continue;
+    const childBoard = ctx.nativeBoard.openBoard(boardFilePath(join(project.root, '.git')), ctx.clock, { isMain: false, gitRoot: project.root });
+    try {
+      if (boardId(childBoard) !== record.child.boardId) continue;
+      const child = { board: childBoard, root: project.root };
+      const parent = { board, root: ctx.info.root };
+      const { authority, capability } = boardLinkPorts({ child, parent, record, readKey });
+      const incoming = await transport.read(0, destinationId);
+      for (const delivery of incoming.deliveries) {
+        if (delivery.envelope.sourceBoardId === record.child.boardId && delivery.envelope.linkId === record.linkId) {
+          await receiveBoardState(board, delivery, { authority, capability });
+        }
+      }
+    } finally { closeBoard(childBoard); }
+  }
 }

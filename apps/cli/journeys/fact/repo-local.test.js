@@ -1,6 +1,8 @@
 /** Two local boards go from pullboard link to a foreign wait: the consumer's claim of an item that waits on an open provider item is refused [XB1,B24,E32]. @pullboard-world-pin: clause 2 reads this file's own source by path to prove the case body calls no store or linkBoards; no fixture can say that. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -41,6 +43,11 @@ function twoBoards() {
   consumer.env.GIT_CONFIG_COUNT = '1';
   consumer.env.GIT_CONFIG_KEY_0 = 'user.signingkey';
   consumer.env.GIT_CONFIG_VALUE_0 = providerKey;
+  const boardKey = Buffer.alloc(32, 124).toString('base64url');
+  for (const box of [provider, consumer]) {
+    box.env.PULLBOARD_RELAY_TOKEN = 'fixture-local-link';
+    box.env.PULLBOARD_RELAY_KEY = boardKey;
+  }
   return { provider, consumer, consumerKey };
 }
 
@@ -67,4 +74,31 @@ test('cli.journeys-fact-repo-local.journey-uses-only-commands: clause 2: the fir
   assert.doesNotMatch(body, /linkBoards/u);
   assert.doesNotMatch(source.slice(0, source.indexOf('const helpers')), /packages\/store/u);
   assert.match(source, /addSigner\(/u);
+});
+
+test('cli.journeys-fact-repo-local.verified-provider-refreshes-consumer-before-claim: provider claim, submit and verify and consumer claim use commands; the consumer refreshes the signed file delivery and claims only after verification [XB1,B24,E32]', () => {
+  const { provider, consumer, consumerKey } = twoBoards();
+  const linked = consumer.run(consumer.repo, 'link', 'repo', '--by', 'consumer-parent', '--key', consumerKey);
+  assert.equal(linked.code, 0, linked.err + linked.out);
+
+  const providerId = fileFixtureItem(provider, provider.repo, { lane: 'web', title: 'Provider work', criterion: 'Provider work is verified', check: 'true', specs: ['G1'], diagnose: false }).item_id;
+  const consumerId = fileFixtureItem(consumer, consumer.repo, { lane: 'web', title: 'Waits on provider', criterion: 'Waits for provider verification', check: 'true', specs: ['G1'], diagnose: false, args: ['--after', `repo#${providerId}`] }).item_id;
+  const blocked = consumer.run(consumer.web, 'claim', String(consumerId));
+  assert.notEqual(blocked.code, 0, blocked.out);
+  assert.match(`${blocked.err}${blocked.out}`, new RegExp(`#${consumerId} waits on repo#${providerId}`, 'u'));
+
+  const claimed = provider.run(provider.web, 'claim', String(providerId));
+  assert.equal(claimed.code, 0, claimed.err + claimed.out);
+  mkdirSync(join(provider.web, 'web'), { recursive: true });
+  writeFileSync(join(provider.web, 'web', 'provider.js'), 'export const provider = true;\n');
+  provider.git(provider.web, 'add', 'web/provider.js');
+  provider.git(provider.web, 'commit', '-q', '-m', 'feat(web): provider fixture [G1]');
+  const submitted = provider.run(provider.web, 'submit', String(providerId), '--no-next');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  const verified = provider.run(provider.repo, 'verify', String(providerId), 'accept', '--as', 'coordinator', '--note', 'the provider gate passed');
+  assert.equal(verified.code, 0, verified.err + verified.out);
+
+  const eligible = consumer.run(consumer.web, 'claim', String(consumerId));
+  assert.equal(eligible.code, 0, eligible.err + eligible.out);
+  assert.match(eligible.out, new RegExp(`claimed #${consumerId}`, 'u'));
 });
