@@ -111,7 +111,7 @@ test('cli.journeys-next-session.next-in-an-idle-api-seat: clause 1: next in an i
 });
 
 
-test('cli.release-committed-cleanup.retains-locked-custody: clauses 1-2: a committed release reports a real non-forced removal failure, preserves custody, and recovers through ordinary claim and release [C7,#12955]', async () => {
+test('cli.release-committed-cleanup.retains-locked-custody: clause 1: committed release reports real removal failure and retains custody; clause 2: pre-release refusal and ordinary claim/release recovery preserve behavior [C7,#12955]', async () => {
   const box = e2e.project();
   const item = fileFixtureItem(box, box.repo, { lane: 'api', title: 'Cleanup custody', check: 'true', args: ['--specs', 'G1'] });
   const api = await seat(box, 'api');

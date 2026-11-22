@@ -4,7 +4,7 @@
       "specs": [
         "C7"
       ],
-      "claim": "A real release reports committed open custody and a distinct actionable nonzero cleanup failure when real non-forced Git removal refuses a locked fixture worktree, without deleting its folder, registration or branch; refusal and ordinary recovery preserve their behavior."
+      "claim": "clause 1: a real release reports committed open custody and a distinct actionable nonzero cleanup failure when real non-forced Git removal refuses a locked fixture worktree, without deleting its folder, registration or branch; clause 2: refusal and ordinary recovery preserve their behavior."
     },
     "why": "An exception after durable release conceals that ownership already ended and invites a duplicate release or unsafe cleanup.",
     "kind": "journey",
