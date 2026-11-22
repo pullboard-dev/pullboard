@@ -95,7 +95,7 @@ import {
 import { staticFindingsOnMain } from './static/main-findings.js';
 /** Freeze submission execution policy with the same accepted-main floors at every origin and run. */
 export function submitGateConfig(config, accepted) {
-  return { ...config, gate: config.gate.trim() ? config.gate : accepted.gate, submitGate: accepted.submitGate, staticChecks: accepted.staticChecks,
+  return { ...config, gate: accepted.gate, submitGate: accepted.submitGate, staticChecks: accepted.staticChecks,
     submitInvariants: accepted.submitInvariants, submitDeferAbove: accepted.submitDeferAbove,
     confinedImportSelection: accepted.confinedImportSelection,
     registryGuards: accepted.registryGuards,
