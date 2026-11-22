@@ -3,11 +3,12 @@
  * a lane belongs to is read from the spec each time; status prints each product's standing, and
  * spec check catches an entry that names no row.
  */
-import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { apiBoardOpeners } from '../../../fixtures/board.js';
+import { submitFixture } from '../../../fixtures/board/submit.js';
 import assert from 'node:assert/strict';
-import { runFixtureGit } from '../../tests/fixtures/child.js';
-import { journeyCall } from '../../tests/fixtures/e2e.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
+import { journeyCall } from '../../../fixtures/e2e.js';
+import { runCliInProcess } from '../../../fixtures/process.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -24,12 +25,11 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { openBoard } from '../../../lib/index.js';
+import * as store from '../../../../../../packages/store/index.js';
 import {
   configProblems,
   defaults,
-} from '../../../../packages/config/index.js';
+} from '../../../../../../packages/config/index.js';
 import {
   names,
   productProblems,
@@ -37,10 +37,11 @@ import {
   productsOfLane,
   productsOfRow,
   productSummaries,
-} from '../../../../packages/spec/index.js';
-import { parseSpec } from '../../../../packages/spec/index.js';
+} from '../../../../../../packages/spec/index.js';
+import { parseSpec } from '../../../../../../packages/spec/index.js';
+const { openBoard } = apiBoardOpeners;
 
-const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../../pullboard.js');
 const SHA = 'a'.repeat(40);
 
 const SPEC = `# Demo spec

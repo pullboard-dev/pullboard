@@ -1760,7 +1760,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/status/products.test.js": {
+    "apps/cli/tests/io/commands/status/products.test.js": {
       "cells": [
         "app:lib",
         "config",
@@ -1771,7 +1771,7 @@
         "store"
       ],
       "reasons": [
-        "runs the CLI (apps/cli/journeys/status/products.test.js)",
+        "runs the CLI (apps/cli/tests/io/commands/status/products.test.js)",
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
@@ -2998,7 +2998,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/sync/main.test.js": {
+    "apps/cli/tests/io/commands/sync/main.test.js": {
       "cells": [
         "app:lib",
         "kernel",
