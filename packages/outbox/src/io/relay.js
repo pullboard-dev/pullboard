@@ -16,6 +16,7 @@ import {
 } from 'node:zlib';
 import * as store from '../../../store/index.js';
 import {
+  bindLocalIdentity,
   engineReceipt,
   executableArgs,
   prepareEngineMove,
@@ -503,6 +504,8 @@ async function queueUnsealed(link, { operation, args, command, move, applyLocall
   const entry = { move, intent: operationIntent(operation, args), queuedAt: new Date().toISOString(), after: state.sequence ?? 0,
     ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}) };
   writeUnsealedOutbox(where, [...before, entry]);
+  // The local write takes the ids the move's replay writes, so an id it returns stays valid once the relay orders it (GitHub #30).
+  bindLocalIdentity(move, args);
   try { return await applyLocally(); } catch (refusal) {
     writeUnsealedOutbox(where, before);
     throw refusal;
@@ -583,6 +586,8 @@ export async function queueMove(link, { operation, args, command, move, error, a
   }
   saveOutboxSummary(link, outbox);
   let result;
+  // The local write takes the ids the move's replay writes, so an id it returns stays valid once the relay orders it (GitHub #30).
+  bindLocalIdentity(move, args);
   try {
     const applied = await captureBoardChanges(() => applyLocally());
     result = applied.result;
