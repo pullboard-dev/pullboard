@@ -98,24 +98,21 @@ export const SEAT_LOOP = `## Worker loop
 
 Never wait, never sleep, never poll, never stop while the board has work.
 
-1. \`pullboard next --wait 1\`: build/verify. On an empty answer, run it again at once. \`pullboard next --verify --wait 1\`.
+1. \`pullboard next --wait 1\`: build/verify. On an empty answer, wait 1 s, then 2 s, 4 s and so on up to 60 s; run it again. \`pullboard next --verify --wait 1\`.
 2. \`next\` printed your bar; \`pullboard show <id>\` only for the thread and history.
-3. **Build**.
-4. **Commit**; \`pullboard submit <id>\`.
-5. **Repeat:** fix reds/rejects; resubmit.
+3. **Build**; **commit**; \`pullboard submit <id>\`; fix reds; resubmit.
 
 - **Review:** A review-lane seat reviews; loop with \`pullboard next --verify --wait 1\`.
 
 ### Building
 
-- **Gate:** Pullboard checks; never run suites.
-- **Long:** background >1 min.
-- **Can't build:** \`pullboard release <id> --reason <CODE>\`; \`next\`.
-- **Stop:** only when \`pullboard status\` shows nothing open, building, in gate or in review.
+- **Gate:** Pullboard checks; no suites.
+- **Can't build:** \`pullboard release <id> --reason <CODE>\`.
+- **Stop:** only when the wait reached 60 s and \`next\` is still empty.
 
 ### Verifying
 
-- **Judge:** check bar, diff, receipts; rerun gaps.
+- **Judge:** check bar, diff, receipts.
 - **Accept:** \`pullboard verify <id> accept\`.
 - **Reject:** \`pullboard verify <id> reject --reason TEST_FAILURE|BEHAVIOR_MISMATCH|INSUFFICIENT_EVIDENCE|STALE_HEAD|OTHER --clause "<clause>" --note "..."\`.
 
@@ -241,19 +238,21 @@ For the coordinator only. Workers follow \`AGENTS.md\`.
 
 Fix the board, not the prompt.
 
-1. \`pullboard resume\`: the work card and board health.
-2. \`pullboard inbox\`: decisions, blockers and Stuck shouts; act within the hour.
-3. **Watch** the pipeline: gates, verifies, accepts, landings.
-4. **File:** \`pullboard add\` with a numbered bar, each clause tagged.
-5. **Fix:** stuck or wrong items (see Fixing).
-6. **Repeat.**
+1. **Seats first:** launch the builder and review seats that the buildable-at-once count in \`pullboard status\` names, before planning; they queue on \`next\` until the plan lands items; replace any seat that stopped.
+2. \`pullboard resume\`: the work card and board health.
+3. \`pullboard inbox\`: decisions, blockers and Stuck shouts; act within the hour.
+4. **Watch** the pipeline: gates, verifies, accepts, landings.
+5. **File:** \`pullboard add\` with a numbered bar, each clause tagged.
+6. **Fix:** stuck or wrong items (see Fixing).
+7. **Repeat.**
 
 ### Watching
 
+- **Inbox:** \`pullboard inbox --wait\`: returns on a shout to the coordinator, or when nothing is open.
 - **Pipeline:** \`pullboard stats pipeline\`.
 - **Gates:** \`pullboard gate-health --since 2h\`.
 - **Verifies:** \`pullboard queue\`.
-- **Landing:** \`pullboard land --due --dry-run\`; landed: \`pullboard merged\`.
+- **Landing:** accepted items land by themselves; watch them with \`pullboard merged\`.
 - **Seats:** \`pullboard seats\`.
 - **Shouts:** \`pullboard watch --to coordinator\`.
 - **Health:** \`pullboard health\`.
@@ -281,7 +280,7 @@ Fix the board, not the prompt.
 
 - **Order:** \`pullboard roadmap\`; \`pullboard milestone pin\` or \`order\`.
 - **People's calls:** \`pullboard decisions\`.
-- **Capacity:** \`pullboard capacity\`; runners: \`pullboard runner list\`.
+- **Capacity:** \`pullboard capacity\`; runners: \`pullboard runner list\`; when it prints no runners registered, \`pullboard runner local\` starts this machine's own runner.
 - **Time:** \`pullboard stats time\` shows where items spend it.
 - **Flakes:** \`pullboard flakes quarantine\`.
 - **Sentinels:** \`pullboard sentinels\` lists the stall detectors.
