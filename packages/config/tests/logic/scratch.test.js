@@ -24,6 +24,7 @@ function observeClosure() {
 test('config.logic-scratch-root.cold-closure: scratchRoot avoids the broad kernel light door [C7]', t => {
   const reachable = observeClosure();
   t.diagnostic(JSON.stringify({ entry: source, count: reachable.length, reachable }));
+  console.log(`scratchRoot cold closure: ${reachable.length} local modules: ${reachable.join(' ')}`);
   assert.ok(!reachable.includes(kernelLight), 'the actual source-rooted closure excludes kernel/light.js');
 });
 
