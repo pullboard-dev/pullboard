@@ -5,10 +5,9 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../../packages/gate/tests/fixtures/child.js';
 import { privateWorkerFixture } from '../../../fixtures/private-worker.js';
 
-
 /** Require a real executed shell timeout, exact captured output and identical durable pipe output. */
 function timed(result, output) {
-  assert.equal(result.status, 0, result.failure);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(result.reply.executed, true);
   assert.deepEqual(result.reply.error, { code: 'ETIMEDOUT' });
   assert.equal(result.reply.signal, 'SIGKILL');
@@ -34,7 +33,7 @@ test('runner.worker.empty-timeout: clause 1: a genuine silent shell timeout reta
 test('runner.worker.shell-unavailable: clause 1: an unavailable shell remains an unexecuted ENOENT failure [C7,V18,V2]', t => {
   const box = privateWorkerFixture(t, privateFixtureFiles('pullboard-private-worker-'));
   const result = box.runWorker('echo forbidden-shell-ran', { path: '/nonexistent-private-fixture-path' });
-  assert.equal(result.status, 0, result.failure);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(result.reply.executed, false);
   assert.deepEqual(result.reply.error, { code: 'ENOENT' });
   assert.equal(result.reply.output, '');
