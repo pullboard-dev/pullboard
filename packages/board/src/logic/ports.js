@@ -250,7 +250,7 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters, withLocalSeatPresence }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, repairDrift, storeTriggers }),
-    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes,
+    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent, itemId: board.lastEvent?.item_id }), ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes,
       missingAdditiveIndexes, ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
     query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
       boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion, migrateEventLogVersion }),
