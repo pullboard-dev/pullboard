@@ -24,9 +24,10 @@
  * @param {Function} deps.after - Called when the page's own state changed what the strip shows.
  * @param {Function} deps.remember - remember(root) reads the last look; remember(root, ms) keeps one.
  * @param {Function} [deps.drawn] - Called after the page's markup is replaced, so a line the page appended to it (the older-history note) is drawn again.
+ * @param {number} [deps.eventBatch] - The most events one read asks for: a long window is read in pages of this size, never as one unbounded read of the log.
  * @returns {{ draw: Function, reset: Function }}
  */
-export function activityRuntime({ flow, html, tip, step, start, api, boardPath, current, view, project: held_project, active, working, itemHref, controls, onFilter, after, remember, drawn }) {
+export function activityRuntime({ flow, html, tip, step, start, api, boardPath, current, view, project: held_project, active, working, itemHref, controls, onFilter, after, remember, drawn, eventBatch = 5000 }) {
   const boards = new Map();
   const HOUR = 3_600_000, PAD = 3 * HOUR;
   let node = null, tipNode = null, watcher = null, resizing = null, wired = false;
@@ -50,10 +51,17 @@ export function activityRuntime({ flow, html, tip, step, start, api, boardPath, 
         }
         state.events = []; after = Math.max(0, low - 1); state.hours = hours;
       }
-      const reply = await api(boardPath(root) + '/events?after=' + after);
-      if (!Array.isArray(reply.events)) throw new Error('The board did not return its events.');
+      // The rest is read in pages that each stop at eventBatch, so a long window never builds the whole log in one read.
       const known = new Set(state.events.slice(-2000).map(event => event.event_id));
-      for (const event of reply.events) if (!known.has(event.event_id)) state.events.push(event);
+      let more = true;
+      while (more) {
+        const reply = await api(boardPath(root) + '/events?after=' + after + '&limit=' + eventBatch);
+        if (!Array.isArray(reply.events)) throw new Error('The board did not return its events.');
+        for (const event of reply.events) if (!known.has(event.event_id)) state.events.push(event);
+        const end = reply.events.at(-1)?.event_id ?? after;
+        more = reply.events.length >= eventBatch && end > after;
+        after = end;
+      }
       state.last = state.events.at(-1)?.event_id ?? state.last;
       state.error = null; state.version++;
       state.baseline ??= state.last;
