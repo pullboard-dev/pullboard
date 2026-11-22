@@ -1,10 +1,11 @@
+/** @pullboard-test-input source-cell packages/board packages/verify */
 /** A relaxation witness stands for the family guard of the late review path, the same witness reviewerChecks reads [C7,#12478]. */
 // fixture-subject: addItem (a verify unit test of reviewFamilyProblem over a seeded item; the board is opened through the store kit)
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
