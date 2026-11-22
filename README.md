@@ -297,7 +297,9 @@ A few commands keep every agent on track.
 
 Claude Code gets skills. Codex reads `AGENTS.md`. Both get Pullboard's MCP server, and any other agent can read `pullboard prompt <role>`. The [triage skill](skills/pullboard-triage/SKILL.md) handles outside issues and pull requests, with your approval.
 
-If you are the only builder, inspect an item with `pullboard show <id>` and take other build work with `pullboard next`. Another agent session can create a reviewer seat with `pullboard worktree`, then run `pullboard next --verify` to review the submission. A builder cannot verify their own work, so independent review remains pending until another session reviews it. This describes the available solo path and does not decide the pending solo-route question.
+If you are the only builder, inspect an item with `pullboard show <id>` and take other build work with `pullboard next`. Another agent session can create a reviewer seat with `pullboard worktree`, then run `pullboard next --verify` to review the submission.
+
+A builder cannot verify their own work, so independent review remains pending until another session reviews it. This describes the available solo path and does not decide the pending solo-route question.
 
 ## Runners and landing
 
@@ -406,7 +408,9 @@ The **gate** is any command that proves your code, like `npm test` or `pytest`. 
 
 #### Multi-language support
 
-`init` detects languages at the repo root, or one folder down, and suggests a gate for each. To set one yourself, pick the gate for your stack. Chain setup and checks with `&&`. A gate runs in a clean runner checkout: commit its lockfiles and test requirements, and repeat every setup step the gate depends on there. An install in a builder's folder does not reach that checkout. The required tools must be on the runner service's `PATH`; Pullboard does not provision them. Do not assume SSH runners support pnpm.
+`init` detects languages at the repo root, or one folder down, and suggests a gate for each. To set one yourself, pick the gate for your stack. Chain setup and checks with `&&`.
+
+A gate runs in a clean runner checkout: commit its lockfiles and test requirements, and repeat every setup step the gate depends on there. An install in a builder's folder does not reach that checkout. The required tools must be on the runner service's `PATH`; Pullboard does not provision them. Do not assume SSH runners support pnpm.
 
 These examples use `<exact-version>` as a placeholder: replace it with the exact version pinned by the project, and commit the matching lockfile. Approve dependency build scripts in committed configuration so installation does not depend on an interactive prompt.
 
