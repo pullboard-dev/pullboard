@@ -97,7 +97,7 @@ function until(label, root, condition, ms = 15_000) {
 
 const exitOf = (root, id) => JSON.parse(readFileSync(join(root, 'done', id, 'exit'), 'utf8'));
 
-test('runner.agent.a-queued-job-is-claimed-by-rename: a queued job is claimed by rename and runs on file stdin, stdout and stderr with a heartbeat [C7,#5467]', async t => {
+test('runner.agent.a-queued-job-is-claimed-by-rename: clause 1: a queued job is claimed by rename and runs on file stdin, stdout and stderr with a heartbeat [C7,#5467]', async t => {
   const { root, start, agentPid } = machine(t);
   const running = join(root, 'running', 'job1'), done = join(root, 'done', 'job1');
   const beat = join(running, 'beat'), ready = join(running, 'ready');
