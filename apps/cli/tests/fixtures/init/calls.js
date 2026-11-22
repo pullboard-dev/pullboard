@@ -17,6 +17,7 @@ import {
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
+import { FIXTURE_MODEL } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild,
@@ -114,7 +115,7 @@ export async function fixture(t, { ruleProof = false } = {}) {
   git(repo, 'add', '-A');
   git(repo, 'update-ref', 'HEAD', git(repo, 'commit-tree', git(repo, 'write-tree'), '-m', 'chore(repo): initialize Git-call fixture'));
   git(repo, 'worktree', 'add', '-q', '-b', 'core/worker', worker);
-  await setup(worker, 'join', 'core', '--level', 'light', '--family', 'codex');
+  await setup(worker, 'join', 'core', '--model', FIXTURE_MODEL, '--level', 'light', '--family', 'codex');
   return { dir, repo, worker, calls, readCalls, env, git, run, ok };
 }
 
