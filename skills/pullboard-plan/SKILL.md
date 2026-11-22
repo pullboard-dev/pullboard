@@ -30,7 +30,7 @@ description: Turn a project's approved spec rows into work items on the board, i
 1. **Contracts first:** what two lanes share (a data shape, a module, a file format).
    - One item per contract, in the lane that owns it.
    - Items that use it: `--after <its id>`.
-2. **One item per source file.** Keep a module and its test file in the same item. Split only when the change is more than about 400 new lines. See Each item.
+2. One item per source file. Keep a module and its test file in the same item. Split only when the change is more than about 400 new lines. See Each item.
 3. **Route** to the cheapest model that can build it. See Routes.
 4. **Order** with `--after` only where code imports another item's file. Plan layers as wide as the builder seats. Before filing, count the items buildable at once; if that count is below the number of seats, re-cut the work.
 5. **Simplest first:** every addition needs a row asking for it.
