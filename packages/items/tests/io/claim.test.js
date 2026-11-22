@@ -59,10 +59,10 @@ test('items.io-claim.show-read-boundary: clause 1: CLI and store queries use sel
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const seat = join(root, 'seat');
   const item = read.itemFolderPath(seat, 7);
+  write('seat/README.md', 'fixture\n');
   runFixtureSetupGit(['init', '-q'], { cwd: seat });
   runFixtureSetupGit(['config', 'user.name', 'Pullboard test'], { cwd: seat });
   runFixtureSetupGit(['config', 'user.email', 'pullboard-test@example.invalid'], { cwd: seat });
-  write('seat/README.md', 'fixture\n');
   runFixtureSetupGit(['add', 'README.md'], { cwd: seat });
   runFixtureSetupGit(['commit', '-qm', 'fixture'], { cwd: seat });
   runFixtureSetupGit(['worktree', 'add', '-qb', 'core/item-7', item], { cwd: seat });
