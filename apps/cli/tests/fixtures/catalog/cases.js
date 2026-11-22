@@ -765,19 +765,25 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   const plainLoop = await box.runLocal(repo, 'next', '--no-wait', '--json');
   assert.equal(plainLoop.status, 4);
   assert.equal(plainLoop.stderr, '');
-  const plainLoopDocument = JSON.parse(plainLoop.stdout);
+  const plainLoopDocument = parseOneDocument(plainLoop.stdout);
   assert.equal(plainLoopDocument.version, 1);
   assert.equal(plainLoopDocument.item, null);
-  assert.match(plainLoopDocument.reasons[0], /^\[IDLE_TIMEOUT\] nothing for this seat in \d+ seconds; the board is not finished\./u);
-  // A no-wait idle response is one JSON document with the exact public timeout fields.
-  const nothingFree = await box.runLocal(repo, 'next', '--no-wait', '--json');
-  assert.equal(nothingFree.status, 4);
+  assert.deepEqual(plainLoopDocument.timeout, { seconds: 90 });
+  assert.deepEqual(plainLoopDocument.reasons, ['[IDLE_TIMEOUT] nothing for this seat in 90 seconds; the board is not finished. Stop, or call next again.']);
+  // A bounded wait that finds nothing is the refusal: one JSON document with the exact public error fields.
+  const nothingFree = await box.runLocal(repo, 'next', '--wait', '0', '--json');
+  assert.equal(nothingFree.status, 1);
   assert.equal(nothingFree.stderr, '');
   const nextDocument = JSON.parse(nothingFree.stdout);
   assert.equal(nextDocument.version, 1);
-  assert.equal(nextDocument.item, null);
-  assert.match(nextDocument.reasons[0], /^\[IDLE_TIMEOUT\] nothing for this seat in \d+ seconds; the board is not finished\./u);
+  assertRequiredShape(nextDocument, JSON_SHAPES.error.required, 'error envelope');
+  assertRequiredShape(nextDocument.error, JSON_SHAPES.errorFields, 'error');
   shapeFor('next');
+  assert.deepEqual(nextDocument.error, {
+    code: 'NOTHING_FREE',
+    message: "no item is free; no open items in the coordinator lane; lane items are built from each lane's own worktree. To keep looking: pullboard next --take",
+    next: 'To keep looking: pullboard next --take',
+  });
 
   const unknown = await box.runLocal(repo, 'status', '--not-a-real-flag', '--json');
   assert.equal(unknown.status, 2);
