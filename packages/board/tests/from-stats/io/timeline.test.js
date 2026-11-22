@@ -1,18 +1,18 @@
 /** The item and fleet timeline readers on a real board: the stages come back in order and the cutoff keeps only the window's items [C7,#12143,#12145]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createJob } from '../../../jobs/index.js';
-import { writeStep } from '../../../jobs/index.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { cellClaim } from '../../../store/tests/fixtures/cell.js';
-import { cellItem } from '../../../store/tests/fixtures/cell.js';
-import { cellRepo } from '../../../store/tests/fixtures/cell.js';
-import { cellSeat } from '../../../store/tests/fixtures/cell.js';
-import { cellReviewAccept } from '../../../store/tests/fixtures/cell.js';
-import { submitFixture } from '../../../store/tests/fixtures/submit.js';
-import { readFleetTimelines } from '../../index.js';
-import { readItemTimeline } from '../../index.js';
-import { GATE_QUEUE_SQL } from '../../index.js';
+import { createJob } from '../../../../jobs/index.js';
+import { writeStep } from '../../../../jobs/index.js';
+import { cellBoard } from '../../fixtures/cell-board.js';
+import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
+import { cellReviewAccept } from '../../../../store/tests/fixtures/cell.js';
+import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
+import { readFleetTimelines } from '../../../../stats/index.js';
+import { readItemTimeline } from '../../../../stats/index.js';
+import { GATE_QUEUE_SQL } from '../../../../stats/index.js';
 
 test('stats.io-timeline.real-board: clause 2: readItemTimeline on a real board after an add, claim and submit returns those stages in order, then the gate job stages [C7,#12143]', t => {
   const repo = cellRepo(t, { real: true });

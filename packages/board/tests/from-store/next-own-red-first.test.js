@@ -1,17 +1,16 @@
 /** next hands a seat its own red-gated item first, and a red item nobody holds before any never-built item [C7,#4014]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { openKitBoard } from './fixtures/cell.js';
-import { recordSubmitHandoff } from '../../jobs/index.js';
+import * as store from '../../../store/index.js';
+import { cellBoard } from '../fixtures/cell-board.js';
+import { recordSubmitHandoff } from '../../../jobs/index.js';
 
-// fixture-subject: addItem (a store unit test of next over seeded items; the board is opened through the kit)
+// fixture-subject: addItem (a store unit test of next over seeded items; the board opens through the board cell)
 const COMMIT = 'c'.repeat(40);
 
 /** A board with a builder seat, a second seat, and two open items of one lane, the second to be built first and left red. */
 function fixture(t) {
-  const board = openKitBoard(':memory:', { now: () => new Date('2026-11-09T08:00:00.000Z') });
-  t.after(() => store.closeBoard(board));
+  const board = cellBoard(t, ':memory:', { now: () => new Date('2026-11-09T08:00:00.000Z') });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid' });
   const other = store.register(board, { lane: 'core', path: '/other', route: 'mid' });

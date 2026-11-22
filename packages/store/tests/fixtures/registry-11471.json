@@ -1,17 +1,2 @@
 {
-  "store.needs.abilities-save-and-read": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "saveAgentAbilities writes the list agentAbilities reads back, a seat never given abilities reads an empty list, and an unknown name is refused USAGE."
-    },
-    "why": "Without this test a seat's declared abilities could be dropped or misread and no item needing a browser would match it.",
-    "kind": "cell unit",
-    "inputs": [
-      "packages/store/tests/io/needs.test.js",
-      "packages/store/src/io/needs.js",
-      "packages/store/src/io/board/register.js"
-    ]
-  }
 }
