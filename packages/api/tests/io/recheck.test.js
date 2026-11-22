@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/api/tests/fixtures/recheck-admission-retained.json */
 /** A main-test job names the cases a red file fails on main, and a red it cannot read keys no receipt [C7,P7]. */
 /** @pullboard-world-pin: clause 1 replays immutable retained native proof data through MAIN_TEST_ENTRY, including its original input key. */
 import assert from 'node:assert/strict';
