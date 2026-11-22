@@ -8,7 +8,6 @@ import { cellReviewAccept } from '../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
-import { withdraw } from '../../../../store/index.js';
 import { normalizeReviewDefaults } from '../../../src/io/review/default.js';
 import { itemReviewPolicy } from '../../../src/logic/review/policy.js';
 
@@ -44,7 +43,7 @@ function watchItemReads(board) {
   return { reads, rawDb: db, allow: id => { allowedId = id; } };
 }
 
-test('verify.io-review-default.written-item: clause 1: the written-item default normalization binds one id and preserves its projected policy, witness, event and notice [C7]', (t) => {
+test('verify.io-review-default.written-item: clause 1: clause 2: the written-item default normalization binds one id and preserves its projected policy, witness, event and notice [C7]', (t) => {
   const project = cellProject(t, { real: true });
   const board = cellBoard(t, project.boardFile, { now: () => new Date(NOW) }, { real: true, gitRoot: project.repo });
   const target = addJudgmentItem(board, 'written target');
@@ -58,7 +57,7 @@ test('verify.io-review-default.written-item: clause 1: the written-item default 
   cellClaim(board, verified, builder, { root: project.repo });
   submitFixture(board, verified, { agentId: builder.id, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
   cellReviewAccept(board, verified, reviewer);
-  withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'fixture withdrawal' });
+  board.enginePorts.store.withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'fixture withdrawal' });
   const unrelated = Array.from({ length: 24 }, (_, index) => addJudgmentItem(board, `unrelated ${index}`));
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(`review_independence:${sensitive}`, JSON.stringify({ version: 1, sensitive: true, reviewFamily: null }));
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(`item_review_family:${family}`, 'anthropic');
