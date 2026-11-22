@@ -1,18 +1,23 @@
-/** @pullboard-test-input docs/formats.md docs/formats/map.md */
-/** @pullboard-world-pin reads docs/formats.md and docs/formats/map.md to compare their section lists. */
+/** @pullboard-test-input docs/formats/map.md */
+/** @pullboard-world-pin reads docs/formats/map.md and takes the docs/formats.md sections from generatedDocs to compare their lists. */
 /** The format page map lists every top-level section of docs/formats.md once, as a user page or an engine section [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { openBoard } from '../packages/board/index.js';
+import { generatedDocs } from '../apps/cli/src/io/generated/docs.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
+
+/** Pages the generator renders, by path; no committed copy of them is read. */
+const generated = generatedDocs(ROOT, { openBoard });
 
 /** Top-level section titles of docs/formats.md, ignoring fenced code. */
 function sections() {
   const out = [];
   let fenced = false;
-  for (const line of readFileSync(resolve(ROOT, 'docs/formats.md'), 'utf8').split('\n')) {
+  for (const line of generated.get('docs/formats.md').split('\n')) {
     if (line.startsWith('```')) fenced = !fenced;
     else if (!fenced && line.startsWith('## ')) out.push(line.slice(3).trim());
   }
@@ -44,11 +49,11 @@ test('clause 1: each row is a user page or an engine section, and a named user p
     const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(page);
     if (link) {
       assert.equal(link[1], `docs/formats/${link[2]}`, `${title}: link text names its path`);
-      assert.ok(existsSync(resolve(ROOT, 'docs/formats', link[2])), `${title}: ${link[2]} does not exist`);
+      assert.ok((generated.has(`docs/formats/${link[2]}`) || existsSync(resolve(ROOT, 'docs/formats', link[2]))), `${title}: ${link[2]} does not exist`);
       continue;
     }
     const [path, mark] = page.split(' ');
-    assert.ok(existsSync(resolve(ROOT, path)) || mark === '(planned)', `${title}: ${path} neither exists nor is planned`);
+    assert.ok(generated.has(path) || existsSync(resolve(ROOT, path)) || mark === '(planned)', `${title}: ${path} neither exists nor is planned`);
   }
 });
 

@@ -1,7 +1,7 @@
 import { QUEUE_FAIRNESS_ENGINE } from '../../../../state/light.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
 import { lineSettings } from '../../../../state/index.js';
-import { localDependencyIds } from '../../../../items/index.js';
+import { localDependencyIds } from '../../../../items/light.js';
 import { criticalPathEnabled } from "../../../../items/index.js";
 import { remainingPaths } from "../../../../items/index.js";
 import { focusOrder } from "../../../../roadmap/index.js";

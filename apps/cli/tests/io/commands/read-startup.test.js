@@ -71,12 +71,14 @@ test('cli.io-commands-read-startup.every-read-command-keeps-a-startup-ceiling: c
   const audited = { version: 800, show: 2000, status: 3000, list: 1500, 'list thin': 200 };
   assert.deepEqual(Object.keys(ceilings).sort(), ['list', 'list thin', 'show', 'status', 'version']);
   for (const [command, limit] of Object.entries(audited)) assert.ok(ceilings[command] <= limit, `${command} ceiling ${ceilings[command]} ms is above its audited ${limit} ms`);
+  assert.equal(ceilings['list thin'], 150);
+  assert.ok(136.69 < ceilings['list thin']);
 });
 
-// 'list thin' is an audited exception: the 100 ms target is out of reach for now, so the row sits at 200 ms against the measured
-// median of 182 ms (run 91c72d73-2ba5-49e3-bff6-359ea1541783); the cut toward 100 is a follow-up item, and the row never rises [C7,#9090].
-test('cli.io-commands-read-startup.the-list-thin-row-is-200-ms: clause 2: the list thin row is 200 ms and the list row stays at its audited 1500 ms [C7,#9090]', () => {
-  assert.equal(ceilings['list thin'], 200);
+// 'list thin' is an audited exception: the 100 ms target is out of reach for now, so the row sits at 150 ms against the three-run
+// child CPU median of 136.69 ms (e4ccb52d-db25-41b9-9313-9c1d2b25d8b0, fcbd4574-b4ce-4749-b430-4b9209375877, a097655d-a42f-4918-b25c-f4343e998206); the row never rises [C7,#9090].
+test('cli.io-commands-read-startup.the-list-thin-row-is-200-ms: clause 2: the list thin row is 150 ms and the list row stays at its audited 1500 ms [C7,#9090]', () => {
+  assert.equal(ceilings['list thin'], 150);
   assert.equal(ceilings.list, 1500);
 });
 
@@ -92,8 +94,8 @@ test('cli.io-commands-read-startup.the-version-row-reports-its-median-the: claus
   assert.equal(startupReport.floorLines.length, Object.keys(startupReport.mediansMs).length);
 });
 
-test('cli.io-commands-read-startup.list-thin-is-an-audited-exception-at: clause 3: list thin is an audited exception at 200 ms over its measured median of 182 ms, run 91c72d73-2ba5-49e3-bff6-359ea1541783 [C7,#9090]', () => {
-  assert.ok(182 < ceilings['list thin'] && ceilings['list thin'] === 200);
+test('cli.io-commands-read-startup.list-thin-is-an-audited-exception-at: clause 2: list thin is an audited exception at 150 ms over its measured three-run median of 136.69 ms [C7,#9090]', () => {
+  assert.ok(136.69 < ceilings['list thin'] && ceilings['list thin'] === 150);
 });
 
 test('cli.io-commands-read-startup.the-scaled-check-judges-overhead-not-load: clause 2: the scaled check fails a row whose overhead grows while the bare floor stays quiet, and passes a row that only slows with the floor [C7]', () => {

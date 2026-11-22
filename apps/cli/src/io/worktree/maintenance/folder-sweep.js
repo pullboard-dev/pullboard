@@ -17,6 +17,7 @@ import { registeredMaintenanceTrees } from './observation.js';
 import { itemObligation } from './classify.js';
 import { maintenanceAllocatedBytes } from './observation.js';
 import { takeMaintenanceCheckout } from './observation.js';
+import { blockedWipPaths } from '../../item/wip.js';
 
 const fs = fileSystemAdapter();
 const ITEM_FOLDER = /-item-([1-9]\d*)$/u;
@@ -121,6 +122,11 @@ export async function sweepFinishedFolders(root, entries, { mainRoot, now, confi
       const found = sweepRule(path, fresh, { now, branch, directories: currentDirectories });
       if (!found) continue;
       const dirty = dirtyPaths(path);
+      const blocked = blockedWipPaths(path);
+      if (blocked.length) {
+        entry.reason = `secret-blocked files retained: ${blocked.join(', ')}`;
+        continue;
+      }
       if (dirty.length) {
         const name = found.item ?? basename(path);
         const removeAfter = found.rule === 'claim-ended';

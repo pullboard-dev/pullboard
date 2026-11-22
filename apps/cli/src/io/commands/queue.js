@@ -1,5 +1,5 @@
-import { localDependencyIds } from '../../../../../packages/items/index.js';
-import { dependencyLabel } from '../../../../../packages/items/index.js';
+import { localDependencyIds } from '../../../../../packages/items/light.js';
+import { dependencyLabel } from '../../../../../packages/items/light.js';
 import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../../../../packages/store/index.js';
 import * as store from '../../../../../packages/store/index.js';

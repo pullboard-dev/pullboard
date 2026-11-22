@@ -33,7 +33,7 @@ const CLI_ENTRY = fileURLToPath(new URL('../../../pullboard.js', import.meta.url
  */
 async function seatClaims(ctx, agent) {
   const { itemsInStatus } = await import('../../../../../packages/store/index.js');
-  const { itemFolderIdentity } = await import('../../../../../packages/items/index.js');
+  const { itemFolderIdentity } = await import('../../../../../packages/items/light.js');
   return withBoardRead(ctx, board => {
     const claims = itemsInStatus(board, 'claimed', agent);
     const folder = itemFolderIdentity(board, ctx.info.root)?.item ?? null;

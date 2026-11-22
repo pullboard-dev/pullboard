@@ -54,7 +54,7 @@ import {
   executingBarEffect,
   personBarMode,
 } from '../../../../../packages/person/index.js';
-import { dependencyValues } from '../../../../../packages/items/index.js';
+import { dependencyValues } from '../../../../../packages/items/light.js';
 import {
   referenceAuthors,
   referenceAuthority,

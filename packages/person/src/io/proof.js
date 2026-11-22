@@ -1,13 +1,13 @@
 /** Read-only validation of optional row approvals, without importing the mutable board or CLI graph [E22,H16]. */
-import { answerQuestion } from "../../../spec/index.js";
+import { answerQuestion } from "../../../spec/light.js";
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { parseSpec } from "../../../spec/index.js";
+import { parseSpec } from "../../../spec/light.js";
 import {
   presenceSigned,
   validPresence,
 } from "./presence.js";
-import { rowDecisionReplacement } from "../../../spec/index.js";
+import { rowDecisionReplacement } from "../../../spec/light.js";
 import { attestedAuthority } from "../logic/attested.js";
 
 /** Keep the original signed request's complete row effect, including source fields and optional signer boundaries. */
