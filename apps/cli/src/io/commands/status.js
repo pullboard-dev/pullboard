@@ -157,10 +157,12 @@ export async function run(io, { values }) {
   const format = { capacityLines, usefulBuilderLines, staffingLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
   const lines = statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format });
   const thinSections = line => line.startsWith('board:') || line.startsWith('verdicts:')
+    || line.startsWith('review queue:') || line.startsWith('landing:')
     || line.startsWith('ready buffer:') || line.startsWith('capacity:')
     || line.startsWith('Max useful agents now:') || / items can be built at once now\.$/u.test(line)
     || line.startsWith('Finish in about ') || line === 'Finish time: unknown.'
     || line.startsWith('Binding: ') || line.startsWith('Lever: ')
+    || line.startsWith('local memory holds ') || line === 'local memory hold status unavailable; pullboard resources shows the queue'
     || line.startsWith('Approval evidence count:') || line.startsWith('Unknown: ')
     || line.startsWith('Max useful builders:');
   if (thinStatus) io.say(`lanes: ${thinStatus.lanes.join(', ') || 'none'}`);
