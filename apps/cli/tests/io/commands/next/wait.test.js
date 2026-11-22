@@ -66,16 +66,15 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   const box = helpers.project('true');
   box.env.PULLBOARD_NEXT_PROFILE = '1';
   const began = Date.now(), notifications = [];
-  let subscribed, notified = false;
+  let subscribed;
   const ready = new Promise(resolve => { subscribed = resolve; });
   // This diagnostic clock uses the actual time and native waiter, without changing any deadline.
   const clock = { now: Date.now, sleep: async (wake, options) => {
     if (notifications.length < 64) notifications.push({ sleepAt: Date.now() - began, after: options.after, until: options.deadline - began });
     const sleeping = wake.wait(options);
-    subscribed();
+    if (wake.version() === options.after && Date.now() < options.deadline) subscribed();
     await sleeping;
-    notified ||= wake.version() !== options.after;
-    if (notifications.length < 64) notifications.push({ wokeAt: Date.now() - began, version: wake.version() });
+    if (notifications.length < 64) notifications.push({ wokeAt: Date.now() - began, after: options.after, version: wake.version() });
   } };
   const waiting = drivenNext(box, box.web, clock, '--wait', '1').then(result => ({ ...result, finishedAt: Date.now() }));
   // The first idle event precedes sleep; wait for the actual native subscription before offering work.
@@ -91,7 +90,8 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   const result = await waiting;
   const delay = (result.finishedAt - filedAt) / 1000;
   assert.ok(result.finishedAt >= filedAt, 'the waiting command answers after the committed add');
-  assert.ok(notified, 'the native file waiter received a notification');
+  assert.ok(notifications.some(entry => entry.wokeAt + began >= filedAt && entry.version !== entry.after),
+    'the native file waiter received a notification after the add');
   t.diagnostic(`native offer wake ${delay} s; notifications ${JSON.stringify(notifications)}; ${result.err.replace(/\s+/gu, ' ')}`);
   assert.equal(result.code, 0, `filed ${(filedAt - began) / 1000} s in, item ${JSON.stringify(item).slice(0, 400)}: ${result.out}\n${result.err}`);
   assert.match(result.out, new RegExp(`#${item.item_id}\\b`, 'u'), `the wait did not hand over the offered item: ${result.out}`);
