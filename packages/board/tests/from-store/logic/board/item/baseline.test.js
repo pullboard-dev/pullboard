@@ -2,9 +2,9 @@
 /** remeasureCandidates picks the open items whose check lacks a timed, non-strict baseline, within the free runner slots [C7]. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { remeasureCandidates } from "../../../../src/logic/board/item/baseline.js";
-import { cellBoard } from "../../../fixtures/cell.js";
-import { cellItem } from "../../../fixtures/cell.js";
+import { remeasureCandidates } from "../../../../../../store/src/logic/board/item/baseline.js";
+import { cellBoard } from "../../../../fixtures/cell-board.js";
+import { cellItem } from "../../../../../../store/tests/fixtures/cell.js";
 
 const MAIN = "a".repeat(40);
 const REQUEST = "11111111-1111-4111-8111-111111111111";

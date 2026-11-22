@@ -2,15 +2,15 @@
 /** A move that also lifts an infra hold hands its own event row, not the chained unhold row, to its trigger consumers [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appendFact } from '../../../../index.js';
-import { claim } from '../../../../index.js';
-import { getItem } from '../../../../index.js';
-import { insertShout } from '../../../../index.js';
-import { register } from '../../../../index.js';
-import { release } from '../../../../index.js';
-import { addItem } from '../../../../index.js';
-import { INFRA_RELEASE_ENGINE } from '../../../../../state/index.js';
-import { cellBoard } from '../../../fixtures/cell.js';
+import { appendFact } from '../../../../../../store/index.js';
+import { claim } from '../../../../../../store/index.js';
+import { getItem } from '../../../../../../store/index.js';
+import { insertShout } from '../../../../../../store/index.js';
+import { register } from '../../../../../../store/index.js';
+import { release } from '../../../../../../store/index.js';
+import { addItem } from '../../../../../../store/index.js';
+import { INFRA_RELEASE_ENGINE } from '../../../../../../state/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
 
 const COMMIT = 'a'.repeat(40);
 

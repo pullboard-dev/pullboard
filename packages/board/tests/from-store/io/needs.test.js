@@ -2,16 +2,16 @@
 /** An item records a needs list through add and edit, and itemById reads it, over a real SQLite board [U136,C7,#1888]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../index.js';
-import { ENGINE_VERSION } from '../../../state/light.js';
-import { NEEDS_ENGINE } from '../../../state/light.js';
-import { saveItemNeeds } from '../../src/io/needs.js';
-import { saveAgentAbilities } from '../../src/io/needs.js';
-import { agentAbilities } from '../../src/io/needs.js';
-import { validateAgentAbilities } from '../../src/io/needs.js';
-import { validateItemNeeds } from '../../src/io/needs.js';
-import { cellBoard } from '../fixtures/cell.js';
-import { cellProject } from '../fixtures/cell.js';
+import * as store from '../../../../store/index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
+import { NEEDS_ENGINE } from '../../../../state/light.js';
+import { saveItemNeeds } from '../../../../store/src/io/needs.js';
+import { saveAgentAbilities } from '../../../../store/src/io/needs.js';
+import { agentAbilities } from '../../../../store/src/io/needs.js';
+import { validateAgentAbilities } from '../../../../store/src/io/needs.js';
+import { validateItemNeeds } from '../../../../store/src/io/needs.js';
+import { cellBoard } from '../../fixtures/cell-board.js';
+import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 
 /** A real project and board with a coordinator. */
 function fixture(t) {
