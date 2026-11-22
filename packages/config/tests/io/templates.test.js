@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { SEAT_LOOP } from '../../src/io/templates.js';
 import { SEAT_LOOP_WORD_BUDGET } from '../../src/io/templates.js';
+import { renderAgentsBlock } from '../../src/io/templates.js';
 import { renderCodexAutomation } from '../../src/io/templates.js';
 import { renderWorkerSkill } from '../../src/io/templates.js';
 
@@ -38,4 +39,16 @@ test('config.io-templates.seat-loop-seat-folder: clause 2: next, status and shou
   const seatFolderLine = 'Run `next`, `status` and `shout` from your seat folder, not its item folder; the item folder gets `NOT_JOINED` otherwise.';
   assert.ok(SEAT_LOOP.includes(seatFolderLine));
   assert.ok(renderWorkerSkill().includes(seatFolderLine));
+});
+
+test('config.io-templates.agents-worktree: #11782 clause 1: the generated Lanes line opens and joins a seat with the lane, worktree and model [C7]', () => {
+  const lanesLine = renderAgentsBlock().split('\n').find(line => line.startsWith('- **Lanes:**'));
+  assert.equal(lanesLine, '- **Lanes:** open and join one with `pullboard worktree <lane> --model "<model name>"`.');
+});
+
+test('config.io-templates.seat-loop-reviewer: #11782 clause 2: a review-lane seat reviews submissions, loops on next --verify and stays within the unchanged word budget [C7]', () => {
+  assert.ok(SEAT_LOOP.includes('- **Review:** A seat joined to `review` reviews submissions; it loops with `pullboard next --verify --wait 1`.'));
+  assert.equal(SEAT_LOOP_WORD_BUDGET, 160, 'the approved word budget stays unchanged');
+  const words = SEAT_LOOP.split(/\s+/u).filter(Boolean).length;
+  assert.ok(words <= SEAT_LOOP_WORD_BUDGET, `${words} words exceed ${SEAT_LOOP_WORD_BUDGET}`);
 });

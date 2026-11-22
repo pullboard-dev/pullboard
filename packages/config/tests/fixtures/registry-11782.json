@@ -1,0 +1,4 @@
+{
+  "config.io-templates.agents-worktree": {"proves":{"specs":["C7"],"claim":"renderAgentsBlock's Lanes line tells an agent how to open and join a seat with its lane and declared model."},"why":"Without this case new projects could receive seat setup instructions that cannot create a joined worktree.","kind":"cell unit","inputs":["packages/config/src/io/templates.js","packages/config/tests/io/templates.test.js"]},
+  "config.io-templates.seat-loop-reviewer": {"proves":{"specs":["C7"],"claim":"SEAT_LOOP tells a review-lane seat to review submissions with next --verify and stays within the unchanged word budget."},"why":"Without this case generated agent guidance could omit the reviewer role or exceed its approved length.","kind":"cell unit","inputs":["packages/config/src/io/templates.js","packages/config/tests/io/templates.test.js"]}
+}

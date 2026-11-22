@@ -104,6 +104,8 @@ Never wait, never sleep, never poll, never stop while the board has work.
 4. **Commit**; \`pullboard submit <id>\`.
 5. **Repeat:** \`next\` returns reds/rejects; fix/resubmit.
 
+- **Review:** A seat joined to \`review\` reviews submissions; it loops with \`pullboard next --verify --wait 1\`.
+
 ### Building
 
 - **Gate:** Pullboard runs it; never run suites.
@@ -179,7 +181,7 @@ This repo runs on Pullboard: board, lanes and spec, all in git.
 - **Spec:** \`SPEC.md\` rows, each with an id like \`G1.2\`; code follows them.
 - **Commits:** \`feat(scope): subject [G1.2]\`, citing the ids served.
 - **Seats:** an agent is its worktree; the main checkout is the coordinator.
-- **Lanes:** join one with \`pullboard join <lane>\`.
+- **Lanes:** open and join one with \`pullboard worktree <lane> --model "<model name>"\`.
 ${cells}
 ## Roles
 
