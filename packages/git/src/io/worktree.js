@@ -9,6 +9,7 @@ const disk = fileSystemAdapter();
 
 /** The npm lockfiles `npm ci` installs from, in the order npm itself prefers them. */
 const NPM_LOCKFILES = ['npm-shrinkwrap.json', 'package-lock.json'];
+const MANAGER_LOCKFILES = { npm: NPM_LOCKFILES, pnpm: ['pnpm-lock.yaml'], yarn: ['yarn.lock'] };
 
 /**
  * Count the packages a package.json declares under dependencies and devDependencies.
@@ -38,11 +39,23 @@ function declaredDependencies(root) {
  * @param {string} root
  * @returns {string | null}
  */
-function committedLockfile(root) {
-  const listed = tryGit(root, ['ls-tree', '-z', '--name-only', 'HEAD', '--', ...NPM_LOCKFILES], { env: cleanGitEnvironment() });
+function committedLockfile(root, lockfiles) {
+  const listed = tryGit(root, ['ls-tree', '-z', '--name-only', 'HEAD', '--', ...lockfiles], { env: cleanGitEnvironment() });
   if (listed.status !== 0) return null;
   const tracked = new Set(listed.stdout.split('\0').filter(Boolean));
-  return NPM_LOCKFILES.find((name) => tracked.has(name)) ?? null;
+  return lockfiles.find((name) => tracked.has(name)) ?? null;
+}
+
+/** Read Corepack's packageManager declaration, retaining only managers with known guidance. */
+function declaredManager(root) {
+  const file = join(root, 'package.json');
+  if (!disk.exists(file)) return null;
+  let manifest;
+  try { manifest = JSON.parse(disk.readFile(file, 'utf8')); } catch { return null; }
+  const declaration = typeof manifest?.packageManager === 'string' ? manifest.packageManager : '';
+  const match = /^(npm|pnpm|yarn)@([^+\s]+)(?:\+.*)?$/u.exec(declaration);
+  if (!match) return null;
+  return { name: match[1], version: match[2] };
 }
 
 /**
@@ -58,9 +71,20 @@ function committedLockfile(root) {
  */
 export function installStep(root) {
   if (declaredDependencies(root) === 0) return null;
-  const lockfile = committedLockfile(root);
-  if (lockfile) return { command: 'npm ci', note: `its own install from the committed ${lockfile}, so its tests run its own code` };
-  return { command: 'npm install', note: 'its own install; it writes package-lock.json, so commit that file or the first submit is refused UNTRACKED' };
+  const manager = declaredManager(root) ?? { name: 'npm', version: '' };
+  const lockfile = committedLockfile(root, MANAGER_LOCKFILES[manager.name]);
+  if (manager.name === 'npm') {
+    if (lockfile) return { command: 'npm ci', note: `its own install from the committed ${lockfile}, so its tests run its own code` };
+    return { command: 'npm install', note: 'its own install; it writes package-lock.json, so commit that file or the first submit is refused UNTRACKED' };
+  }
+  if (manager.name === 'pnpm') {
+    if (lockfile) return { command: 'pnpm install --frozen-lockfile', note: 'its own install from the committed pnpm-lock.yaml, so its tests run its own code' };
+    return { command: 'pnpm install', note: 'its own install; commit the pnpm-lock.yaml it writes so the first submit is not refused as UNTRACKED' };
+  }
+  const major = Number.parseInt(manager.version, 10);
+  if (lockfile && Number.isFinite(major) && major < 2) return { command: 'yarn install --frozen-lockfile', note: 'its own Yarn Classic install from the committed yarn.lock, so its tests run its own code' };
+  if (lockfile) return { command: 'yarn install --immutable', note: 'its own modern Yarn install from the committed yarn.lock, so its tests run its own code' };
+  return { command: 'yarn install', note: 'its own install; commit the yarn.lock it writes so the first submit is not refused as UNTRACKED' };
 }
 
 /**
