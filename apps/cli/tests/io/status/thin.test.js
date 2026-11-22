@@ -113,7 +113,7 @@ test('cli.io-status-thin.wired-behind-setting: clause 2: status.js calls the doo
     || line.startsWith('Finish in about ') || line === 'Finish time: unknown.'
     || line.startsWith('Binding: ') || line.startsWith('Lever: ')
     || line.startsWith('Approval evidence count:') || line.startsWith('Unknown: ')
-    || line.startsWith('Max useful builders:')), 'thin status prints only counts, lanes, capacity and useful builders');
+    || line.startsWith('Max useful builders:')), `thin status prints only counts, lanes, capacity and useful builders: ${thin.join(' | ')}`);
   for (const line of thin.filter(line => !line.startsWith('lanes:'))) assert.ok(full.includes(line), `thin status shares the full-path field: ${line}`);
   assert.ok(full.some(line => line.startsWith('seats:')), 'full status keeps detailed sections');
   assert.ok(thin.length < full.length, 'thin status omits full-path details');
