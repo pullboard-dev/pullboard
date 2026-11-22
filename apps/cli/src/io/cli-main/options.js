@@ -190,6 +190,7 @@ const OPTIONS = {
   audit: { type: 'boolean' },
   fields: { type: 'string' },
   history: { type: 'boolean' },
+  compact: { type: 'boolean' },
   verbose: { type: 'boolean' },
   fleet: { type: 'boolean' },
   since: { type: 'string' },

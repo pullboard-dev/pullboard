@@ -166,6 +166,20 @@ async function requireAuthoritativeRehomeItem(file, state, itemId, io) {
   });
 }
 
+/**
+ * The sealed outbox's queued entries, opened with this board's key by the caller's outbox reader, or [] with no link
+ * or no outbox. Read only: pullboard show --compact prints them (GitHub #35) and the sealed file is never rewritten.
+ *
+ * @param {string} root
+ * @param {(file: string, key: any, boardId: string) => Promise<{ moves: any[] } | null>} readOutbox
+ */
+export async function queuedOutboxEntries(root, readOutbox) {
+  const file = linkFile(root);
+  const state = fs.exists(file) ? loadLink(file) : null;
+  if (!state || !fs.exists(outboxFile(file))) return [];
+  return (await readOutbox(outboxFile(file), readBoardKey(state.board), state.board))?.moves ?? [];
+}
+
 /** Check a selected team item before move-command destination reservation can choose another ID. */
 export async function assertRehomeSourceItemOrdered(root, itemId, io) {
   const file = linkFile(root);
