@@ -1,0 +1,60 @@
+{
+  "runner.worker.import-startup": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The actual worker entry reports its exact native import closure, committed source digest and real shell startup at unchanged deadlines."
+    },
+    "why": "Protect bounded private worker startup without losing actual shell IO or refusals.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/runner/tests/io/private/check/worker/startup.test.js"
+    ]
+  },
+  "runner.worker.unrelated-startup": {
+    "proves": {
+      "specs": [
+        "C7",
+        "V18",
+        "V2"
+      ],
+      "claim": "Unavailable unrelated Sandbox initialization cannot prevent real install timeout output and durable IO."
+    },
+    "why": "Protect bounded private worker startup without losing actual shell IO or refusals.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/runner/tests/io/private/check/worker.test.js"
+    ]
+  },
+  "runner.worker.empty-timeout": {
+    "proves": {
+      "specs": [
+        "C7",
+        "V18",
+        "V2"
+      ],
+      "claim": "A genuine silent shell timeout retains empty output."
+    },
+    "why": "Protect bounded private worker startup without losing actual shell IO or refusals.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/runner/tests/io/private/check/worker.test.js"
+    ]
+  },
+  "runner.worker.shell-unavailable": {
+    "proves": {
+      "specs": [
+        "C7",
+        "V18",
+        "V2"
+      ],
+      "claim": "An unavailable shell remains an unexecuted ENOENT startup failure."
+    },
+    "why": "Protect bounded private worker startup without losing actual shell IO or refusals.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/runner/tests/io/private/check/worker.test.js"
+    ]
+  }
+}
