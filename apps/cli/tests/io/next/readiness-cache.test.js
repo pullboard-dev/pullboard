@@ -22,7 +22,9 @@ function readinessSettings(cache) {
 async function printed(box) {
   let out = '';
   const stdout = { isTTY: false, write: part => { out += part; } };
-  await main(['next'], { cwd: box.seats.actor.path, clock: box.clock, stdout, stderr: stdout });
+  let fake = 0;
+  const nextWaitClock = { now: () => fake, sleep: async (_wake, { deadline }) => { fake = deadline; } };
+  await main(['next'], { cwd: box.seats.actor.path, clock: box.clock, nextWaitClock, stdout, stderr: stdout });
   return out;
 }
 
