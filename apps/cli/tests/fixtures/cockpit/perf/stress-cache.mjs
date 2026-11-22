@@ -114,7 +114,8 @@ function spawnBuild(inputs, cache, lock) {
  * another run's build holds it. A lock that vanishes between the failed mkdir and the stat was just released by a finished
  * build, so the lock is retried once instead of letting the stat throw ENOENT [C7].
  */
-function takeLock(lock, stat) {
+export function takeLock(lock, stat) {
+  mkdirSync(dirname(lock), { recursive: true });
   try { mkdirSync(lock); return true; } catch { /* held or released: look */ }
   try { return Date.now() - stat(lock).mtimeMs > 600_000; } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
