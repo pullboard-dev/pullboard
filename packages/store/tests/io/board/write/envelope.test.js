@@ -5,9 +5,11 @@ import { join } from 'node:path';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { logEvent } from '../../../../index.js';
+import { atomic } from '../../../../src/io/board/event/log.js';
 import { captureBoardChanges } from '../../../../src/io/board/capture.js';
 import { commitPrepared } from '../../../../src/io/board/write/sequencer.js';
 import { prepareEventAppend } from '../../../../src/io/board/write/event.js';
+import { ensureProofCounters } from '../../../../../verify/index.js';
 import { cellBoard } from '../../../fixtures/cell.js';
 import { cellSeat } from '../../../fixtures/cell.js';
 import { temporaryDirectory } from '../../../fixtures/tmp.js';
@@ -30,19 +32,30 @@ function fixture(t) {
 
 const eventCount = board => board.db.prepare('SELECT count(*) AS n FROM event').get().n;
 
+/** Compare every native table after applying the relay changesets, including the drained proof projection. */
+function boardRows(board) {
+  const tables = board.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
+  return Object.fromEntries(tables.map(({ name }) => [name,
+    board.db.prepare(`SELECT * FROM "${name.replaceAll('"', '""')}"`).all().map(row => JSON.stringify(row)).sort()]));
+}
+
 test('store.io-board-write-sequencer.envelope-capture: clause 1: [C7] a prepared write under captureBoardChanges produces the same relay changeset as the equivalent logEvent write', async t => {
   const logged = fixture(t);
   const prepared = fixture(t);
   const detail = { text: 'x' };
   const viaLog = await captureBoardChanges(() => logEvent(logged.board, 'not-a-seat', 'note', null, detail));
-  const viaPrepared = await captureBoardChanges(() => commitPrepared(prepared.board, { move: 'event-append', statements: [prepareEventAppend(prepared.board, { by: 'not-a-seat', kind: 'note', itemId: null, detail })] }));
+  const viaPrepared = await captureBoardChanges(() => {
+    commitPrepared(prepared.board, { move: 'event-append', statements: [prepareEventAppend(prepared.board, { by: 'not-a-seat', kind: 'note', itemId: null, detail })] });
+    // The prepared event commits first; the rebuildable projection catches up in its own post-commit transaction.
+    atomic(prepared.board, () => ensureProofCounters(prepared.board, { refresh: false }), { move: 'proof-counter-drain', reviewPolicy: false });
+  });
   assert.ok(viaLog.changes.length > 0, 'the logEvent write is captured');
-  assert.equal(viaPrepared.changes.length, 1, 'the prepared write is captured as one changeset');
-  // logEvent also writes proof counters, which belong to the per-event hooks a move migration replaces; the event row itself must replay the same.
-  const replay = cellBoard(t, join(temporaryDirectory('pullboard-envelope-replay-'), 'board.sqlite'), { now: () => AT }, { real: true });
-  const note = board => ({ ...board.db.prepare("SELECT * FROM event WHERE event_kind = 'note'").get(), event_id: 0 });
-  assert.equal(replay.db.applyChangeset(viaPrepared.changes[0]), true, 'the relay can apply the prepared changeset');
-  assert.deepEqual(note(replay), note(logged.board));
+  assert.equal(viaPrepared.changes.length, 2, 'the prepared event and post-commit counter drain are captured separately');
+  const replayLogged = cellBoard(t, join(temporaryDirectory('pullboard-envelope-log-replay-'), 'board.sqlite'), { now: () => AT }, { real: true });
+  const replayPrepared = cellBoard(t, join(temporaryDirectory('pullboard-envelope-prepared-replay-'), 'board.sqlite'), { now: () => AT }, { real: true });
+  assert.equal(replayLogged.db.applyChangeset(viaLog.changes[0]), true, 'the relay can apply the logEvent changeset');
+  for (const changeset of viaPrepared.changes) assert.equal(replayPrepared.db.applyChangeset(changeset), true, 'the relay can apply each prepared write changeset');
+  assert.deepEqual(boardRows(replayPrepared), boardRows(replayLogged), 'the prepared write and drained counters reproduce every changed native row');
 });
 
 test('store.io-board-write-sequencer.envelope-policy: clause 2: [C7] commitPrepared applies the write policy and review normalization logEvent does, and a refused write appends nothing', t => {
