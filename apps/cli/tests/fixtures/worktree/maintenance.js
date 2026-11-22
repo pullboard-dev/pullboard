@@ -30,7 +30,7 @@ function retainFixtureTimer(box) {
  * Commit only the private fixture's opt-in; no shared project settings are touched.
  * Why in process: the commit runs its hooks in this process (test.inProcessHooks on) instead of two node children [C7,#10461].
  */
-async function enable(box) {
+export async function enable(box) {
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   const file = join(box.repo, 'pullboard.json'), config = JSON.parse(fs.readFileSync(file, 'utf8'));
   config.worktreeMaintenance = { enabled: true, every: '1h', grace: '1d', exclude: [] };
