@@ -32,7 +32,7 @@ export async function thinListRows({ cwd, lane, all, clock = store.systemClock, 
     const residualConflicts = conflictReader && rows.some(row => row.item_status === 'verified') ? await conflictReader() : null;
     const project = verdictProjector(info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts }).project;
     const items = rows.map(project);
-    // JSON prints complete item rows, but never the text-only merge labels or agent display names [C7,#12932].
+    // JSON prints complete item rows, but never the text-only merge labels or agent display names [C7,#12861].
     const merging = new Set((text ? rows : []).filter(item => !['verified', 'withdrawn'].includes(item.item_status) && mainMergeFor(board, item.item_id)).map(item => item.item_id));
     return { items, needsRescope: store.allItemsNeedingRescope(board), agents: text ? store.listAgents(board) : [], merging };
   } catch (error) {
