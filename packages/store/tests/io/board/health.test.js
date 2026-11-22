@@ -5,11 +5,12 @@ import { test } from 'node:test';
 import { recordHealthFindings } from '../../../index.js';
 import { HEALTH_EPISODE_ENGINE } from '../../../../state/light.js';
 import { fixture } from '../../fixtures/dispatch.js';
+import { cellBoard } from '../../fixtures/cell.js';
 
 const finding = (since, who) => ({ owner: { who }, key: 'flap-fixture', cause: 'UNLANDED_HELD', subject: '#1', title: 'sits', since, why: 'no commit', next: 'ask the builder', item: null });
 
 test('store.io-board-health.flap-reads-recent-resolved-events: applyHealthFindings builds recentlyResolved from health-resolved events of the last 30 minutes by board clock, so a finding that resolves and returns 10 minutes later gets one Stuck shout, not two [C7,#1479]', t => {
-  const { board, clock, advance, seats } = fixture(t);
+  const { board, clock, advance, seats } = fixture(t, { boardOpener: cellBoard });
   const owner = seats.builder.id;
   const scan = findings => recordHealthFindings(board, { agentId: seats.actor.id, findings,
     observedRevision: board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS n FROM event').get().n });
@@ -30,7 +31,7 @@ test('store.io-board-health.flap-reads-recent-resolved-events: applyHealthFindin
 
 /** One scan of the given findings by the acting seat, and the Stuck and Digest shouts delivered so far. */
 function scanner(t) {
-  const { board, clock, advance, seats } = fixture(t);
+  const { board, clock, advance, seats } = fixture(t, { boardOpener: cellBoard });
   const scan = findings => recordHealthFindings(board, { agentId: seats.actor.id, findings,
     observedRevision: board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS n FROM event').get().n });
   const shouts = prefix => board.db.prepare("SELECT shout_text AS text FROM shout WHERE shout_from = 'sentinel' AND shout_text LIKE ?").all(`${prefix}%`).map(row => row.text);
