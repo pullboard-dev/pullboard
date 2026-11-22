@@ -12,6 +12,11 @@ import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
 
+/** Resolve the runner's explicit machine home through its already-loaded Resources provider. */
+export function runnerMachineSettingsFile(home) {
+  return resourceApi.machineSettingsFile(home);
+}
+
 const CLI_NAME = 'pullboard';
 // This worker's installed Pullboard root, the folder holding packages/items; the gate bootstrap judges a main that is not Pullboard's tree with it (#6265).
 const RUNNER_TOOLS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');

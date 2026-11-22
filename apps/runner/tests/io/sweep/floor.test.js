@@ -7,6 +7,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { DEFAULT_MIN_FREE_BYTES } from '../../../src/io/sweep.js';
 import { assertDiskFree } from '../../../src/io/sweep.js';
 import { diskFloorBytes } from '../../../src/io/sweep.js';
@@ -54,4 +56,41 @@ test('runner.floor.gate-diskfloormb-in-the-machine-settings-sets: gate.diskFloor
   assert.equal(diskFloorBytes(home), 2 * GIB);
   writeFileSync(join(home, 'settings.json'), JSON.stringify({ gate: { diskFloorMB: 'lots' } }));
   assert.equal(diskFloorBytes(home), 10 * GIB, 'an invalid value never becomes a percentage or a zero floor');
+});
+
+
+test('runner.floor.explicit-machine-home: [C7] supplied home overrides process home and invalid or unreadable settings retain the default', t => {
+  const supplied = privateFixtureFiles('pullboard-floor-supplied-').root;
+  const processHome = privateFixtureFiles('pullboard-floor-process-').root;
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  t.after(() => {
+    if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = saved;
+    rmSync(supplied, { recursive: true, force: true });
+    rmSync(processHome, { recursive: true, force: true });
+  });
+  assert.notEqual(supplied, processHome);
+  process.env.PULLBOARD_MACHINE_HOME = processHome;
+  const settings = join(supplied, 'settings.json');
+  fixtureMachineSettings(processHome, { gate: { diskFloorMB: 999 } });
+  assert.equal(diskFloorBytes(supplied), DEFAULT_MIN_FREE_BYTES, 'missing supplied file never uses process settings');
+  assert.equal(diskFloorBytes(), DEFAULT_MIN_FREE_BYTES, 'omitted home never uses process settings');
+  for (const invalid of [undefined, null, 42, {}, []]) {
+    assert.equal(diskFloorBytes(invalid), DEFAULT_MIN_FREE_BYTES, 'invalid explicit home retains the catch fallback');
+  }
+  mkdirSync(settings);
+  assert.equal(diskFloorBytes(supplied), DEFAULT_MIN_FREE_BYTES, 'a directory cannot be read as the settings file');
+  rmSync(settings, { recursive: true });
+  writeFileSync(settings, '{broken');
+  assert.equal(diskFloorBytes(supplied), DEFAULT_MIN_FREE_BYTES, 'malformed JSON retains the catch fallback');
+  for (const value of [0, 1, 2048, Number.MAX_SAFE_INTEGER]) {
+    fixtureMachineSettings(supplied, { gate: { diskFloorMB: value } });
+    assert.equal(diskFloorBytes(supplied), value * 1024 ** 2, 'safe nonnegative integer MB uses the supplied home');
+  }
+  for (const value of [-1, 1.5, '2048', null, true, Number.MAX_SAFE_INTEGER + 1]) {
+    fixtureMachineSettings(supplied, { gate: { diskFloorMB: value } });
+    assert.equal(diskFloorBytes(supplied), DEFAULT_MIN_FREE_BYTES, 'invalid MB retains the default');
+  }
+  fixtureMachineSettings(supplied, {});
+  assert.equal(diskFloorBytes(supplied), DEFAULT_MIN_FREE_BYTES, 'absent gate setting retains the default');
 });
