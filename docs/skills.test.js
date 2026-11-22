@@ -1,3 +1,4 @@
+/** @pullboard-test-input skills/pullboard-plan/SKILL.md */
 /** The shipped skills teach one lean loop and none of the patterns that make builders wait */
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
