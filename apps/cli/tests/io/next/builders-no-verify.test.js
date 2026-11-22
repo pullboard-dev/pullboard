@@ -4,11 +4,11 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { machineSettingsFile } from '../../../../packages/config/index.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { cli } from '../../tests/fixtures/next/take.js';
-import { fixture } from '../../tests/fixtures/next/take.js';
+import * as store from '../../../../../packages/store/index.js';
+import { machineSettingsFile } from '../../../../../packages/config/index.js';
+import { runCliInProcess } from '../../fixtures/process.js';
+import { cli } from '../../fixtures/next/take.js';
+import { fixture } from '../../fixtures/next/take.js';
 
 /** Write this fixture machine's review settings, keeping the settings the fixture wrote. */
 function reviewSettings(review) {
