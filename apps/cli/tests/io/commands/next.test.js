@@ -102,6 +102,7 @@ test('cli.io-commands-next.landing-loads-at-call-time: clause 1: next.js has no 
 });
 
 const IDLE_LINE = '[IDLE_TIMEOUT] nothing for this seat in 90 seconds; the board is not finished. Stop, or call next again.';
+const NO_WAIT_IDLE_LINE = '[IDLE_TIMEOUT] nothing for this seat right now, and next did not wait; the board is not finished. Stop, or call next again.';
 const DEFAULT_IDLE_MS = 90_000;
 const DEFAULT_IDLE_STEP_MS = 30_000;
 
@@ -132,7 +133,7 @@ test('cli.io-commands-next.no-wait-idle-exit-4: clause 1: next --no-wait on a bo
   assert.deepEqual(plainEvents, ['next-idle-timeout'], 'plain next records one timeout and no finished event');
   const ran = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
   assert.equal(ran.code, 4, printed(ran));
-  assert.ok(printed(ran).includes(IDLE_LINE), printed(ran));
+  assert.ok(printed(ran).includes(NO_WAIT_IDLE_LINE), printed(ran));
   const events = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind IN ('next-idle-timeout','next-finished')").all().map(row => row.k);
   assert.deepEqual(events, ['next-idle-timeout', 'next-idle-timeout'], 'explicit --no-wait adds one timeout and no finished event');
   // A held review refuses at once, with no idle line and no exit 4.
@@ -174,12 +175,13 @@ test('cli.io-commands-next.no-wait-finished-exit-3: clause 2: next --no-wait ret
   assert.notEqual(open.code, 3, 'an open item keeps the board unfinished: ' + printed(open));
   verify(second);
   const done = await cli(box, box.seats.sibling.path, ['next', '--no-wait']);
-  assert.equal(done.code, 4, 'a lane with no items of its own is not finished: ' + printed(done));
+  assert.equal(done.code, 3, 'finished is judged per board, so a lane with no items of its own sees a landed board as finished: ' + printed(done));
+  assert.match(printed(done), /next: board finished: every item in the board is verified\. Stop\./u, printed(done));
   const finished = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
   assert.equal(finished.code, 3, printed(finished));
   assert.ok(printed(finished).includes('next: board finished: every item in web is verified. Stop.'), printed(finished));
   const events = box.board.db.prepare("SELECT event_kind k FROM event WHERE event_kind='next-finished'").all();
-  assert.equal(events.length, 1, 'the finished observation was recorded');
+  assert.equal(events.length, 2, 'each finished answer recorded its observation');
 
   let fake = 1_000_000, sleeps = 0;
   const began = fake;

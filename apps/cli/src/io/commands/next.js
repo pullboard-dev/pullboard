@@ -35,6 +35,7 @@ import {
 import {
   idleSeconds,
   laneFinished,
+  boardFinished,
   refuseNextIdle,
 } from '../next/steps.js';
 import { reviewPacketLines } from '../../../../../packages/verify/index.js';
@@ -349,7 +350,8 @@ async function nextWithProgress(io, values, progress) {
     deliverQueuedReds();
   };
   const waitClock = io.nextWaitClock ?? realWaitClock;
-  const deadline = waitClock.now() + minutes * 60_000;
+  const waitStartedAt = waitClock.now();
+  const deadline = waitStartedAt + minutes * 60_000;
   const origin = ctx.info.root;
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
@@ -577,7 +579,8 @@ async function nextWithProgress(io, values, progress) {
       if (values.verify) refuseWhileBuilding(ctx);
       if (!values.take && !values.build && !values.verify && (values['no-wait'] || values.defaultLoop || values.wait !== undefined) && !found.laneWork) {
         found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()))];
-        const seconds = values.wait === undefined ? undefined : minutes * 60;
+        // The line names the time the seat really waited, so an answer that did not wait says so [C7,#12807].
+        const seconds = Math.min(Math.round((waitClock.now() - waitStartedAt) / 1000), minutes * 60);
         try { return await answerNoWait(io, ctx, found, values, ordered, seconds); }
         finally { finishFirstDefaultPass(); }
       }
@@ -658,9 +661,12 @@ async function nextWithProgress(io, values, progress) {
  * otherwise the idle line with exit 4. Each records its observation, and a recording failure never changes the exit code [C7,#12779].
  */
 async function answerNoWait(io, ctx, found, values, ordered, waitedSeconds) {
-  const { seat, finished } = withBoardRead(ctx, board => {
+  const { seat, finished, wholeBoard } = withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
-    return { seat: me, finished: laneFinished(store.listItems(board, { lane: me.lane, all: true }), me.lane) };
+    // Finished is judged per board: the seat's own lane, or the whole board when this lane never held work (a reviewer's seat) [C7,#12807].
+    const all = store.listItems(board, { all: true });
+    const ownLane = laneFinished(all, me.lane);
+    return { seat: me, finished: ownLane || boardFinished(all), wholeBoard: !ownLane };
   });
   const seconds = waitedSeconds ?? idleSeconds(nextIdleMinutes(ctx.config));
   const observation = finished ? { finished: true } : { timeout: { minutes: Math.floor(seconds / 60), awaited: 'work for this seat' } };
@@ -669,7 +675,7 @@ async function answerNoWait(io, ctx, found, values, ordered, waitedSeconds) {
   } catch (error) {
     io.err?.(`next idle observation was not recorded (${error.code ?? error.message}); the exit code is unchanged`);
   }
-  const line = finished ? boardFinishedLine(seat.lane) : idleTimeoutLine(seconds);
+  const line = finished ? boardFinishedLine(wholeBoard ? 'the board' : seat.lane) : idleTimeoutLine(seconds);
   io.result?.({ item: null, idleReason: found.idleReason ?? 'unknown', ...(finished ? { finished: true } : { timeout: { seconds } }), reasons: [line, ...(found.reasons ?? [])] });
   io.say(line);
   for (const reason of found.reasons ?? []) io.say(reason);
