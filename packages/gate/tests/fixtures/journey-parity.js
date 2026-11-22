@@ -35,7 +35,22 @@ export async function runSample(mode, { journey, cases }) {
 const TIMING_FIELDS = new Set(['queueWaitSeconds']);
 const TIMING_LINES = /\b(queueWaitSeconds): [\d.]+/gu;
 function withoutTiming(value) {
-  return JSON.stringify(value, (key, inner) => (TIMING_FIELDS.has(key) ? undefined : typeof inner === 'string' ? inner.replace(TIMING_LINES, '$1: <seconds>') : inner));
+  const normalize = inner => {
+    if (Array.isArray(inner)) return inner.map(normalize);
+    if (inner === null || typeof inner !== 'object') return typeof inner === 'string' ? inner.replace(TIMING_LINES, '$1: <seconds>') : inner;
+    const result = {};
+    for (const [key, nested] of Object.entries(inner)) {
+      if (TIMING_FIELDS.has(key)) continue;
+      if (key === 'detail' && inner.type === 'move' && inner.kind === 'mark'
+        && nested !== null && typeof nested === 'object' && !Array.isArray(nested)
+        && Object.hasOwn(nested, 'stage') && Object.hasOwn(nested, 'edge')
+        && Number.isSafeInteger(nested.at) && nested.at >= 0) {
+        result[key] = { ...normalize(nested), at: '<stage-mark-time>' };
+      } else result[key] = normalize(nested);
+    }
+    return result;
+  };
+  return JSON.stringify(normalize(value));
 }
 
 /** Every difference between two runs' records, named by call: exit code, JSON result, printed text and board state. */
