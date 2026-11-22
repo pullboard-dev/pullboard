@@ -408,7 +408,9 @@ The **gate** is any command that proves your code, like `npm test` or `pytest`. 
 
 #### Multi-language support
 
-`init` detects languages at the repo root, or one folder down, and suggests a gate for each. To set one yourself, pick the gate for your stack. Chain setup and checks with `&&`. A gate runs in a clean runner checkout: commit its lockfiles and test requirements, and repeat every setup step the gate depends on there. An install in a builder's folder does not reach that checkout. The required tools must be on the runner service's `PATH`; Pullboard does not provision them. Do not assume SSH runners support pnpm.
+`init` detects languages at the repo root, or one folder down, and suggests a gate for each. To set one yourself, pick the gate for your stack. Chain setup and checks with `&&`.
+
+A gate runs in a clean runner checkout: commit its lockfiles and test requirements, and repeat every setup step the gate depends on there. An install in a builder's folder does not reach that checkout. The required tools must be on the runner service's `PATH`; Pullboard does not provision them. Do not assume SSH runners support pnpm.
 
 These examples use `<exact-version>` as a placeholder: replace it with the exact version pinned by the project, and commit the matching lockfile. Approve dependency build scripts in committed configuration so installation does not depend on an interactive prompt.
 
