@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -55,14 +55,14 @@ test('items.io-claim.show-read-boundary: clause 1: CLI and store queries use sel
   assert.deepEqual(projected, { agent_id: 'core-1', name: 'seat', agent_family: 'OpenAI' });
   assert.equal(projected instanceof Promise, false, 'family projection is synchronous');
 
-  const { root } = privateFixtureFiles('items-read-door-');
+  const { root, write } = privateFixtureFiles('items-read-door-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const seat = join(root, 'seat');
   const item = read.itemFolderPath(seat, 7);
   runFixtureSetupGit(['init', '-q'], { cwd: seat });
   runFixtureSetupGit(['config', 'user.name', 'Pullboard test'], { cwd: seat });
   runFixtureSetupGit(['config', 'user.email', 'pullboard-test@example.invalid'], { cwd: seat });
-  writeFileSync(join(seat, 'README.md'), 'fixture\n');
+  write('seat/README.md', 'fixture\n');
   runFixtureSetupGit(['add', 'README.md'], { cwd: seat });
   runFixtureSetupGit(['commit', '-qm', 'fixture'], { cwd: seat });
   runFixtureSetupGit(['worktree', 'add', '-qb', 'core/item-7', item], { cwd: seat });
