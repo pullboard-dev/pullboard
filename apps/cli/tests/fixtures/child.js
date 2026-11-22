@@ -17,3 +17,15 @@ export {
 } from '../../../../packages/gate/tests/fixtures/child.js';
 /** The cell fixtures open boards through this one app door, which reaches the board package's fixture through the lib door [C7]. */
 export { openKitBoard } from '../../../lib/tests/fixtures/board.js';
+
+import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { runFixtureChild } from '../../../../packages/gate/tests/fixtures/child.js';
+
+/** Run the private npm prefix's installed bin as a real child; packed-release proof must exercise its process entry. */
+export function runInstalledFixtureCli(prefix, args, options) {
+  const result = runFixtureChild(join(prefix, 'bin', 'pullboard'), args, { ...options, encoding: 'utf8' });
+  assert.ok(Number.isInteger(result.pid) && result.pid > 0 && result.pid !== process.pid,
+    'the installed release command has its own real process');
+  return result;
+}
