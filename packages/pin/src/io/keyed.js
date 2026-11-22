@@ -70,6 +70,55 @@ export function saveKeyedResult(folder, key, bytes) {
 }
 
 /**
+ * Capture the identity of an existing private result directory, so a later publish can tell it from a replacement.
+ * A missing directory, a link or a non-directory has no identity to capture [C7].
+ *
+ * @param {string} folder
+ * @returns {{ folder: string, dev: number, ino: number } | null}
+ */
+export function captureKeyedFolder(folder) {
+  try {
+    const stat = fs.lstat(folder);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) return null;
+    return { folder, dev: stat.dev, ino: stat.ino };
+  } catch { return null; }
+}
+
+/** Whether the captured directory still stands at its path: the same device and inode, still a real directory. */
+function stillCaptured(captured) {
+  const now = captureKeyedFolder(captured.folder);
+  return now !== null && now.dev === captured.dev && now.ino === captured.ino;
+}
+
+/**
+ * Save one key's result only in the directory captured earlier, never creating it: a removed directory stays absent
+ * and a replacement directory is left alone. Returns { ok: true } once the result is published, or
+ * { ok: false, unavailable: true, reason } when safe publication cannot be established [C7].
+ *
+ * @param {{ folder: string, dev: number, ino: number } | null} captured
+ * @param {string} key
+ * @param {Uint8Array} bytes
+ * @returns {{ ok: true } | { ok: false, unavailable: true, reason: string }}
+ */
+export function publishKeyedResult(captured, key, bytes) {
+  const unavailable = (reason) => ({ ok: false, unavailable: true, reason });
+  if (!captured || typeof captured.folder !== 'string') return unavailable('no captured directory');
+  if (!stillCaptured(captured)) return unavailable('directory removed or replaced');
+  const path = keyedResultPath(captured.folder, key);
+  const temporary = `${path}.${process.pid}.partial`;
+  let published = false;
+  try {
+    fs.writeFile(temporary, bytes);
+    if (stillCaptured(captured)) { fs.rename(temporary, path); published = true; }
+  } catch (error) {
+    return unavailable(`write failed: ${error.code ?? 'error'}`);
+  } finally {
+    fs.rm(temporary, { force: true });
+  }
+  return published ? { ok: true } : unavailable('directory replaced during publication');
+}
+
+/**
  * The saved bytes of one key's result, or null when there is none.
  *
  * @param {string} folder
