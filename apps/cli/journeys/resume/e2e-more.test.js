@@ -137,8 +137,8 @@ test('cli.journeys-resume-e2e-more.pullboard-suggests-no-timed-wait-next: pullbo
   (await box.runLocal(box.web, 'claim', '1'));
   await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   (await box.runLocal(box.web, 'submit', '1'));
-  const idle = (await box.runLocal(box.web, 'next'));
-  assert.match(idle.out, /nothing for this seat: end your turn/, JSON.stringify(idle));
+  const idle = (await box.runLocal(box.web, 'next', '--no-wait'));
+  assert.match(idle.out + idle.err, /\[IDLE_TIMEOUT\] nothing for this seat right now, and next did not wait; the board is not finished\. Stop, or call next again\./, JSON.stringify(idle));
   assert.doesNotMatch(idle.out + idle.err, /--wait/);
   assert.match((await box.runLocal(box.web, 'resume')).out, /next: pullboard next; take another eligible review or other offered work, or end your turn if none is offered/);
   (await box.runLocal(box.repo, 'hold', 'web', '--reason', 'G1 is changing'));
