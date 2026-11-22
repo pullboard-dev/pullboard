@@ -1,0 +1,8 @@
+{
+  "cli.io-list-thin-profile.native-pair-and-read-costs": {
+    "proves": { "specs": ["C7"], "claim": "A same-runner full JSON list pair records actual raw CPU samples and the unchanged 150 ms judge; a separate diagnostic records actual remaining SQL read costs." },
+    "why": "Historical CPU measurements cannot identify current read costs after composing newer dependencies.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/tests/io/list/thin/profile.test.js"]
+  }
+}
