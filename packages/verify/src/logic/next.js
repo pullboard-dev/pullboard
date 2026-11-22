@@ -3,6 +3,7 @@ import { compositionSessionOptions } from '../io/review/composition.js';
 import { reviewCompanionOffer } from '../../../items/index.js';
 import { retryReviewCommit } from './verdict/retry.js';
 import { git } from '../../../git/index.js';
+import { mainCheckout } from '../../../git/index.js';
 import { isClean } from '../../../git/index.js';
 import { untracked } from '../../../git/index.js';
 import { committedItemAuthors } from '../io/review/independence.js';
@@ -57,10 +58,19 @@ async function noticeHolder(board, ordered, me, holder, item, merge) {
  */
 export async function returnUnmergeable(root, board, me, { ordered, trunkMerge, listItems, itemById, phase }) {
   const returned = [];
+  let trunkHead;
+  let trunkRead = false;
   for (const item of listItems(board).filter((entry) => entry.item_status === 'submitted' && entry.item_commit)) {
     phase?.('review merge check', item.item_id);
+    const head = effectiveItemHead(board, item) ?? item.item_commit;
+    if (!trunkRead) {
+      trunkHead = mainCheckout(root)?.commit;
+      trunkRead = true;
+    }
+    // A submitted head equal to the trunk tip cannot conflict with that same tip [N2].
+    if (head === trunkHead) continue;
     let merge;
-    try { merge = trunkMerge(root, effectiveItemHead(board, item) ?? item.item_commit); }
+    try { merge = trunkMerge(root, head); }
     catch (error) { if (error instanceof Refused) return returned; throw error; }
     if (!merge.files?.length) continue;
     const holder = heldByOther(board, item, me.id);
