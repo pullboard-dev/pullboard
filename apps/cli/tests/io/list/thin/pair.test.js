@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
@@ -20,6 +21,7 @@ const HELPER = 'apps/cli/tests/fixtures/budget.js';
 
 test('cli.io-list-thin-pair.native-json-pair: clause 2: one native runner records all full JSON list CPU samples at current-main and candidate producer sources with the unchanged 150 ms judge [C7,#12932]', async t => {
   const files = privateFixtureFiles('list-native-pair-12932-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
   const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: SOURCE });
   const blob = (revision, path) => runFixtureGit(['rev-parse', `${revision}:${path}`], { cwd: SOURCE });
   assert.equal(blob(BASE, HELPER), blob(head, HELPER), 'the existing fixture and judge are unchanged');
