@@ -25,8 +25,10 @@ import { test } from 'node:test';
 const ROOT = resolve(import.meta.dirname, '../../../../..');
 const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'docs', 'package.json', 'packages', 'skills'];
 const dirs = [];
+const stops = [];
 after(() => {
-  // The pulled gate settles on the local runner, which can still write into a folder as it is removed (ENOTEMPTY).
+  // Stop each private home's runner before removing its heartbeat, API and job-cache files.
+  for (const stop of stops) stop();
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
@@ -80,6 +82,13 @@ test('gate.io-scripts-release-loop.a-packed-release-runs-the-builder: clause 2: 
   };
   const repo = join(dir, 'repo');
   mkdirSync(repo);
+  // Register before init can start background work. The installed command selects only this home's runner and
+  // waits for its exit; a failed shutdown must fail cleanup before any of its files are removed.
+  stops.push(() => {
+    const stopped = runFixtureChild(bin, ['runner', 'local', '--off'], { cwd: repo, env, encoding: 'utf8' });
+    assert.equal(stopped.status, 0, `stop the fixture local runner: ${stopped.stderr}${stopped.stdout}`);
+    process.stdout.write(`release fixture cleanup: ${stopped.stdout}`);
+  });
   git(repo, 'init', '-q', '-b', 'main');
   pullboard(repo, 'init', '--verbose');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'test -f web/greet.txt', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }, null, 2));
