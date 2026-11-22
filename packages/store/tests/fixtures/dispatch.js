@@ -7,7 +7,6 @@ import { editItem } from '../../index.js';
 import { getItem } from '../../index.js';
 import { heartbeatSeat } from '../../index.js';
 import { submitFixture } from './submit.js';
-import { cellBoard } from './cell.js';
 import { cellItem } from './cell.js';
 import { cellProject } from './cell.js';
 import { cellSeat } from './cell.js';
@@ -19,15 +18,15 @@ const SPEC = '# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evi
  * `route`; the builder is strong. Seats of two families sit in two lanes.
  *
  * @param {import('node:test').TestContext} t
- * @param {{ route?: string, family?: string, policy?: string }} [options] - The acting seat's route and the project's verify policy.
+ * @param {{ route?: string, family?: string, policy?: string, boardOpener: Function }} options - The acting seat's route, verify policy and caller-owned board opener.
  * @returns {{ root: string, file: string, board: object, clock: { now: () => Date }, seats: Record<string, { id: string, path: string, lane: string }>, git: (cwd: string, ...args: string[]) => string, advance: (ms: number) => void, add: Function, claim: Function, submit: Function }}
  */
-export function fixture(t, { route = 'strong', family = 'off', policy = 'any' } = {}) {
+export function fixture(t, { route = 'strong', family = 'off', policy = 'any', boardOpener }) {
   const project = cellProject(t, { real: true, spec: SPEC, config: { verify: { policy, family },
     lanes: { web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } } });
   let at = Date.parse('2026-10-25T10:00:00.000Z');
   const clock = { now: () => new Date(at) };
-  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
+  const board = boardOpener(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
   const seats = {};
   for (const [name, lane, vendor] of [
     ['actor', 'web', 'Family Alpha'], ['builder', 'web', 'Family Alpha'],

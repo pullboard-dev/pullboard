@@ -145,7 +145,7 @@ test('cli.journeys-resume-e2e-more.pullboard-suggests-no-timed-wait-next: pullbo
   assert.match((await box.runLocal(box.web, 'resume')).out, /next: pullboard next; take work in another lane, or end your turn if none is offered/);
   const agents = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
   assert.match(agents, /Never wait, never sleep, never poll, never stop while the board has work/); // AGENTS.md is the short worker loop.
-  assert.match(agents, /`pullboard next --wait 1`: a build or a verify\. On an empty answer, run it again at once\./);
+  assert.match(agents, /`pullboard next --wait 1`: build\/verify\. On an empty answer, run it again at once\./);
   assert.match(agents, /Stop:\*\* only when `pullboard status` shows nothing open, building, in gate or in review\./);
   assert.doesNotMatch(agents, /--wait 9/);
   assert.doesNotMatch(agents, /--wait 30/);
