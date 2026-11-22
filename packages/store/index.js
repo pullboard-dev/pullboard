@@ -175,3 +175,7 @@ export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entr
 export { spoolFile, spoolInboxMarks, drainInboxMarks } from './src/io/inbox-marks.js';
 export { relaxationWitness } from './src/io/relaxation.js';
 export { commitMove, connectBoardWriter, createBoardWriter, serveBoardWriter } from './src/io/board/writer.js';
+export { verifySnapshot } from './src/io/board/verify-table.js';
+export { carriedClauseTickNotes } from './src/io/board/submit.js';
+export { commitPrepared } from './src/io/board/write/sequencer.js';
+export { prepareEventAppend } from './src/io/board/write/event.js';

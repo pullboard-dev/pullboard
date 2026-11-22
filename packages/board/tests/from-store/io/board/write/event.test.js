@@ -1,15 +1,14 @@
-/** @pullboard-test-input source-cell store */
 /** One board event becomes a prepared statement that commitPrepared appends exactly as logEvent does [C7,R2]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { logEvent } from '../../../../index.js';
-import { commitPrepared } from '../../../../src/io/board/write/sequencer.js';
-import { prepareEventAppend } from '../../../../src/io/board/write/event.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
-import { temporaryDirectory } from '../../../fixtures/tmp.js';
+import { logEvent } from '../../../../../../store/index.js';
+import { commitPrepared } from '../../../../../../store/index.js';
+import { prepareEventAppend } from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
+import { temporaryDirectory } from '../../../../../../store/tests/fixtures/tmp.js';
 
 const AT = new Date('2026-11-20T10:00:00.000Z');
 

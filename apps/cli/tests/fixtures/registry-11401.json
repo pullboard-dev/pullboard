@@ -1,0 +1,28 @@
+{
+  "cli.io-claim.check-strict-refuses-unsound": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with claim.checkCeiling on, a strict baseline that is pending or has no seconds is refused CHECK_UNSOUND and the item stays open and unclaimed."
+    },
+    "why": "Without it a strict check that promises a measurement is claimed with none, and unproven work passes.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/claim.js"
+    ]
+  },
+  "cli.io-claim.check-strict-claims-non-strict": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an item whose baseline has no strict field is still claimed while its remeasure is pending."
+    },
+    "why": "Without it the strict refusal could block ordinary items that are merely awaiting a remeasure.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/claim.js"
+    ]
+  }
+}
