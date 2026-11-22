@@ -9,9 +9,9 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { createE2eHelpers } from '../../../fixtures/e2e.js';
+import { fixtureAdd } from '../../../fixtures/testkit.js';
+import { fixtureJoin } from '../../../fixtures/testkit.js';
 
 /** Read one successful public CLI JSON response, preserving failures in the assertion. */
 function document(result, purpose) {

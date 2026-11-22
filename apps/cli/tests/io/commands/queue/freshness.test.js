@@ -4,7 +4,7 @@ import {
   helpers,
   landingQueueCase,
   test,
-} from '../../../tests/fixtures/scenarios/team.js';
+} from '../../../fixtures/scenarios/team.js';
 
 test('cli.journeys-queue-team-freshness.a-queued-landing-rechecks-freshness-after: a queued landing rechecks freshness after its holder moves main [E8,Q1,Q2]', { timeout: 120_000 }, // budget: real private Git/CLI and deterministic gate barrier; no speed target.
   async t => landingQueueCase(t, helpers, { staleAfterFirst: true }));
