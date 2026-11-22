@@ -669,7 +669,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
 
 
   return {
-    BIN, cockpitSource, sandboxes, cleanup, sandbox, CONFIG, SPEC, project,
+    BIN, cockpitSource, sandboxes, cleanup, sandbox, CONFIG, SPEC, project, board: withFixtureBoard,
     holdingGate, launch, waitFor, gateEvents, commitFile, attackCommit, historicalCheckSubmission, privateCheckSubmission,
     startView, LIGHT_BRIEF,
   };
