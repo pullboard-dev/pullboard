@@ -4,12 +4,12 @@
       "specs": [
         "C7"
       ],
-      "claim": "Exact original and candidate worker bytes compare native import closure and real shell startup with both deadlines unchanged."
+      "claim": "The actual worker entry reports its exact native import closure, committed source digest and real shell startup at unchanged deadlines."
     },
     "why": "Protect bounded private worker startup without losing actual shell IO or refusals.",
     "kind": "cell unit",
     "inputs": [
-      "apps/runner/tests/io/private/check/worker.test.js"
+      "apps/runner/tests/io/private/check/worker/startup.test.js"
     ]
   },
   "runner.worker.unrelated-startup": {

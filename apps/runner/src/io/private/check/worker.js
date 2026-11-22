@@ -4,7 +4,7 @@ import { environmentAdapter } from '../../../../../../packages/env/index.js';
 import {
   captureTestRuntimes,
   executionEnvironment,
-} from '../../../../../../packages/sandbox/light.js';
+} from '../../../../../../packages/sandbox/index.js';
 import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 
 const disk = fileSystemAdapter();
