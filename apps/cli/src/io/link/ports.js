@@ -12,6 +12,9 @@ import { createBoardLinkFileTransport } from '../../../../../packages/store/inde
 import { readBoardLinks } from '../../../../../packages/store/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
 import { boardId } from '../../../../../packages/store/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { closeBoard } from '../../../../../packages/store/index.js';
+import { receiveBoardState } from '../../../../../packages/store/index.js';
 import { join } from 'node:path';
 
 /** The refusal every missing piece of link authority raises, naming the command that sets the link up. */
@@ -50,20 +53,53 @@ export function announcePorts(child, { projects, openBoard, closeBoard, readKey,
   const self = boardId(child.board);
   for (const record of readBoardLinks(child.board)) {
     if (record.revocation || record.child.boardId !== self) continue;
-    const found = projects.find((project) => project.name === record.parent.handle);
-    if (!found) continue;
-    let parentBoard;
-    try {
-      parentBoard = openBoard(found.root);
-      opened.push(parentBoard);
-      if (boardId(parentBoard) !== record.parent.boardId) continue;
-      const parent = { board: parentBoard, root: found.root };
-      const { authority, capability } = portsFor({ child, parent, record, readKey });
-      links.push({ record, parentItems: listItems(parentBoard, { all: true }), authority, capability,
-        transport: createBoardLinkFileTransport(join(found.root, '.git', 'pullboard', 'board-links'), { board: self }) });
-    } catch (error) {
-      if (!(error instanceof Refused)) throw error;
+    const candidates = [...projects.filter(project => project.name === record.parent.handle),
+      ...projects.filter(project => project.name !== record.parent.handle)];
+    for (const found of candidates) {
+      let parentBoard;
+      try {
+        parentBoard = openBoard(found.root);
+        opened.push(parentBoard);
+        if (boardId(parentBoard) !== record.parent.boardId) continue;
+        const parent = { board: parentBoard, root: found.root };
+        const { authority, capability } = portsFor({ child, parent, record, readKey });
+        links.push({ record, parentItems: listItems(parentBoard, { all: true }), authority, capability,
+          transport: createBoardLinkFileTransport(join(found.root, '.git', 'pullboard', 'board-links'), { board: self }) });
+        break;
+      } catch (error) {
+        if (!(error instanceof Refused)) throw error;
+      }
     }
   }
   return { links, close: () => { for (const board of opened) closeBoard(board); } };
+}
+
+/** Install pending authenticated file deliveries into a board before a command checks its foreign prerequisites. */
+export async function receiveLocalBoardStates(ctx, board, { projects, parentRoot, readKey }) {
+  const destinationId = boardId(board);
+  const transport = createBoardLinkFileTransport(join(ctx.info.commonDir, 'pullboard', 'board-links'), { board: destinationId });
+  for (const record of readBoardLinks(board)) {
+    if (record.revocation || record.parent.boardId !== destinationId) continue;
+    const candidates = [...projects.filter(row => row.name === record.child.handle && row.root !== parentRoot),
+      ...projects.filter(row => row.name !== record.child.handle && row.root !== parentRoot)];
+    if (!candidates.length) continue;
+    const incoming = await transport.read(0, destinationId);
+    const deliveries = incoming.deliveries.filter(delivery => delivery.envelope.sourceBoardId === record.child.boardId
+      && delivery.envelope.linkId === record.linkId);
+    if (!deliveries.length) continue;
+    for (const project of candidates) {
+      let childBoard;
+      try {
+        childBoard = ctx.nativeBoard.openBoard(boardFilePath(join(project.root, '.git')), ctx.clock, { isMain: false, gitRoot: project.root });
+        if (boardId(childBoard) !== record.child.boardId) continue;
+        const child = { board: childBoard, root: project.root };
+        const parent = { board, root: parentRoot };
+        const { authority, capability } = boardLinkPorts({ child, parent, record, readKey });
+        for (const delivery of deliveries) await receiveBoardState(board, delivery, { authority, capability });
+        break;
+      } catch (error) {
+        if (!(error instanceof Refused)) throw error;
+      } finally { if (childBoard) closeBoard(childBoard); }
+    }
+  }
 }

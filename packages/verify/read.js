@@ -16,8 +16,8 @@ export { familyIndex } from './src/logic/review/policy.js';
  * @returns {Promise<Record<string, Function>>} The eleven show reads by name.
  */
 export async function showReads() {
-  const { recordedVerificationComparison, renderVerificationComparison } = await import('./src/io/compare.js');
-  const { machineVerification } = await import('./src/io/machine.js');
+  const { recordedVerificationComparison, renderVerificationComparison } = await import('./src/io/comparison-read.js');
+  const { machineVerification } = await import('./src/io/machine-read.js');
   const { testHashRulings, testAuthors } = await import('./src/logic/testHashes.js');
   const { barTestFiles } = await import('./src/logic/frozen.js');
   const { verdictTrunk } = await import('./src/io/verdict/freshness.js');

@@ -139,6 +139,7 @@
     "apps/cli/tests/io/init/permissions.test.js",
     "apps/cli/tests/io/init/practice.test.js",
     "apps/cli/tests/io/mark-spool/batch.test.js",
+    "apps/cli/tests/io/next/builders-no-verify.test.js",
     "apps/cli/tests/io/resume/allowance.test.js",
     "apps/cli/tests/io/resume/digest.test.js",
     "apps/cli/tests/io/resume/e2e.test.js",
