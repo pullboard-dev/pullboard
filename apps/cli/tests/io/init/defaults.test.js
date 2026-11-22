@@ -142,7 +142,7 @@ test('cli.journeys-init-defaults.clause-2-and-clause-3-an: clause 2 and clause 3
     stderr: { write: part => { err += part; } } });
   assert.equal(code, 4, out + err);
   assert.match(out, /\[IDLE_TIMEOUT\] nothing for this seat in 90 seconds/u);
-  assert.doesNotMatch(out + err, /--wait|next waiting/u);
+  assert.match(out + err, /next waiting for /u, 'the default wait names what it waited for');
   assert.ok(Buffer.byteLength(out + err) <= 2048);
   assert.equal(store.getItem(box.board, ownSession).item_review_by, null);
 });
