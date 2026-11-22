@@ -76,8 +76,13 @@ test('cli.io-commands-init.templates-seat-and-review-guidance: clause 3: init wr
   assert.equal(ran.code, 0, ran.stderr);
   const agents = readFileSync(join(box.root, 'AGENTS.md'), 'utf8');
   const lines = agents.split('\n');
-  assert.ok(lines.includes('- **Lanes:** open and join one with `pullboard worktree <lane> --model "<model name>"`.'));
-  assert.ok(lines.includes('- **Review:** A review-lane seat reviews; loop with `pullboard next --verify --wait 1`.'));
+  const generated = [
+    '- **Lanes:** open and join one with `pullboard worktree <lane> --model "<model name>"`.',
+    '- **Review:** A review-lane seat reviews; loop with `pullboard next --verify --wait 1`.',
+  ];
+  assert.ok(lines.includes(generated[0]));
+  assert.ok(lines.includes(generated[1]));
+  t.diagnostic(`generated AGENTS.md lines: ${generated.join(' | ')}`);
 });
 
 test('cli.io-commands-init.each-platform-uses-its-git-scheduler: clause 1: the macOS, Windows and Linux schedulers (launchctl, schtasks, a systemd timer, cron) each schedule the repo through git maintenance start --scheduler [C7,#10782]', t => {
