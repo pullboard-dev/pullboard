@@ -78,6 +78,7 @@ function until(label, root, condition, ms = 15_000, observer = {}) {
     let timer = setTimeout(expired, ms);
     function expired() {
       try {
+        if (condition()) { finish(); return; }
         if (moved || agentAlive()) { moved = false; timer = setTimeout(expired, ms); return; }
         finish(new Error(`timed out waiting for ${label}`));
       } finally { observer.expired?.(); }
