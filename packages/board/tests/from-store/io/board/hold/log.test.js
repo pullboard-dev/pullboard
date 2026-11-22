@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/store */
 /** Board hold percentiles read the every-write log when it exists and mark the holds-log fallback as over-a-second only [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
