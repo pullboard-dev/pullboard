@@ -154,6 +154,7 @@ export const workHelp = `Work
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER (a review: BAR|FAMILY|INFRA|TOO_LARGE) [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
+  pullboard release <id> --review       coordinator only; clear a held review reservation and make the review available again
 ${RELEASE_REASON_LINES.map(line => `                                        ${line}`).join('\n')}
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
