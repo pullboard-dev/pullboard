@@ -6,7 +6,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -17,11 +16,14 @@ import {
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
+import { removeFixtureDirectory } from '../../../../../packages/gate/tests/fixtures/diagnostics.js';
+import { FIXTURE_MODEL } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild,
 } from '../child.js';
 import { runCliInProcess } from '../process.js';
+import { withoutPullboardEnv } from '../e2e.js';
 
 export const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 export const GIT_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/git/index.js')).href;
@@ -39,7 +41,7 @@ export async function fixture(t, { ruleProof = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-git-calls-'));
   t.after(() => {
     stopFixtureLocalRunner(join(dir, 'home', '.pullboard-machine')); // a pulled gate starts the loopback runner, which heartbeats into the fixture [C7]
-    rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 }); // a submitted run may still be writing [C7]
+    removeFixtureDirectory(dir);
   });
   const repo = join(dir, 'repo');
   const worker = join(dir, 'worker');
@@ -60,7 +62,7 @@ export async function fixture(t, { ruleProof = false } = {}) {
   writeFileSync(pullboardShim, `#!/bin/sh\nexec '${process.execPath}' '${BIN}' "$@"\n`);
   chmodSync(pullboardShim, 0o755);
   const env = {
-    ...process.env,
+    ...withoutPullboardEnv(process.env),
     HOME: home,
     USERPROFILE: home,
     PULLBOARD_HOME: join(home, '.pullboard'),
@@ -113,7 +115,7 @@ export async function fixture(t, { ruleProof = false } = {}) {
   git(repo, 'add', '-A');
   git(repo, 'update-ref', 'HEAD', git(repo, 'commit-tree', git(repo, 'write-tree'), '-m', 'chore(repo): initialize Git-call fixture'));
   git(repo, 'worktree', 'add', '-q', '-b', 'core/worker', worker);
-  await setup(worker, 'join', 'core', '--route', 'light', '--family', 'codex');
+  await setup(worker, 'join', 'core', '--model', FIXTURE_MODEL, '--level', 'light', '--family', 'codex');
   return { dir, repo, worker, calls, readCalls, env, git, run, ok };
 }
 

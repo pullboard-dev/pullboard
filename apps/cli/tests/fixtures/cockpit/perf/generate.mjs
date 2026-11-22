@@ -63,10 +63,10 @@ function digest(seed, ...parts) {
 }
 
 /** Retain the long historical stress corpus through real pre-limit replay, without relaxing current writes. */
-function historicalShout(board, { seed, index, from, text }) {
+function historicalShout(board, { seed, index, from, text, sequence }) {
   const move = { version: 1, engine: PROOF_RUN_ENGINE - 1, id: digest(seed, 'pre-limit-shout', index),
     operation: 'shout', args: [{ from, to: 'all', text, lanes: LANES }] };
-  const result = applyEngineMove(board, move, { sequence: appliedSequence(board) + 1, at: FIXED_NOW.toISOString() });
+  const result = applyEngineMove(board, move, { sequence, at: FIXED_NOW.toISOString() });
   assert.equal(result.error, undefined, 'the synthetic pre-limit record replays through the public engine');
 }
 
@@ -396,9 +396,11 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
       stage('items', performance.now() - mark - historyMs);
       stage('histories', historyMs);
       const shoutCount = requestedShouts ?? Math.round(7_289 * size / 605);
+      let shoutSequence = appliedSequence(board);
       for (let index = 0; index < shoutCount; index += 1) {
         const text = index === 0 ? textOf(seed, 'Longest generated shout', 14_000) : textOf(seed, `Generated board update ${index + 1}`, 410);
-        historicalShout(board, { seed, index, from: agents.writer, text });
+        shoutSequence += 1;
+        historicalShout(board, { seed, index, from: agents.writer, text, sequence: shoutSequence });
         if ((index + 1) % (PROGRESS_BATCH * 10) === 0 && index + 1 < shoutCount) progress(`shouts ${index + 1} of ${shoutCount} written`);
       }
       const historicalCount = allShouts(board).length;

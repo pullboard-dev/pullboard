@@ -72,6 +72,7 @@ import { caseReworkLines } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
 import { retryNewReds } from './gate/retry.js';
 import { retryShardId } from './gate/retry.js';
+import { shardRecovery } from './gate/retry.js';
 import { mainRedFileExcuse } from './gate/main-red-files.js';
 import { handUnknownGatesToReview } from './gate/unknown-review.js';
 import { mainRedFileLines } from './gate/main-red-files.js';
@@ -407,7 +408,8 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   const every = shardJobs(board.db, parent);
   // The one retry shard (gate.retryNewRedsOnce) is no part of the proof's own split; it only replaces red shards when green [C7,P7].
   const retry = every.find(row => row.job_id === retryShardId(parent)) ?? null;
-  const shards = every.filter(row => row !== retry);
+  const replacements = every.filter(row => row.job_id.startsWith(`${parent}:shard:unknown:`));
+  const shards = every.filter(row => row !== retry && !replacements.includes(row));
   const remaining = every.filter(row => row.job_step !== 'done').length;
   if (remaining) return { applied: false, outcome: 'waiting', remaining };
   const gateReceipt = postedReceipt(board.db, parent)?.receipt;
@@ -416,10 +418,15 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   // The last shard's post and every board process's claim reconcile reach here at once; one claims the apply, the rest return (#10862) [C7,P7].
   if (!claimShardSettle(board.db, parent, now)) return { applied: false, outcome: 'already-settling' };
   const signatures = { signatures: ports.settleOnMainReceipt === true };
-  const parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, selected: ownerRouting.selectedShardContext(board.db, row.job_id), ended: posted ? null : endedDetail(board.db, row.job_id) }; });
+  let parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, selected: ownerRouting.selectedShardContext(board.db, row.job_id), ended: posted ? null : endedDetail(board.db, row.job_id) }; });
   let combined = combinedReceipt(gateReceipt, parts, signatures);
-  let retried = null, mainRed = null;
+  let retried = null, mainRed = null, recovery = null;
   try {
+    const recovered = shardRecovery(board, { parent, shards, replacements, retry, parts, now, mode: ports.shardRecoveryMode },
+      { SHA, PROJECT_FILE, MAX_SHARDS, offeredGate, latestGateJob, postedReceipt, offeredStep, selectedShardContext: ownerRouting.selectedShardContext, SHARDS_SETTLING });
+    if (recovered.pending) return recovered.pending;
+    ({ parts, recovery } = recovered);
+    combined = combinedReceipt(gateReceipt, parts, signatures);
     // A red whose every failing case main already fails settles green, naming those files in a note; a file the item's own diff touches stays red [C7,#12215,#12216].
     const touched = new Set(offeredRequest(board.db, parent)?.submit?.files ?? []);
     const compared = retry || combined.status === 0 ? null : compareGateWithMain(board, combinedReceipt(gateReceipt, parts, { signatures: true }), offeredGate(board.db, parent)?.main, ports.compareWithMain ?? null);
@@ -432,7 +439,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
         combined = combinedReceipt(gateReceipt, [...parts.filter(green), { job: retry.job_id, posted, selected: ownerRouting.selectedShardContext(board.db, retry.job_id) }], signatures);
         retried = shardGate.shard?.files ?? [];
       }
-    } else if (ports.retryNewRedsOnce === true && combined.status !== 0) {
+    } else if (!replacements.length && ports.retryNewRedsOnce === true && combined.status !== 0) {
       if (compared && retryNewReds(board, { parent, combined, compared }).retried) {
         // The retry's post applies the result, so this claim is handed back and nothing is noted settled.
         noteLease(board.db, parent, SHARDS_SETTLING, { released: true }, now);
@@ -451,35 +458,22 @@ export function applyShardReceipt(board, { job }, ports = {}) {
     throw error;
   }
   // The parent notes it settled, whatever the outcome, so settleDoneShardGates never applies it twice [C7,P7].
-  noteLease(board.db, parent, SHARDS_SETTLED, { outcome: applied.outcome, ...(applied.mainRedExcused ? { mainRedExcused: applied.mainRedExcused } : {}) }, now);
+  noteLease(board.db, parent, SHARDS_SETTLED, { outcome: applied.outcome, ...(recovery ? { recovery } : {}), ...(applied.mainRedExcused ? { mainRedExcused: applied.mainRedExcused } : {}) }, now);
   if (applied.outcome === 'review' && (retried || mainRed)) shardNote(board, offeredGate(board.db, parent), retried
     ? `Gate job ${parent}: a red only in new cases was rerun once by the board for ${retried.join(', ') || 'its failing files'}, and the rerun passed.`
     : `Gate job ${parent}: every red shard failed only in files main already fails (main-red: ${mainRed.join(', ')}), so the gate settles green.`);
-  return applied;
+  if (recovery) shardNote(board, offeredGate(board.db, parent), `Gate job ${parent}: original ${recovery.original ?? 'unavailable'}, replacement ${recovery.replacement}; reason: ${recovery.reason}; outcome: ${applied.outcome}.`);
+  return recovery ? { ...applied, recovery } : applied;
 }
 
 /** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
 const SHARDS_SETTLED = 'shards.settled';
 /** The note step the one process applying a sharded gate's result holds while it applies. */
 const SHARDS_SETTLING = 'shards.settling';
-// Budget: a settle claim a process holds this long without its settled note is a lost process's; the next claim takes it over [P7].
-const SETTLING_LEASE_MS = 10 * 60_000;
 
-/**
- * Claim the one apply of a sharded gate's result: in one immediate transaction, which serializes every process on the
- * board file, note it settling unless it is settled or another live claim holds it. True when this caller won.
- * Why: the apply ran before its settled note was written, so concurrent appliers each minted a submit admission and
- * only the first one's receipts were recorded; review then found no receipt after the newest admission (#10862) [C7,P7].
- */
+/** Claim the unchanged shard-settlement lease through the internal retry helper. */
 function claimShardSettle(db, job, now) {
-  return atomically(db, () => {
-    const rows = db.prepare('SELECT job_step_name AS name, job_step_at AS at, job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name IN (?, ?)').all(job, `note:${SHARDS_SETTLED}`, `note:${SHARDS_SETTLING}`);
-    if (rows.some(row => row.name === `note:${SHARDS_SETTLED}`)) return false;
-    const held = row => row.name === `note:${SHARDS_SETTLING}` && !/"released":true/u.test(row.payload) && now - row.at < SETTLING_LEASE_MS;
-    if (rows.some(held)) return false;
-    noteLease(db, job, SHARDS_SETTLING, { pid: process.pid }, now);
-    return true;
-  });
+  return shardRecovery({ db }, { action: 'claim', job, now, SHARDS_SETTLED, SHARDS_SETTLING });
 }
 // Budget: the reconcile looks back one day for a sharded gate whose last apply was lost; an older claim has a newer gate or none.
 const SETTLE_LOOKBACK_MS = 24 * 60 * 60_000;
@@ -1148,7 +1142,7 @@ export function provideMainComparison(lookup) {
  */
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, failFastShards = false, exactTreeCheck = false, seedWideMainTests: seedWide = false, excuseMainRedFiles = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
-  const ports = { trunk: options.trunk, compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, failFastShards, exactTreeCheck, excuseMainRedFiles, receiptNow: options.now };
+  const ports = { shardRecoveryMode: options.mode, trunk: options.trunk, compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, failFastShards, exactTreeCheck, excuseMainRedFiles, receiptNow: options.now };
   if (body?.action === 'claim' && options.mode === 'pull') {
     // With gate.seedWideMainTests on, wide-failing files get main's receipt queued once per board root and main sha (#12094).
     if (seedWide === true) seedWideMainTestsAtMain(board, { now: options.now });

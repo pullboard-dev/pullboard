@@ -4,6 +4,7 @@
 /** A tab-speed setup stage whose event never fires fails within its limit naming the stage, and a marker that never appears is refused [C7]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { test } from 'node:test';
@@ -11,6 +12,7 @@ import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 import { measureTabSpeed } from '../../../tests/fixtures/cockpit/perf/speed.mjs';
 import { cachedStressBoard } from '../../../tests/fixtures/cockpit/perf/stress-cache.mjs';
 import { streamBuildProgress } from '../../../tests/fixtures/cockpit/perf/stress-cache.mjs';
+import { takeLock } from '../../../tests/fixtures/cockpit/perf/stress-cache.mjs';
 import { waitForMarker } from '../../../tests/fixtures/cockpit/perf/stress-cache.mjs';
 
 /** Stub Chrome and view server whose first load never reports the page loaded. */
@@ -63,6 +65,12 @@ test('cli.journeys-spec-cockpit-tab-speed-stage-timeout.a-cache-marker-that-neve
   appendFileSync(record, 'items done in 9 ms\n');
   stopAgain();
   assert.deepEqual(printed.slice(1), ['# stress-board build: items 200 of 1600 written', '# stress-board build: items done in 9 ms']);
+  // A missing cache parent permits the first atomic lock, while a held lock excludes another builder.
+  const parent = `${root}/cache/stress-boards`, lock = `${parent}/cold.lock`;
+  assert.equal(existsSync(parent), false, 'the cache parent starts absent');
+  assert.equal(takeLock(lock, statSync), true, 'the first caller creates the parent and acquires the lock');
+  assert.equal(statSync(lock).isDirectory(), true, 'the build lock is a real directory');
+  assert.equal(takeLock(lock, statSync), false, 'a second caller cannot acquire the held lock');
   // A lock that vanishes between the failed mkdir and its stat is retried with no ENOENT.
   const inputs = { seed: `lock-race-${process.pid}-${Date.now()}` };
   const locks = [];
