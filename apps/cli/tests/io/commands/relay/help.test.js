@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/tests/io/commands/relay/help.test.js */
 /** @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
