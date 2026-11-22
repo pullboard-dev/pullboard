@@ -150,7 +150,7 @@ test('cli.release-committed-cleanup.retains-locked-custody: clauses 1-2: a commi
     assert.equal(outcome.cleanup.status, 'failed');
     assert.match(outcome.cleanup.error, /locked/u, 'actual Git failure is visible');
     assert.match(outcome.cleanup.next, /show.*do not repeat release.*next/u, 'remedy distinguishes inspection and ordinary work from release retry');
-    assert.match(released.err, /RELEASE_CLEANUP_FAILED/u, 'human output also names the incomplete cleanup');
+    assert.match(outcome.diagnostics.join('\n'), /RELEASE_CLEANUP_FAILED/u, 'diagnostics also name the incomplete cleanup');
   } finally {
     box.git(box.repo, 'worktree', 'unlock', folder);
     db.close();
