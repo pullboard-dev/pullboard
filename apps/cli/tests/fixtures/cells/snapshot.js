@@ -20,8 +20,9 @@ function planFiles() {
 }
 
 /**
- * Two committed temporary repositories, main and candidate, each with cells.json, one numbered shard and one planned source file.
- * The candidate differs from main only by what `edit` writes through `put(path, body)`; both folders are removed after the test.
+ * Two isolated temporary repositories sharing the actual accepted commit, with cells.json, one shard and one source file.
+ * Fetch the accepted object before editing; an unchanged candidate stays there and an edit creates its descendant.
+ * The candidate differs only by what `edit` writes through `put(path, body)`; both folders are removed after the test.
  *
  * @param {{ after: Function }} t - The running test, for cleanup.
  * @param {(put: (path: string, body: string) => void) => void} [edit] - The candidate's one change.
@@ -35,7 +36,7 @@ export function cellsSnapshotPair(t, edit = () => {}, { mainDate = '2020-01-01T0
     for (const [path, body] of Object.entries(planFiles())) graph.put(path, body);
     return graph;
   };
-  /** Commit real staged files at the supplied date, keeping the two histories distinguishable. */
+  /** Commit real staged files at the supplied date, keeping an edit's date distinct from its accepted parent. */
   const commit = (graph, date) => {
     const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
       GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
@@ -48,6 +49,10 @@ export function cellsSnapshotPair(t, edit = () => {}, { mainDate = '2020-01-01T0
   const main = build('pullboard-cells-main-');
   const mainCommit = commit(main, mainDate);
   const candidate = build('pullboard-cells-candidate-');
+  const git = (...args) => runFixtureGit(args, { cwd: candidate.root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } });
+  git('fetch', '--quiet', '--no-tags', main.root, mainCommit);
+  git('reset', '--quiet', '--hard', mainCommit);
   edit(candidate.put);
-  return { main: { root: main.root, commit: mainCommit }, candidate: { root: candidate.root, commit: commit(candidate, candidateDate) } };
+  const candidateCommit = git('status', '--porcelain') ? commit(candidate, candidateDate) : mainCommit;
+  return { main: { root: main.root, commit: mainCommit }, candidate: { root: candidate.root, commit: candidateCommit } };
 }
