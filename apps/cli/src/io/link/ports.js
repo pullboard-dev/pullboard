@@ -74,7 +74,7 @@ export function announcePorts(child, { projects, openBoard, closeBoard, readKey,
 /** Install pending authenticated file deliveries into a board before a command checks its foreign prerequisites. */
 export async function receiveLocalBoardStates(ctx, board, { projects, parentRoot, readKey }) {
   const destinationId = boardId(board);
-  const transport = createBoardLinkFileTransport(join(ctx.info.gitDir, 'pullboard', 'board-links'), { board: destinationId });
+  const transport = createBoardLinkFileTransport(join(ctx.info.commonDir, 'pullboard', 'board-links'), { board: destinationId });
   for (const record of readBoardLinks(board)) {
     if (record.revocation || record.parent.boardId !== destinationId) continue;
     const candidates = projects.filter(row => row.name === record.child.handle && row.root !== parentRoot);
