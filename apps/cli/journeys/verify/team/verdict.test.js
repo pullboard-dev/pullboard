@@ -37,6 +37,7 @@ import { realGitAdapter } from '../../../../../packages/git/index.js';
 import { withGitAdapter } from '../../../../../packages/git/index.js';
 import { verdictProjector } from '../../../../../packages/verify/index.js';
 import { temporaryRepository } from '../../../tests/fixtures/board/submit.js';
+import { settledComparison } from '../../../tests/fixtures/submit/comparison-settle.js';
 
 test('cli.journeys-verify-team-verdict.a-verdict-reads-stale-when-main: a verdict reads stale when main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for two real replicas, CLI checks and Git history; not a speed target.
   const box = helpers.project();
@@ -305,6 +306,9 @@ test('cli.journeys-verify-team-verdict.an-accepted-verdict-reads-stale-through: 
   const reviewer = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
   await run(box, reviewer, 'join', 'web', '--route', 'strong');
+  const comparison = await settledComparison({ ...box, run: box.runIn }, 1, { signal: t.signal });
+  assert.equal(comparison.status, 'complete');
+  assert.deepEqual([comparison.files, comparison.head.id, comparison.base.id, comparison.newRed, comparison.fixed], [[], null, null, null, null], 'the real comparison retains no selected executions instead of claiming complete case parity');
   await run(box, reviewer, 'next', '--verify', '1');
   await run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
   // Main moves under the reviewed file; the one caller that moved it needs no seat of its own to commit on main.
@@ -368,5 +372,42 @@ test('cli.journeys-verify-team-verdict.legacy-receipts-on-a-cold-state: legacy r
     assert.ok(many.states.every(state => state === null), 'every legacy item reads fresh, as it did with a read per item');
     if (few.spawns.length) assert.equal(many.spawns.length, few.spawns.length, `80 items spawn no more Git processes than 5 (claim head ${claimHead === tip ? 'at the tip' : 'behind it'})`);
     if (few.spawns.length) assert.ok(many.spawns.length <= 4, `a handful of Git reads serve all 80 items, saw ${many.spawns.length}`);
+  }
+});
+
+
+test('cli.comparison-settle.unavailable-retained: #12958 clause 2: current-source unavailable and unknown outcomes retain their actual explanation [C7]', async t => {
+  const source = 'a'.repeat(40), digest = 'frozen-fixture-bar';
+  for (const status of ['unavailable', 'unknown']) {
+    const run = () => assert.fail('unrecorded read required');
+    run.read = async () => ({ code: 0, out: JSON.stringify({ item_id: 1, item_commit: source, item_frozen_digest: digest,
+      comparison: { item: 1, source, digest, status, error: 'private worker has no execution account' } }) });
+    await assert.rejects(settledComparison({ repo: '/private-fixture', run }, 1, { signal: t.signal }), error => {
+      assert.match(error.message, new RegExp(`comparison ${status}: private worker has no execution account`));
+      assert.ok(error.message.includes(`"status":"${status}"`));
+      assert.match(error.message, /last comparison observation/u);
+      return true;
+    });
+  }
+});
+
+test('cli.comparison-settle.pending-or-foreign-refused: #12958 clause 2: foreign source or digest, pending, missing and malformed terminal results cannot settle and retain the last observation [C7]', async () => {
+  const source = 'a'.repeat(40), digest = 'frozen-fixture-bar';
+  const terminal = { item: 1, source, digest, status: 'complete', files: [], headCommit: source, baseCommit: 'b'.repeat(40),
+    head: { id: null, files: [] }, base: { id: null, files: [] }, newRed: null, fixed: null };
+  for (const comparison of [undefined, { ...terminal, status: 'pending' }, { ...terminal, source: 'c'.repeat(40) }, { ...terminal, digest: 'other-bar' }, { item: 1, source, digest, status: 'complete' }]) {
+    const controller = new AbortController();
+    const run = () => assert.fail('unrecorded read required');
+    run.read = async () => {
+      queueMicrotask(() => controller.abort());
+      return { code: 0, out: JSON.stringify({ item_id: 1, item_commit: source, item_frozen_digest: digest, comparison }) };
+    };
+    await assert.rejects(settledComparison({ repo: '/private-fixture', run }, 1, { signal: controller.signal }), error => {
+      assert.match(error.message, /comparison did not settle before the fixture deadline/u);
+      assert.match(error.message, /last comparison observation/u);
+      assert.ok(error.message.includes(JSON.stringify(comparison?.source ?? null)));
+      assert.ok(error.message.includes(JSON.stringify(comparison?.digest ?? null)));
+      return true;
+    });
   }
 });
