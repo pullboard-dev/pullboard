@@ -10,6 +10,7 @@ import { releaseJob } from '../../index.js';
 import { combinedReceipt } from '../../index.js';
 import { compareGateWithMain } from '../../index.js';
 import { selectedShardContext } from '../../src/io/gate/owner-routing.js';
+import { ownerComparisonCases } from '../../src/io/gate/owner-routing.js';
 
 const boardWith = t => cellBoard(t, ':memory:').db;
 
@@ -102,6 +103,9 @@ test('api.gate-owner.routes-authenticated-failure-to-selected-shard: clause 1: a
   const combinedProof = combined.gate.phases.find(row => row.role === 'proof');
   assert.equal(combinedProof.ownerRoutesInvalid, false, 'the same-shard outcome and selected request produce valid routing evidence');
   assert.equal(combinedProof.ownerRoutes[0].file, owner, 'the combined proof carries the selected owner');
+  const route = combinedProof.ownerRoutes[0];
+  assert.deepEqual(route, { file: owner, sourceFile: source, name, signature, shard, attempt: 1, head, inputKey });
+  assert.ok(ownerComparisonCases([combinedProof], combined.gate), JSON.stringify({ route, shards: combined.gate.shards, source: combined.gate.source, failedInputKeys: combinedProof.failedInputKeys }));
   let observed;
   const compared = compareGateWithMain(board, combined, main, request => {
     observed = request;
