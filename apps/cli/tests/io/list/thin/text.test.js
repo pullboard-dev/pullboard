@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/tests/fixtures apps/cli/tests/fixtures/registry*.json */
 /** @pullboard-world-pin the registry case checks this shipped test source and its actual item shard for complete unique proof records. */
 /** Real list dispatch preserves JSON, text, default settings and filters while JSON skips text-only SQLite reads [C7,#12932]. */
 import assert from 'node:assert/strict';
