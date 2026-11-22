@@ -5,7 +5,6 @@ import { test } from 'node:test';
 import { boardLinkDeliveryReceipt } from '../../../../../../store/index.js';
 import { boardLinkEnvelope } from '../../../../../../store/index.js';
 import { boardLinkEnvelopeDigest } from '../../../../../../store/index.js';
-import { closeBoard } from '../../../../../../store/index.js';
 import { resendPendingBoardStates } from '../../../../../../store/index.js';
 import { boardId } from '../../../../../../store/index.js';
 import { createBoardLinkCapability } from '../../../../../../store/index.js';
@@ -43,7 +42,6 @@ function receiptFor(envelope, deliveryId) {
 /** A board with one queued delivery per correlation ID; a receipt is stored only for those named in `delivered`. */
 function queued(t, correlations, delivered = []) {
   const board = cellBoard(t, ':memory:');
-  t.after(() => closeBoard(board));
   const envelopes = {};
   for (const [index, correlationId] of correlations.entries()) {
     const envelope = envelopes[correlationId] = envelopeFor(correlationId, index + 1);
@@ -98,7 +96,6 @@ test('store.io-board-link-relay.resend-keeps-failed-entry-pending: clause 3: whe
 
 test('store.io-board-link-relay.state-records-received-at: clause 1: after receiveBoardState installs a state, readReceivedBoardState returns it with receivedAt from the board clock, and a record stored before this change reads with no receivedAt [E32,H16,#11044]', async t => {
   const board = cellBoard(t, ':memory:', { now: () => new Date(RECEIVED) });
-  t.after(() => closeBoard(board));
   const parent = { boardId: boardId(board), organization: 'fixture', handle: 'parent' };
   const child = { boardId: CHILD, organization: 'fixture', handle: 'child' };
   let record = { version: 1, linkId: 'received-at', parent, child, generation: 1, disclosure: 'states', approvals: [], revocation: null };

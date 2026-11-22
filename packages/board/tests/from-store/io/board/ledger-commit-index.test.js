@@ -10,7 +10,7 @@ import { ledgerFiles } from "../../../../../store/index.js";
 import { ledgerMainReds } from "../../../../../store/index.js";
 import { missingAdditiveSchema } from "../../../../../store/index.js";
 import { recordTestResults } from "../../../../../store/index.js";
-import { cellBoard } from "../../../../fixtures/cell-board.js";
+import { cellBoard } from "../../../fixtures/cell-board.js";
 import { temporaryDirectory } from "../../../../../store/tests/fixtures/tmp.js";
 
 const MAIN = "a".repeat(40);
@@ -58,7 +58,7 @@ function dropIndex(file) {
   try { db.exec(`DROP INDEX ${INDEX}`); } finally { db.close(); }
 }
 
-test("store.ledger.main-reds-indexed: clause 1: the ledgerMainReds and ledgerFiles statements seek test_result_commit_file [C7,#11191]", t => {
+test('store.ledger.main-reds-indexed: clause 1: the ledgerMainReds and ledgerFiles statements seek test_result_commit_file [C7,#11191]', t => {
   const file = seededBoard(t);
   readOnly(file, db => {
     assert.match(plan(db, MAIN_REDS, "a.test.js", MAIN, "proof"), /SEARCH test_result USING (?:COVERING )?INDEX test_result_commit_file/u);
@@ -66,7 +66,7 @@ test("store.ledger.main-reds-indexed: clause 1: the ledgerMainReds and ledgerFil
   });
 });
 
-test("store.ledger.main-reds-unchanged: clause 1: both lookups return the same rows with the index and without it [C7,#11191]", t => {
+test('store.ledger.main-reds-unchanged: clause 1: both lookups return the same rows with the index and without it [C7,#11191]', t => {
   const file = seededBoard(t);
   const withIndex = answers(file);
   dropIndex(file);
@@ -75,7 +75,7 @@ test("store.ledger.main-reds-unchanged: clause 1: both lookups return the same r
   assert.deepEqual(withIndex.files, ["a.test.js", "b.test.js", "c.test.js"]);
 });
 
-test("store.ledger.commit-index-upgrade: clause 2: a board without the index reports missingAdditiveSchema and gains it on its next owning open, keeping every row [C7,#11191]", t => {
+test('store.ledger.commit-index-upgrade: clause 2: a board without the index reports missingAdditiveSchema and gains it on its next owning open, keeping every row [C7,#11191]', t => {
   const file = seededBoard(t);
   dropIndex(file);
   const probe = () => readOnly(file, db => ({

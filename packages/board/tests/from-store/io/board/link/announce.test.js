@@ -6,7 +6,6 @@ import { announceItemState } from '../../../../../../store/index.js';
 import { applyBoardLink } from '../../../../../../store/index.js';
 import { approveBoardLink } from '../../../../../../store/index.js';
 import { boardId } from '../../../../../../store/index.js';
-import { closeBoard } from '../../../../../../store/index.js';
 import { createBoardLinkCapability } from '../../../../../../store/index.js';
 import { createBoardLinkFileTransport } from '../../../../../../store/index.js';
 import { generateBoardKey } from '../../../../../../kernel/index.js';
@@ -26,7 +25,6 @@ const authority = {
 /** A child board with one open item, a signed states link to a parent board, and the file transport folder between them. */
 async function linked(t) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(AT) });
-  t.after(() => closeBoard(board));
   const item = cellItem(board, { lane: 'core', title: 'Child work', criterion: '1. It works. [test]' });
   const parent = { boardId: PARENT, organization: 'fixture', handle: 'parent' };
   const child = { boardId: boardId(board), organization: 'fixture', handle: 'kid' };

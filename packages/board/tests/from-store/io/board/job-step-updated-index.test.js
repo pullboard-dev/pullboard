@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 import { temporaryDirectory } from '../../../../../store/tests/fixtures/tmp.js';
 
 const QUERY = "SELECT job_kind, COUNT(*) FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind";
