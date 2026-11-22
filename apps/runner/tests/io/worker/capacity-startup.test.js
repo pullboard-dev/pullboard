@@ -65,7 +65,7 @@ try {
   const runner = { host: ${JSON.stringify(HOST)}, node: process.execPath, slots: 1, browser: 0 };
   const outcome = await runOnRunnerAsync(${JSON.stringify(box.repo)}, 'printf capacity-job; exit 3', { runner, signal: controller.signal })
     .then(result => ({ exitCode: result.exitCode, output: result.output, kind: result.executionReceipt?.kind }),
-      error => ({ refused: error.code, message: error.message }));
+      error => ({ refused: error.code ?? error.name, message: error.message }));
   console.log(JSON.stringify({ observation: existsSync(observed) ? JSON.parse(readFileSync(observed, 'utf8')) : null, outcome,
     attempts: existsSync(${JSON.stringify(attempts)}) ? readFileSync(${JSON.stringify(attempts)}, 'utf8').trim().split('\\n').filter(Boolean).length : 0 }));
 } finally { watcher.close(); release(); db.close(); }
@@ -102,6 +102,7 @@ test('runner.capacity-startup.transport-loss-stops-registration-retries: clause 
   const actual = registrationUnderLock(t, 'cancel');
   assert.equal(actual.observation.registration, true);
   assert.equal(actual.attempts, 1, 'the closed transport prevents a second registration attempt');
-  assert.ok(actual.outcome.refused, JSON.stringify(actual));
+  assert.equal(actual.outcome.refused, 'RunnerDropped');
+  assert.match(actual.outcome.message, /disconnected before a complete result/u);
   assert.equal(actual.outcome.output, undefined);
 });
