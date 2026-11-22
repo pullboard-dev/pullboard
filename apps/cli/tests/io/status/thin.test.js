@@ -36,7 +36,7 @@ function onBoard(box, work) {
   try { return work(board); } finally { closeBoard(board); }
 }
 
-test('cli.io-status-thin.steps-aside: clause 1: thinStatusFacts returns null on a board with landing, relay, runner, health, job or verify-proof records, and on no board, drift, ReadNeedsWrite, writeRefused or schemaMissing [C7]', async (t) => {
+test('cli.io-status-thin.steps-aside: clause 1: thinStatusFacts returns null on a board with unsupported landing, relay, runner, health, job or verify records, and on no board, drift, ReadNeedsWrite, writeRefused or schemaMissing [C7]', async (t) => {
   const box = await plainProject(t);
   const served = await thinStatusFacts({ cwd: box.repo });
   assert.ok(served, 'the door serves a plain board');
@@ -46,7 +46,7 @@ test('cli.io-status-thin.steps-aside: clause 1: thinStatusFacts returns null on 
   box.git(bare, 'init', '-q', '-b', 'main');
   assert.equal(await thinStatusFacts({ cwd: bare }), null, 'no readable board');
   const event = kind => board => board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run(NOW, 'fixture', kind, null, '{}');
-  for (const kind of ['landing_batch', 'relay-linked', 'runner-registered', 'health-scan', 'proof-run']) {
+  for (const kind of ['landing-preview', 'relay-linked', 'runner-registered', 'health-scan', 'verify-proof']) {
     const probe = await plainProject(t);
     assert.ok(await thinStatusFacts({ cwd: probe.repo }), `${kind}: served before the record`);
     onBoard(probe, event(kind));
@@ -73,6 +73,49 @@ test('cli.io-status-thin.steps-aside: clause 1: thinStatusFacts returns null on 
   const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { db.exec('CREATE TABLE fixture_drift (x INTEGER)'); } finally { db.close(); }
   assert.equal(await thinStatusFacts({ cwd: box.repo }), null, 'drift');
+});
+
+test('cli.io-status-thin.verified-landing-facts: clause 1: thin status keeps stage and verdict counts, review queue, landing and held-run lines for a verified landing board, with equal exit code and detailed full output [C7,#10762]', async (t) => {
+  const box = await plainProject(t);
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Rejected status fixture');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Submitted status fixture');
+  const ids = onBoard(box, board => board.db.prepare('SELECT item_id FROM item ORDER BY item_id').all().map(row => row.item_id));
+  const [landed, rejected, submitted] = ids;
+  onBoard(box, board => {
+    const commit = 'a'.repeat(40), digest = 'd'.repeat(64), at = new Date().toISOString();
+    for (const [id, decision] of [[landed, 'ACCEPT'], [rejected, 'REJECT']]) {
+      board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+        VALUES (?, 'reviewer-1', ?, 'fixture', 'fixture verdict', ?, ?, ?, ?)`).run(id, decision, commit, digest, commit, at);
+    }
+    board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
+    try {
+      board.db.prepare(`UPDATE item SET item_status='verified', item_commit=?, item_frozen_digest=?, item_built_by='builder-1', item_verified_by='reviewer-1', item_verdict='ACCEPT'
+        WHERE item_id=?`).run(commit, digest, landed);
+      board.db.prepare(`UPDATE item SET item_status='submitted', item_commit=?, item_frozen_digest=?, item_built_by='builder-2'
+        WHERE item_id=?`).run(commit, digest, submitted);
+    } finally { board.db.exec('DELETE FROM temp.moving'); }
+    const event = board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
+    event.run(at, 'coordinator', 'accept', landed, '{}');
+    event.run(at, 'coordinator', 'reject', rejected, '{}');
+    event.run(at, 'builder-2', 'submit', submitted, '{}');
+    event.run(at, 'coordinator', 'merged', landed, '{}');
+    event.run(at, 'coordinator', 'landing_batch', null, JSON.stringify({ batch: { id: 'fixture-batch', state: 'blocked', items: [landed], blocked: [], refusal: { code: 'FIXTURE' } } }));
+  });
+  const lines = result => result.out.split('\n').map(line => line.replace(/\d+ s ago/u, 'N s ago'));
+  setReadThin(box, false);
+  const full = await box.runLocal(box.repo, 'status');
+  setReadThin(box, true);
+  const thin = await box.runLocal(box.repo, 'status');
+  assert.equal(thin.code, full.code);
+  const fullLines = lines(full), thinLines = lines(thin);
+  const shared = line => line.startsWith('board:') || line.startsWith('verdicts:') || line.startsWith('review queue:') || line.startsWith('landing:');
+  assert.deepEqual(thinLines.filter(shared), fullLines.filter(shared), 'thin status preserves the stage, verdict, review queue and landing lines');
+  assert.ok(thinLines.some(line => line === 'board: 1 open, 0 building, 0 in the gate, 0 back with builder, 1 in review, 0 accepted, 1 landed, 0 withdrawn'));
+  assert.ok(thinLines.some(line => line === 'verdicts: 1 accepted, 1 rejected'));
+  assert.ok(thinLines.some(line => line.startsWith('review queue: 1 submitted; 1 waiting for a first reviewer')));
+  assert.ok(thinLines.some(line => line.startsWith('landing: 1 landed, 0 reopened')));
+  assert.ok(fullLines.some(line => line.startsWith('seats:')), 'full status keeps detailed sections');
+  assert.equal(thinLines.some(line => line.startsWith('seats:')), false, 'thin status leaves detailed sections out');
 });
 
 test('cli.io-status-thin.write-refused: clause 1: thinStatusFacts returns null when the board refuses the read as a write refusal [C7]', async (t) => {
@@ -108,12 +151,14 @@ test('cli.io-status-thin.wired-behind-setting: clause 2: status.js calls the doo
   assert.ok(thin.some(line => line.startsWith('capacity:')), 'thin status keeps capacity');
   assert.ok(thin.some(line => line.startsWith('Max useful builders:')), 'thin status keeps useful builders');
   assert.ok(thin.every(line => line.startsWith('board:') || line.startsWith('verdicts:') || line.startsWith('lanes:')
+    || line.startsWith('review queue:') || line.startsWith('landing:')
+    || line.startsWith('local memory holds ') || line === 'local memory hold status unavailable; pullboard resources shows the queue'
     || line.startsWith('ready buffer:') || line.startsWith('capacity:')
     || line.startsWith('Max useful agents now:') || line.endsWith('items can be built at once now.')
     || line.startsWith('Finish in about ') || line === 'Finish time: unknown.'
     || line.startsWith('Binding: ') || line.startsWith('Lever: ')
     || line.startsWith('Approval evidence count:') || line.startsWith('Unknown: ')
-    || line.startsWith('Max useful builders:')), `thin status prints only counts, lanes, capacity and useful builders: ${thin.join(' | ')}`);
+    || line.startsWith('Max useful builders:')), `thin status prints counts, lanes, review and landing lines, capacity and useful builders: ${thin.join(' | ')}`);
   for (const line of thin.filter(line => !line.startsWith('lanes:') && !line.startsWith('Max useful builders:'))) assert.ok(full.includes(line), `thin status shares the full-path field: ${line}`);
   assert.ok(full.some(line => line.startsWith('seats:')), 'full status keeps detailed sections');
   assert.ok(thin.length < full.length, 'thin status omits full-path details');

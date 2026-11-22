@@ -5,11 +5,12 @@ import { testOutcomeFields } from '../../light.js';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { COMPARISON_WORKER_RECORD } from './comparison.js';
+import { recordedVerificationComparison } from './comparison-read.js';
+export { recordedVerificationComparison, renderVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './comparison-read.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
 
 const fs = fileSystemAdapter();
 
-export const VERIFICATION_COMPARISON_PREFIX = 'Review comparison: ';
 /** A comparison whose worker died is started again this many times before it is recorded unavailable [C7]. */
 export const COMPARISON_RESTART_LIMIT = 3;
 
@@ -44,18 +45,6 @@ export function comparisonRestartPlan({ commonDir, item, thread, alive = process
   const restarts = jobs.length - 1;
   if (restarts >= COMPARISON_RESTART_LIMIT) return { action: 'unavailable', error: `its worker died ${jobs.length} times, restarted ${restarts}` };
   return { action: 'restart' };
-}
-
-/** Read well-formed observation records only for the current submitted source and frozen bar. */
-export function recordedVerificationComparison(thread, item) {
-  for (const fact of [...thread].reverse()) {
-    if (fact.type !== 'fact' || !fact.text?.startsWith(VERIFICATION_COMPARISON_PREFIX)) continue;
-    try {
-      const result = JSON.parse(fact.text.slice(VERIFICATION_COMPARISON_PREFIX.length));
-      if (result.source === item.item_commit && result.digest === item.item_frozen_digest) return result;
-    } catch { /* An ordinary prose fact cannot masquerade as a comparison. */ }
-  }
-  return null;
 }
 
 /** Keep argument boundaries, including spaces and shell punctuation in committed test paths. */
@@ -147,17 +136,4 @@ export async function compareVerification(root, item, { main, selectTests, runTe
     headCommit: result.headCommit, baseCommit: result.baseCommit,
     head: summary(result.head), base: summary(result.base),
     ...differences(result.head.tests, result.base.tests), fallback };
-}
-
-/** Show only changed red cases and fixed cases, retaining the two execution identities. */
-export function renderVerificationComparison(result) {
-  if (result.status === 'pending') return `comparison pending for #${result.item}`;
-  if (result.status === 'unavailable') return `comparison unavailable: ${result.error}; review on the item's gate receipts`;
-  const lines = [`comparison #${result.item}${result.fallback ? ' (main fallback)' : ''}`,
-    `head ${result.headCommit}: ${result.head.id ? `run ${result.head.id}` : 'no tests at head'}`,
-    `base ${result.baseCommit}: ${result.base.id ? `run ${result.base.id}` : 'no tests at base'}`];
-  for (const row of result.newRed) lines.push(`new red: ${row.file}: ${row.name}`);
-  for (const row of result.fixed) lines.push(`fixed: ${row.file}: ${row.name}`);
-  if (!result.newRed.length && !result.fixed.length) lines.push('No new red or fixed cases.');
-  return lines.join('\n');
 }

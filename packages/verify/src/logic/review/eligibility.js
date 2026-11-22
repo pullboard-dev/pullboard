@@ -15,6 +15,7 @@ import { canTake } from '../../../../seats/index.js';
 import { itemAuthors } from '../../../../items/index.js';
 import { requiredReviewFamilyProblem } from '../required.js';
 import { Refused } from '../../../../kernel/index.js';
+import { reviewEligibilitySummary } from './eligibility-summary.js';
 
 /** The required-family refusal, or null when review.relaxRequiredFamily is on and the caller holds a relaxation witness for this item and seat [C7]. */
 export function requiredFamilyStands(problem, board, item, agentId, { relaxRequiredFamily = false, requiredFamilyWitness = null } = {}) {
@@ -86,12 +87,13 @@ export function reviewEligibility(board, item, options = {}, { strictOnly = fals
 /** Apply the unchanged native eligibility guards to every candidate in the same read projection. */
 function projectEligibility(board, item, options, strictOnly) {
   const policy = itemReviewPolicy(board, item.item_id);
-  const result = { tier: twoTierReviews(board) ? policy.tier : 'legacy', requiredFamily: policy.reviewFamily,
-    ready: item.item_status === 'submitted' || item.item_status === 'verified' && !item.item_merged_commit,
-    eligible: [], ineligible: [] };
+  const tier = twoTierReviews(board) ? policy.tier : 'legacy';
+  const ready = item.item_status === 'submitted' || item.item_status === 'verified' && !item.item_merged_commit;
   const fallback = policy.tier === 'strict' ? compositionFamilyFallback(board, item) : null;
-  if (fallback) result.owner = fallback.owner;
-  if (!result.ready || strictOnly && result.tier !== 'strict') return result;
+  const { summary: result, candidatesReady } = reviewEligibilitySummary({ tier, requiredFamily: policy.reviewFamily, ready, strictOnly,
+    strictOwnerFallback: fallback });
+  // The fallback is intentionally read before this branch: historical strict owner output remains available to not-ready rows.
+  if (!candidatesReady) return result;
   result.authorParents = authorParents(board, item);
   const agents = board.db.prepare('SELECT agent_id,agent_route FROM agent ORDER BY agent_id').all();
   for (const agent of agents) {
