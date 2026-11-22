@@ -1,0 +1,48 @@
+{
+  "view.activity.events-paged": {
+    "proves": {
+      "specs": [
+        "N26",
+        "C7"
+      ],
+      "claim": "activityRuntime read() asks for events with after and limit and keeps asking until a page comes back short, covering a window longer than two batches."
+    },
+    "why": "The Activity page read its window with no limit, so a view worker built the whole event log in one StatementSync.all and crashed at 4.1 GB.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/src/io/activity/runtime.js",
+      "apps/view/tests/io/activity/runtime.test.js"
+    ]
+  },
+  "view.activity.large-board-heap": {
+    "proves": {
+      "specs": [
+        "N26",
+        "C7"
+      ],
+      "claim": "On a board of 10,000 items and 120,000 events the API pool worker serving the Activity page's event reads peaks under 1 GB of heap, measured inside the worker, over at least 20 bounded page reads."
+    },
+    "why": "The unbounded Activity read crashed the view worker at 4.1 GB on the live board; this measures the bounded read at the live board's scale.",
+    "kind": "journey",
+    "inputs": [
+      "apps/view/src/io/activity/runtime.js",
+      "apps/view/tests/io/activity/runtime.test.js"
+    ]
+  },
+  "view.activity.no-unbounded-event-read": {
+    "proves": {
+      "specs": [
+        "N26",
+        "C7"
+      ],
+      "claim": "Every events read the view makes names a limit, and none reads the log with no cursor and no limit."
+    },
+    "why": "An unbounded event read builds the whole log in one StatementSync.all in a pool worker.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/src/io/activity/runtime.js",
+      "apps/view/src/logic/cockpit/live.js",
+      "apps/view/tests/io/activity/runtime.test.js"
+    ]
+  }
+}
