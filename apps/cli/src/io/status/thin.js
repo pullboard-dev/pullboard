@@ -36,7 +36,9 @@ export async function thinStatusFacts({ cwd, clock = store.systemClock, open = s
   if (!board.current || board.drifted) { store.closeBoard(board); return null; }
   try {
     if (hasSectionRecords(board.db)) return null;
-    return { agents: store.listAgents(board) };
+    const items = store.listItems(board, { all: true });
+    const lanes = [...new Set(items.map(item => item.item_lane))].sort();
+    return { agents: store.listAgents(board), lanes };
   } catch (error) {
     if (error instanceof store.ReadNeedsWrite || store.writeRefused(error) || store.schemaMissing(error)) return null;
     throw error;

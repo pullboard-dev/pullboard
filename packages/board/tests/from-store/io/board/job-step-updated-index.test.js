@@ -1,13 +1,11 @@
-/** @pullboard-test-input source-cell store */
 /** The job table has a job_step_updated index so the finished-runs count is a range read [C7,#6722]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { closeBoard } from '../../../index.js';
-import { openKitBoard } from '../../fixtures/cell.js';
-import { temporaryDirectory } from '../../fixtures/tmp.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { temporaryDirectory } from '../../../../../store/tests/fixtures/tmp.js';
 
 const QUERY = "SELECT job_kind, COUNT(*) FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind";
 
@@ -28,7 +26,7 @@ function boardFile(t) {
   const directory = temporaryDirectory('pullboard-job-step-updated-');
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
-  closeBoard(openKitBoard(file));
+  cellBoard(t, file, undefined, { real: true });
   return file;
 }
 
@@ -49,6 +47,6 @@ test('store.io-board-job-step-updated-index.a-board-that-predates-the-index: cla
   const old = new DatabaseSync(file);
   try { old.exec('DROP INDEX job_step_updated'); } finally { old.close(); }
   assert.deepEqual(indexColumns(file, 'job_step_updated'), []);
-  closeBoard(openKitBoard(file));
+  cellBoard(t, file, undefined, { real: true });
   assertIndexed(file);
 });

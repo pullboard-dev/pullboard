@@ -1,6 +1,8 @@
 /** @pullboard-test-input source-cell store */
+/** @pullboard-world-pin: this replay reads its committed sanitized event fixture, never the live board. */
 /** deliverHealthNotices logs a resolved finding without shouting it from HEALTH_QUIET_ENGINE [A6,H16,#1479]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { deliverHealthNotices } from '../../../src/logic/board/receipts.js';
 import { healthTargets } from '../../../src/logic/board/receipts.js';
@@ -132,4 +134,66 @@ test('store.logic-board-receipts.builder-advice-replay: clause 2: with adviceThr
   deliverHealthNotices({ resolved: [], added: [finding('older')], engine: HEALTH_QUIET_ENGINE, coordinator: 'coordinator', adviceThroughNext: true,
     targets: found => ['coordinator', found.owner], shout: (to) => recorded.push(to), log: () => {} });
   assert.deepEqual(recorded, ['coordinator', 'core-1'], 'a finding recorded before this change carries no owner role and shouts as it did');
+});
+
+/** Replay the sanitized recorded-day events through the old delivery and current digest planners. */
+function replayRecordedDay(events) {
+  const agents = [...new Set(events.map(event => event.finding.owner).filter(Boolean))].map(agent_id => ({ agent_id }));
+  const context = engine => ({ engine, coordinator: 'coordinator', person: 'person', lanes: [], agents });
+  const full = finding => ({ title: 't', why: 'w', next: 'n', ...finding });
+  const runs = [];
+  for (const event of events) {
+    const run = runs.at(-1);
+    const at = Date.parse(event.at);
+    if (run && at - run.last < 60_000) { run.events.push(event); run.last = at; }
+    else runs.push({ events: [event], last: at });
+  }
+  let originalShouts = 0;
+  let newShouts = 0;
+  let buffered = {};
+  let lastFlush = {};
+  const resolvedAt = new Map();
+  const replayedKeys = new Set();
+  for (const run of runs) {
+    const now = new Date(run.last).toISOString();
+    const resolved = run.events.filter(event => event.kind === 'health-resolved').map(event => full(event.finding));
+    const added = run.events.filter(event => event.kind === 'health-failure').map(event => full(event.finding));
+    const recordedEngine = run.events[0].finding.engine;
+    const oldContext = context(recordedEngine);
+    deliverHealthNotices({ resolved, added, engine: recordedEngine, coordinator: 'coordinator',
+      targets: finding => healthTargets(finding, oldContext), shout: () => { originalShouts += 1; }, log: () => {} });
+    const newContext = context(HEALTH_EPISODE_ENGINE);
+    const targets = finding => healthTargets(finding, newContext);
+    const kept = added.filter(finding => {
+      let shouted = false;
+      deliverHealthNotices({ resolved: [], added: [finding], recentlyResolved: resolvedAt, now,
+        engine: HEALTH_EPISODE_ENGINE, coordinator: 'coordinator', targets,
+        shout: () => { shouted = true; }, log: recorded => replayedKeys.add(recorded.key) });
+      return shouted;
+    });
+    for (const finding of resolved) resolvedAt.set(finding.key, now);
+    const plan = healthDigestPlan({ added: kept, resolved, buffered, lastFlush, now, targets });
+    buffered = plan.buffered;
+    lastFlush = plan.lastFlush;
+    newShouts += plan.immediate.length + plan.lines.length;
+  }
+  const originalKeys = new Set(events.filter(event => event.kind === 'health-failure').map(event => event.finding.key));
+  return { originalShouts, newShouts, originalKeys, replayedKeys };
+}
+
+test('store.logic-board-receipts.recorded-day-replay: clause 1: replayed shout count drops at least threefold; clause 2: every recorded finding key remains represented [C7,#1479]', t => {
+  const fixture = JSON.parse(readFileSync(new URL('../../fixtures/health-replay-2026-10-27.json', import.meta.url), 'utf8'));
+  const counts = Object.groupBy(fixture.events, event => event.kind);
+  assert.equal(fixture.day, '2026-10-27');
+  assert.equal(counts['health-failure'].length, fixture.counts['health-failure']);
+  assert.equal(counts['health-resolved'].length, fixture.counts['health-resolved']);
+  assert.equal(counts['health-failure'].length, 510, 'the full recorded day is present');
+  assert.equal(counts['health-resolved'].length, 484, 'the full recorded day is present');
+  const replay = replayRecordedDay(fixture.events);
+  const ratio = replay.originalShouts / replay.newShouts;
+  assert.equal(replay.originalShouts, 1578, 'recorded engine output remains faithful');
+  assert.ok(ratio >= 3, `${ratio.toFixed(2)}x does not meet the 3x target`);
+  assert.equal(replay.originalKeys.size, 258, 'all unique recorded finding keys are present');
+  assert.deepEqual([...replay.replayedKeys].sort(), [...replay.originalKeys].sort(), 'every original finding key is still logged');
+  t.diagnostic(`2026-10-27 replay: original=${replay.originalShouts}, new=${replay.newShouts}, ratio=${ratio.toFixed(2)}x; finding keys=${replay.originalKeys.size}, logged=${replay.replayedKeys.size}, KEYS_IDENTICAL`);
 });
