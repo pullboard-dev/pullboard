@@ -253,3 +253,209 @@ export function endedSubmitHandoff(board, job) {
   }
   return null;
 }
+
+
+/** Read existing store policy lazily, after module initialization; retry also consumes the record readers. */
+export async function gateRecoveryPolicy() {
+  const { INFRASTRUCTURE_RETRY_LIMIT } = await import('./retry.js');
+  return Object.freeze({ settleHoldMs: GATE_SETTLE_HOLD_MS, unknownHoldMs: GATE_UNKNOWN_HOLD_MS,
+    infrastructureRetryLimit: INFRASTRUCTURE_RETRY_LIMIT });
+}
+
+// Only these typed fields cross this observation door. Raw JSON and unknown nested objects never do.
+const REFUSAL_FIELDS = { code: 'string', message: 'string', next: 'string', reason: 'string' };
+const HANDOFF_FIELDS = { version: 'number', id: 'string', item: 'number', agentId: 'string', commit: 'string',
+  tree: 'string', main: 'string', executionCommit: 'string', executionTree: 'string', digest: 'string',
+  companionDigest: 'string', leaseMs: 'number', state: 'string', at: 'string', startedAt: 'string', completedAt: 'string',
+  attempt: 'number', infrastructureRetries: 'number', recoveryRetries: 'number', retryOf: 'string',
+  infrastructureNotified: 'boolean', error: REFUSAL_FIELDS };
+const GATE_FIELDS = { deferred: 'boolean', outcome: 'string', green: 'boolean', full: 'boolean', main: 'string',
+  source: 'string', tree: 'string', digest: 'string', status: 'number' };
+const COUNT_FIELDS = { passed: 'number', failed: 'number', skipped: 'number' };
+const RECEIPT_FIELDS = { id: 'string', job: 'string', run: 'string', attempt: 'number', status: 'number',
+  outcome: 'string', commit: 'string', tree: 'string', main: 'string', digest: 'string',
+  queueWaitSeconds: 'number', error: REFUSAL_FIELDS, gate: GATE_FIELDS, counts: COUNT_FIELDS };
+const BINDING_FIELDS = { agentId: 'string', commit: 'string', tree: 'string', main: 'string', digest: 'string' };
+const PAYLOAD_FIELDS = { agent: 'string', commit: 'string', tree: 'string', digest: 'string', runner: 'string',
+  attempt: 'number', hopEpoch: 'number', at: 'number', leaseUntil: 'number', heartbeat: 'boolean',
+  outcome: 'string', status: 'number', exactResult: 'string', error: 'string', record: HANDOFF_FIELDS,
+  gate: GATE_FIELDS, request: { submit: BINDING_FIELDS },
+  counts: COUNT_FIELDS, receipt: RECEIPT_FIELDS, selected: 'number', finished: 'number', failures: 'number' };
+const JOB_FIELDS = { job_id: 'string', job_kind: 'string', job_item: 'number', job_candidate: 'string', job_base: 'string',
+  job_step: 'string', job_attempt: 'number', job_lease_owner: 'string', job_lease_until: 'number',
+  job_created: 'number', job_updated: 'number', job_applied: 'number' };
+const RUN_FIELDS = { run_job: 'string', run_kind: 'string', run_item: 'number', run_candidate: 'string', run_base: 'string',
+  run_state: 'string', run_attempt: 'number', run_outcome: 'string', run_lease_owner: 'string', run_lease_until: 'number',
+  run_created: 'number', run_updated: 'number' };
+const STEP_FIELDS = { job_step_id: 'number', job_step_job: 'string', job_step_name: 'string',
+  job_step_seq: 'number', job_step_at: 'number' };
+
+/** Project known fields with their expected types, never copying arbitrary objects through a safe-looking key. */
+function evidenceFields(value, fields, reasons = [], source = 'row') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = {};
+  for (const [key, type] of Object.entries(fields)) {
+    if (!Object.hasOwn(value, key)) continue;
+    const entry = value[key];
+    if (entry === null || (typeof type === 'string' && typeof entry === type && (type !== 'number' || Number.isFinite(entry)))) result[key] = entry;
+    else if (typeof type === 'object' && entry && typeof entry === 'object' && !Array.isArray(entry)) result[key] = evidenceFields(entry, type, reasons, source);
+    else {
+      if (typeof type === 'object') result[key] = null;
+      reasons.push(`unknown-field:${source}:${key}`);
+    }
+  }
+  if (Object.keys(value).some(key => !Object.hasOwn(fields, key))) reasons.push(`omitted-fields:${source}`);
+  return result;
+}
+
+/** Select the recovery item's public columns and preserve their native numeric, text or null values. */
+function recoveryItem(db, id) {
+  const row = db.prepare(`SELECT item_id, item_status, item_owner, item_commit,
+    item_claim_head, item_frozen_digest, item_lease_until, item_updated_at FROM item WHERE item_id = ?`).get(id);
+  if (!row) return null;
+  for (const [column, value] of Object.entries(row)) {
+    const valid = value === null || (column === 'item_id'
+      ? typeof value === 'number' && Number.isFinite(value)
+      : typeof value === 'string');
+    if (!valid) delete row[column];
+  }
+  return row;
+}
+
+/** Freeze detached JSON observations recursively, including source references and allow-listed refusal fields. */
+function freezeEvidence(value) {
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeEvidence(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+/** Parse and project a source, preserving unreadable evidence explicitly without exporting raw JSON. */
+function evidencePayload(raw, reasons, source, fields = PAYLOAD_FIELDS) {
+  try {
+    const value = JSON.parse(raw);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('not an object');
+    return evidenceFields(value, fields, reasons, source);
+  } catch { reasons.push(`unreadable:${source}`); return null; }
+}
+
+/** Read job rows and every step, retaining IDs, attempts, exact receipts and actual progress separately from lease renewal. */
+function recoveryJobs(db, item, source, now, reasons) {
+  try {
+    return db.prepare('SELECT * FROM job WHERE job_item = ? ORDER BY job_created DESC, rowid DESC').all(item).map(row => {
+      const steps = db.prepare('SELECT * FROM job_step WHERE job_step_job = ? ORDER BY job_step_id').all(row.job_id)
+        .map(step => ({ source: `${source}.job_step:${step.job_step_id}`, row: evidenceFields(step, STEP_FIELDS),
+          payload: evidencePayload(step.job_step_payload, reasons, `${source}.job_step:${step.job_step_id}`) }));
+      const progress = steps.filter(step => step.row.job_step_name !== 'alive' && !step.row.job_step_name.startsWith('note:'));
+      return { source: `${source}.job:${row.job_id}`, row: evidenceFields(row, JOB_FIELDS), steps,
+        lease: row.job_lease_owner ? (row.job_lease_until > now ? 'live' : 'lapsed') : 'unowned',
+        progress, heartbeat: steps.filter(step => step.row.job_step_name === 'alive') };
+    });
+  } catch (error) { reasons.push(`unavailable:${source}.jobs:read`); return []; }
+}
+
+/**
+ * Capture facts only, in a board read transaction. The optional runs holder must be an existing read-only reader;
+ * never open or migrate a store here. Separate-file observations are explicitly non-atomic and cannot prove exhaustion.
+ * Missing identities stay unknown: a caller must re-read native sources under its eventual writer before deciding custody.
+ *
+ * @param {any} board - Open board with db and clock.
+ * @param {number} id - Native item identity.
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync | null } | null }} [options]
+ * @returns {Promise<Readonly<object>>} Detached, deeply frozen source observations; never a release or settlement verdict.
+ */
+export async function captureGateRecoveryEvidence(board, id, { runs = null } = {}) {
+  const policy = await gateRecoveryPolicy();
+  const db = board.db;
+  const reasons = [];
+  const answer = { observedAt: board.clock.now().getTime(), item: null, authority: null, gate: null,
+    handoff: null, jobs: [], proofRuns: [], exhaustion: null, reasons };
+  const own = !db.isTransaction;
+  try {
+    if (own) db.exec('BEGIN');
+    answer.item = recoveryItem(db, id);
+    answer.itemSource = `board.item:${id}`;
+    if (!answer.item) reasons.push('missing:item');
+    const split = runsStoreOn(db);
+    answer.authority = split ? 'board.run' : 'board.job';
+    // Select the latest gate before looking at its record or testing its binding. Never search older matching gates.
+    const gate = split
+      ? db.prepare("SELECT * FROM run WHERE run_kind = 'gate' AND run_item = ? ORDER BY run_updated DESC, rowid DESC LIMIT 1").get(id)
+      : db.prepare("SELECT * FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(id);
+    answer.gate = gate ? { source: `${answer.authority}:${split ? gate.run_job : gate.job_id}`, row: evidenceFields(gate, split ? RUN_FIELDS : JOB_FIELDS) } : null;
+    if (!gate) reasons.push('missing:gate');
+    let jobDb = db;
+    if (split) {
+      reasons.push('separate-store-snapshot');
+      jobDb = runs?.db ?? null;
+      if (!jobDb) reasons.push('unavailable:runs.jobs');
+      else {
+        const owner = jobDb.prepare("SELECT meta_value FROM runs_meta WHERE meta_key = 'board_id'").get()?.meta_value;
+        const expected = db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get()?.meta_value;
+        if (!owner || !expected || owner !== expected) { reasons.push('foreign:runs.board_id'); jobDb = null; }
+      }
+    }
+    // A separate store is observed in its own read snapshot; do not imply one atomic snapshot across files.
+    let jobsOwn = false;
+    try {
+      if (jobDb && jobDb !== db && !jobDb.isTransaction) { jobDb.exec('BEGIN'); jobsOwn = true; }
+      if (jobDb) answer.jobs = recoveryJobs(jobDb, id, split ? 'runs' : 'board', answer.observedAt, reasons);
+    } finally { if (jobsOwn) jobDb.exec('ROLLBACK'); }
+    const jobId = gate ? (split ? gate.run_job : gate.job_id) : null;
+    const job = answer.jobs.find(entry => entry.row.job_id === jobId);
+    if (gate && split) answer.handoff = { source: `${answer.gate.source}.run_record`,
+      record: evidencePayload(gate.run_record, reasons, `${answer.gate.source}.run_record`, HANDOFF_FIELDS) };
+    else if (job) {
+      // The newest record-bearing step on this gate is authoritative, including a malformed record. No older-gate fallback.
+      const step = job.steps.slice().reverse().find(entry => entry.payload && Object.hasOwn(entry.payload, 'record'));
+      if (step) answer.handoff = { source: step.source, record: step.payload.record };
+    }
+    const record = answer.handoff?.record;
+    const gateJobs = answer.jobs.filter(entry => entry.row.job_id === jobId || entry.row.job_id.startsWith(`${jobId}:shard:`));
+    for (const entry of gateJobs) {
+      if (['offered', 'claimed', 'queued', 'running'].includes(entry.row.job_step) || entry.lease === 'live') reasons.push(`work-in-flight:${entry.source}`);
+      for (const step of entry.steps) {
+        for (const payload of [step.payload, step.payload?.receipt]) {
+          if (payload?.gate?.deferred === true || String(payload?.outcome ?? payload?.gate?.outcome).toLowerCase() === 'unknown') {
+            reasons.push(`unsettled:${step.source}`);
+          }
+        }
+      }
+    }
+    if (!record || typeof record !== 'object' || Array.isArray(record)) reasons.push('missing:handoff');
+    else {
+      const item = answer.item;
+      const candidate = split ? gate.run_candidate : gate.job_candidate;
+      const attempt = split ? gate.run_attempt : gate.job_attempt;
+      for (const [name, a, b] of [['job', record.id, jobId], ['owner', record.agentId, item?.item_owner],
+        ['head', record.commit, item?.item_commit], ['candidate', record.commit, candidate],
+        ['digest', record.digest, item?.item_frozen_digest], ['attempt', record.attempt, attempt],
+        ['base', record.main, split ? gate.run_base : gate.job_base]]) {
+        if (a === undefined || a === null || b === undefined || b === null || a !== b) reasons.push(`unknown-binding:${name}`);
+      }
+      if (typeof record.commit !== 'string' || !/^[a-f0-9]{40}$/u.test(record.commit) || typeof record.digest !== 'string' || !/^[a-f0-9]{64}$/u.test(record.digest)) reasons.push('unknown-binding:source');
+      // saveSubmitHandoff writes a run_record directly onto the authoritative run row. Its row bindings above
+      // are the envelope; only the legacy job producer wraps the record in a source-labelled job step.
+      if (!split) {
+        const envelope = job?.steps.find(step => step.source === answer.handoff.source)?.payload;
+        if (!envelope || envelope.tree !== record.tree || envelope.agent !== record.agentId || envelope.commit !== record.commit || envelope.digest !== record.digest) reasons.push('unknown-binding:envelope');
+      }
+      if (typeof record.tree !== 'string' || !/^[a-f0-9]{40}$/u.test(record.tree)) reasons.push('unknown-binding:tree');
+      if (item?.item_status !== 'claimed') reasons.push('unknown-binding:status');
+      if (record.error?.code === 'GATE_INFRA_EXHAUSTED') {
+        // Keep the producer's record; count or text alone is never exhaustion authority.
+        answer.exhaustion = { source: answer.handoff.source, record,
+          binding: reasons.length === 0 && record.state === 'infrastructure'
+            && Number.isSafeInteger(record.infrastructureRetries) && record.infrastructureRetries >= policy.infrastructureRetryLimit
+            ? 'matching-record' : 'unknown' };
+      }
+    }
+    answer.proofRuns = answer.jobs.filter(entry => entry.row.job_kind === 'test-run').map(entry => {
+      const queued = entry.steps.find(step => step.row.job_step_name === 'queued');
+      return { ...entry, binding: queued?.payload?.agent === answer.item?.item_owner ? 'owner-recorded' : 'unknown' };
+    });
+  } catch (error) { reasons.push(`unavailable:board:read`); }
+  finally { if (own && db.isTransaction) db.exec('ROLLBACK'); }
+  return freezeEvidence(structuredClone(answer));
+}

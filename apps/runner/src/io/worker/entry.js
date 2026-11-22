@@ -45,6 +45,11 @@ import { screenshotPlan } from '../../../../../packages/runners/light.js';
 import { pinSourceCacheJob } from '../../../../../packages/runners/light.js';
 import { recordRunnerCompletion } from '../../../../../packages/runners/light.js';
 import { recordRunnerOwner } from '../../../../../packages/runners/light.js';
+
+/** The canonical screenshot capability shared by the worker and pull-runner compositions [C7]. */
+export function workerScreenshotPolicy() {
+  return { screenshotPlan, maxBytes: SCREENSHOT_MAX_BYTES, directory: SCREENSHOT_DIRECTORY };
+}
 import { TEST_RESULT_REQUEST_ENV } from '../../../../../packages/gate/light.js';
 import { TEST_RESULT_ORIGIN_ENV } from '../../../../../packages/gate/light.js';
 import { TEST_RESULT_STORE_ENV } from '../../../../../packages/gate/light.js';
@@ -99,7 +104,7 @@ export async function main(S) {
       final.sourcePreparation = sourceMetrics;
       // A failed listing sends the result without screenshots; the job's own outcome is never lost to them.
       let shots = { screenshots: [] };
-      try { shots = collectScreenshots(final.root, { screenshotPlan, maxBytes: SCREENSHOT_MAX_BYTES, directory: SCREENSHOT_DIRECTORY }); } catch { /* The result still goes out without screenshots. */ }
+      try { shots = collectScreenshots(final.root, workerScreenshotPolicy()); } catch { /* The result still goes out without screenshots. */ }
       S.cleanupStage = 'result receipt';
       await receipt(spec, { ...final, ...(shots.refused && !final.refused ? { refused: shots.refused.code } : {}), screenshots: shots.screenshots, gui, dependencies }, sink);
       S.resultSent = true;
