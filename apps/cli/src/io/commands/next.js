@@ -1,5 +1,6 @@
 /** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js packages/git/src/io/review-folder.js */
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
+import { nextIdleMinutes } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
@@ -32,6 +33,8 @@ import {
   sayCheckBaseline,
 } from '../../../../../packages/gate/heavy.js';
 import {
+  idleSeconds,
+  laneFinished,
   refuseNextIdle,
 } from '../next/steps.js';
 import { reviewPacketLines } from '../../../../../packages/verify/index.js';
@@ -66,6 +69,8 @@ import { seatClaims } from '../next.js';
 import { topUpClaims } from '../next.js';
 import { whoAmI } from '../join.js';
 import {
+  boardFinishedLine,
+  idleTimeoutLine,
   refuseWhileBuilding,
   sayReviewOffer,
 } from '../next/say.js';
@@ -327,7 +332,8 @@ async function nextWithProgress(io, values, progress) {
   values = { ...values, observeIdle: true, idleBlockers: nextIdleBlockers() };
   let lastIdleReason;
   const heardShouts = new Set();
-  const deadline = Date.now() + minutes * 60_000;
+  const waitClock = io.nextWaitClock ?? realWaitClock;
+  const deadline = waitClock.now() + minutes * 60_000;
   const origin = ctx.info.root;
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
@@ -533,7 +539,7 @@ async function nextWithProgress(io, values, progress) {
       }
       lastIdleReason = idleKey;
     }
-    if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
+    if (!found.retry && (found.laneWork || waitClock.now() >= deadline)) {
       // Nothing else to build: the board holds this next until the seat's own queued test run comes back [C7].
       if (testRuns.pending.length && await deliverWhenReady(io, ctx)) return 0;
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
@@ -543,6 +549,7 @@ async function nextWithProgress(io, values, progress) {
         return 0;
       }
       if (values.verify) refuseWhileBuilding(ctx);
+      if (values['no-wait'] && !found.laneWork) return answerNoWait(io, ctx, found, values, ordered);
       if (values.defaultLoop && !found.laneWork) {
         // A named step, such as waiting on another seat's rework, says what to do instead of ending the turn (#7922).
         const step = found.nextStep ?? 'nothing for this seat: end your turn';
@@ -587,22 +594,55 @@ async function nextWithProgress(io, values, progress) {
             .get(whoAmI(ctx, board).id, new Date(ctx.clock.now().getTime() - cooldown).toISOString());
           if (release?.at) due.push(Date.parse(release.at) + cooldown);
         }
-        return due.length ? Math.min(deadline, Date.now() + Math.min(...due) - ctx.clock.now().getTime()) : deadline;
+        return due.length ? Math.min(deadline, waitClock.now() + Math.min(...due) - ctx.clock.now().getTime()) : deadline;
       });
-      await progress.idle(found.reasons, () => wake.wait({ after: wakeVersion, deadline: until }));
+      await progress.idle(found.reasons, () => waitClock.sleep(wake, { after: wakeVersion, deadline: until }));
       wakeVersion = wake.version();
-      quiet = passSignature; quietAt = Date.now();
+      quiet = passSignature; quietAt = waitClock.now();
+      let signatureAt = quietAt;
       // Another seat's write that changes nothing this seat can take, hear or hold is not a reason to select again; a read path this signature misses is caught by the recheck [C7,#11798].
-      while (quiet !== null && !testRuns.pending.length && Date.now() < until && Date.now() - quietAt < QUIET_RECHECK_MS && seatSignature(ctx) === quiet) {
-        await wake.wait({ after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS) });
+      while (quiet !== null && !testRuns.pending.length && waitClock.now() < until && waitClock.now() - quietAt < QUIET_RECHECK_MS) {
+        const checkAt = signatureAt + QUIET_SIGNATURE_INTERVAL_MS;
+        await waitClock.sleep(wake, { after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS, checkAt) });
         wakeVersion = wake.version();
+        if (waitClock.now() < checkAt) continue;
+        signatureAt = waitClock.now();
+        if (seatSignature(ctx) !== quiet) break;
       }
     }
   } } finally { wake?.close(); }
 }
 
+/**
+ * next --no-wait with nothing free: the board-finished line with exit 3 when every item in the seat's lane is verified,
+ * otherwise the idle line with exit 4. Each records its observation, and a recording failure never changes the exit code [C7,#12779].
+ */
+async function answerNoWait(io, ctx, found, values, ordered) {
+  const { seat, finished } = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board);
+    return { seat: me, finished: laneFinished(store.listItems(board, { lane: me.lane, all: true }), me.lane) };
+  });
+  const seconds = idleSeconds(nextIdleMinutes(ctx.config));
+  const observation = finished ? { finished: true } : { timeout: { minutes: Math.floor(seconds / 60), awaited: 'work for this seat' } };
+  try {
+    await withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...observation }]));
+  } catch (error) {
+    io.err?.(`next idle observation was not recorded (${error.code ?? error.message}); the exit code is unchanged`);
+  }
+  const line = finished ? boardFinishedLine(seat.lane) : idleTimeoutLine(seconds);
+  io.result?.({ item: null, idleReason: found.idleReason ?? 'unknown', ...(finished ? { finished: true } : { timeout: { seconds } }), reasons: [line] });
+  io.say(line);
+  return finished ? 3 : 4;
+}
+
+/** The clock a waiting next reads and sleeps through: the real time and the waiter's own timers unless io.nextWaitClock names another, so a test can drive the wait without real minutes [C7,#12761]. */
+const realWaitClock = { now: () => Date.now(), sleep: (wake, options) => wake.wait(options) };
+
 /** The longest a waiting next trusts an unchanged signature before it selects again, so a read path the signature misses cannot hold a seat for long [C7,#11798]. */
 const QUIET_RECHECK_MS = 30_000;
+
+/** Minimum time between full selection signatures while a waiter's watched files keep changing [C7,#12794]. */
+const QUIET_SIGNATURE_INTERVAL_MS = 100;
 
 /**
  * What a waiting seat's selection reads that other seats' writes can change: items, shouts, verdicts, holds, agents, this seat's queued reds and the non-board inputs.

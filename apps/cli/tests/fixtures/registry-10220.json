@@ -1,0 +1,17 @@
+{
+  "cli.io-remote-moves.url-seat-gate-names-clone-commit": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a URL-joined seat commits in its clone with board.commits bundle and submits, and the host runner pulled gate settles it submitted with show naming the clone commit, with no EMPTY_SUBMIT"
+    },
+    "why": "The served gate of a URL-joined seat must run on the commit made in its own clone.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/remote/moves/joined.test.js",
+      "apps/cli/tests/fixtures/api/remote-moves.js",
+      "apps/cli/src/io/submit/push-ref.js"
+    ]
+  }
+}

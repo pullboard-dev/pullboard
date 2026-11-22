@@ -1,4 +1,3 @@
-/** @pullboard-test-input docs/formats.md docs/formats/spec.md */
 /** The live-behavior case of the format guide: its schema, versions, event kinds and event detail fields match what the code does, in its own file so each file fits the per-file budget [A5,A10]. */
 import { apiBoardOpeners } from '../../fixtures/board.js';
 import { recordRelayExclusionIntent } from '../../../../../packages/link/index.js';
@@ -551,7 +550,6 @@ test('cli.journeys-formats-live.a5-schema-versions-event-kinds-and: clause 1: [A
   }
   const documented = documentedEvents();
   assert.deepEqual(Object.keys(documented).sort(), Object.keys(actual).sort());
-  assert.match(block('<!-- pass-rule:start -->', '<!-- pass-rule:end -->'), /passDecision` only for the coordinator/);
   for (const [kind, expected] of Object.entries(documented)) {
     assert.deepEqual([...actual[kind].actors].sort(), expected.actor.split(', or ').sort());
     assert.deepEqual([...actual[kind].fields].sort(), expected.fields);

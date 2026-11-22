@@ -1,0 +1,30 @@
+{
+  "health.io-stale-state.sweep-releases-stalled-waiter": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The full sweepClaims path releases a lapsed claim held only by a stalled test waiter, keeping its handoff pin and commit, with the release table off and on."
+    },
+    "why": "#12690 proved capture alone; this proves the sweep's own ordered move accepts the release, so the waiter's renewals cannot keep a dead claim alive.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/health/src/io/claim/sweep.js",
+      "packages/health/src/io/stale/state/capture.js"
+    ]
+  },
+  "health.io-stale-state.sweep-keeps-live-claim": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The full sweepClaims path keeps a lapsed claim that has a gate job, a progressing test job or a recent event from its seat."
+    },
+    "why": "Without it the release of stalled waiters could take a claim whose holder is really working.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/health/src/io/claim/sweep.js",
+      "packages/health/src/io/stale/state/capture.js"
+    ]
+  }
+}

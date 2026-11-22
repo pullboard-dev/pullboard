@@ -15,7 +15,7 @@ const FRESH_MS = 120_000;
  * signal-zero still finds, until this event loop reaps it, and the loop is blocked while the stop waits. So each stop
  * waited its whole 10 s budget for a runner that had exited within 0.1 s [C7].
  */
-function running(pid) {
+export function running(pid) {
   if (!processAlive(pid)) return false;
   const state = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' });
   return !String(state.stdout ?? '').trim().startsWith('Z');

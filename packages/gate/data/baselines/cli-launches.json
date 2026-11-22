@@ -137,7 +137,7 @@
   "packages/verify/tests/logic/advance.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/init/boundary.test.js": {
+  "apps/cli/tests/io/init/boundary.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/fact/tests/cpu-registration-closure.test.js": {
@@ -599,7 +599,7 @@
   "apps/cli/journeys/speed/profile.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/land/landing/noop.test.js": {
+  "apps/cli/tests/io/commands/land/noop.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/spec/person.test.js": {
@@ -1271,7 +1271,7 @@
   "packages/landing/tests/io/land/numbers.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/status/products.test.js": {
+  "apps/cli/tests/io/commands/status/products.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/next/deadline.test.js": {
@@ -1355,8 +1355,8 @@
   "packages/gate/tests/io/journal/preload/ignored.test.js": {
     "launch": 1
   },
-  "packages/gate/tests/io/browser/admission/resources.test.js": {
-    "launch": 4
+  "packages/gate/tests/io/browser/admission/memory.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/next/skips/folder/live.test.js": {
     "launch": 1

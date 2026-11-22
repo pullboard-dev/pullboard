@@ -94,7 +94,7 @@ async function buildLocal(box, p, id, file, { queued = false } = {}) {
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
   box.git(p.web, 'add', '-A');
   // With test.inProcessHooks on, the commit's hooks run in this process; otherwise the real hooks run as child processes [C7,#10412].
-  const committed = await box.tryGit(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  const committed = await box.tryGitInProcess(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
   await (queued ? box.inProcessQueued : box.inProcess)(p.web, 'submit', String(id), '--no-next');
 }
@@ -362,6 +362,7 @@ function element(id) {
     querySelectorAll: () => [],
     querySelector: () => null,
     prepend() {},
+    after() {},
     // The notch preview appends its veil and panel to the body and listens on the element and its document [#6651].
     append() {},
     contains: () => false,

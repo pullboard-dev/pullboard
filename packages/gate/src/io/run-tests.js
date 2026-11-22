@@ -1300,7 +1300,7 @@ async function main(args) {
   };
   try {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../../../resources/index.js');
-    const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
+    const scopedMarker = environment.get(GATE_SLOT_POOL_ENV) || environment.get(GATE_SLOT_TOKEN_ENV);
     const legacyHeld = environment.get(GATE_SLOT_HELD_ENV) === '1'; const ordinaryShards = environment.get(LANDING_RUN_ENV) !== '1' && environment.get('PULLBOARD_RUN_SHARDS') !== '0';
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
@@ -1415,11 +1415,11 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
 } else if (process.argv[1]) {
   environment.set('PULLBOARD_TEST_FILE', process.argv[1]);
   (await import('./test/action/cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
-  const fileTimes = process.env[LANDING_FILE_TIMES_ENV];
+  const fileTimes = environment.get(LANDING_FILE_TIMES_ENV);
   let tokenWaitMs = 0;
   // Only this test file reports; anything it starts is not one of the shard's files.
-  delete process.env[LANDING_FILE_TIMES_ENV];
-  if (fileTimes && process.env.NODE_TEST_CONTEXT === 'child-v8') {
+  environment.delete(LANDING_FILE_TIMES_ENV);
+  if (fileTimes && environment.get('NODE_TEST_CONTEXT') === 'child-v8') {
     // One line per test file process: its wall time from start to exit, for the next shard plan.
     const timedFile = relative(process.cwd(), resolve(process.argv[1]));
     process.once('exit', (code) => {
@@ -1428,8 +1428,8 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
       catch { /* A missing time only weakens the next shard plan. */ }
     });
   }
-  const startsPath = process.env[LANDING_WORKER_STARTS_ENV];
-  const attempt = process.env[LANDING_ATTEMPT_ENV];
+  const startsPath = environment.get(LANDING_WORKER_STARTS_ENV);
+  const attempt = environment.get(LANDING_ATTEMPT_ENV);
   const landingWorker = Boolean(startsPath && attempt);
   let cleanupWatchdog;
   if (landingWorker) {
@@ -1456,34 +1456,34 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     if (identityAvailable) watchLandingChildSpawns(startsPath, attempt, file);
     else watchLandingChildCustody(startsPath, attempt);
   }
-  if (process.env.PULLBOARD_TEST_BROWSER_RESOURCE && process.env.NODE_TEST_CONTEXT === 'child-v8'
-      && !process.env.PULLBOARD_TEST_BROWSER_OWNER_PID) {
+  if (environment.get('PULLBOARD_TEST_BROWSER_RESOURCE') && environment.get('NODE_TEST_CONTEXT') === 'child-v8'
+      && !environment.get('PULLBOARD_TEST_BROWSER_OWNER_PID')) {
     // The worker is announced to #589 before it can wait here; admission remains before file import/body.
-    process.env.PULLBOARD_TEST_BROWSER_OWNER_PID = String(process.pid);
+    environment.set('PULLBOARD_TEST_BROWSER_OWNER_PID', String(process.pid));
     // The test body never sees the setting itself; the file's first-line declaration alone decides its lease [C7].
-    delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;
+    environment.delete('PULLBOARD_TEST_BROWSER_BY_LAUNCH');
     const { testsNeedBrowser } = await import('./browser/admission.js');
     if (await testsNeedBrowser(process.cwd(), [process.argv[1]])) {
       const { takeResource } = await import('../../../resources/index.js');
-      const lease = await takeResource({ name: process.env.PULLBOARD_TEST_BROWSER_RESOURCE,
-        capacity: Number(process.env.PULLBOARD_TEST_BROWSER_CAPACITY), kind: 'test-browser-file', root: process.cwd() });
+      const lease = await takeResource({ name: environment.get('PULLBOARD_TEST_BROWSER_RESOURCE'),
+        capacity: Number(environment.get('PULLBOARD_TEST_BROWSER_CAPACITY')), kind: 'test-browser-file', root: process.cwd() });
       // Hold through file cleanup and process exit, including abort/watchdog paths.
       process.once('exit', () => lease.release());
-      process.env.PULLBOARD_TEST_BROWSER_SLOT = 'held';
+      environment.set('PULLBOARD_TEST_BROWSER_SLOT', 'held');
     } else {
       // Undeclared: any browser spawn from this file or a Node child it starts is refused by name (BROWSER_UNDECLARED).
-      process.env.PULLBOARD_TEST_BROWSER_SLOT = 'none';
+      environment.set('PULLBOARD_TEST_BROWSER_SLOT', 'none');
       const guard = new URL('./browser/guard.js', import.meta.url);
       await import(guard.href);
-      process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, `--import=${guard.href}`].filter(Boolean).join(' ');
+      environment.set('NODE_OPTIONS', [environment.get('NODE_OPTIONS'), `--import=${guard.href}`].filter(Boolean).join(' '));
     }
   }
   // After any browser wait, so a file never holds a core while it queues for a browser (#1046).
-  if (process.env.NODE_TEST_CONTEXT === 'child-v8') tokenWaitMs = await takeTestFileToken();
+  if (environment.get('NODE_TEST_CONTEXT') === 'child-v8') tokenWaitMs = await takeTestFileToken();
   reportFileTest = installFileWatchdog(process.argv[1]);
   if (!landingWorker) cleanupWatchdog = installTestWatchdog();
-  if (process.env.NODE_TEST_CONTEXT === 'child-v8' && !landingWorker) installTestChildDrain({ // the landing parent owns and signals the leftovers; waiting here holds the run
-    sandbox: process.env.PULLBOARD_TEST_SANDBOX, timeoutMs: testFileTimeoutMs(),
+  if (environment.get('NODE_TEST_CONTEXT') === 'child-v8' && !landingWorker) installTestChildDrain({ // the landing parent owns and signals the leftovers; waiting here holds the run
+    sandbox: environment.get('PULLBOARD_TEST_SANDBOX'), timeoutMs: testFileTimeoutMs(),
     onStart: cleanupWatchdog.pause, onEnd: cleanupWatchdog.resume,
   });
 }

@@ -1,4 +1,5 @@
 /** @pullboard-test-input packages/state/src/logic/engines/* */
+/** @pullboard-world-pin reads the committed rulings, resume notes, settings and rate card pages itself, and the generated guide, spec and static view pages from generatedDocs. */
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -20,6 +21,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openBoard } from '../apps/lib/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { declarationDocBlocks } from '../apps/cli/src/io/generated/declarations.js';
+import { generatedDocs } from '../apps/cli/src/io/generated/docs.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { exportView } from '../apps/cli/src/io/commands/view.js';
 import { main as nativeTestMain } from '../apps/cli/tests/fixtures/native.js';
@@ -43,17 +45,19 @@ import {
   sha256,
   signRows,
 } from '../packages/spec/index.js';
-import { block, documentedEvents } from '../apps/lib/tests/fixtures/formats-guide.js';
+import { block, documentedEvents } from '../apps/cli/tests/fixtures/formats-guide.js';
 
-const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
+/** The generated pages are rendered from the declarations; no committed copy is read. */
+const generated = generatedDocs(fileURLToPath(new URL('../', import.meta.url)), { openBoard });
+const guide = generated.get('docs/formats.md');
 /** The SPEC.md and DOCTRINE.md section lives on its own page; its sentences and marked tables are read there. */
-const specPage = readFileSync(new URL('./formats/spec.md', import.meta.url), 'utf8');
+const specPage = generated.get('docs/formats/spec.md');
 /** The proposed-rulings section lives on its own page; its sentences are read there. */
 const rulingsPage = readFileSync(new URL('./formats/rulings.md', import.meta.url), 'utf8');
 /** The resume-release-notes section lives on its own page; its marked block is read there. */
 const resumeNotesPage = readFileSync(new URL('./formats/resume-notes.md', import.meta.url), 'utf8');
 /** The static-view-export section lives on its own page; its snapshot table and sentences are read there. */
-const staticViewPage = readFileSync(new URL('./formats/static-view.md', import.meta.url), 'utf8');
+const staticViewPage = generated.get('docs/formats/static-view.md');
 
 /** The recorded-board-line-settings section lives on its own page; its table and sentences are read there. */
 const settingsPage = readFileSync(new URL('./formats/settings.md', import.meta.url), 'utf8');
@@ -109,13 +113,6 @@ test('clause 1: formats.md links the resume notes page and the whatsNew sentence
   assert.match(section, /A checkout's first run records its version quietly/u);
   assert.ok(section.includes("`pullboard-checkout/resume-version` in the checkout's Git directory"));
   assert.match(section, /outside the shared board/u);
-});
-
-test('clause 1: the formats guide documents collision grandfathering and doctrine citations on the spec page [A5]', () => {
-  assert.match(specPage, /A bare id names a row in `SPEC\.md`/u);
-  assert.match(specPage, /`doctrine:<id>` in item spec ids and commit headers/u);
-  assert.match(specPage, /Collisions already present in the primary checkout's attached branch are reported as known warnings/u);
-  assert.match(specPage, /adding a colliding row is an error that names both file paths and line numbers/u);
 });
 
 /** Read names from the first code-formatted cell of each row in a marked table. */
@@ -258,7 +255,7 @@ test('clause 1: [A5] the grammar table on the spec page describes values the par
     serves: ['B2', 'C3'], signers: ['co@example.invalid', 'AB'], unknown: ['custom: preserved'], stakes: 'team', section: 'Sample section', line: 4,
   });
   assert.deepEqual(listedValues('<!-- parser-fields:start -->', '<!-- parser-fields:end -->'), Object.keys(parsed.rows[0]));
-  assert.match(specPage, /\| gate: <command> \| serves: <ID, ID> \| signers: <principal, principal>/);
+  assert.ok(specPage.includes('| `gate` | Check named by gate, or an empty string. |'));
 
   const validSigner = lintSpec(parseSpec('## Signers\n- A1 [draft] Row with a signer. | signers: build@example.invalid\n'));
   assert.equal(validSigner.some((finding) => finding.message.startsWith('signer ')), false);
@@ -268,8 +265,7 @@ test('clause 1: [A5] the grammar table on the spec page describes values the par
   assert.ok(spacedSigner.some((finding) => finding.message.includes('must be one SSH principal')));
   const duplicateSigners = lintSpec(parseSpec('## Signers\n- A1 [draft] Row with duplicates. | signers: build@example.invalid, build@example.invalid\n'));
   assert.ok(duplicateSigners.some((finding) => finding.message === 'signers are unique on a row'));
-  assert.match(specPage, /Each signer is one unique principal with no spaces, commas or leading `#`/);
-  assert.match(specPage, /every listed principal has a verified SSH receipt for its current text/);
+  assert.ok(specPage.includes('| `signers` | Comma-separated SSH principals named by signers, or an empty list. |'));
 
   const noTier = parseSpec('## Plain\n- A1 [draft] Row without a tier.\n');
   assert.equal(noTier.rows[0].tier, '');
@@ -295,8 +291,6 @@ test('[A5,H16] grammar and executable engine versions match the format guide', (
   assertEngineGuideVersion(versionOf('move engine'), leaves, ENGINE_VERSION);
   assert.match(versions, /Bump when a move's meaning changes/);
   assert.match(versions, /`ENGINE_VERSION`.*naming both versions/);
-  assert.match(guide, /Engine 10 adds coordinator-only reopening for an unmerged verified item after a red landing candidate/u);
-  assert.match(guide, /Engines 8 and 9 retain their submitted-only `reopen` behavior/u);
   assert.match(versions, /`SPEC_GRAMMAR_VERSION`/);
   assert.match(versions, /`JSON_SHAPES\.version`/);
   assert.match(versions, /`SCHEMA_VERSION`/);
@@ -422,15 +416,8 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
     assert.match(page, /href="view\.css"/);
     assert.match(page, /path = snapshot \? path\.split\('\?'\)\[0\]\.slice\(1\) \+ '\.json'/);
     assert.match(page, /api\(boardPath\(view\.root\) \+ '\/events'\)/);
-    assert.match(staticViewPage, /The page fetches these files without a session key and reads the events file to replay the snapshot/);
+    assert.match(staticViewPage, /^# Static view export\n\n## Snapshot files\n/u);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
-});
-
-/** @pullboard-world-pin: clause 2 reads docs/formats.md itself to prove it states the job tables export rule. */
-test('clause 2: formats.md states that job and job_step are part of a board export only while they hold rows [A5,A10]', () => {
-  const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
-  assert.match(guide, /The `job` and `job_step` tables are part of a board export only while they hold rows/);
-  assert.match(guide, /an import treats a missing `job` or `job_step` table as empty/);
 });

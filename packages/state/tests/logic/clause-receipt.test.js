@@ -4,12 +4,21 @@ import { test } from 'node:test';
 import { clauseReceiptNotes } from '../../index.js';
 import { clauseReceiptProblem } from '../../index.js';
 import { clauseReceipts } from '../../index.js';
+import { criterionClauses as readCriterionClauses } from '../../index.js';
+import { clauseReceipts as readClauseReceipts } from '../../index.js';
 
 const FILE = 'packages/x/tests/a.test.js';
 const BASE = 'b'.repeat(40), HEAD = 'c'.repeat(40);
 const item = { item_id: 9, item_criterion: `1. The thing holds in ${FILE} [test]. 2. A command runs [command].`, item_brief: '' };
 const row = (name, passed, extra = {}) => ({ file: FILE, name, passed, skipped: false, ...extra });
 const proof = baseRows => ({ gateFiles: new Set([FILE]), baseRows, baseCommit: BASE });
+
+test('state.clause-receipt.show-read-boundary: show reads clause definitions and receipts through the state read door [C7]', () => {
+  const clauses = readCriterionClauses(`1. A recorded result [test].`);
+  const thread = [{ type: 'fact', kind: 'note', text: 'receipt for clause 1: passed' }];
+  assert.equal(clauses[0].number, 1);
+  assert.deepEqual(readClauseReceipts(thread), [{ number: 1, text: 'passed' }]);
+});
 
 test('state.logic-clause-receipt.clause-1-a-clause-with-no-recorded-run: clause 1: a [test] clause with no recorded run at base is refused [C7]', () => {
   const refused = clauseReceiptProblem(item, proof([]));

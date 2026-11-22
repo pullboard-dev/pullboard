@@ -3,6 +3,9 @@ import { adapters } from './adapter.js';
 import { needAdapter } from './adapter.js';
 import { realGitAdapter } from './adapter.js';
 import { selections } from './adapter.js';
+import { environmentAdapter } from '../../../env/index.js';
+
+const environment = environmentAdapter();
 
 /**
  * Select an implementation for the rest of the current async chain, for a test fixture that cannot wrap the test body.
@@ -12,6 +15,6 @@ import { selections } from './adapter.js';
  */
 export function enterGitAdapter(adapter) {
   needAdapter(adapter);
-  const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
+  const forced = selections.getStore()?.audit || environment.get('PULLBOARD_ADAPTER_AUDIT') === '1';
   adapters.enterWith(forced ? realGitAdapter : adapter);
 }

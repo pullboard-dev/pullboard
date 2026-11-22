@@ -19,12 +19,14 @@ let ownIdentity;
 let identityPrepared = false;
 const LONG_WRITE_MS = 2_000;
 const WRITE_HOLD_OVER_1S = 1_000;
+const HOLD_ALARM_TAIL_BYTES = 64 * 1024;
 
 /** Append a machine-local violation and keyed counter after a completed slow write. */
 function recordWriteHoldViolation(record, heldMs, outcome) {
   if (heldMs <= WRITE_HOLD_OVER_1S) return;
   const key = 'WRITE_HOLD_OVER_1S';
-  const common = { key, move: label(record.move ?? record.command, 'unknown'), seat: label(record.seat, 'unknown'),
+  const at = Date.now();
+  const common = { key, at, move: label(record.move ?? record.command, 'unknown'), seat: label(record.seat, 'unknown'),
     pid: Number.isSafeInteger(record.pid) && record.pid > 0 ? record.pid : null, heldMs, outcome: label(outcome, 'released') };
   let fd;
   try {
@@ -51,6 +53,38 @@ export function boardWriteCounterRows(key, file = boardWriteLog()) {
       catch { return []; }
     });
   } catch { return []; }
+}
+
+/** Count the write-hold counter rows inside a recent window from the last 64 KiB of the log only; rows with no at are ignored. */
+export function boardWriteHoldAlarm(key, nowMs, windowMs, file = boardWriteLog()) {
+  const empty = { count: 0, move: null, heldMs: 0, truncated: false };
+  if (typeof key !== 'string' || !/^[A-Z0-9_]{1,100}$/u.test(key) || !Number.isFinite(nowMs) || !Number.isFinite(windowMs)) return empty;
+  let fd;
+  try {
+    fd = fs.open(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const stat = fs.fstat(fd);
+    if (!stat.isFile()) return empty;
+    const start = Math.max(0, stat.size - HOLD_ALARM_TAIL_BYTES);
+    const buffer = Buffer.alloc(stat.size - start);
+    const got = buffer.length ? fs.read(fd, buffer, 0, buffer.length, start) : 0;
+    const lines = buffer.toString('utf8', 0, got).split('\n');
+    if (start > 0) lines.shift(); // The first line of a tail may be cut mid-row.
+    const floor = nowMs - windowMs;
+    let oldest = null;
+    const result = { ...empty };
+    for (const line of lines) {
+      let row;
+      try { row = JSON.parse(line); } catch { continue; }
+      if (!Number.isFinite(row?.at)) continue;
+      if (oldest === null || row.at < oldest) oldest = row.at;
+      if (row.type !== 'counter' || row.key !== key || row.at < floor || row.at > nowMs) continue;
+      result.count += 1;
+      if (row.heldMs > result.heldMs) { result.heldMs = row.heldMs; result.move = row.move; }
+    }
+    result.truncated = start > 0 && (oldest === null || oldest >= floor);
+    return result;
+  } catch { return empty; }
+  finally { if (fd !== undefined) try { fs.close(fd); } catch { /* Optional read cleanup. */ } }
 }
 
 /** Run one bounded PID-only query, without reading or changing any other process's arguments or state. */
@@ -152,6 +186,9 @@ export function beginBoardWrite(db, context = {}, marker = null) {
   return record;
 }
 
+/** Per connection, the time already spent in phases nested inside each open phase. */
+const nestedPhaseMs = new WeakMap();
+
 /**
  * Account a named synchronous part of the active writer without performing diagnostic I/O.
  * A call that passes `move` is the move body: the record names the move, and the slowest phase measured
@@ -165,6 +202,9 @@ export function beginBoardWrite(db, context = {}, marker = null) {
  */
 export function measureBoardWritePhase(db, name, work, move) {
   const started = performance.now();
+  // Phases nest (a slow statement inside logEvent inside an outer part); the step takes the part's own time, so the innermost slow part names the hold [C7,#12676].
+  const open = nestedPhaseMs.get(db) ?? nestedPhaseMs.set(db, []).get(db);
+  open.push(0);
   if (move) for (const record of pending.get(db) ?? []) {
     if (record.complete) continue;
     record.move = move;
@@ -172,10 +212,13 @@ export function measureBoardWritePhase(db, name, work, move) {
   }
   try { return work(); } finally {
     const elapsed = performance.now() - started;
+    const nested = open.pop() ?? 0;
+    const own = elapsed - nested;
+    if (open.length) open[open.length - 1] += elapsed;
     for (const record of pending.get(db) ?? []) {
       if (record.complete) continue;
       if (move) record.moveDepth = Math.max(0, (record.moveDepth ?? 1) - 1);
-      else if (record.moveDepth > 0 && elapsed > (record.stepMs ?? 0)) { record.step = name; record.stepMs = elapsed; }
+      else if (record.moveDepth > 0 && own > (record.stepMs ?? 0)) { record.step = name; record.stepMs = own; }
       record.workAccountedMs = (record.workAccountedMs ?? 0) + elapsed;
       if (elapsed > (record.phaseMs ?? 0)) { record.phase = name; record.phaseMs = elapsed; }
     }

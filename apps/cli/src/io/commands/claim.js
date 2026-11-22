@@ -33,6 +33,9 @@ import {
 import { idArg } from '../context.js';
 import { whoAmI } from '../join.js';
 import { sayLag } from '../lag.js';
+import { listProjects } from '../../../../../packages/seats/index.js';
+import { readBoardKey } from '../../../../../packages/keys/index.js';
+import { receiveLocalBoardStates } from '../link/ports.js';
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
@@ -40,6 +43,8 @@ export async function run(io, { first }) {
   const act = (work) => withGitCommandMemo(() => actOn(io, work));
   return act(async (ctx, board, me) => {
   const id = idArg(first);
+  await receiveLocalBoardStates(ctx, board, { projects: listProjects(), parentRoot: primaryCheckoutRoot(ctx.info) ?? ctx.info.root,
+    readKey: id => readBoardKey(id, { legacyKeychain: false }) });
   const phase = claimPhases();
   phase.time('sayQueuedReds', () => sayQueuedReds(io, board, () => me));
   phase.time('sayLag', () => sayLag(io, ctx));
@@ -84,6 +89,8 @@ export async function run(io, { first }) {
     if (error.code === 'ITEM_FOLDER_UNREGISTERED') io.say(`warning: ${error.code}: ${error.message}; claim recorded`);
     else folderProblem = claimedFolderProblem(error, id);
   }
+  // The claim is recorded and its folder is ready: one seat-ready mark, appended after the claim itself; a failed mark spools and never fails the claim [C7,#12159].
+  if (itemFolder && !result.renewed) await (await import('../mark-spool.js')).recordMark(io, ctx, board, { item: id, agentId: me.id, stage: 'seat-ready', edge: 'point', at: ctx.clock.now().getTime() });
   const commitRules = `Commit headers must be at most ${ctx.config.commits.maxHeader} characters. Submit drafts --infra for test import-path-only edits; explain assertion or other guarded edits with --infra "<why>".`;
   io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}),
     ...(folderProblem ? { folderProblem, next: folderProblem.next } : {}) });

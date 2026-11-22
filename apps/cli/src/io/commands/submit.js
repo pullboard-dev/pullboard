@@ -6,7 +6,7 @@ import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { frozenTestsProblem } from '../../../../../packages/verify/index.js';
 import { authorSplitProblem } from '../../../../../packages/verify/index.js';
 import { testAuthorNotes } from '../../../../../packages/verify/index.js';
-import { seatFamily } from '../../../../../packages/items/index.js';
+import { seatFamily } from '../../../../../packages/items/light.js';
 import { itemFolderIdentity } from '../item/folder.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 import { seatRoot } from '../item/folder/identity.js';
@@ -305,7 +305,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       say: line => ctx.io.say(line),
       runCheck: async (check) => {
         const run = await executeCheck(ctx.io, ctx, seen.item, { check, by: seen.author, caller: seen.me.id, values: {}, quiet: true });
-        return { green: run.isGreen, report: run.isGreen ? '' : (await import('../../../../../packages/gate/index.js')).digestOf(run.output) };
+        return { green: run.isGreen, report: run.isGreen ? '' : (await import('../../../../../packages/gate/heavy.js')).digestOf(run.output) };
       } });
   });
   const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {

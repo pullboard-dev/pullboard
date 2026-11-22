@@ -1,0 +1,44 @@
+{
+ "api.io-recheck.budget-only-keys-cases": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "A main-test run whose cases all pass but whose file exceeds its test-file budget writes a keyed step-0 receipt naming those cases as passing and the file as over budget."
+  },
+  "why": "Without it the run keys nothing and every gate waiting on that file stays unknown for good.",
+  "kind": "contract",
+  "inputs": [
+   "packages/api/src/io/recheck.js",
+   "packages/api/src/io/gate/files.js"
+  ]
+ },
+ "api.io-recheck.budget-only-no-mask": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "In a budget-only main run an item failing a case main passed reads as new, and only the same file budget failure reads as main-owned."
+  },
+  "why": "Without it a budget overrun on main could excuse an item's own failing case.",
+  "kind": "contract",
+  "inputs": [
+   "packages/api/src/io/recheck.js",
+   "packages/api/src/io/gate/files.js"
+  ]
+ },
+ "api.io-recheck.budget-only-unfinished": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "A main-test run that names no cases and did not finish, or lacks its budget line or passing outcome frames, still writes no receipt."
+  },
+  "why": "Without it a crashed run could key a receipt that no case backs.",
+  "kind": "contract",
+  "inputs": [
+   "packages/api/src/io/recheck.js",
+   "packages/api/src/io/gate/files.js"
+  ]
+ }
+}

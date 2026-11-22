@@ -9,6 +9,7 @@ import { publishRedTouched } from '../pause.js';
 import { runnerSourceHold } from '../../logic/hold.js';
 import { deferredLandingPriorities } from '../../logic/land/collisions.js';
 import { landingBatchSize } from '../../logic/batch/size.js';
+import { admitBatch } from '../../logic/pipeline.js';
 import { roundFailures } from '../../logic/batch/size.js';
 import { LANDING_RED_LIMIT } from '../../../../store/index.js';
 import { createHash } from 'node:crypto';
@@ -205,7 +206,7 @@ export function landingPriorityCompare(board) {
  * a head item that has met that many infrastructure failures (lapsed leases, lost CAS) goes behind every other accepted
  * item, keeping its accept and its place among its peers; 0 leaves the order as it was [C7,#3118].
  */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [], named = null, priority = false, stepAside = 0 } = {}) {
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [], named = null, priority = false, stepAside = 0, pipeline = false, batches: batchRecords = store.landingBatches(board) } = {}) {
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
   const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
@@ -221,7 +222,10 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     : store.events(board).filter((event) => event.event_kind === 'accept');
   for (const event of accepts) order.set(event.item_id, event.event_id);
   const collisionFree = store.lineSettings(board).collisionFreeBatch === true;
-  const batches = store.landingBatches(board);
+  const batches = batchRecords;
+  const finished = new Set(['landed', 'blocked', 'flaky', 'test-defect']);
+  const inFlight = batches.filter(batch => !finished.has(batch.state));
+  if (!admitBatch({ inFlight, pipeline })) return { ready: [], blocked: [] };
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
   // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
   // picking take turns and cannot starve the queue (#2911).

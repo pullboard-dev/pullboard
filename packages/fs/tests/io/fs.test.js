@@ -185,3 +185,57 @@ test('fs.io-fs.chown: clause 2: chown calls chownSync with the path, uid and gid
   assert.equal(fs.chown('/file', 501, 20), 'done');
   assert.deepEqual(calls, [['/file', 501, 20]]);
 });
+
+test('fs.adapter.realpath-native-delegates: clause 1: realpathNative calls the injected source realpathSync.native, not realpathSync [C7]', () => {
+  const calls = [];
+  const realpathSync = () => 'plain';
+  realpathSync.native = (...args) => { calls.push(args); return 'native'; };
+  const fs = fileSystemAdapter({ realpathSync });
+  assert.equal(fs.realpathNative('/a'), 'native');
+  assert.equal(fs.realpath('/a'), 'plain');
+  assert.deepEqual(calls, [['/a']]);
+});
+
+/** An in-memory node:fs source for the adapter: write, read, exists, and a missing read that fails with ENOENT as node does. */
+function memorySource(tree = new Map()) {
+  return {
+    writeFileSync: (path, data) => { tree.set(path, String(data)); },
+    readFileSync: (path) => {
+      if (!tree.has(path)) throw Object.assign(new Error(`ENOENT: no such file or directory, open '${path}'`), { code: 'ENOENT' });
+      return tree.get(path);
+    },
+    existsSync: (path) => tree.has(path),
+  };
+}
+
+/** The contract: what a caller sees from write, read, exists and a missing file, as plain data. */
+function fsContract(fs, root) {
+  const file = join(root, 'a.txt');
+  const missing = join(root, 'missing.txt');
+  const before = fs.exists(file);
+  fs.writeFile(file, 'hello');
+  const read = fs.readFile(file);
+  fs.writeFile(file, 'again');
+  const overwritten = fs.readFile(file);
+  let missingCode = null;
+  try { fs.readFile(missing); } catch (error) { missingCode = error.code; }
+  return { before, read, overwritten, after: fs.exists(file), missingExists: fs.exists(missing), missingCode };
+}
+
+test('fs.adapter.contract-real-and-fake-agree: clause 1: one contract on the real fs adapter and the in-memory fake gives identical results [C7]', () => {
+  const { root } = privateFixtureFiles('pullboard-fs-contract-');
+  const real = fsContract(fileSystemAdapter(), root);
+  const fake = fsContract(fileSystemAdapter(memorySource()), root);
+  assert.deepEqual(real, { before: false, read: 'hello', overwritten: 'again', after: true, missingExists: false, missingCode: 'ENOENT' });
+  assert.deepEqual(fake, real);
+});
+
+test('fs.adapter.seeded-divergence-fails-contract: clause 2: a fake seeded to differ makes the contract fail [C7]', () => {
+  const { root } = privateFixtureFiles('pullboard-fs-contract-');
+  const real = fsContract(fileSystemAdapter(), root);
+  const seeded = memorySource();
+  const diverging = { ...seeded, existsSync: () => true };
+  assert.notDeepEqual(fsContract(fileSystemAdapter(diverging), root), real);
+  const silentMissing = { ...seeded, readFileSync: (path) => (seeded.existsSync(path) ? seeded.readFileSync(path) : '') };
+  assert.notDeepEqual(fsContract(fileSystemAdapter(silentMissing), root), real);
+});

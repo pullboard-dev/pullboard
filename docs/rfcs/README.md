@@ -19,3 +19,8 @@ An RFC records a decision. Accepted means decided, not built; the [CHANGELOG](..
 | [0009](0009-contribution-records.md) | Contribution records | proposed |
 | [0010](0010-cut-clear-ship.md) | Releases: Cut. Clear. Ship. | proposed |
 | [0011](0011-proof-on-the-exact-tree.md) | Proof on the exact tree | approved (narrowed) |
+| [0012](0012-compiled-bars.md) | Compiled bars | proposed |
+| [0013](0013-the-clock.md) | The clock | proposed |
+| [0014](0014-declared-capacity.md) | Declared capacity | proposed |
+| [0015](0015-a-lean-record.md) | A lean record | proposed |
+| [0016](0016-recursive-governance.md) | Recursive governance | proposed; blocked on RFC 0012 |

@@ -93,12 +93,15 @@ function missingSeatEventIndex(db) {
  */
 const STATUS_INDEX = 'item_status_id';
 const UNMERGED_INDEX = 'item_verified_unmerged';
-const STATUS_SQL = `CREATE INDEX IF NOT EXISTS ${STATUS_INDEX} ON item (item_status, item_id);
+/** A parent's children with their status and landing, read from the index alone: liftSettledHolds asks once per held item, and each ask scanned every item row (3.4 s mean, 18 s worst in a merged hold) [C7,#12751]. */
+const PARENT_INDEX = 'item_parent_status';
+const STATUS_SQL = `CREATE INDEX IF NOT EXISTS ${PARENT_INDEX} ON item (item_parent_id, item_status, item_merged_commit);
+  CREATE INDEX IF NOT EXISTS ${STATUS_INDEX} ON item (item_status, item_id);
   CREATE INDEX IF NOT EXISTS ${UNMERGED_INDEX} ON item (item_id) WHERE item_status='verified' AND COALESCE(item_merged_commit,'')=''`;
 
 /** True when either item-list index is not installed yet. */
 function missingStatusIndexes(db) {
-  return [STATUS_INDEX, UNMERGED_INDEX].some(name => !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(name));
+  return [STATUS_INDEX, UNMERGED_INDEX, PARENT_INDEX].some(name => !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(name));
 }
 
 /**

@@ -17,6 +17,7 @@ import { sharedToolsTarget } from '../toolsnapshot.js';
 import { toolsSnapshot } from '../toolsnapshot.js';
 import { runPulledComparison } from '../test/pull.js';
 import { queueAccept } from '../test/accept.js';
+import { noCheckAccept } from '../test/accept.js';
 import { queuesAccept } from '../test/accept.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/heavy.js';
 import { fileURLToPath } from 'node:url';
@@ -56,7 +57,7 @@ import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
 import { splitAmbiguousMainReds } from '../../../../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../../../../../packages/flakes/index.js';
 import { compositionSessionOptions } from '../../../../../packages/verify/index.js';
-import { frozenCheckTiming } from '../../../../../packages/items/index.js';
+import { frozenCheckTiming } from '../../../../../packages/items/light.js';
 import {
   testOutputSummary,
   retainTestOutput,
@@ -532,6 +533,8 @@ export async function verifyHere(ctx, id, { second, values }) {
       if (!reReview && !companionDigest && !item.item_effective_head && queuesAccept(reviewMainPolicy(root).config, frozenCheck(item))) {
         return await queueAccept(ctx, board, { item: id, me, commit, main: reviewMainPolicy(root).commit, check: frozenCheck(item), digest });
       }
+      // With verify.queueAccept on, an item with no frozen check needs no runner job, gate slot or controller: its accept runs no tests and returns at once [C7,V4,#11908].
+      const noCheck = !reReview && !companionDigest && !item.item_effective_head && noCheckAccept(reviewMainPolicy(root).config, frozenCheck(item));
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       // slices.composeLanding (off by default): a parent with slice children is reviewed as the parent composed with its slices [C7,#2397].
       const sliceReview = ctx.config.slices?.composeLanding === true && !reReview ? composeSliceReview(root, board, item) : null;
@@ -566,7 +569,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         knownMain = null;
         if (!trunk) ({ trunk, review } = composeNow());
         const checkedItem = { ...item, item_commit: checkedCommit };
-        const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests, componentTier: gateComponentTier() });
+        const testTiers = noCheck ? null : selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests, componentTier: gateComponentTier() });
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;

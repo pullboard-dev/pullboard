@@ -54,16 +54,19 @@ const STATUS_WEIGHTS = [502, 58, 30, 14, 1];
 const STATUS_NAMES = ['verified', 'open', 'withdrawn', 'submitted', 'claimed'];
 const LANE_WEIGHTS = [317, 199, 46, 43];
 
+/** Items between two progress lines; shouts report every ten times this. */
+const PROGRESS_BATCH = 200;
+
 /** Hash one stable tuple for generated commits, trees, criterion digests and fact ids. */
 function digest(seed, ...parts) {
   return createHash('sha256').update(JSON.stringify([seed, ...parts])).digest('hex');
 }
 
 /** Retain the long historical stress corpus through real pre-limit replay, without relaxing current writes. */
-function historicalShout(board, { seed, index, from, text }) {
+function historicalShout(board, { seed, index, from, text, sequence }) {
   const move = { version: 1, engine: PROOF_RUN_ENGINE - 1, id: digest(seed, 'pre-limit-shout', index),
     operation: 'shout', args: [{ from, to: 'all', text, lanes: LANES }] };
-  const result = applyEngineMove(board, move, { sequence: appliedSequence(board) + 1, at: FIXED_NOW.toISOString() });
+  const result = applyEngineMove(board, move, { sequence, at: FIXED_NOW.toISOString() });
   assert.equal(result.error, undefined, 'the synthetic pre-limit record replays through the public engine');
 }
 
@@ -267,7 +270,7 @@ function boardSnapshot(board, seed, source, baselineEventId) {
 }
 
 /** Generate a reproducible fixture in a disposable repository without writing its SQLite file directly. */
-export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, parent = tmpdir(), agents: agentCount, shouts: requestedShouts } = {}) {
+export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, parent = tmpdir(), agents: agentCount, shouts: requestedShouts, onProgress } = {}) {
   if (typeof seed !== 'string' || !seed.trim()) throw new TypeError('seed must be a nonempty string');
   if (!Number.isSafeInteger(size) || size < 5 || size > 100_000) throw new RangeError('size must be an integer from 5 through 100000');
   if (agentCount !== undefined && (!Number.isSafeInteger(agentCount) || agentCount < 12 || agentCount > 10000)) throw new RangeError('agents must be an integer from 12 through 10000');
@@ -277,7 +280,9 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
   const stages = [];
   let mark = performance.now();
   let historyMs = 0;
-  const stage = (name, ms) => { const now = performance.now(); stages.push({ name, ms: Math.round(ms ?? now - mark) }); mark = now; };
+  // onProgress receives one line for each stage that really finished and for each batch of items or shouts really written.
+  const progress = (line) => { if (typeof onProgress === 'function') onProgress(line); };
+  const stage = (name, ms) => { const now = performance.now(); stages.push({ name, ms: Math.round(ms ?? now - mark) }); mark = now; progress(`${name} done in ${stages.at(-1).ms} ms`); };
   let board = null;
   let keepWorkspace = false;
   try {
@@ -386,13 +391,17 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
         const historyStart = performance.now();
         fillHistory(board, id, seed, builder, targetHistory, usedEvents, id === longestHistoryItemId ? 8 : index % 12 === 0 ? 2 : 0);
         historyMs += performance.now() - historyStart;
+        if ((index + 1) % PROGRESS_BATCH === 0 && index + 1 < statuses.length) progress(`items ${index + 1} of ${statuses.length} written`);
       }
       stage('items', performance.now() - mark - historyMs);
       stage('histories', historyMs);
       const shoutCount = requestedShouts ?? Math.round(7_289 * size / 605);
+      let shoutSequence = appliedSequence(board);
       for (let index = 0; index < shoutCount; index += 1) {
         const text = index === 0 ? textOf(seed, 'Longest generated shout', 14_000) : textOf(seed, `Generated board update ${index + 1}`, 410);
-        historicalShout(board, { seed, index, from: agents.writer, text });
+        shoutSequence += 1;
+        historicalShout(board, { seed, index, from: agents.writer, text, sequence: shoutSequence });
+        if ((index + 1) % (PROGRESS_BATCH * 10) === 0 && index + 1 < shoutCount) progress(`shouts ${index + 1} of ${shoutCount} written`);
       }
       const historicalCount = allShouts(board).length;
       assert.throws(() => shout(board, { from: agents.writer, to: 'all', text: 'x'.repeat(401), lanes: LANES }),

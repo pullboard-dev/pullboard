@@ -17,6 +17,7 @@ import { registeredMaintenanceTrees } from './observation.js';
 import { itemObligation } from './classify.js';
 import { maintenanceAllocatedBytes } from './observation.js';
 import { takeMaintenanceCheckout } from './observation.js';
+import { blockedWipPaths } from '../../item/wip.js';
 
 const fs = fileSystemAdapter();
 const ITEM_FOLDER = /-item-([1-9]\d*)$/u;
@@ -121,6 +122,11 @@ export async function sweepFinishedFolders(root, entries, { mainRoot, now, confi
       const found = sweepRule(path, fresh, { now, branch, directories: currentDirectories });
       if (!found) continue;
       const dirty = dirtyPaths(path);
+      const blocked = blockedWipPaths(path);
+      if (blocked.length) {
+        entry.reason = `secret-blocked files retained: ${blocked.join(', ')}`;
+        continue;
+      }
       if (dirty.length) {
         const name = found.item ?? basename(path);
         const removeAfter = found.rule === 'claim-ended';
@@ -129,7 +135,7 @@ export async function sweepFinishedFolders(root, entries, { mainRoot, now, confi
           // The fact naming the kept commit lands before the folder goes; a failed record leaves the folder.
           await ports.recordSweep?.({ action: 'kept', rule: found.rule, path, item: found.item, ref: kept.ref, commit: kept.commit });
           // Git's forced removal drops ignored files too, which the keep commit does not hold: those stay.
-          if (maintenanceGit(path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])) { entry.reason = 'ignored data are outside folder sweep custody; worktree kept'; continue; }
+          if (maintenanceGit(path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])) { entry.reason = `uncommitted changes kept at ${kept.ref}; ignored data are outside folder sweep custody; worktree kept`; entry.keepRef = kept.ref; continue; }
           maintenanceGit(root, ['worktree', 'remove', '--force', path]);
           if (fs.exists(path)) { entry.reason = `uncommitted changes kept at ${kept.ref}; worktree kept (rule ${found.rule})`; entry.keepRef = kept.ref; continue; }
           entry.action = 'swept';

@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 import { cpSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -81,11 +82,52 @@ export function waitForMarker(marker, pollMs = 500, maxMs = 150_000) {
   });
 }
 
+/** Where the build child records each real stage it finishes, beside the cache folder it is building. */
+export function progressFile(cache) { return `${cache}.progress`; }
+
+/**
+ * Print each stage line the build child has recorded in `file`, and nothing while no new line was recorded. Only lines
+ * the child wrote reach `write`: no timer produces output. Returns a stop function that prints any last lines.
+ */
+export function streamBuildProgress(file, write = line => process.stdout.write(`${line}\n`), pollMs = 500) {
+  let printed = 0;
+  const flush = () => {
+    if (!existsSync(file)) return;
+    const lines = readFileSync(file, 'utf8').split('\n').slice(0, -1);
+    for (; printed < lines.length; printed += 1) write(`# stress-board build: ${lines[printed]}`);
+  };
+  const timer = setInterval(flush, pollMs);
+  return () => { clearInterval(timer); flush(); };
+}
+
 /** What a cold call waits on: the detached build's exit, or the marker appearing from another run's build. */
 let pending = null;
 
-/** Same result as generateStressBoard, but copied from the runner's cache; removeStressBoard cleans the copy. */
-export function cachedStressBoard(inputs) {
+/** Detached build of one cache folder; resolves when the child exits. */
+function spawnBuild(inputs, cache, lock) {
+  const child = spawn(process.execPath, [join(HERE, 'stress-cache-build.mjs'), JSON.stringify(inputs), cache, lock], { detached: true, stdio: 'ignore' });
+  return new Promise(resolve => child.once('exit', resolve));
+}
+
+/**
+ * Take the build lock: true when this run owns it (taken fresh, or an abandoned one older than ten minutes), false when
+ * another run's build holds it. A lock that vanishes between the failed mkdir and the stat was just released by a finished
+ * build, so the lock is retried once instead of letting the stat throw ENOENT [C7].
+ */
+export function takeLock(lock, stat) {
+  mkdirSync(dirname(lock), { recursive: true });
+  try { mkdirSync(lock); return true; } catch { /* held or released: look */ }
+  try { return Date.now() - stat(lock).mtimeMs > 600_000; } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  try { mkdirSync(lock); return true; } catch { return false; }
+}
+
+/**
+ * Same result as generateStressBoard, but copied from the runner's cache; removeStressBoard cleans the copy.
+ * `seams` lets a test stand in for the lock stat and the detached build.
+ */
+export function cachedStressBoard(inputs, seams = {}) {
   // Returns null while a cold build runs; the caller waits with awaitStressBoard.
   const cache = join(stressCacheRoot(), cacheKey(inputs));
   const marker = join(cache, 'complete');
@@ -93,14 +135,11 @@ export function cachedStressBoard(inputs) {
     // A cold runner builds the board in a detached process: a test run killed at its file budget must not kill the build,
     // so the next run finds the cache. This run waits for it as long as it can.
     const lock = `${cache}.lock`;
-    let fresh = false;
-    try { mkdirSync(lock); fresh = true; } catch { fresh = Date.now() - statSync(lock).mtimeMs > 600_000; }
-    if (fresh) {
-      const child = spawn(process.execPath, [join(HERE, 'stress-cache-build.mjs'), JSON.stringify(inputs), cache, lock], { detached: true, stdio: 'ignore' });
-      pending = new Promise(resolve => child.once('exit', resolve));
-    } else {
-      pending = waitForMarker(marker);
+    if (takeLock(lock, seams.stat ?? statSync)) {
+      rmSync(progressFile(cache), { force: true });
+      pending = (seams.build ?? spawnBuild)(inputs, cache, lock);
     }
+    else pending = waitForMarker(marker);
     return null;
   }
   const built = readFileSync(marker, 'utf8').trim(), source = join(cache, basename(built));
@@ -117,7 +156,9 @@ export function cachedStressBoard(inputs) {
 export function buildStressCache(inputs, cache) {
   const staging = join(stressCacheRoot(), `building-${process.pid}-${Date.now()}`);
   mkdirSync(staging, { recursive: true });
-  const made = generateStressBoard({ ...inputs, parent: staging });
+  // Each stage the build really finishes is appended here for the waiting test run to print.
+  const record = progressFile(cache);
+  const made = generateStressBoard({ ...inputs, parent: staging, onProgress: line => appendFileSync(record, `${line}\n`) });
   writeFileSync(join(made.workspace, 'env.json'), JSON.stringify(made.env));
   // One timing line naming each stage; the detached build has no terminal, so the line also lands beside the cache marker.
   const timing = `stress-board build stages (seed ${made.seed}, size ${made.size}): ${made.stages.map(({ name, ms }) => `${name} ${ms} ms`).join(', ')}, total ${made.stages.reduce((sum, { ms }) => sum + ms, 0)} ms`;
@@ -131,7 +172,8 @@ export function buildStressCache(inputs, cache) {
 export async function awaitStressBoard(inputs) {
   const board = cachedStressBoard(inputs);
   if (board) return board;
-  await pending;
+  const stopProgress = streamBuildProgress(progressFile(join(stressCacheRoot(), cacheKey(inputs))));
+  try { await pending; } finally { stopProgress(); }
   const built = cachedStressBoard(inputs);
   if (!built) throw new Error('Refused(STRESS_BOARD_COLD, the stress board cache build did not finish; rerun this file)');
   // The detached build has no terminal: surface its stage timing line in this run's output so a cold build is measurable from the run log.

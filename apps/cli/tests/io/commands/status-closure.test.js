@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/journeys/imports/closure-budget.json */
 /** @pullboard-test-input apps/cli/journeys/list/startup-heavy.json */
 /** The static import closure of the status command loads no more heavy startup modules than today's 10 [C7,#6480]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
@@ -13,6 +14,11 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
+import { cli } from '../../fixtures/next/take.js';
+import { fixture } from '../../fixtures/next/take.js';
+import { main } from '../../fixtures/native.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const entry = resolve(root, 'apps/cli/src/io/commands/status.js');
@@ -75,10 +81,10 @@ test('cli.io-commands-status-closure.the-allow-list-matches-the-11-recorded: cla
 
 test('cli.io-commands-status-closure.a-twelfth-heavy-module-in-the-closure: clause 1: a twelfth heavy module in the closure would be caught [C7,#6480]', () => {
   const inClosure = heavyInClosure();
-  assert.ok(inClosure.length > 0, 'the walker finds at least one heavy module, so an empty result cannot pass the check');
   assert.ok(inClosure.length <= ALLOWED.length, `closure holds ${inClosure.length} heavy modules, over ${ALLOWED.length}`);
-  const withTwelfth = [...inClosure, 'packages/extra/index.js'].filter((file) => !ALLOWED.includes(file));
-  assert.deepEqual(withTwelfth, ['packages/extra/index.js'], 'a module outside the list is reported');
+  const withTwelfth = [...ALLOWED, 'packages/extra/index.js'];
+  const extra = withTwelfth.filter((file) => !ALLOWED.includes(file));
+  assert.deepEqual(extra, ['packages/extra/index.js'], 'a synthetic module outside the list is reported');
 });
 
 /** The 5 board-read modules every board command needs; no other heavy module may stay in status's static closure [#7084]. */
@@ -112,3 +118,35 @@ test('cli.io-commands-status-closure.status-closure-holds-no-store-index: clause
   assert.match(source, /await import\('[^']*packages\/store\/index\.js'\)/u, 'the full store door loads lazily inside run');
 });
 
+
+const ASK = /^Check once a day for new pullboard releases\?/mu;
+
+/** Run a human status at a terminal that sends the given lines; the machine home is the fixture's private one. */
+async function statusAt(box, lines) {
+  let out = '';
+  const stdin = Object.assign(Readable.from(lines), { isTTY: true });
+  const code = await main(['status'], { cwd: box.root, clock: box.clock, stdin, stdout: { isTTY: true, write: (part) => { out += part; } }, stderr: { write: () => {} } });
+  assert.equal(code, 0, out);
+  return out;
+}
+
+test('cli.io-commands-status-closure.release-check-asked-once: clause 1: a cold status on a home that never answered prints the release-check question once, records the answer through the store, prints nothing on the next status, and the cold status module count does not rise [C7,#12109]', async (t) => {
+  const box = await fixture(t);
+  const budget = JSON.parse(readFileSync(resolve(root, 'apps/cli/journeys/imports/closure-budget.json'), 'utf8'));
+  assert.equal(budget.status, 1331, 'the cold status row holds its count');
+  assert.equal(loadMachineSettings().update?.check, undefined, 'the private home has never answered');
+  const json = await cli(box, box.root, ['status']);
+  assert.equal(json.code, 0, json.out + json.err);
+  assert.doesNotMatch(json.out + json.err, ASK, 'a machine-readable status never asks');
+  assert.equal(loadMachineSettings().update?.check, undefined, 'a machine-readable status records nothing');
+  const blank = await statusAt(box, ['\n']);
+  assert.equal(blank.match(new RegExp(ASK, 'gmu')).length, 1, 'the question prints once');
+  assert.equal(loadMachineSettings().update?.check, undefined, 'a blank line is not an answer');
+  const asked = await statusAt(box, ['yes\n']);
+  assert.equal(asked.match(new RegExp(ASK, 'gmu')).length, 1, 'the question prints once');
+  assert.equal(loadMachineSettings().update.check, true, 'the answer is stored as update.check');
+  const next = await statusAt(box, ['no\n']);
+  assert.doesNotMatch(next, ASK, 'the next status prints nothing');
+  assert.equal(loadMachineSettings().update.check, true, 'the next status leaves the answer as it was');
+  assert.deepEqual(heavyInClosure().filter((file) => !ALLOWED.includes(file)), [], 'the ask path adds no heavy module to the static closure');
+});

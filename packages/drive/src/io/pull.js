@@ -780,7 +780,7 @@ const PER_JOB_REFUSALS = new Set(['JOB_RECEIPT', 'JOB_WRITE_TIMEOUT', 'HOP_FENCE
  * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
-export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'), signCompletion = null,
+export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'), signCompletion = null, screenshotPolicy = null,
   once = false, jobs: jobsSetting = environmentAdapter().get('PULLBOARD_RUNNER_JOBS'), cores = availableParallelism(), signal, admit = () => true, ledger = heldKinds(), runnerCode = null, peer = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, jobWorkerFactor = 2, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => disk.rm(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
@@ -1077,6 +1077,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
     // With gate.pulledProfilePaths on, each phase's timing profile is copied beside its log in the kept folder and named on its row (profileKept); the copy comes before the job's folder, which holds the profiles, is removed [C7,#9614].
     const keptGate = gate && pulledProfilePaths && kept ? keepGateProfiles(kept, gateReceipt(result, claim.candidate, 0).gate) : null;
+    // Artifacts are sampled from this slot's actual checkout after every writer has ended,
+    // never from a path the test printed. Only test jobs expose them to their caller.
+    const screenshots = claim.kind === 'test' && screenshotPolicy ? (await import('./pull/screenshots.js')).pulledScreenshots(checkout.folder, screenshotPolicy) : null;
     try { removeFolder(job.folder); } catch (error) { say(`left ${name}'s environment folder to the prune: ${error?.code ?? error}`); }
     liveEnvironments.delete(name);
     if (signal?.aborted && !lost) {
@@ -1092,11 +1095,18 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const receipt = { ...exclusiveEvidence, ...(gate ? { ...gateReceipt(result, claim.candidate, Date.now() - started), ...(keptGate ? { gate: keptGate } : {}) }
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
         outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(claim.kind === 'test' ? { executionContext } : {}), ...(kept ? { output: { runner: id, folder: kept } } : {}) };
+    if (screenshots && receipt.gate) receipt.gate = { ...receipt.gate, ...screenshots };
     if (claim.kind === 'test' && typeof signCompletion === 'function' && /^[a-f0-9]{48}$/u.test(completionNonce ?? '')) {
       try {
         const tree = await git.run(checkout.folder, ['rev-parse', 'HEAD^{tree}']);
         const hash = tree.status === 0 ? tree.stdout.trim() : '';
-        if (/^[a-f0-9]{40,64}$/u.test(hash)) receipt.signedCompletion = signCompletion({ version: 1, job: claim.job, nonce: completionNonce, source: claim.candidate, tree: hash, status: result.status, signal: result.signal, outputSha256: result.outputSha256 });
+        if (/^[a-f0-9]{40,64}$/u.test(hash)) {
+          const packet = receipt.gate?.testResults?.packet;
+          const packetSha256 = typeof packet === 'string' ? createHash('sha256').update(packet).digest('hex') : null;
+          receipt.signedCompletion = signCompletion({ version: 1, job: claim.job, nonce: completionNonce, source: claim.candidate, tree: hash,
+            status: result.status, signal: result.signal, outputSha256: result.outputSha256, requestSha256: receipt.gate?.requestSha256,
+            packetSha256, ...(screenshots && receipt.gate ? { screenshotsSha256: screenshots.screenshotsSha256 } : {}), runtimeSha256: executionContext?.runtime ?? null, toolingSha256: executionContext?.tooling ?? null, context: executionContext });
+        }
       } catch { /* Unsigned results remain ordinary execution results. */ }
     }
     try {

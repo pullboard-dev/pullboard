@@ -76,6 +76,14 @@ function baseTreeCopy(root, refs, into) {
   return null;
 }
 
+/** Copy a recorded commit tree into `into` through a private index for repeatable before/after measurements. */
+function commitTreeCopy(root, commit, into) {
+  const env = { ...process.env, GIT_INDEX_FILE: join(into, 'index') };
+  const read = runFixtureChild('git', ['read-tree', commit], { cwd: root, env, encoding: 'utf8' });
+  const copied = read.status === 0 ? runFixtureChild('git', ['checkout-index', '--all', '--force', `--prefix=${join(into, 'tree')}/`], { cwd: root, env, encoding: 'utf8' }) : read;
+  return copied.status === 0 ? join(into, 'tree') : null;
+}
+
 /** The repo-relative files among loaded file URLs that sit under `top`. */
 function underTop(urls, top) {
   const files = [...urls].map(url => { try { return fileURLToPath(url.split('?')[0]); } catch { return null; } }).filter(Boolean);
@@ -138,12 +146,25 @@ function commandLoads(args, runner = false, extraEnv = {}, top = ROOT) {
   return { loaded: urls.size, urls, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
+/** One line per package (or apps/cli folder) with its loaded module count, largest first, so the next cut is named from the print [C7]. */
+function groupLines(urls) {
+  const counts = new Map();
+  for (const file of underTop(urls, ROOT)) {
+    const parts = file.split('/');
+    const key = parts.slice(0, parts[0] === 'apps' ? 3 : 2).join('/');
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([key, n]) => `${n} ${key}`);
+}
+
 for (const [command, budget] of Object.entries(budgets)) {
   test(`pullboard ${command} loads at most ${budget} modules plus headroom; a lower count means lower the budget [C7]`, t => {
     const measure = top => RUNNER_ROW.test(command) ? commandLoads(command.replace(RUNNER_ROW, ''), true, {}, top).urls
       : GIT_HOOK_ROW.test(command) ? commandLoads(command.replace(GIT_HOOK_ROW, ''), false, { GIT_EXEC_PATH: '/usr/libexec/git-core' }, top).urls
         : commandLoads(command, false, {}, top).urls;
-    const loaded = measure(ROOT).size;
+    const urls = measure(ROOT);
+    const loaded = urls.size;
+    if (command === 'show 1') for (const line of groupLines(urls)) t.diagnostic(`pullboard show 1 group ${line}`);
     if (loaded > budget + headroom(budget)) assert.fail(overMessage(command, loaded, budget, addedAgainstMain(ROOT, MAIN_REFS, measure)));
     if (loaded < budget) t.diagnostic(`pullboard ${command} loaded ${loaded}; lower its budget in closure-budget.json to ${loaded}`);
   });
@@ -170,12 +191,36 @@ test('cli.journeys-imports-closure-budget.cold-status-trimmed-modules: a cold pu
   assert.deepEqual(loadedDrops, [], `a cold status loaded ${loadedDrops.join(', ')}: the fallback reclaim loads the drive step machinery only when a gate job has lapsed`);
 });
 
+test('cli.journeys-imports-closure-budget.status-store-door-module-drop: clause 1: cold status loads at least 10 fewer modules after #12701 than before it [C7]', t => {
+  const scratch = privateFixtureFiles('status-store-door-');
+  try {
+    const beforeTree = commitTreeCopy(ROOT, '7d0d40f3fa62f948dd1186af526af22232dc005d', scratch.root);
+    assert.ok(beforeTree, 'the pre-#12701 main tree is available');
+    const before = commandLoads('status', false, {}, beforeTree);
+    const after = commandLoads('status');
+    assert.equal(before.status, 0, before.stderr);
+    assert.equal(after.status, 0, after.stderr);
+    const dropped = before.urls.size - after.urls.size;
+    t.diagnostic(`cold status modules before #12701: ${before.urls.size}; after #12701: ${after.urls.size}; reduction: ${dropped}`);
+    assert.ok(dropped >= 10, `cold status loaded ${before.urls.size} modules before #12701 and ${after.urls.size} after it; expected a reduction of at least 10`);
+  } finally { rmSync(scratch.root, { recursive: true, force: true }); }
+});
+
 test('cli.journeys-imports-closure-budget.cold-list-maintenance-no-gate: clause 2: a cold pullboard list, whose after-command worktree maintenance imports the scheduler and tool/build.js, loads no module of the gate package [C7,#12595]', () => {
   const run = commandLoads('list');
   const gate = new URL('packages/gate/', `file://${ROOT}`).href;
   const loadedGate = [...run.urls].filter(url => url.startsWith(gate));
   assert.ok(run.urls.size > 0, run.stderr);
   assert.deepEqual(loadedGate.slice(0, 5), [], `a cold list loaded ${loadedGate.length} gate modules: apps/cli/src/io/tool/build.js must not import the gate package`);
+});
+
+test('cli.journeys-imports-closure-budget.cold-commit-msg-trimmed-modules: clause 1: a cold pullboard hook commit-msg loads none of packages/kernel/light.js and the kernel logic files only that door pulls in [C7,#11944]', () => {
+  const run = commandLoads('hook commit-msg');
+  const dropped = ['light.js', 'src/logic/audit.js', 'src/logic/cause.js', 'src/logic/census.js', 'src/logic/discovery.js', 'src/logic/engine-declarations.js', 'src/logic/environment.js',
+    'src/logic/machine.js', 'src/logic/registry.js', 'src/logic/repo-paths.js', 'src/logic/scratch-base.js', 'src/logic/transient.js', 'src/logic/words.js'].map(name => `packages/kernel/${name}`);
+  const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
+  assert.ok(run.urls.size > 0, run.stderr);
+  assert.deepEqual(loadedDrops, [], `a cold hook commit-msg loaded ${loadedDrops.join(', ')}: the entry enables its compile cache after the hook shim, and the seat address files take Refused from the kernel browser door`);
 });
 
 test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a cold claim never loads apps/cli/src/io/spec.js: claim imports coordinatorFile from its own file [C7]', () => {

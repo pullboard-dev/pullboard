@@ -7,7 +7,7 @@ import { primaryCheckoutRoot } from '../entry.js';
 import { relayRecovered } from '../../../../../packages/link/index.js';
 import { proposeLanes } from '../init.js';
 import { counterProofStats } from '../../../../../packages/verify/index.js';
-import { localDependencyIds } from '../../../../../packages/items/index.js';
+import { localDependencyIds } from '../../../../../packages/items/light.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { adoptOrphanedClaim } from '../resume/adopt.js';
@@ -30,6 +30,8 @@ import { requireBoardWriteAccess } from '../../../../../packages/store/index.js'
 import {
   briefFiles,
 } from '../../../../../packages/items/index.js';
+import { loadStopRules } from '../../../../../packages/items/index.js';
+import { nextReturnedFirst } from '../../../../../packages/config/index.js';
 import {
   COORDINATOR,
   hunkFreshnessEnabled,
@@ -201,6 +203,8 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       worktreeConfig = mainRoot ? (isMain ? ctx.config : loadConfig(mainRoot)) : null;
     }
     const me = whoAmI(ctx, board);
+    // The coordinator's needs-judgement list comes from the store reader the view state uses, only with next.returnedFirst on [C7,#11669].
+    const judgement = me.id === COORDINATOR && nextReturnedFirst() ? store.boardNeedsJudgement(board, undefined, await loadStopRules()) : null;
     const projector = diagnostics ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }) : null;
     const all = store.listItems(board, { all: true }).map(item => projector ? projector.project(item) : item);
     foreignBlocked = new Set(all.filter(item => store.foreignBlockers(board, item).length).map(item => item.item_id));
@@ -232,6 +236,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
       held: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id)
         .map((item) => ({ item: item.item_id, facts: store.itemThread(board, item.item_id) })),
+      ...(judgement ? { needsJudgement: judgement } : {}),
       sentBack: all
         .filter((item) => item.item_status === 'open' && item.item_verdict === 'REJECT' && item.item_built_by === me.id)
         .map((item) => ({ item, verdict: store.verdictsFor(board, item.item_id).at(-1) })),
@@ -332,6 +337,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
     const files = briefFiles(item.item_brief);
     if (files.length) say(`  files: ${files.join(', ')}`);
   }
+  for (const entry of card.needsJudgement ?? []) say(`needs judgement: #${entry.id} ${entry.reason}, ${plural(entry.attempts, 'attempt')}${entry.refusalText ? `: ${firstLine(entry.refusalText)}` : ''}`);
   for (const { item, verdict } of card.sentBack) {
     say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${name(verdict.verdict_by)}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
   }

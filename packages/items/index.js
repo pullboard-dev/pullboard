@@ -64,6 +64,7 @@ export { auditFailureItem } from './src/logic/audit/failure.js';
 
 export { claimProgress } from './src/logic/claims.js';
 export { namedItemPaths, claimOverlaps, liveClaimCollisions } from './src/logic/overlap.js';
+export { cutItem } from './src/logic/cut.js';
 export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildProblem } from './src/logic/expected.js';
 
 export { headRevs } from './src/io/submit/revs.js';

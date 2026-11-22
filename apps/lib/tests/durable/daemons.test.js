@@ -13,9 +13,9 @@ import { spawnSync } from 'node:child_process';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
-import { LOAD_BEARING_CEILINGS } from '../../../../packages/gate/index.js';
-import { loadBearingFailures } from '../../../../packages/gate/index.js';
-import { loadBearingSites } from '../../../../packages/gate/index.js';
+import { LOAD_BEARING_CEILINGS } from '../../../../packages/gate/heavy.js';
+import { loadBearingFailures } from '../../../../packages/gate/heavy.js';
+import { loadBearingSites } from '../../../../packages/gate/heavy.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });

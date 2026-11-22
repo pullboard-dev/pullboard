@@ -1,7 +1,11 @@
 /** Review reservations held as jobs-cell leases through the board's `reviewLease` engine port [C7,V15]. */
 import { getItem } from "../query.js";
+import { atomic } from "../event/log.js";
 import { logEvent } from "../event/log.js";
+import { coordinatorOnly } from "../../board.js";
 import { setItem } from "../../board.js";
+import { Refused } from "../../../../../kernel/index.js";
+import { CLEAR_REVIEW_RESERVATION_ENGINE } from "../../../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { RELEASE_REASONS_ENGINE } from "../../../../../state/index.js";
 import { BOARD_RELEASE_CODES_ENGINE } from "../../../../../state/index.js";
@@ -62,4 +66,33 @@ export function holdReviewLease(board, id, agentId) {
  */
 export function endReviewLease(board, id) {
   board.enginePorts?.reviewLease?.releaseReview(board.db, board.db.prepare('SELECT item_id FROM item WHERE item_id=?').get(id)?.item_id ?? id, { now: board.clock.now().getTime() });
+}
+
+/**
+ * Clear a held review reservation on a submitted item through the coordinator transaction: the item stays submitted, its
+ * review columns go null and its review-job lease ends through endReviewLease, so another reviewer can reserve it [C7,#12649].
+ * Why a separate move: clearReservation clears build-route reservation columns only, so it never touched this one.
+ * The event records the holder and deadline it removed, so every replica replays the same board.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string }} who - The coordinator.
+ * @returns {{ holder: string, until: string | null }}
+ */
+export function clearReviewReservation(board, id, { agentId }) {
+  coordinatorOnly(agentId, 'clears a review reservation');
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < CLEAR_REVIEW_RESERVATION_ENGINE) {
+    throw new Refused('ENGINE_VERSION', 'clearing a review reservation requires replay-aware writers; upgrade every linked device');
+  }
+  return atomic(board, () => {
+    const item = getItem(board, id);
+    if (item.item_status !== 'submitted') throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted; only a submitted item holds a review reservation`);
+    const holder = item.item_review_by;
+    if (!holder) throw new Refused('USAGE', `item #${id} holds no review reservation, so there is nothing to clear; see pullboard show ${id}`);
+    const until = item.item_review_until ?? null;
+    setItem(board, id, { item_review_by: null, item_review_until: null });
+    endReviewLease(board, id);
+    logEvent(board, agentId, 'clear_review_reservation', id, { holder, until });
+    return { holder, until };
+  });
 }

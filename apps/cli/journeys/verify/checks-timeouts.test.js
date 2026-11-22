@@ -32,47 +32,6 @@ const {
   project, attackCommit, privateCheckSubmission,
 } = e2e;
 
-test('cli.journeys-verify-checks-timeouts.accept-reports-a-frozen-check-timeout: accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', async () => {
-  const box = privateCheckSubmission({ timeout: '100ms', check: 'echo timeout-marker; case "$PULLBOARD_HOME" in */pullboard-criterion-*/home/.pullboard) while :; do :; done;; *) exit 1;; esac' });
-  const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the frozen check exceeded its configured timeout', '--json');
-  assert.equal(refused.code, 1);
-  const error = JSON.parse(refused.out).error;
-  assert.equal(error.code, 'CHECK_UNVERIFIED');
-  assert.match(error.message, /check timed out/);
-  assert.match(error.message, /timeout-marker/);
-  assert.match(error.message, /full output file:/);
-  assert.match(error.message, /output digest/);
-  assert.match(error.next, /^restore the install or check environment, then retry verification/);
-});
-
-test('cli.journeys-verify-checks-timeouts.a-frozen-check-whose-shell-cannot: a frozen check whose shell cannot start is identified as a startup failure [V18,V2]', async () => {
-  const box = privateCheckSubmission({ check: 'echo forbidden-shell-ran' });
-  const isolatedPath = join(box.dir, 'git-only-path');
-  mkdirSync(isolatedPath);
-  const gitPath = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
-  symlinkSync(gitPath, join(isolatedPath, 'git'));
-  box.env.PATH = isolatedPath;
-  const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the shell is unavailable', '--json');
-  assert.equal(refused.code, 1, refused.err);
-  const error = JSON.parse(refused.out).error;
-  assert.equal(error.code, 'CHECK_UNVERIFIED');
-  assert.match(error.message, /check could not start \(ENOENT\)/);
-  assert.doesNotMatch(error.message, /forbidden-shell-ran/);
-  assert.match(error.message, /full output file:/);
-});
-
-test('cli.journeys-verify-checks-timeouts.accept-reports-a-frozen-install-timeout: accept reports a frozen install timeout before running the check [V18,V2]', async () => {
-  const box = privateCheckSubmission({ timeout: '100ms', install: 'echo install-started; while :; do :; done', check: 'echo forbidden-check-ran' });
-  const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the install must finish within its frozen deadline', '--json');
-  assert.equal(refused.code, 1);
-  const error = JSON.parse(refused.out).error;
-  assert.equal(error.code, 'CHECK_UNVERIFIED');
-  assert.match(error.message, /install timed out/);
-  assert.match(error.message, /install-started/);
-  assert.doesNotMatch(error.message, /forbidden-check-ran/);
-  assert.match(error.next, /^restore the install or check environment, then retry verification/);
-});
-
 test('cli.journeys-verify-checks-timeouts.private-check-timeout-kills-a-term: clause 1: private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', async () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));

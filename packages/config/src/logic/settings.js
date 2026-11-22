@@ -434,12 +434,6 @@ export function loadMachineSettings() {
   if (value.verify?.rejectKeepsCheck !== undefined && typeof value.verify.rejectKeepsCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.rejectKeepsCheck in ${file} must be true or false`);
   }
-  if (value.docs !== undefined && (!value.docs || typeof value.docs !== 'object' || Array.isArray(value.docs) || Object.keys(value.docs).some(key => key !== 'regenerateOnCommit'))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `docs in ${file} holds only regenerateOnCommit; remove other keys`);
-  }
-  if (value.docs?.regenerateOnCommit !== undefined && typeof value.docs.regenerateOnCommit !== 'boolean') {
-    throw new Refused('BAD_MACHINE_SETTINGS', `docs.regenerateOnCommit in ${file} must be true or false`);
-  }
   if (value.freeze?.refuseEmptyBar !== undefined && typeof value.freeze.refuseEmptyBar !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `freeze.refuseEmptyBar in ${file} must be true or false`);
   }
@@ -759,6 +753,16 @@ export function namedImportSelectionOn() {
 /** Whether a submit records its clause marks (#9440): off by default; only an exact `true` turns it on. */
 export function submitClauseMarks() {
   return loadMachineSettings().submit?.clauseMarks === true;
+}
+
+/** Whether next puts returned work ahead of untouched work (#11241): off by default; only an exact `true` turns it on. */
+export function nextReturnedFirst() {
+  return loadMachineSettings().next?.returnedFirst === true;
+}
+
+/** Whether route reservations are on (#9177, #11306): on by default; only an exact `false` turns it off. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations !== false;
 }
 
 /** Whether a submit composes main as a throwaway object under refs/pullboard/compose, never a branch commit (U159): off by default; only an exact `true` turns it on. */

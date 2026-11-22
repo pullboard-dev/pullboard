@@ -19,6 +19,12 @@ export {
   serveApi,
 } from "./src/io/main.js";
 export { codeAt } from "./src/io/code.js";
+export { installBoardService } from "./src/io/service.js";
+export {
+  BOARD_SERVICE_LABEL,
+  boardServiceCommands,
+  boardServicePlist,
+} from "./src/logic/service.js";
 export {
   offerReleaseShards,
   releaseParticipationShards,

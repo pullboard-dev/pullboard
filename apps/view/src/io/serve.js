@@ -378,13 +378,24 @@ function requestCookie(header, name) {
  */
 const credentialMatches = (given, expected) => given.length === expected.length && timingSafeEqual(given, expected);
 
+/** Whether the item exists on the root's board and has recorded no events, read through the board reader the view already uses. */
+function itemHasNoEvents(root, id) {
+  let board;
+  try {
+    board = openBoardForRead(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'));
+    if (!board) return false;
+    store.getItem(board, id);
+    return !board.db.prepare('SELECT 1 FROM event WHERE item_id = ? LIMIT 1').get(id);
+  } catch { return false; } finally { if (board) store.closeBoard(board); }
+}
+
 /**
  * Serve the view until stopped, optionally giving its API access to only one registered project. With `statePorts`,
  * the URL of a module exporting boardStatePorts(), a worker keeps each board's state built and a read only serves it.
  *
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, clock, statePorts, machineName = viewMachineName, projects } = {}) {
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, clock, statePorts, machineName = viewMachineName, projects, readFlow = null } = {}) {
   requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
@@ -539,6 +550,16 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
   }
 
+  /** The compatibility cells, read only: the recorded conformance runs of this project's root as page cells (C7). */
+  async function compatCellsRequest(req, res, url) {
+    const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? ''));
+    if ((!credentialMatches(given, key) && !cookieMatches(req)) || url.search || req.headers.authorization !== undefined) {
+      return json(res, 403, refusalDocument(new Refused('VIEW_SIGN_IN_AUTH', 'open this view and send its session key in the x-pullboard-key header only')));
+    }
+    if (req.method !== 'GET') return json(res, 405, refusalDocument(new Refused('BAD_REQUEST', 'read the compat cells with a GET')));
+    return json(res, 200, compatCells(conformanceRows({ root: projectRoot ?? process.cwd(), pathValue: HOST_ENV.PATH ?? '' })));
+  }
+
   /** Run only the existing person-channel adapter, with per-view intent ownership and header authentication. */
   async function sharingRequest(req, res, url) {
     const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? ''));
@@ -638,6 +659,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       }
       if (url.pathname === '/api/v1/view-link') return sharingRequest(req, res, url);
       if (url.pathname === '/api/v1/machine') return machineRequest(req, res, url);
+      if (url.pathname === '/api/v1/compat-cells') return compatCellsRequest(req, res, url);
       if (projectRoot === undefined && url.pathname === '/api/v1/projects/forget-unreadable') return forgetUnreadableRequest(req, res, url);
       return apiHandler(req, res);
     }
@@ -665,17 +687,23 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null, milestoneDelta: loadMachineSettings().state?.milestoneDelta === true ? { forecast: milestoneForecast } : null }));
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, readFlow, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null, milestoneDelta: loadMachineSettings().state?.milestoneDelta === true ? { forecast: milestoneForecast } : null }));
       // One item's timeline, read only, for the item page's strip: the very document `pullboard timeline <id> --json` prints, run through the CLI the view is given.
       const timelineRoute = req.method === 'GET' ? /^\/item-timeline\/(\d+)$/u.exec(url.pathname) : null;
       if (timelineRoute) {
+        // The page says which project it is showing; only a registered root is believed, and a view scoped to one project keeps its own.
+        const asked = url.searchParams.get('root');
+        const known = (projects ? projects() : listApiProjects()).map((entry) => entry.root);
+        const root = projectRoot ?? (asked && known.includes(asked) ? asked : process.cwd());
         let output = '';
-        const status = await runCommand(['timeline', timelineRoute[1], '--json'], { cwd: projectRoot ?? process.cwd(), ...(clock ? { clock } : {}), stdout: { isTTY: false, write: (text) => { output += text; } }, stderr: { write: () => {} }, onEvent: () => {} });
-        if (status) return json(res, 404, { error: `no timeline for #${timelineRoute[1]}` });
+        const status = await runCommand(['timeline', timelineRoute[1], '--json'], { cwd: root, ...(clock ? { clock } : {}), stdout: { isTTY: false, write: (text) => { output += text; } }, stderr: { write: () => {} }, onEvent: () => {} });
+        if (status) {
+          // An item that exists but has no events has no strip to draw; that is an answer, not a missing page. Any other failure keeps its 404.
+          if (itemHasNoEvents(root, Number(timelineRoute[1]))) return json(res, 200, { version: 1, item: Number(timelineRoute[1]), rows: [], summary: null, unmapped: [] });
+          return json(res, 404, { error: `no timeline for #${timelineRoute[1]}` });
+        }
         return reply(res, 200, 'application/json; charset=utf-8', output);
       }
-      // The compatibility cells, read only: the recorded conformance runs of this project's root as page cells.
-      if (req.method === 'GET' && url.pathname === '/compat-cells') return json(res, 200, compatCells(conformanceRows({ root: projectRoot ?? process.cwd(), pathValue: HOST_ENV.PATH ?? '' })));
       if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

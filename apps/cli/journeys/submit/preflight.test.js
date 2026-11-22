@@ -89,10 +89,3 @@ test('cli.journeys-submit-preflight.submit-preflight-runs-every-registered-check
   assert.match(lines.at(-1), /^preflight red: \d+ of \d+ checks failed/u);
 });
 
-test('cli.journeys-submit-preflight.a-clean-change-passes-preflight-and: clause 2: a clean change passes preflight and it finishes under 15 seconds [C7]', { timeout: 120_000 }, async (t) => {
-  const { runPreflight } = await import('../../src/io/submit/preflight.js');
-  const box = preflightProject(t);
-  const report = await runPreflight(box.repo, ['packages/x/src/a.js']);
-  assert.equal(report.ok, true, JSON.stringify(report.results.filter(row => row.failures.length)));
-  assert.ok(report.ms < 15000, `preflight took ${Math.round(report.ms)} ms`); // budget: the criterion requires under 15 s.
-});

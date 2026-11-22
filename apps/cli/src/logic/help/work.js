@@ -120,6 +120,7 @@ export const workHelp = `Work
   pullboard why <file>[:<line>]         the decisions, rows and items behind a file or line, each with its origin
   pullboard why [<release>] [--json]    the release flow on one screen: each unlanded item's cause, each idle seat, and recent landings
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
+  pullboard next --no-wait              answer at once when nothing is free: idle line exit 4, board finished exit 3
   pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --stuck "<why>"        release the build you hold as BLOCKED with that reason, then print the next instruction
@@ -153,6 +154,7 @@ export const workHelp = `Work
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER (a review: BAR|FAMILY|INFRA|TOO_LARGE) [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
+  pullboard release <id> --review       coordinator only; clear a held review reservation and make the review available again
 ${RELEASE_REASON_LINES.map(line => `                                        ${line}`).join('\n')}
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref

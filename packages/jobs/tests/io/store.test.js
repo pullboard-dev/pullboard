@@ -1,12 +1,19 @@
+/** @pullboard-test-input source-cell packages/jobs */
 /** The job store keeps one row per gate job or landing batch with an append-only, idempotent step log [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
+import { repoPath } from '../../../kernel/light.js';
 import { holdBoard } from '../fixtures/hold-board.js';
 import { atomically } from '../../index.js';
 import { createJob } from '../../index.js';
 import { setWriteHold } from '../../index.js';
+import { setPreparedCommit } from '../../index.js';
+import { commitJobStatements } from '../../index.js';
 import { jobView } from '../../index.js';
 import { jobsOf } from '../../index.js';
 import { leasedJobs } from '../../index.js';
@@ -158,4 +165,28 @@ test('jobs.store.offer-sequence-busy: clause 3: the createJob then writeStep seq
     writeStep(db, 'gate:offer', 'offered', {}, { now: 2 });
   }, { boundMs: 300 }), refused('BOARD_BUSY'));
   assert.equal(jobView(db, 'gate:offer'), null, 'nothing was written');
+});
+
+test('jobs.io-store.prepared-commit-port: clause 1: setPreparedCommit and commitJobStatements pass board, move and statements through a set port and return its results; clause 2: with no port set commitJobStatements refuses PREPARED_COMMIT_UNSET, and store.js adds no import outside the jobs cell beyond the kernel front door [C7]', t => {
+  t.after(() => setPreparedCommit(null));
+  const calls = [];
+  const board = { name: 'board' };
+  const move = { kind: 'move' };
+  const statements = [{ sql: 'select 1' }];
+  const outcome = { committed: 1 };
+  setPreparedCommit((...args) => { calls.push(args); return outcome; });
+  assert.equal(commitJobStatements(board, move, statements), outcome, 'the port result comes back as it was');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], [board, move, statements]);
+  assert.ok(calls[0][0] === board && calls[0][1] === move && calls[0][2] === statements, 'each argument arrives as the same object');
+  setPreparedCommit(null);
+  assert.throws(() => commitJobStatements(board, move, statements), refused('PREPARED_COMMIT_UNSET'));
+  assert.equal(calls.length, 1, 'a cleared port is not called');
+  const file = repoPath(import.meta.dirname, '../../src/io/store.js');
+  const jobs = resolve(import.meta.dirname, '..', '..');
+  const kernel = resolve(jobs, '..', 'kernel', 'light.js');
+  const specifiers = [...readFileSync(file, 'utf8').matchAll(/^import [^\n]* from ["']([^"']+)["'];$/gmu)].map(match => match[1]);
+  assert.ok(specifiers.length > 0, 'the scan sees the imports');
+  const outside = specifiers.filter(spec => !spec.startsWith('node:') && !(resolve(dirname(file), spec).startsWith(jobs + '/') || resolve(dirname(file), spec) === kernel));
+  assert.deepEqual(outside, [], 'store.js imports only node, the jobs cell and the kernel front door');
 });

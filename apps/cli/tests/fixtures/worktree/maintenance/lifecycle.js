@@ -47,7 +47,7 @@ export async function enable(box) {
   config.worktreeMaintenance = { enabled: true, every: '1h', grace: '1d', exclude: [] };
   fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
-  const committed = await box.tryGit(box.repo, 'commit', '-qm', 'chore: enable private lifecycle maintenance fixture');
+  const committed = await box.tryGitInProcess(box.repo, 'commit', '-q', '-m', 'chore: enable private lifecycle maintenance fixture');
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 

@@ -48,9 +48,9 @@ function testFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? testFiles(join(dir, entry.name)) : entry.name.endsWith('.test.js') ? [join(dir, entry.name)] : []));
 }
 
-/** Reads registry.json and every registry.m<N>.json beside it and merges them; an ID defined in two files fails, so slices land in parallel without a JSON conflict. */
+/** Reads registry.json and every registry.m<N>.json or registry-<id>.json beside it and merges them; an ID defined in two files fails, so slices land in parallel without a JSON conflict. */
 function mergedRecords(dir) {
-  const names = readdirSync(dir).filter((name) => name === 'registry.json' || /^registry\.m\d+\.json$/u.test(name)).sort();
+  const names = readdirSync(dir).filter((name) => name === 'registry.json' || /^registry(?:\.m|-)\d+\.json$/u.test(name)).sort();
   const records = {};
   for (const name of names) {
     for (const [id, record] of Object.entries(JSON.parse(readFileSync(join(dir, name), 'utf8')))) {

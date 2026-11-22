@@ -9,7 +9,7 @@ export const GRANDFATHERED_DIRECT_SPAWNERS = Object.freeze([
   'apps/cli/journeys/runner/on.test.js',
   'apps/cli/journeys/ship/command.test.js',
   'apps/cli/journeys/show/provenance.test.js',
-  'apps/cli/journeys/submit/gate/merge-base.test.js',
+  'apps/cli/tests/io/submit/base.test.js',
   'apps/cli/journeys/test/selection/landing.test.js',
   'apps/cli/journeys/test/selection/sealed.test.js',
   'apps/cli/tests/fixtures/move/registry/cases.js',

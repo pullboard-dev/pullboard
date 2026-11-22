@@ -12,13 +12,13 @@ import * as store from '../../../packages/store/index.js';
 import { coordinatorActions } from '../../../packages/stats/index.js';
 import { coordinatorActionStats } from '../../../packages/stats/index.js';
 import { coordinatorActionLines } from '../../../packages/stats/index.js';
-import { checkCoordinatorRelease } from '../../../packages/gate/index.js';
-import { recordCoordinatorRelease } from '../../../packages/gate/index.js';
-import { readCoordinatorRelease } from '../../../packages/gate/index.js';
+import { checkCoordinatorRelease } from '../../../packages/gate/heavy.js';
+import { recordCoordinatorRelease } from '../../../packages/gate/heavy.js';
+import { readCoordinatorRelease } from '../../../packages/gate/heavy.js';
 import { shipMilestone as rawShipMilestone } from '../../../packages/roadmap/index.js';
 import { MOVE_REGISTRY } from '../../../packages/moves/index.js';
 import { COORDINATOR_ACTIONS_ENGINE } from '../../../packages/state/index.js';
-import { runReleaseGate } from '../../../packages/gate/index.js';
+import { runReleaseGate } from '../../../packages/gate/heavy.js';
 import { runFixtureGit } from '../../cli/tests/fixtures/child.js';
 
 const BASE = Date.parse('2026-10-31T00:00:00Z');

@@ -8,6 +8,7 @@ import { assertStartupBudgets } from '../../fixtures/budget.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { pinDerivedStateOff } from '../../fixtures/thin-door.js';
 import { thinListRows } from '../../../src/io/list/thin.js';
 
 const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -20,6 +21,7 @@ test('cli.io-list-thin.the-thin-door-returns-the-same-rows: clause 1: the thin d
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
+  t.after(pinDerivedStateOff(box));
   for (let n = 1; n <= 20; n++) {
     const added = await fixtureAdd(box.runLocal, box.repo, 'web', `Thin list item ${n}`);
     assert.equal(added.code, 0, added.err);
@@ -64,7 +66,7 @@ test('cli.io-list-thin.startup-row-holds: clause 1: the real list with list.thin
   await assertStartupBudgets(t, startupReport, { only: ['list thin'] });
 });
 
-test('cli.io-commands-read-startup.list-with-list-thinread-on-holds-its: clause 1: list with list.thinRead on holds its 200 ms list thin row, and the list row is unchanged [C7,#9090]', () => {
+test('cli.io-commands-read-startup.list-with-list-thinread-on-holds-its: clause 3: list with list.thinRead on holds its 150 ms list thin row, and the list row is unchanged [C7,#9090]', () => {
   assert.ok(startupReport.cpuMediansMs, 'the startup measurement above did not produce its report');
   assert.deepEqual(Object.keys(startupReport.cpuMediansMs), ['list thin']);
   assert.ok(startupReport.floorLines.every(line => line.startsWith('list thin median ')), 'only the list thin row was measured, so the list row is untouched');

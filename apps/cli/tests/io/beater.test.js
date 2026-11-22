@@ -6,7 +6,13 @@ import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../fixtures/child.js';
+import { policyRepository } from '../../../../packages/store/tests/fixtures/submit.js';
+import { main } from '../../src/io/entry.js';
+import { wipRef } from '../../src/io/item/wip.js';
 import { agentSession } from '../../src/io/beater.js';
 import { runBeater } from '../../src/io/beater.js';
 import { startClaimBeater } from '../../src/io/beater.js';
@@ -72,4 +78,75 @@ test('cli.io-beater.quiet-seat-stops: clause 2: a beater stops and drops its loc
   assert.ok(eventful.beats.length > 5, 'a recent board event keeps the beats going');
   const filed = await run({ event: () => null, file: (clock) => (clock >= 50 * MIN ? null : clock) });
   assert.ok(filed.beats.length > 6, 'a recent file change in the item folder keeps the beats going');
+});
+
+/** An item folder with one commit and one uncommitted file, and a git runner for it. */
+function claimedFolder(t) {
+  const root = privateFixtureFiles('beater-wip-').root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const folder = join(root, 'item-folder');
+  mkdirSync(folder);
+  policyRepository(folder);
+  const git = (...args) => runFixtureGit(args, { cwd: folder });
+  writeFileSync(join(folder, 'tracked.txt'), 'one\n');
+  git('add', 'tracked.txt');
+  git('-c', 'core.hooksPath=/dev/null', '-c', 'user.name=F', '-c', 'user.email=f@example.test', 'commit', '-q', '-m', 'tracked');
+  writeFileSync(join(folder, 'work.txt'), 'uncommitted work\n');
+  return { folder, git };
+}
+
+test('cli.io-beater.tick-snapshots-claimed-folder: clause 1: one claim beater tick for a seat holding a claimed item calls snapshotWip, and refs/pullboard/wip/<item> then holds the uncommitted change [C7,#12568]', async (t) => {
+  const { folder, git } = claimedFolder(t);
+  let held = true;
+  await runBeater(
+    { cwd: folder, seat: 'core-1', board: '/nowhere/board.sqlite', lock: join(folder, 'no-lock'), agent: { pid: 1, start: null }, everyMs: 10 },
+    { alive: () => true, now: () => 1_000_000, lastEvent: async () => null, lastFileChange: () => null,
+      seatOf: () => ({ seat: 'core-1', file: '/nowhere/board.sqlite' }), held: async () => { const was = held; held = false; return was; }, beat: async () => {}, wait: async () => {},
+      wip: { claimed: async () => [{ item: 12597, folder }], now: () => 1_000_000 } },
+  );
+  assert.equal(String(git('show', `${wipRef(12597)}:work.txt`)).trim(), 'uncommitted work', 'the tick left the uncommitted change on the wip ref');
+  held = true;
+  const failing = await runBeater(
+    { cwd: folder, seat: 'core-1', board: '/nowhere/board.sqlite', lock: join(folder, 'no-lock'), agent: { pid: 1, start: null }, everyMs: 10 },
+    { alive: () => true, now: () => 2_000_000, lastEvent: async () => null, lastFileChange: () => null,
+      seatOf: () => ({ seat: 'core-1', file: '/nowhere/board.sqlite' }), held: async () => { const was = held; held = false; return was; }, beat: async () => {}, wait: async () => {},
+      wip: { claimed: async () => { throw new Error('board unreadable'); }, snapshot: () => { throw new Error('snapshot failed'); } } },
+  );
+  assert.equal(failing.beats, 1, 'a failing snapshot never fails the tick');
+});
+
+test('cli.io-beater.board-call-snapshots-claimed-folder: clause 2: a board call the claiming seat makes through entry.js snapshots its claimed item folder at most once a minute per item, and a seat with no claim snapshots nothing [C7,#12568]', async (t) => {
+  const { folder, git } = claimedFolder(t);
+  let clock = 5_000_000;
+  const snapshots = [];
+  const wip = { seatOf: () => ({ seat: 'core-1', board: '/nowhere/board.sqlite' }), now: () => clock,
+    claimed: async () => [{ item: 12597, folder }], snapshot: (path, item) => snapshots.push([path, item]) };
+  const streams = { cwd: folder, stdout: { write() {} }, stderr: { write() {} }, wip };
+  await main(['--version'], streams);
+  assert.deepEqual(snapshots, [[folder, 12597]], 'the first board call snapshotted the claimed folder');
+  clock += 30_000;
+  await main(['--version'], streams);
+  assert.equal(snapshots.length, 1, 'a second call inside the minute snapshotted nothing');
+  clock += 31_000;
+  await main(['--version'], streams);
+  assert.equal(snapshots.length, 2, 'a call a minute later snapshotted again');
+  const bare = [];
+  await main(['--version'], { ...streams, wip: { ...wip, claimed: async () => [], snapshot: (...args) => bare.push(args) } });
+  assert.deepEqual(bare, [], 'a seat with no claim snapshots nothing');
+  assert.equal(git('rev-parse', '--verify', '-q', 'HEAD').length > 0, true, 'the folder is a real repository');
+});
+
+test('cli.io-beater.board-call-cost-measured: measurement: a board call adds under 20 ms when no snapshot is due, and the real snapshot cost is printed [C7,#12568]', async (t) => {
+  const { folder } = claimedFolder(t);
+  const { snapshotOnBoardCall } = await import('../../src/io/beater.js');
+  const wip = { seatOf: () => ({ seat: 'core-1', board: '/nowhere/board.sqlite' }), now: () => 9_000_000, claimed: async () => [{ item: 12597, folder }] };
+  const real = process.hrtime.bigint();
+  await snapshotOnBoardCall(folder, wip);
+  const snapshotMs = Number(process.hrtime.bigint() - real) / 1e6;
+  const idle = process.hrtime.bigint();
+  await snapshotOnBoardCall(folder, wip);
+  const idleMs = Number(process.hrtime.bigint() - idle) / 1e6;
+  console.log(`BOARD-CALL-COST no-snapshot-due ${idleMs.toFixed(1)} ms; real-snapshot ${snapshotMs.toFixed(1)} ms`);
+  assert.ok(idleMs < 20, `no snapshot due added ${idleMs.toFixed(1)} ms`);
+  // The real snapshot cost is printed, not asserted: #12746 owns taking it off the command path.
 });

@@ -106,6 +106,8 @@ jobs:
           if (!notes.trim()) throw new Error('The changelog section for ' + tag + ' is empty; refusing publication.');
           writeFileSync(join(process.env.RUNNER_TEMP, 'release-notes.md'), notes);
           NOTES
+      - name: Write the generated docs from the declarations
+        run: node docs/tools/update-docs.js
       - name: npm new enough for trusted publishing
         run: npm install -g npm@latest
       - if: ${{ steps.main-ci.outputs.passed == 'true' }}
@@ -147,6 +149,8 @@ jobs:
           set -euo pipefail
           awk "/<<'NOTES'\$/{f=1;next} f&&/^ *NOTES\$/{exit} f" .github/workflows/release.yml | sed 's/^ \{10\}//' > "$RUNNER_TEMP/notes.mjs"
           GITHUB_REF_NAME="$TAG" node "$RUNNER_TEMP/notes.mjs"
+      - name: Write the generated docs from the declarations
+        run: node docs/tools/update-docs.js
       - name: npm new enough for trusted publishing
         run: npm install -g npm@latest
       - run: npm publish --provenance --access public

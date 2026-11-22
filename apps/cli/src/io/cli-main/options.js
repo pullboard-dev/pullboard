@@ -115,6 +115,7 @@ const OPTIONS = {
   health: { type: 'boolean' },
   lag: { type: 'boolean' },
   'main-lag': { type: 'boolean' },
+  'min-items': { type: 'string' },
   digest: { type: 'string' },
   // The rigor quality draft's options.
   base: { type: 'string' },
@@ -142,6 +143,7 @@ const OPTIONS = {
   take: { type: 'string' },
   stuck: { type: 'string' },
   done: { type: 'boolean' },
+  'no-wait': { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },

@@ -15,6 +15,7 @@ import {
   privateFixtureFiles,
 } from '../child.js';
 import { stopFixtureLocalRunners } from '../runner/local-stop.js';
+import { settleMarksWorkers } from './marks-workers.js';
 import { performance } from 'node:perf_hooks';
 import {
   appendFileSync,
@@ -38,6 +39,8 @@ import {
 } from 'node:path';
 import { after } from 'node:test';
 import { main } from '../native.js';
+import { assertRequiredShape } from './shapes.js';
+import { parseOneDocument } from './shapes.js';
 import { runCliInProcess } from '../process.js';
 import { whenRunnerSettles } from '../runner/local-start.js';
 import { createLocalApiHandler } from '../../../../../packages/api/index.js';
@@ -173,6 +176,8 @@ after(async () => {
   for (const child of serverChildren.keys()) child.kill('SIGKILL');
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
+  // The in-process inbox reads leave detached marks workers writing into the case boards; wait for their exits before the folders go.
+  await settleMarksWorkers();
   // A queued submit starts a loopback local runner in each case's machine home; stop them and wait for the exits, or one still writes into the folder being removed [C7,#9714].
   stopFixtureLocalRunners(TEMP_DIRS.map((dir) => join(dir, 'home')));
   // A killed local runner may still be writing into a case's folder for a moment; the run's sandbox removes what is left.
@@ -293,23 +298,6 @@ function shapeFor(command, subcommand) {
   return JSON_SHAPES.commands[key];
 }
 
-/** Match one catalog field to its declared JSON value type. */
-function hasType(value, type) {
-  if (type.includes('|')) return type.split('|').some((part) => hasType(value, part));
-  if (type === 'array') return Array.isArray(value);
-  if (type === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value);
-  if (type === 'null') return value === null;
-  return typeof value === type;
-}
-
-/** Check one required-field map from JSON_SHAPES. */
-function assertRequiredShape(value, required, label) {
-  for (const [field, type] of Object.entries(required ?? {})) {
-    assert.ok(Object.hasOwn(value, field), `${label} must include ${field}`);
-    assert.ok(hasType(value[field], type), `${label}.${field} must be ${type}`);
-  }
-}
-
 /** Parse a command's sole JSON document and check its public command shape. */
 async function json(box, cwd, command, args = [], subcommand) {
   let result = await box.runLocal(cwd, command, ...args, '--json');
@@ -366,14 +354,6 @@ async function jsonError(box, cwd, command, args, { status, code, message, next 
   assert.deepEqual(document.error, { code, message, next });
   return document;
 }
-
-/** Assert only that output is a single JSON value with no second document. */
-function parseOneDocument(stdout) {
-  const document = JSON.parse(stdout);
-  assert.equal(document.version, 1);
-  return document;
-}
-
 
 catalogCase('[A1] command results match the catalog across roots: reads', [
   'agents',
@@ -781,16 +761,15 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   }, 'show');
   assert.equal(noRow.error.code, 'NO_ROW');
 
-  // The plain loop finishes at once: a coordinator seat with nothing to build gets one successful document, not a refusal.
-  const plainLoop = await box.runLocal(repo, 'next', '--json');
-  assert.equal(plainLoop.status, 0);
+  // An idle coordinator seat reports its timeout immediately when asked not to wait.
+  const plainLoop = await box.runLocal(repo, 'next', '--no-wait', '--json');
+  assert.equal(plainLoop.status, 4);
   assert.equal(plainLoop.stderr, '');
-  assert.deepEqual(JSON.parse(plainLoop.stdout), {
-    version: 1,
-    item: null,
-    next: 'nothing for this seat: end your turn',
-    reasons: ["no open items in the coordinator lane; lane items are built from each lane's own worktree"],
-  });
+  const plainLoopDocument = parseOneDocument(plainLoop.stdout);
+  assert.equal(plainLoopDocument.version, 1);
+  assert.equal(plainLoopDocument.item, null);
+  assert.deepEqual(plainLoopDocument.timeout, { seconds: 90 });
+  assert.deepEqual(plainLoopDocument.reasons, ['[IDLE_TIMEOUT] nothing for this seat in 90 seconds; the board is not finished. Stop, or call next again.']);
   // A bounded wait that finds nothing is the refusal: one JSON document with the exact public error fields.
   const nothingFree = await box.runLocal(repo, 'next', '--wait', '0', '--json');
   assert.equal(nothingFree.status, 1);
@@ -1185,10 +1164,10 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   source.env.PATH = `${sshBin}:${source.env.PATH}`;
   const runner = await json(source, source.repo, 'runner', ['add', HOST, '--slots', '2', '--browser', '1']);
   // Registration measures the host over the probe, so the record also carries what the probe observed.
-  const { cores, gui, measuredAt, memoryMB, node, publicKey, ...registered } = runner.runner;
+  const { cores, gui, measuredAt, memoryMB, node, publicKey, runtimeSha256, ...registered } = runner.runner;
   assert.deepEqual(registered, { host: HOST, slots: 2, browser: 1, fixed: true });
   assert.ok(typeof gui === 'boolean' || gui === null, 'gui is what the probe saw, or null when it saw no display');
-  assert.deepEqual([typeof cores, typeof (gui ?? false), typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey], ['number', 'boolean', 'string', 'number', 'string', 'string']);
+  assert.deepEqual([typeof cores, typeof (gui ?? false), typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey, typeof runtimeSha256], ['number', 'boolean', 'string', 'number', 'string', 'string', 'string']);
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
   assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
@@ -1434,6 +1413,23 @@ catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real
   assert.equal(set.field.value, 'high');
 }, ['add', 'field', 'init']);
 
+catalogCase('[A1,C7,#12672] clock dry run reports its pass through real CLI JSON', [], async () => {
+  const box = await project();
+  const pass = await uncataloguedRootJSON(box, box.repo, 'clock', ['--dry-run']);
+  assert.ok(Array.isArray(pass.applied) && Array.isArray(pass.pending) && Array.isArray(pass.waiting), 'a pass lists applied, pending and waiting rows');
+}, ['clock', 'init']);
+
+catalogCase('[A1,C7,#12672] main-red-files prints an empty list through real CLI JSON', [], async () => {
+  const box = await project();
+  assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'main-red-files')).files, [], 'a fresh board lists no main-red file');
+}, ['init', 'main-red-files']);
+
+catalogCase('[A1,C7,#12672] new package writes a cell anatomy through real CLI JSON', [], async () => {
+  const box = await project();
+  const made = await uncataloguedRootJSON(box, box.repo, 'new', ['package', 'catalogcell', '--purpose', 'A cell the catalog fixture writes.']);
+  assert.ok(made.package === 'catalogcell' && made.written.length > 0, 'the anatomy files are listed');
+}, ['init', 'new']);
+
 /**
  * The run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
  * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; separate files run on separate runners.
@@ -1490,7 +1486,9 @@ const CATALOG_GROUPS = {
     '[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing',
     '[A1,C7,#8378] moves reports each move table state through real CLI JSON',
     '[A1,C7,#8916] split files one child per numbered clause through real CLI JSON',
-    '[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON',
+    '[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON',    '[A1,C7,#12672] clock dry run reports its pass through real CLI JSON',
+    '[A1,C7,#12672] main-red-files prints an empty list through real CLI JSON',
+    '[A1,C7,#12672] new package writes a cell anatomy through real CLI JSON',
   ],
 };
 

@@ -1,5 +1,8 @@
 /** Verify holds a frozen check to its configured landing.timeout ceiling [C7,V18]. */
 import assert from 'node:assert/strict';
+import { runFixtureExecFile as execFileSync } from '../../../fixtures/child.js';
+import { mkdirSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import {
   readFileSync,
   writeFileSync,
@@ -7,11 +10,58 @@ import {
 import { join } from 'node:path';
 import { describe } from 'node:test';
 import { test } from 'node:test';
-import { joinFixtureSeat } from "../../../fixtures/testkit.js";
-import { createE2eHelpers } from "../../../fixtures/e2e.js";
+import { createE2eHelpers } from '../../../fixtures/e2e.js';
 import { fixtureAdd } from '../../../fixtures/testkit.js';
+import { joinFixtureSeat } from "../../../fixtures/testkit.js";
 import { document } from '../../../fixtures/verify/unsealed.js';
 import { submitUnsealed } from '../../../fixtures/verify/unsealed.js';
+
+test('cli.journeys-verify-checks-timeouts.accept-reports-a-frozen-check-timeout: clause 1: accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.privateCheckSubmission({ timeout: '100ms', check: 'echo timeout-marker; case "$PULLBOARD_HOME" in */pullboard-criterion-*/home/.pullboard) while :; do :; done;; *) exit 1;; esac' });
+  const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the frozen check exceeded its configured timeout', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /check timed out/);
+  assert.match(error.message, /timeout-marker/);
+  assert.match(error.message, /full output file:/);
+  assert.match(error.message, /output digest/);
+  assert.match(error.next, /^restore the install or check environment, then retry verification/);
+});
+
+test('cli.journeys-verify-checks-timeouts.a-frozen-check-whose-shell-cannot: clause 2: a frozen check whose shell cannot start is identified as a startup failure [V18,V2]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.privateCheckSubmission({ check: 'echo forbidden-shell-ran' });
+  const isolatedPath = join(box.dir, 'git-only-path');
+  mkdirSync(isolatedPath);
+  const gitPath = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  symlinkSync(gitPath, join(isolatedPath, 'git'));
+  box.env.PATH = isolatedPath;
+  const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the shell is unavailable', '--json');
+  assert.equal(refused.code, 1, refused.err);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /check could not start \(ENOENT\)/);
+  assert.doesNotMatch(error.message, /forbidden-shell-ran/);
+  assert.match(error.message, /full output file:/);
+});
+
+test('cli.journeys-verify-checks-timeouts.accept-reports-a-frozen-install-timeout: accept reports a frozen install timeout before running the check [V18,V2]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.privateCheckSubmission({ timeout: '100ms', install: 'echo install-started; while :; do :; done', check: 'echo forbidden-check-ran' });
+  const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the install must finish within its frozen deadline', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /install timed out/);
+  assert.match(error.message, /install-started/);
+  assert.doesNotMatch(error.message, /forbidden-check-ran/);
+  assert.match(error.next, /^restore the install or check environment, then retry verification/);
+});
 
 // Every case builds its own project and board, so the cases run side by side: the sync setup is short and the frozen checks and verifies dominate.
 describe('verify journeys [V4,C7]', { concurrency: true }, () => {

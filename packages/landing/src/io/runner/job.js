@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { availableParallelism } from 'node:os';
 import { tryGit } from '../../../../git/index.js';
+import { cleanGitEnvironment } from '../../../../git/index.js';
 import { permitPushOptions } from '../../../../git/index.js';
 import { gitSpawn } from '../../../../git/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
@@ -441,6 +442,49 @@ function firstMerges(root, base, tip, pending, squash = false) {
 }
 
 /**
+ * Each landed item's merge commit committer time in ms, by item id, read once per item with git on the runner. Why: the board
+ * records a merged event at the merge's own time, and its API request path may not run git [C7,#12156].
+ */
+function mergedAtTimes(root, merges) {
+  const times = {};
+  for (const [id, merge] of Object.entries(merges)) times[id] = Number(must(root, ['show', '-s', '--format=%ct', merge]).trim()) * 1000;
+  return times;
+}
+
+/**
+ * Whether the exact checked commit is a redundant two-parent composition already represented by fetched base.
+ * Only positive object reads and ancestry establish this; prose, equal trees alone and Git errors prove nothing [C7,P7].
+ */
+export function redundantCheckedMerge(root, commit, base) {
+  const object = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
+  if (typeof commit !== 'string' || typeof base !== 'string' || !object.test(commit) || !object.test(base)) return false;
+  try {
+    const env = cleanGitEnvironment();
+    const read = args => {
+      const result = tryGit(root, args, { env });
+      return result.status === 0 ? result.stdout : null;
+    };
+    // Replacement objects are disabled by tryGit; legacy grafts can still rewrite ancestry, so decline them too.
+    const grafts = read(['rev-parse', '--path-format=absolute', '--git-path', 'info/grafts']);
+    if (!grafts || fs.exists(grafts)) return false;
+    const headers = oid => read(['cat-file', 'commit', oid])?.split('\n\n', 1)[0].split('\n') ?? [];
+    const trees = lines => lines.filter(line => line.startsWith('tree ')).map(line => line.slice(5));
+    if (read(['cat-file', '-t', commit]) !== 'commit' || read(['cat-file', '-t', base]) !== 'commit') return false;
+    const checked = headers(commit);
+    const parents = checked.filter(line => line.startsWith('parent ')).map(line => line.slice(7));
+    const tree = trees(checked);
+    if (parents.length !== 2 || !parents.every(oid => object.test(oid)) || tree.length !== 1 || !object.test(tree[0])) return false;
+    const [p, q] = parents;
+    if (p === q || read(['cat-file', '-t', p]) !== 'commit' || read(['cat-file', '-t', q]) !== 'commit') return false;
+    const parentTree = trees(headers(p));
+    if (parentTree.length !== 1 || parentTree[0] !== tree[0]) return false;
+    if (read(['cat-file', '-t', tree[0]]) !== 'tree') return false;
+    return read(['merge-base', '--is-ancestor', q, p]) !== null
+      && read(['merge-base', '--is-ancestor', p, base]) !== null;
+  } catch { return false; }
+}
+
+/**
  * Land one job's accepted items on the trunk remote, from a runner. Each attempt fetches trunk, skips items trunk
  * already holds, merges the rest on that tip with --no-ff, numbers new engines into the last merge, runs the check on the merged tree, and pushes with
  * --force-with-lease=<trunk>:<the tip it merged on>: git's compare-and-swap, so the push lands only if trunk is still
@@ -494,7 +538,12 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     const base = await timed(phases, 'fetch trunk', async () => fetchTip(root, remote, trunk));
     if (base !== (receipt.base ?? expect)) receipt.moved.push(base);
     receipt.base = base;
-    const already = items.filter(entry => tryGit(root, ['merge-base', '--is-ancestor', entry.commit, base]).status === 0).map(entry => entry.id);
+    // The extra classification is only for ordinary steady batches; Sprint retains its existing exact-tree path.
+    const steady = items.every(entry => entry.pace === undefined || entry.pace === 'steady');
+    const already = items.filter(entry => {
+      const contained = tryGit(root, ['merge-base', '--is-ancestor', entry.commit, base]);
+      return contained.status === 0 || (contained.status === 1 && steady && redundantCheckedMerge(root, entry.commit, base));
+    }).map(entry => entry.id);
     receipt.already = already;
     // A returned item stays out of every later attempt: it goes back to its builder, or parks, whatever trunk does next.
     const waiting = items.filter(entry => !already.includes(entry.id) && !receipt.returned.some(row => row.id === entry.id));
@@ -576,7 +625,10 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions(), fence });
     fence?.requireHeld(pushed);
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
-    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending, squash), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
+    if (pushed.status === 0) {
+      const merges = firstMerges(root, base, tip, pending, squash);
+      return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges, mergedAt: mergedAtTimes(root, merges), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
+    }
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (await fetchTip(root, remote, trunk) === base) {
       // A trunk hook's refusal gives every pending item back with the hook's words, as a red does [C7,P7].

@@ -55,7 +55,7 @@ test('gate.io-board-baseline-guard.moved-store-tests-retain-exact-board: moved s
     'board-capture': ['packages/board/tests/from-store/io/board/capture.test.js', 4],
     'claim-reopen-clock': ['packages/moves/tests/logic/moves/claim.test.js', 1],
     'commit-metadata': ['apps/cli/journeys/release/metadata.test.js', 1],
-    'landing-noop': ['apps/cli/journeys/land/landing/noop.test.js', 1],
+    'landing-noop': ['apps/cli/tests/io/commands/land/noop.test.js', 1],
     'shout-readable': ['apps/cli/journeys/shout/readable.test.js', 1],
     'stacked-submit': ['apps/cli/journeys/submit/stacked.test.js', 2],
     'verdict-check': ['apps/cli/journeys/verify/check.test.js', 1],

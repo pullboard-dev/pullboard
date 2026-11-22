@@ -33,7 +33,7 @@ const CLI_ENTRY = fileURLToPath(new URL('../../../pullboard.js', import.meta.url
  */
 async function seatClaims(ctx, agent) {
   const { itemsInStatus } = await import('../../../../../packages/store/index.js');
-  const { itemFolderIdentity } = await import('../../../../../packages/items/index.js');
+  const { itemFolderIdentity } = await import('../../../../../packages/items/light.js');
   return withBoardRead(ctx, board => {
     const claims = itemsInStatus(board, 'claimed', agent);
     const folder = itemFolderIdentity(board, ctx.info.root)?.item ?? null;
@@ -70,6 +70,28 @@ export async function run(io, { first, second, rest, values }) {
   if (named !== undefined && !owned.claims.includes(named)) throw new Refused('NOT_YOURS', `--item ${values.item} is not a claim this seat holds; run pullboard whoami to see its claims`);
   const item = testRunItem({ named, folder: owned.item, claims: owned.claims });
   const items = named === undefined ? owned.claims : [named];
+  // A seat holding the claim marks its own run: finish start now, finish end with the exit code below; the worker that runs a queued job marks nothing [C7,#12159].
+  const marked = held && typeof item === 'number' && values['test-run'] === undefined ? await finishMarks(io, ctx, agent, item) : null;
+  try {
+    const code = await runFiles(io, ctx, { agent, item, items, files, values, seat, held });
+    await marked?.end(code);
+    return code;
+  } catch (error) {
+    await marked?.end(error instanceof Refused ? 2 : 1);
+    throw error;
+  }
+}
+
+/** Mark finish start for the claimed item and hand back the closer that marks finish end with the exit code. */
+async function finishMarks(io, ctx, agent, item) {
+  const { recordMark } = await import('../mark-spool.js');
+  const mark = (edge, ref) => withBoard(ctx, board => recordMark(io, ctx, board, { item, agentId: agent, stage: 'finish', edge, ref, at: ctx.clock.now().getTime() }));
+  await mark('start', null);
+  return { end: code => mark('end', `exit=${code}`) };
+}
+
+/** The part of `pullboard test` that queues or runs the named files. */
+async function runFiles(io, ctx, { agent, item, items, files, values, seat, held }) {
   if (queuesTestRun(ctx, seat, values, environmentAdapter().all(), { claimed: held })) return queueSeatRun(io, ctx, { agent, item, items, files, values }, await import('../test/pull.js'));
   if (values['test-run'] !== undefined) {
     const { heartbeatSeat } = await import('../../../../../packages/store/index.js');

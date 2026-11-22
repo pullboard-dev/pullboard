@@ -17,6 +17,7 @@ import { MACHINE_DEFAULTS } from './settings/machine-defaults.js';
 import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
+export { routeReservations, nextReturnedFirst } from '../logic/settings.js';
 export { loadMachineSettings };
 export { browserFreeChecksEnabled } from '../logic/settings.js';
 export { reofferInfraEndEnabled } from '../logic/settings.js';
@@ -654,19 +655,9 @@ export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
 }
 
-/** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
-export function docsRegenerateOnCommit() {
-  return loadMachineSettings().docs?.regenerateOnCommit === true;
-}
-
 /** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
 export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
-}
-
-/** Whether route reservations are on (#9177, #11306): on by default; only an exact `false` turns it off. */
-export function routeReservations() {
-  return loadMachineSettings().route?.reservations !== false;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
@@ -794,11 +785,6 @@ export function nextOneGitRead() {
  */
 export function nextReadinessCache() {
   return loadMachineSettings().next?.readinessCache === true;
-}
-
-/** Whether next puts returned work (an abandoned or reworked item) ahead of untouched work (#11241): off by default; only an exact `true` turns it on. */
-export function nextReturnedFirst() {
-  return loadMachineSettings().next?.returnedFirst === true;
 }
 
 /**
@@ -964,6 +950,19 @@ export function setPersonSetting(key, text) {
     throw error;
   }
   return settings;
+}
+
+/** Store the person's yes or no to the release-check question as update.check in the machine settings file, keeping every other setting [O1,C7,#12108]. */
+export function recordUpdateCheckAnswer(yes) {
+  if (typeof yes !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'the release-check answer is yes or no');
+  const settings = loadMachineSettings();
+  writeMachineSettings({ ...settings, update: { ...settings.update, check: yes } });
+  return yes;
+}
+
+/** Whether the person has already answered the release-check question: true only once an answer wrote update.check [O1,C7,#12108]. */
+export function updateCheckAsked() {
+  return typeof loadMachineSettings().update?.check === 'boolean';
 }
 
 /** Persist an explicitly configured canary without changing any board's credentials or project policy. */

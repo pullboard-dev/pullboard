@@ -54,6 +54,8 @@ export const setupHelp = `Set up
   pullboard serve [--port N] [--address <ipv4>]  the board API v1 (JSON, no page): boards, state, moves, requests and live events,
                                         behind the session secret in its printed address; for the page, run pullboard view
                                         serve.address and serve.port in ~/.pullboard/settings.json listen for runners with the board key (default loopback)
+  pullboard serve install [--port N] [--address <ipv4>]  opt in to a launchd service that keeps the board API up and restarts it after a crash (macOS)
+  pullboard serve uninstall            stop that service and delete its definition
   pullboard mcp                        MCP tools over stdio for this worktree's agent, started by its MCP client:
                                         board status, show, shout and capture an idea; a person's move is refused
   pullboard relay [status|on|off|pair|join <code>] [--url <address>] [--name <computer>]  link, inspect or unlink this board's sealed relay

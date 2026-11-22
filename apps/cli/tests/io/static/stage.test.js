@@ -118,6 +118,50 @@ test('cli.io-static-stage.a-run-that-throws-gives-its-slot: clause 1: a run that
   } finally { restore(); }
 });
 
+test('cli.io-static-stage.lease-not-held-while-waiting-for-runner: clause 1: a remote attempt past 120000ms holds no local pool lease while a competing local fallback takes and releases one [C7,#12532]', async () => {
+  const restore = isolatedMachine({ gate: { staticSlots: 1 } });
+  const remoteStarted = deferred();
+  const remotePastLease = deferred();
+  const remoteAnswer = deferred();
+  const localStarted = deferred();
+  let clock = 0;
+  const remote = runStaticStageAdmitted({ say() {} }, process.cwd(), {
+    memo: () => false,
+    now: () => clock,
+    wait: async milliseconds => { clock += milliseconds; },
+    run: async () => 0,
+    runner: async (_io, _root, { now, wait }) => {
+      remoteStarted.resolve();
+      await wait(120_001);
+      remotePastLease.resolve(now());
+      await remoteAnswer.promise;
+      return null;
+    },
+  });
+  let fallback;
+  try {
+    await remoteStarted.promise;
+    await remotePastLease.promise;
+    fallback = runStaticStageAdmitted({ say() {} }, process.cwd(), {
+      memo: () => false,
+      runner: async () => null,
+      run: async () => { localStarted.resolve(); return 0; },
+    });
+    const localGotSlot = await Promise.race([
+      localStarted.promise.then(() => true),
+      new Promise(resolve => setTimeout(() => resolve(false), 0)),
+    ]);
+    assert.equal(clock, 120_001);
+    assert.equal(localGotSlot, true, 'the local fallback starts while the remote attempt is still waiting');
+    remoteAnswer.resolve(0);
+    assert.deepEqual(await Promise.all([remote, fallback]), [0, 0]);
+  } finally {
+    remoteAnswer.resolve(0);
+    await Promise.allSettled([remote, fallback].filter(Boolean));
+    restore();
+  }
+});
+
 test('cli.io-static-stage.the-static-slot-count-is-2-by: clause 2: the static slot count is 2 by default and comes from the gate.staticSlots machine setting [C7,#8501]', () => {
   let restore = isolatedMachine();
   try { assert.equal(staticCheckSlots(), 2); } finally { restore(); }
@@ -154,6 +198,50 @@ test('cli.io-static-stage.with-gate-staticmemo-on-a-rerun-on: clause 1: with gat
   const { runs, said } = await twice({ gate: { staticMemo: true } });
   assert.equal(runs, 1);
   assert.match(said, /static stage green: kept from a green run of this exact clean tree and main/u);
+});
+
+test('cli.io-static-stage.local-fallback-takes-lease: clause 2: a local fallback runs under the pool lease, releases it, completes within 120000ms without timer killing, and writes the exact-tree memo [C7,#12532]', async () => {
+  const restore = isolatedMachine({ gate: { staticSlots: 1, staticMemo: true } });
+  const first = committedItem();
+  const second = committedItem();
+  const firstStarted = deferred();
+  const secondStarted = deferred();
+  const secondWaiting = deferred();
+  const releaseFirst = deferred();
+  let secondRuns = 0;
+  let secondWaitLine = '';
+  let firstRun;
+  let secondRun;
+  try {
+    firstRun = runStaticStageAdmitted({ say() {} }, first.files.root, {
+      command: 'true', main: first.main,
+      runner: async () => null,
+      run: async () => { firstStarted.resolve(); await releaseFirst.promise; return 0; },
+    });
+    await firstStarted.promise;
+    secondRun = runStaticStageAdmitted({ say(text) { secondWaitLine = text; if (text.startsWith('STATIC_WAIT')) secondWaiting.resolve(); } }, second.files.root, {
+      command: 'true', main: second.main,
+      runner: async () => null,
+      run: async () => { secondRuns += 1; secondStarted.resolve(); return 0; },
+    });
+    await secondWaiting.promise;
+    assert.match(secondWaitLine, /STATIC_WAIT/u);
+    releaseFirst.resolve();
+    assert.deepEqual(await Promise.all([firstRun, secondRun]), [0, 0]);
+    await secondStarted.promise;
+    assert.equal(await runStaticStageAdmitted({ say() {} }, second.files.root, {
+      command: 'true', main: second.main,
+      runner: async () => null,
+      run: async () => { secondRuns += 1; return 0; },
+    }), 0);
+    assert.equal(secondRuns, 1, 'the exact committed tree reuses its green memo');
+  } finally {
+    releaseFirst.resolve();
+    await Promise.allSettled([firstRun, secondRun].filter(Boolean));
+    restore();
+    rmSync(first.files.root, { recursive: true, force: true });
+    rmSync(second.files.root, { recursive: true, force: true });
+  }
 });
 
 test('cli.io-static-stage.with-gate-staticmemo-at-its-default-off: clause 2: with gate.staticMemo at its default (off), the stage runs again on the same tree [C7]', async () => {

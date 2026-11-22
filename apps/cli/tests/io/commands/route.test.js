@@ -1,6 +1,9 @@
 /** `route <id> --to <seat>` and `route <id> --off` record and clear a reservation behind route.reservations [C7,#9160]. */
+/** @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { test } from 'node:test';
 import { machineSettingsFile } from '../../../../../packages/config/index.js';
 import * as store from '../../../../../packages/store/index.js';
@@ -10,6 +13,13 @@ import { fixture } from '../../fixtures/next/take.js';
 /** Write the fixture machine's settings with route.reservations as given, keeping the fixture's own quiet fields. */
 function reservations(on) {
   writeFileSync(machineSettingsFile(), JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { localRunner: false }, route: { reservations: on } }));
+}
+
+/** Write this fixture machine's settings, keeping its quiet fields; `route` is added only when given. */
+function settings(route) {
+  const file = machineSettingsFile();
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { localRunner: false }, ...(route ? { route } : {}) }));
 }
 
 /** The refusal code a CLI run printed, or null when it exited 0. */
@@ -46,4 +56,27 @@ test('cli.io-commands-route.off-by-default-refused: clause 3: with route.reserva
   assert.equal(store.getItem(box.board, id).item_reservation_holder ?? null, null);
   const suggest = await cli(box, box.root, ['route', '--suggest']);
   assert.equal(refusal(suggest), null, suggest.out + suggest.err);
+});
+
+test('cli.journeys-next-reservations-default.reservations-on-with-no-setting: with no route.reservations setting, route --to reserves and next skips the item for another seat naming the holder; set off, route --to is refused and next offers the item [C7,#11306]', async t => {
+  const box = await fixture(t);
+  settings(null);
+  const id = box.add('Reserved by default');
+  const reserve = await cli(box, box.root, ['route', String(id), '--to', 'web-7']);
+  assert.equal(reserve.code, 0, reserve.out + reserve.err);
+  assert.equal(store.getItem(box.board, id).item_reservation_holder, 'web-7');
+  const skipped = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.notEqual(skipped.code, 0, skipped.out);
+  assert.match(skipped.out + skipped.err, new RegExp(`#${id} is reserved for web-7`, 'u'));
+
+  const other = await fixture(t);
+  settings({ reservations: false });
+  const free = other.add('Reservations set off');
+  const refused = await cli(other, other.root, ['route', String(free), '--to', 'web-7']);
+  assert.equal(refused.document?.error?.code, 'SETTING_OFF', refused.out + refused.err);
+  assert.match(refused.document.error.next, /route\.reservations/u);
+  assert.equal(store.getItem(other.board, free).item_reservation_holder ?? null, null);
+  const offered = await cli(other, other.seats.actor.path, ['next', '--take']);
+  assert.equal(offered.code, 0, offered.out + offered.err);
+  assert.equal(offered.document.item.item_id, free);
 });

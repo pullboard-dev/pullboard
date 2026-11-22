@@ -16,6 +16,7 @@ import { foreignBlockers } from '../../../../../packages/items/light.js';
 import { readReceivedBoardState } from '../../../../../packages/store/light.js';
 import { relayMachineDirectory } from '../../../../../packages/store/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
+import { readThinCommands } from '../../../../../packages/config/light.js';
 import { withBoardRead } from '../board/read.js';
 import { fallbackReclaim } from '../reclaim.js';
 import { statusClock } from '../status/clock.js';
@@ -59,6 +60,12 @@ function readyBuffer(capacity, seats) {
   return { ...capacity, buildersByRoute };
 }
 
+/** The recommended fleet is the eligible ready count as builders plus one reviewer per 20 pending reviews, rounded up; it comes from the live board, so a forecast whose cache is not current still carries it [C7,#12567]. */
+function eligibleRecommendation(forecast, eligibleReady, pendingReviews) {
+  const reviewers = Number.isSafeInteger(pendingReviews) && pendingReviews > 0 ? Math.ceil(pendingReviews / 20) : 0;
+  return { ...forecast, agents: { ...forecast.agents, recommended: eligibleReady + reviewers } };
+}
+
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
 
@@ -74,6 +81,10 @@ export async function run(io, { values }) {
   const { runnerDeadlineLine } = await import('../../../../../packages/resources/index.js');
   // Status does not load the library root that binds the runner; unbound, its coverage fingerprint never matches the writer's.
   bindProofRunner(fileURLToPath(new URL('../run/tests.js', import.meta.url)));
+  // A served board gets the deliberately small status view; unsupported boards keep the complete path [C7,#10761].
+  let thinStatus = null;
+  if (readThinCommands()) await (await import('../status/thin.js')).thinStatusFacts({ cwd: ctx.info.root, clock: ctx.clock })
+    .then(facts => { thinStatus = facts; });
   const hasRelayState = relayStateExists(ctx.info.commonDir);
   if (hasRelayState) await io.prepareProcessPorts?.();
   const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
@@ -113,7 +124,10 @@ export async function run(io, { values }) {
     landing = landWhy(board, ctx.clock.now());
     clock = statusClock(board, store.readBoardMeta);
     batchLine = adaptiveBatchLine?.(board, adaptiveBatch) ?? null;
-    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: readyBuffer(routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), store.withLocalSeatPresence(board, agents)), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    const capacity = readyBuffer(routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), store.withLocalSeatPresence(board, agents));
+    const reviewQueue = { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) };
+    const capacityForecast = eligibleRecommendation(readCapacity(board, undefined, { currentProofCounters, proofCounter }), capacity.readyItems, reviewQueue.pending);
+    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity, capacityForecast, usefulBuilders: thinStatus || statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && fs.exists(relayMachineDirectory())) {
@@ -131,20 +145,52 @@ export async function run(io, { values }) {
   summary.runnerDeadlines = runnerDeadlineRuns();
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root, retainedReceipts);
   summary.longestHolds = store.longestRecentHolds();
+  // A bounded tail read of the write log, never the whole history; the count may be partial when the tail is shorter than the hour [C7,#12616].
+  summary.writeHoldAlarm = store.boardWriteHoldAlarm('WRITE_HOLD_OVER_1S', ctx.clock.now().getTime(), 3_600_000);
   summary.disk = refusingBadPolicy(() => cachedDiskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
   if (values.json) {
     io.result(summary);
     return 0;
   }
-  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../../../../../packages/link/index.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../../../../packages/outbox/index.js')))) io.say(line);
+  if (!thinStatus && (hasRelayState || summary.relay.excluded)) for (const line of (await import('../../../../../packages/link/index.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../../../../packages/outbox/index.js')))) io.say(line);
   const originHint = !summary.relay.linked && !originRepository(ctx.info.root, { optional: true });
   const format = { capacityLines, usefulBuilderLines, staffingLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
-  for (const line of statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format })) io.say(line);
-  io.say(statusClockLine(clock, ctx.clock.now().getTime()));
-  if (Object.keys(ctx.config.products).length) {
+  const lines = statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format });
+  const thinSections = line => line.startsWith('board:') || line.startsWith('verdicts:')
+    || line.startsWith('review queue:') || line.startsWith('landing:')
+    || line.startsWith('ready buffer:') || line.startsWith('capacity:')
+    || line.startsWith('Max useful agents now:') || / items can be built at once now\.$/u.test(line)
+    || line.startsWith('Finish in about ') || line === 'Finish time: unknown.'
+    || line.startsWith('Binding: ') || line.startsWith('Lever: ')
+    || line.startsWith('local memory holds ') || line === 'local memory hold status unavailable; pullboard resources shows the queue'
+    || line.startsWith('Approval evidence count:') || line.startsWith('Unknown: ')
+    || line.startsWith('Max useful builders:');
+  if (thinStatus) io.say(`lanes: ${thinStatus.lanes.join(', ') || 'none'}`);
+  for (const line of lines) if (!thinStatus || thinSections(line)) io.say(line);
+  if (!thinStatus) io.say(statusClockLine(clock, ctx.clock.now().getTime()));
+  if (!thinStatus && Object.keys(ctx.config.products).length) {
     const { loadSpec, productLine, productSummaries } = await import('../../../../../packages/spec/index.js');
     const all = await withBoardRead(ctx, (board) => store.listItems(board, { all: true }));
     productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
   }
+  await askReleaseCheck(io, values);
   return 0;
+}
+
+/** The release-check question; plain text so the person answers it at once. */
+export const RELEASE_CHECK_QUESTION = 'Check once a day for new pullboard releases? [y/N] (Enter leaves it unanswered)';
+
+/**
+ * Ask the release-check question once, only at a person's own terminal, and store a yes or no through the config door [O1,C7,#12109].
+ * Why: the answer is the person's alone, so a blank line, a closed stdin or any other text records nothing and the question stays open; the ask path loads lazily so status's static closure holds its count.
+ */
+async function askReleaseCheck(io, values) {
+  if (values.json || !io.stdin?.isTTY || !io.stdout?.isTTY) return;
+  const { updateCheckAsked, recordUpdateCheckAnswer } = await import('../../../../../packages/config/index.js');
+  if (updateCheckAsked()) return;
+  io.say(RELEASE_CHECK_QUESTION);
+  const { firstInputLine } = await import('../support.js');
+  const answer = (await firstInputLine(io.stdin)).trim().toLowerCase();
+  if (/^(?:y|yes)$/u.test(answer)) recordUpdateCheckAnswer(true);
+  else if (/^(?:n|no)$/u.test(answer)) recordUpdateCheckAnswer(false);
 }

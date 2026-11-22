@@ -1,32 +1,44 @@
 import * as fs from 'node:fs';
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { runFixtureSetupGit } from '../../fixtures/child.js';
+import { running } from '../../fixtures/runner/local-stop.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 import { settleSubmit } from '../../fixtures/submit/settle.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
 import { fixtureJoin } from '../../fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
+import { startFixtureChild } from '../../fixtures/child.js';
+import { removeDrainedFixture } from '../../fixtures/verify/writers.js';
 
 /**
- * End the fixture's local runner at once. Why: it ignores SIGTERM for the whole 10 s stopFixtureLocalRunner allows before it kills it, and this case needs the runner only until its gate settles.
+ * End the fixture's local runner at once and assert it has exited. Why: it ignores SIGTERM for the whole 10 s stopFixtureLocalRunner allows before it kills it, and this case needs the runner only until its gate is done.
+ * The runner records its pid in a state file and a starting marker, each keyed to PULLBOARD_HOME by a short hash (`state-<hash>.json`, `starting-<hash>.json`), so every such file under local-runner is read.
  *
  * @param {string} machineHome - The fixture's PULLBOARD_MACHINE_HOME.
  */
 function killLocalRunner(machineHome) {
-  let pid = 0;
-  try { pid = Number(JSON.parse(fs.readFileSync(join(machineHome, 'local-runner', 'state.json'), 'utf8')).pid); } catch { return; }
-  try { process.kill(pid, 'SIGKILL'); } catch { return; }
-  for (const until = Date.now() + 2000; Date.now() < until;) {
-    try { process.kill(pid, 0); } catch { return; }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
-  }
+  const folder = join(machineHome, 'local-runner');
+  const files = fs.existsSync(folder) ? fs.readdirSync(folder).filter((name) => /^(?:state|starting)(?:-[0-9a-f]{12})?\.json$/u.test(name)) : [];
+  // Only a pid the fixture runner wrote moments ago is signalled: an older file may name a pid another process now holds.
+  const fresh = (state) => Date.now() - Number(state.heartbeatAt ?? state.startedAt) < 120_000;
+  const pids = [...new Set(files.map((name) => {
+    try {
+      const state = JSON.parse(fs.readFileSync(join(folder, name), 'utf8'));
+      return fresh(state) ? Number(state.pid) : 0;
+    } catch { return 0; }
+  }).filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid && pid !== process.ppid))];
+  for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
+  // `running` ignores an exited child waiting to be reaped: this loop is blocked here, so it cannot reap it and a signal-zero would read it as alive for the whole wait.
+  for (const until = Date.now() + 5000; Date.now() < until && pids.some(running);) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+  assert.deepEqual(pids.filter(running), [], 'the fixture local runner has exited before its home is removed');
 }
 
-test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', async (t) => {
+test('cli.verify-reserve.lease-holder-refused: clause 1: next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', async (t) => {
   const dir = privateFixtureFiles('pullboard-reserve-').root;
   try {
     // A fixture seat never inherits the running agent's session: it joins with its own declared model.
@@ -116,8 +128,60 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const accepted = await run(holder, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello');
     assert.equal(accepted.status, 0, accepted.stderr);
   } finally {
+    // The runner exit is asserted first; its detached comparison worker can still be writing, so the root is removed only once that has exited.
     killLocalRunner(join(dir, 'home'));
-    fs.rmSync(dir, { recursive: true, force: true });
+    await removeDrainedFixture(dir, { signal: t.signal });
   }
 });
 
+
+// A detached comparison-worker stand-in: a shell that leads its own group and holds an append handle beside its request,
+// with a child in that group holding its own; it prints the child's pid once both handles are open, then waits.
+const WRITER = `dir=$(dirname "$1")
+exec 3>>"$dir/parent.txt"
+printf x >&3
+tail -f /dev/null 3>&- >>"$dir/child.txt" &
+echo $!
+wait`;
+
+/** Start a live writer group for a job folder, record it as the launcher does, and return it with its child's pid once both write. */
+async function startWriter(job) {
+  fs.mkdirSync(job, { recursive: true });
+  const request = join(job, 'request.json');
+  fs.writeFileSync(request, '{}\n');
+  const writer = startFixtureChild('sh', ['-c', WRITER, 'sh', request], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  const closed = once(writer, 'close');
+  fs.writeFileSync(join(job, 'worker.json'), JSON.stringify({ pid: writer.pid }) + '\n');
+  const [line] = await once(writer.stdout, 'data');
+  return { writer, closed, childPid: Number(String(line).trim()) };
+}
+
+test('cli.verify-reserve.cleanup-drains-owned-writer: clause 2: the reservation cleanup stops its recorded live comparison writer group before removing its root, and leaves a separately owned process and folder intact [V15,C7]', async (t) => {
+  const owned = privateFixtureFiles('pullboard-reserve-owned-').root;
+  const separate = privateFixtureFiles('pullboard-reserve-separate-').root;
+  try {
+    const jobs = join(owned, 'repo', '.git', 'pullboard', 'review-comparisons');
+    const mine = await startWriter(join(jobs, 'owned-job'));
+    // The worker writes result.json before it exits; that does not end its ownership.
+    fs.writeFileSync(join(jobs, 'owned-job', 'result.json'), '{"code":0}\n');
+    const other = await startWriter(join(separate, 'repo', '.git', 'pullboard', 'review-comparisons', 'other-job'));
+    // A record inside the owned root that names the separate process: its command line names another root's request.
+    fs.mkdirSync(join(jobs, 'foreign-job'));
+    fs.writeFileSync(join(jobs, 'foreign-job', 'worker.json'), JSON.stringify({ pid: other.writer.pid }) + '\n');
+    assert.ok(running(mine.writer.pid) && running(mine.childPid), 'the owned writer and its child are live before cleanup');
+
+    const drained = await removeDrainedFixture(owned, { signal: t.signal });
+
+    assert.deepEqual(drained, [mine.writer.pid], 'cleanup drains only the owned writer group');
+    assert.deepEqual(await mine.closed, [null, 'SIGKILL'], 'the owned writer was stopped, not left writing');
+    assert.equal(running(mine.childPid), false, 'the owned writer child in its group has exited too');
+    assert.equal(fs.existsSync(owned), false, 'cleanup removed the whole private root');
+    assert.equal(other.writer.exitCode, null, 'the separately owned process is still running');
+    assert.equal(other.writer.signalCode, null, 'the separately owned process was not signalled');
+    assert.ok(running(other.childPid), 'the separately owned child is still running');
+    assert.ok(fs.statSync(join(separate, 'repo', '.git', 'pullboard', 'review-comparisons', 'other-job', 'parent.txt')).size > 0, 'the separate folder is intact');
+  } finally {
+    // Each root's own records drain its own writers, so the separate root is removed by the same cleanup.
+    for (const root of [owned, separate]) if (fs.existsSync(root)) await removeDrainedFixture(root, { signal: t.signal });
+  }
+});

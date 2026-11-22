@@ -1,9 +1,9 @@
 /** The main-wide test job request `pullboard serve` hands the board API for the tip a sprint landing moved trunk to [V2,M1,#12182]. */
 
 import { loadConfig } from '../../../../../packages/config/index.js';
-import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
-import { TEST_OUTCOMES_PREFIX } from '../../../../../packages/gate/index.js';
-import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
+import { PULLED_JOB_ENV } from '../../../../../packages/gate/heavy.js';
+import { TEST_OUTCOMES_PREFIX } from '../../../../../packages/gate/heavy.js';
+import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/heavy.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
 import { GATE_NEEDS } from '../submit/pull.js';
 import { GATE_RECEIPT } from '../submit/pull.js';

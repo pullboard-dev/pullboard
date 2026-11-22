@@ -1,7 +1,7 @@
 /** Real device enrollment and key wraps; actual WebCrypto only [H5,H15,H17]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../../../git/tests/fixtures/child.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';

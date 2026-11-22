@@ -1,0 +1,3 @@
+{
+  "cli.io-verify-queue.no-check-accept-returns-within-2-s": {"proves":{"specs":["C7","V4"],"claim":"With verify.queueAccept on, verify accept on an item with no frozen check returns within 2 s, offers no runner job and records its verdict."},"why":"Without it, a regression where a proof-only item accept selects affected tests, takes a gate slot and waits minutes on a runner would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/verify-queue.test.js"]}
+}

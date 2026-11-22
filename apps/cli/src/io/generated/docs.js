@@ -1,18 +1,167 @@
 /** One generation boundary for source-owned format, API, and help declarations [C7,A1,A5,M1]. */
 import { join } from 'node:path';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
-import { git } from '../../../../../packages/git/index.js';
 import { fileURLToPath } from 'node:url';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { JSON_SHAPES } from '../../../../../packages/config/index.js';
 import { formatTable } from '../../../../../packages/state/index.js';
 import { commandHelpModule } from '../docs.js';
-import { replaceDocTable } from '../../logic/generated/doc/blocks.js';
 import { shapeTable } from '../../logic/generated/doc/blocks.js';
 import { schemaDocBlocks } from '../../logic/generated/doc/schema.js';
 import { declarationDocBlocks } from './declarations.js';
+import { API_NOTES } from './api-notes.js';
+import { HTTP_PATHS } from './api-notes.js';
 
 const files = fileSystemAdapter();
+
+/** A marked generated table as the page holds it. */
+function marked(blocks, name) {
+  return [`<!-- ${name}:start -->`, blocks[name].trimEnd(), `<!-- ${name}:end -->`, ''];
+}
+
+/** A section that only points at its own page, the form the section takes once the page is its only copy. */
+function linkSection(title, sentence) {
+  return [`## ${title}`, '', sentence, ''];
+}
+
+/** The formats guide: headings and the page links held here, its schema, version and event tables rendered from the declarations; the authored prose is dropped [C7]. */
+export function formatsPage(blocks) {
+  const bare = title => [`## ${title}`, ''];
+  const table = (title, name) => [`### ${title}`, '', ...marked(blocks, name)];
+  return [
+    '# File formats',
+    '',
+    'Every table on this page is generated from source declarations by `node docs/tools/update-docs.js`; change the declarations, not the page. `--check` reports a stale copy without writing.',
+    '',
+    ...linkSection('SPEC.md and DOCTRINE.md', 'The row grammar, statuses, tiers, signers and id namespaces are on [docs/formats/spec.md](formats/spec.md).'),
+    ...linkSection('Proposed rulings and resume doctrine notes', 'Standing rulings and the resume doctrine notes are on [docs/formats/rulings.md](formats/rulings.md).'),
+    ...linkSection('Resume release notes', 'The `whatsNew` field and the per-checkout version record are on [docs/formats/resume-notes.md](formats/resume-notes.md).'),
+    ...bare('SQLite board schema'),
+    ...table('Format versions', 'format-versions'),
+    ...table('Upgrade rules', 'upgrade-rules'),
+    ...table('Board columns', 'board-columns'),
+    ...table('Board indexes', 'board-indexes'),
+    ...table('Board triggers', 'board-triggers'),
+    ...table('Temp columns', 'temp-columns'),
+    ...table('Temp triggers', 'temp-triggers'),
+    ...bare('Local board identities and cross-board moves'),
+    '## Event log',
+    '',
+    ...marked(blocks, 'events'),
+    ...bare('Flow report and captured submission size'),
+    ...bare('Submit test selection'),
+    ...linkSection('Static view export', 'The exported files, the replay page and the landing, Rigor and release-receipt engine notes are on [docs/formats/static-view.md](formats/static-view.md).'),
+    ...bare('Native proof provenance'),
+    ...bare('Approval provenance'),
+    ...bare('Offline flow replay'),
+    ...linkSection('Recorded board line settings', 'The eight line settings and their ranges, the ordering and landing engine notes, outside intake and sandbox receipts, capacity decisions, item decision options and signed board membership are on [docs/formats/settings.md](formats/settings.md).'),
+    ...bare('Seat addresses'),
+    ...linkSection('Machine-local runner rate card', 'A runner\'s rate card (`runnerRates`, set with `pullboard settings runnerRates`) is described on [docs/formats/rate-card.md](formats/rate-card.md).'),
+    ...bare('Machine-local relay canary'),
+  ].join('\n').replace(/\n+$/u, '\n');
+}
+
+/** The engine page of the formats doc: headings held here, its table rendered from the event declarations [C7]. */
+export function engineFirstPage(blocks) {
+  return [
+    '# Event log kinds',
+    '',
+    'Generated from `apps/cli/src/io/documentation/events` by `docs/formats/generate.mjs`; edit the declarations, then regenerate. The prose around this table stays in the Event log section of `docs/formats.md`.',
+    '',
+    '<!-- events:start -->',
+    blocks.events.trimEnd(),
+    '<!-- events:end -->',
+    '',
+  ].join('\n');
+}
+
+/** The static view page: headings held here, its snapshot table rendered from the declarations; its authored prose is dropped [C7]. */
+export function staticViewPage(blocks) {
+  return [
+    '# Static view export',
+    '',
+    '## Snapshot files',
+    '',
+    '<!-- snapshot-files:start -->',
+    blocks['snapshot-files'].trimEnd(),
+    '<!-- snapshot-files:end -->',
+    '',
+  ].join('\n');
+}
+
+/** The spec page: headings held here, its four tables rendered from the parser declarations; its authored prose is dropped [C7]. */
+export function specPage(blocks) {
+  return [
+    '# SPEC.md and DOCTRINE.md',
+    '',
+    '## SPEC.md and DOCTRINE.md',
+    '',
+    '<!-- id-pattern:start -->',
+    blocks['id-pattern'].trimEnd(),
+    '<!-- id-pattern:end -->',
+    '',
+    '<!-- statuses:start -->',
+    blocks.statuses.trimEnd(),
+    '<!-- statuses:end -->',
+    '',
+    '<!-- tiers:start -->',
+    blocks.tiers.trimEnd(),
+    '<!-- tiers:end -->',
+    '',
+    '### Parsed row fields',
+    '',
+    '<!-- parser-fields:start -->',
+    blocks['parser-fields'].trimEnd(),
+    '<!-- parser-fields:end -->',
+    '',
+  ].join('\n');
+}
+
+/** The API guide: headings held here, its three shape tables rendered from the JSON shape catalog, its v1 path table and the reference paragraphs its tests require held in api-notes.js; the other authored prose is dropped [C7,A1]. */
+export function apiPage(blocks) {
+  const notes = API_NOTES;
+  return [
+    '# CLI JSON API',
+    '',
+    notes.versioning,
+    '',
+    notes.decisions,
+    '',
+    notes.projectDecisions,
+    '',
+    '## Command result shapes',
+    '',
+    ...marked(blocks, 'api-command-shapes'),
+    '## Refusals',
+    '',
+    ...marked(blocks, 'api-refusal-shapes'),
+    '## Local HTTP API v1',
+    '',
+    notes.serve,
+    '',
+    notes.origin,
+    '',
+    '| Method and path | Result |',
+    '| --- | --- |',
+    ...HTTP_PATHS.map(([path, result]) => `| \`${path}\` | ${result} |`),
+    '',
+    notes.boards,
+    '',
+    notes.item,
+    '',
+    notes.proofs,
+    '',
+    notes.snapshots,
+    '',
+    '### Response shapes',
+    '',
+    ...marked(blocks, 'api-http-shapes'),
+    notes.stream,
+    '',
+    notes.streams,
+    '',
+  ].join('\n');
+}
 
 /** Render every generated copy without touching a repository board or rewriting authored prose. */
 export function generatedDocs(root = fileURLToPath(new URL('../../../../../', import.meta.url)), { openBoard } = {}) {
@@ -20,16 +169,6 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   let blocks;
   try { blocks = { ...schemaDocBlocks(board.db), ...declarationDocBlocks(root), 'format-versions': formatTable(root) }; }
   finally { closeBoard(board); }
-  let formats = files.readFile(join(root, 'docs', 'formats.md'), 'utf8');
-  let spec = files.readFile(join(root, 'docs', 'formats', 'spec.md'), 'utf8');
-  let staticView = files.readFile(join(root, 'docs', 'formats', 'static-view.md'), 'utf8');
-  // A table moved to a user page is refreshed there; every other table stays in the guide.
-  for (const [name, table] of Object.entries(blocks)) {
-    if (!formats.includes(`<!-- ${name}:start -->`) && spec.includes(`<!-- ${name}:start -->`)) spec = replaceDocTable(spec, name, table);
-    else if (!formats.includes(`<!-- ${name}:start -->`) && staticView.includes(`<!-- ${name}:start -->`)) staticView = replaceDocTable(staticView, name, table);
-    else formats = replaceDocTable(formats, name, table);
-  }
-  let api = files.readFile(join(root, 'docs', 'api.md'), 'utf8');
   const tables = {
     'api-command-shapes': shapeTable(['Command', 'Required top-level fields'], Object.fromEntries(
       Object.entries(JSON_SHAPES.commands).map(([name, shape]) => [name, shape.required]))),
@@ -37,9 +176,9 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
     'api-http-shapes': shapeTable(['Response', 'Required top-level fields'], Object.fromEntries(
       Object.entries(JSON_SHAPES.http).map(([name, shape]) => [name, shape.required]))),
   };
-  for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
   return new Map([
-    ['docs/formats.md', formats], ['docs/formats/spec.md', spec], ['docs/formats/static-view.md', staticView], ['docs/api.md', api],
+    ['docs/formats.md', formatsPage(blocks)], ['docs/formats/spec.md', specPage(blocks)], ['docs/formats/static-view.md', staticViewPage(blocks)], ['docs/api.md', apiPage({ ...blocks, ...tables })],
+    ['docs/formats/engine-first.md', engineFirstPage(blocks)],
     ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)],
   ]);
 }
@@ -59,33 +198,4 @@ export function writeGeneratedDocs(root, outputs, ports) {
   const changed = generatedDocDrift(root, outputs);
   for (const file of changed) files.writeFile(join(root, file), outputs.get(file));
   return changed;
-}
-
-/** The staged paths whose content feeds a generated copy: command, format and event declarations, the store schema and the settings of the tools. */
-const DECLARATION_SOURCE = /^(?:apps\/cli\/src\/io\/(?:command-docs|documentation)\/|packages\/[^/]+\/src\/io\/(?:formats|schema)\/|packages\/(?:store|config|state)\/)/u;
-
-/**
- * Regenerate and stage the generated documentation copies when a commit changes the declarations they are built from (#9664).
- * Why: the hand lander skips the landing batch that regenerates them, so drift reached main twice in one day. A copy the
- * person has partly staged is left alone and named, so no unstaged hunk is staged.
- *
- * @param {string} root the committing checkout
- * @param {{ openBoard: Function }} ports
- * @returns {string[]} notes for the person committing
- */
-export function regenerateStagedDocs(root, ports) {
-  const staged = git(root, ['diff', '--cached', '--name-only', '-z']).split('\0').filter(Boolean);
-  if (!staged.some(path => DECLARATION_SOURCE.test(path))) return [];
-  const changed = generatedDocDrift(root, undefined, ports);
-  if (!changed.length) return [];
-  const unstaged = new Set(git(root, ['diff', '--name-only', '-z']).split('\0').filter(Boolean));
-  const partly = changed.filter(file => unstaged.has(file));
-  const outputs = generatedDocs(root, ports);
-  const fixable = changed.filter(file => !unstaged.has(file));
-  for (const file of fixable) files.writeFile(join(root, file), outputs.get(file));
-  if (fixable.length) git(root, ['add', '--', ...fixable]);
-  return [
-    ...(fixable.length ? [`regenerated ${fixable.join(', ')} and staged them`] : []),
-    ...(partly.length ? [`not regenerated, because they are partly staged: ${partly.join(', ')}`] : []),
-  ];
 }

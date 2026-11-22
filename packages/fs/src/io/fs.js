@@ -40,6 +40,7 @@ export function fileSystemAdapter(source = realFs) {
     stat: (...args) => source.statSync(...args),
     lstat: (...args) => source.lstatSync(...args),
     realpath: (...args) => source.realpathSync(...args),
+    realpathNative: (...args) => source.realpathSync.native(...args),
     readlink: (...args) => source.readlinkSync(...args),
     access: (...args) => source.accessSync(...args),
     statfs: (...args) => source.statfsSync(...args),

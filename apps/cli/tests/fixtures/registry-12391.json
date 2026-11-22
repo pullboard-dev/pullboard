@@ -1,0 +1,3 @@
+{
+  "cli.item-folder.release-removes-same-folders": {"proves":{"specs":["C7"],"claim":"A release removes the same idle item folders as before (a clean one goes; one with only an ignored file, a dirty one and one with unlanded commits stay) while it runs no git worktree list and no worktree status snapshot."},"why":"Release median is cut by dropping git children that the seat's own files and the claim's own record already answer, so the cut must not change which folders a release removes.","kind":"cell unit","inputs":["apps/cli/src/io/item/folder.js","apps/cli/src/io/commands/release.js","apps/cli/tests/fixtures/next/take.js"]}
+}

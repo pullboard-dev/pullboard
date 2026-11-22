@@ -1,0 +1,3 @@
+{
+  "verify.logic-next.cut-merge-check-keeps-returns": {"proves":{"specs":["N2"],"claim":"clause 1: returnUnmergeable returns conflicting submitted items and never cleanly mergeable ones after the verify-owned cut."},"why":"A fast path must preserve conflict returns while avoiding a merge check for the trunk tip itself.","kind":"cell unit","inputs":["packages/verify/src/logic/next.js","packages/git/index.js"]}
+}

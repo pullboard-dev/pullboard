@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from "../../../../apps/cli/tests/fixtures/child.js";
+import { runFixtureChild } from "../../../git/tests/fixtures/child.js";
 import { fetchLocal } from "../../index.js";
 
 /** Run one isolated real-socket fault without installing a global handler in the product or parent. */

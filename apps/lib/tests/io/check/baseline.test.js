@@ -7,7 +7,7 @@ import { getItem } from '../../../../../packages/store/index.js';
 import { offerCheckBaseline } from '../../../../../packages/api/index.js';
 import { applyJobReceipt } from '../../../../../packages/api/index.js';
 import { provideBaselineRecorder } from '../../../../../packages/api/index.js';
-import { recordPulledBaseline } from '../../../../../packages/gate/index.js';
+import { recordPulledBaseline } from '../../../../../packages/gate/heavy.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { launchCheckBaseline } from '../../../src/io/check/baseline.js';
 

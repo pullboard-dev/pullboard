@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../git/tests/fixtures/child.js';
 import { seatAllowance } from '../src/io/cost/session.js';
 
 /** One Codex token_count row, with or without rate limits. */

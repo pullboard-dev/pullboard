@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { fixture } from '../../fixtures/next/take.js';
 import { cli } from '../../fixtures/next/take.js';
 import { runCliInProcess } from '../../fixtures/process.js';
+import * as store from '../../../../../packages/store/index.js';
 
 /** Run the real command with a person-facing text view. */
 const text = (box, ...args) => runCliInProcess(args, { cwd: box.root, env: { ...process.env, PULLBOARD_FIXTURE_BOARD: '1' } });
@@ -46,4 +47,19 @@ test('cli.journey.timeline-fleet: clause 2: pullboard timeline --fleet --since 3
   assert.equal(plain.status, 0, plain.stdout + plain.stderr);
   assert.match(plain.stdout, /bucket share/u);
   assert.match(plain.stdout, /slowest #/u);
+});
+
+test('cli.journey.timeline-merged-and-recorded: clause 3: pullboard timeline on an item merged ten minutes after its commit shows merged at the commit time and recorded at the record time [C7,#12156]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Landed by hand');
+  const committedAt = box.clock.now().getTime();
+  box.advance(10 * 60_000);
+  store.merged(box.board, id, { agentId: 'coordinator', commit: 'c'.repeat(40), forced: 'landed by hand', waiveProof: 'test fixture', mergedAt: committedAt });
+  const recordedAt = box.board.db.prepare("SELECT event_at FROM event WHERE event_kind = 'merged' AND item_id = ?").get(id).event_at;
+  assert.equal(Date.parse(recordedAt) - committedAt, 10 * 60_000, 'the record trails the commit by ten minutes');
+  const plain = await text(box, 'timeline', String(id));
+  assert.equal(plain.status, 0, plain.stdout + plain.stderr);
+  const lines = plain.stdout.split('\n');
+  assert.ok(lines.some(line => line.startsWith(new Date(committedAt).toISOString()) && /\bmerged\b/u.test(line)), `merged is placed at the commit time:\n${plain.stdout}`);
+  assert.ok(lines.some(line => line.startsWith(new Date(recordedAt).toISOString()) && /\brecorded\b/u.test(line)), `recorded is placed at the record time:\n${plain.stdout}`);
 });

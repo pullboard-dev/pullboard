@@ -94,6 +94,8 @@ export function personCommandContext(io, { main, ordered } = {}) {
  * @returns {T}
  */
 export function withBoard(ctx, work, opened) {
+  // Marks that this command made a board call, so main.js snapshots the claimed folder only then and a thin read loads nothing extra [C7,#12568].
+  globalThis[Symbol.for('pullboard.boardCall')] = true;
   // A queued submit's lock stop retries this one call in place; the submit is never restarted (ctx.lockRetry, #3370).
   return ctx.lockRetry && !opened ? ctx.lockRetry(() => openAndRun(ctx, work, opened)) : openAndRun(ctx, work, opened);
 }

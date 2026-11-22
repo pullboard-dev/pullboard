@@ -63,12 +63,6 @@ export async function preCommitHook(io, ctx, info, first, hookRead, rowDecisions
   const submitHandoffHookActor = first === 'pre-merge-commit' ? (await import('../../../../../packages/sandbox/index.js')).submitHandoffHookActor : null;
   // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
   if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') [...applyFixers(info.root, ctx.config.fix), ...fixStagedImportBindings(info.root)].forEach((note) => io.err(`pullboard pre-commit: ${note}`));
-  // Behind docs.regenerateOnCommit (off by default): the generated documentation copies follow the declarations they are built from [C7,#9664].
-  if (process.env.PULLBOARD_HOOK_COMPOSED !== '1' && (await import('../../../../../packages/config/index.js')).docsRegenerateOnCommit()) {
-    const { regenerateStagedDocs } = await import('../generated/docs.js');
-    const { openBoard } = await import('../../../../lib/index.js');
-    regenerateStagedDocs(info.root, { openBoard }).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
-  }
   if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
   // A boardless clone with board.url set is a seat whose lane the served board names, never the coordinator [P7].
   const remoteSeat = existsSync(ctx.file) ? null : await (await import('../remote/board.js')).remoteHookSeat(info.root);

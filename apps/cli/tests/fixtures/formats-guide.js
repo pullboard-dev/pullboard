@@ -1,11 +1,12 @@
-/** @pullboard-world-pin: block and documentedEvents read docs/formats.md and docs/formats/spec.md themselves, the guide both format tests check. */
+/** @pullboard-world-pin: block and documentedEvents read the generatedDocs output for docs/formats.md and docs/formats/spec.md, never a committed copy. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { apiBoardOpeners } from './board.js';
+import { generatedDocs } from '../../src/io/generated/docs.js';
 
-const guide = readFileSync(join(import.meta.dirname, '..', '..', '..', '..', 'docs', 'formats.md'), 'utf8');
+const pages = generatedDocs(undefined, { openBoard: apiBoardOpeners.openBoard });
+const guide = pages.get('docs/formats.md');
 /** The SPEC.md and DOCTRINE.md section lives on its own page; its sentences and marked tables are read there. */
-const specPage = readFileSync(join(import.meta.dirname, '..', '..', '..', '..', 'docs', 'formats', 'spec.md'), 'utf8');
+const specPage = pages.get('docs/formats/spec.md');
 
 /** Return the text inside a named marked documentation block. */
 export function block(start, end) {

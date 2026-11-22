@@ -8,7 +8,7 @@ export { prepareStaleObservation } from './src/io/stale/state/command.js';
 export { conditionalHoldFloor } from './src/logic/stale/state/floor.js';
 export { staleStateSnapshot } from './src/io/stale/state/snapshot.js';
 
-export { captureLapsedClaims, pinClaimHandoff } from './src/io/stale/state/capture.js';
+export { captureLapsedClaims, keepClaimWork, pinClaimHandoff } from './src/io/stale/state/capture.js';
 export { sweepClaims } from './src/io/claim/sweep.js';
 export { recordClaimSilence, readClaimSilence, CLAIM_SILENT_MS } from './src/io/claim/sweep.js';
 export { sweepLapsedClaims } from './src/io/claim/sweep.js';

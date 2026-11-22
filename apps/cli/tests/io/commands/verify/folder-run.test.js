@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -12,16 +11,14 @@ import { settleSubmit } from '../../../fixtures/submit/settle.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
 import { fixturePolicy } from '../../../fixtures/testkit.js';
 import { joinFixtureSeat } from '../../../fixtures/testkit.js';
-import { TIMING_RUN_ID_ENV } from '../../../../../../packages/gate/index.js';
+import { TIMING_RUN_ID_ENV } from '../../../../../../packages/gate/heavy.js';
 
 const helpers = createE2eHelpers();
-after(() => {
-  for (const dir of helpers.sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 });
-});
+after(helpers.cleanup);
 
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 const REPORTER = `import { tap } from 'node:test/reporters';
-import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../../../../../../packages/gate/index.js', import.meta.url).href)};
+import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../../../../../../packages/gate/heavy.js', import.meta.url).href)};
 export default async function* report(events) {
   const collector = testOutcomeCollector(process.cwd());
   let count = null;

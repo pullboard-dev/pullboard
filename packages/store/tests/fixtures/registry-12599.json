@@ -1,0 +1,30 @@
+{
+  "store.io-board-next.eligible-matches-selection": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "nextEligible returns null for an item next would offer a seat of that route, and otherwise the skip code next applies to a held, above-route, gate-queued, re-scoped, claim-waiting or after-chained item."
+    },
+    "why": "Without this test, status could not count exactly the items next would offer, and a per-item skip moved out of nextEligible would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/next.test.js",
+      "packages/store/src/io/board/next.js"
+    ]
+  },
+  "store.io-board-next.selection-unchanged": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "nextFor offers each seat the item nextEligible clears and records, for every other item, the skip code and reason nextEligible names, so moving the checks into nextEligible changed no selection."
+    },
+    "why": "Without this test, a regression where nextFor and nextEligible disagree on an item's eligibility would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/next.test.js",
+      "packages/store/src/io/board/next.js"
+    ]
+  }
+}

@@ -25,6 +25,7 @@ import {
 import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
 import { SNAPSHOT_BODY_BYTES } from './relay-limits.js';
+import { decodeSealedMove } from '../../logic/browser/move.js';
 import {
   enqueueStream,
   followStream,
@@ -507,7 +508,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
       if (row.event_id !== entry.cursor + 1) throw new Error('The relay event prefix is incomplete. Refresh this board.');
     }
     const plain = await withBrowserDeadline(() => unseal(entry.key, transportBytes(row.sealed), { boardId: entry.id, kind: row.kind, sequence: row.event_id }));
-    const move = JSON.parse(new TextDecoder().decode(plain));
+    const move = await withBrowserDeadline(() => decodeSealedMove(plain));
     if (accessLost) throw new Error('Sign in again to read this board.');
     if (row.kind === 'request') {
       let request;

@@ -5,11 +5,13 @@ import { testOutcomeFields } from '../../light.js';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { COMPARISON_WORKER_RECORD } from './comparison.js';
+import { NO_SELECTED_COMPARISON_EXECUTION } from './comparison-read.js';
+import { recordedVerificationComparison } from './comparison-read.js';
+export { recordedVerificationComparison, renderVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './comparison-read.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
 
 const fs = fileSystemAdapter();
 
-export const VERIFICATION_COMPARISON_PREFIX = 'Review comparison: ';
 /** A comparison whose worker died is started again this many times before it is recorded unavailable [C7]. */
 export const COMPARISON_RESTART_LIMIT = 3;
 
@@ -46,18 +48,6 @@ export function comparisonRestartPlan({ commonDir, item, thread, alive = process
   return { action: 'restart' };
 }
 
-/** Read well-formed observation records only for the current submitted source and frozen bar. */
-export function recordedVerificationComparison(thread, item) {
-  for (const fact of [...thread].reverse()) {
-    if (fact.type !== 'fact' || !fact.text?.startsWith(VERIFICATION_COMPARISON_PREFIX)) continue;
-    try {
-      const result = JSON.parse(fact.text.slice(VERIFICATION_COMPARISON_PREFIX.length));
-      if (result.source === item.item_commit && result.digest === item.item_frozen_digest) return result;
-    } catch { /* An ordinary prose fact cannot masquerade as a comparison. */ }
-  }
-  return null;
-}
-
 /** Keep argument boundaries, including spaces and shell punctuation in committed test paths. */
 export function comparisonCommand(runner, files) {
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
@@ -66,8 +56,8 @@ export function comparisonCommand(runner, files) {
 }
 
 /** Read regular files once per source; a new file is never passed to the base runner. */
-function sourceFiles(root, commit) {
-  return new Set(git(root, ['ls-tree', '-rz', commit]).split('\0').flatMap(row => {
+function sourceFiles(root, commit, gitRead) {
+  return new Set(gitRead(root, ['ls-tree', '-rz', commit]).split('\0').flatMap(row => {
     const match = /^100(?:644|755) blob [a-f0-9]+\t(.+)$/u.exec(row);
     return match ? [match[1]] : [];
   }));
@@ -93,15 +83,15 @@ function differences(head, base) {
 }
 
 /** Run both sides concurrently, falling back only when the original base cannot produce a test account. */
-export async function compareVerification(root, item, { main, selectTests, runTests, runnerAvailable }) {
+export async function compareVerification(root, item, { main, selectTests, runTests, runnerAvailable, gitRead = git }) {
   if (!item.item_commit) throw new Refused('NOT_SUBMITTED', 'submit the item before comparing its head');
-  const originalHead = git(root, ['rev-parse', `${item.item_commit}^{commit}`]);
-  const originalBase = git(root, ['merge-base', originalHead, main]);
-  const directory = join(git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']), 'pullboard', 'check-output');
+  const originalHead = gitRead(root, ['rev-parse', `${item.item_commit}^{commit}`]);
+  const originalBase = gitRead(root, ['merge-base', originalHead, main]);
+  const directory = join(gitRead(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']), 'pullboard', 'check-output');
   fs.mkdir(directory, { recursive: true });
   /** Give each actual execution a durable source-bound identity beside its native timing profile. */
   const runAt = async (commit, files) => {
-    if (!files.length) return { id: null, files: [], tests: [], skipped: 'no tests at source' };
+    if (!files.length) return { id: null, files: [], tests: [], skipped: NO_SELECTED_COMPARISON_EXECUTION };
     const request = randomUUID();
     const profileFile = join(directory, `compare-${request}.profile.json`);
     const run = await runTests(commit, files, { profileFile, artifactDirectory: directory });
@@ -116,7 +106,7 @@ export async function compareVerification(root, item, { main, selectTests, runTe
   const pair = async (head, base, additional = []) => {
     const selected = await selectTests(root, { base, commit: head });
     if (!Array.isArray(selected.files)) throw new Refused('COMPARE_SELECTION', 'the changed test closure could not be selected');
-    const headFiles = sourceFiles(root, head), baseFiles = sourceFiles(root, base);
+    const headFiles = sourceFiles(root, head, gitRead), baseFiles = sourceFiles(root, base, gitRead);
     const files = [...new Set([...selected.files, ...additional])].filter(file => headFiles.has(file)).sort();
     // A diagnostic cannot acquire a runner from an empty configured pool; retain unavailable instead of queueing.
     if (files.length && !runnerAvailable()) {
@@ -143,21 +133,10 @@ export async function compareVerification(root, item, { main, selectTests, runTe
     throw new Refused('COMPARE_UNVERIFIED', 'the comparison could not run both selected test accounts; restore the runner or source and retry');
   }
   const summary = side => ({ id: side.id, files: side.files, ...(side.profileFile ? { profileFile: side.profileFile } : {}), ...(side.skipped ? { skipped: side.skipped } : {}) });
+  const comparable = result.head.id !== null && result.base.id !== null;
+  const caseChanges = comparable ? differences(result.head.tests, result.base.tests) : { newRed: null, fixed: null };
   return { item: item.item_id, files: result.files, newFiles: result.newFiles,
     headCommit: result.headCommit, baseCommit: result.baseCommit,
     head: summary(result.head), base: summary(result.base),
-    ...differences(result.head.tests, result.base.tests), fallback };
-}
-
-/** Show only changed red cases and fixed cases, retaining the two execution identities. */
-export function renderVerificationComparison(result) {
-  if (result.status === 'pending') return `comparison pending for #${result.item}`;
-  if (result.status === 'unavailable') return `comparison unavailable: ${result.error}; review on the item's gate receipts`;
-  const lines = [`comparison #${result.item}${result.fallback ? ' (main fallback)' : ''}`,
-    `head ${result.headCommit}: ${result.head.id ? `run ${result.head.id}` : 'no tests at head'}`,
-    `base ${result.baseCommit}: ${result.base.id ? `run ${result.base.id}` : 'no tests at base'}`];
-  for (const row of result.newRed) lines.push(`new red: ${row.file}: ${row.name}`);
-  for (const row of result.fixed) lines.push(`fixed: ${row.file}: ${row.name}`);
-  if (!result.newRed.length && !result.fixed.length) lines.push('No new red or fixed cases.');
-  return lines.join('\n');
+    ...caseChanges, fallback };
 }

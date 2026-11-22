@@ -29,7 +29,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { itemFolderSeat } from '../item/folder/identity.js';
 import { canonicalVendorFamily } from '../../../../../packages/items/index.js';
-import { seatFamily } from '../../../../../packages/items/index.js';
+import { seatFamily } from '../../../../../packages/items/light.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';

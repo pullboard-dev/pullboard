@@ -1,12 +1,14 @@
 /** snapshotWip keeps an item folder's work on a board ref without touching the builder's index [C7,#12568]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { watch } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { snapshotOnBoardCall } from '../../../src/io/beater.js';
 import { snapshotWip } from '../../../src/io/item/wip.js';
 import { wipRef } from '../../../src/io/item/wip.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
@@ -70,4 +72,83 @@ test('cli.io-item-wip.snapshot-skips: clause 2: an unchanged folder writes no ne
   assert.equal(git('rev-parse', wipRef(7)), first.commit);
   rmSync(lock);
   assert.equal(snapshotWip(folder, 7).written, true);
+});
+
+test('cli.io-item-wip.secret-file-never-enters-snapshot: clause 1: a fake secret in a non-ignored file is absent from the snapshot ref and its reachable tree, the file and clean files remain [C7,#12859]', t => {
+  const { folder, git } = dirtyFolder(t);
+  const secret = 'sk-proj-' + 'A'.repeat(40);
+  writeFileSync(join(folder, 'credentials.txt'), `token=${secret}\n`);
+  const messages = [], original = console.log;
+  console.log = message => messages.push(String(message));
+  let result;
+  try { result = snapshotWip(folder, 12859); } finally { console.log = original; }
+  assert.equal(result.written, true);
+  assert.ok(messages.every(message => !message.includes(secret)));
+  assert.equal(readFileSync(join(folder, 'credentials.txt'), 'utf8'), `token=${secret}\n`);
+  assert.equal(git('show', `${result.commit}:tracked.txt`), 'one\nunstaged');
+  assert.equal(git('show', `${result.commit}:staged.txt`), 'staged');
+  assert.throws(() => git('grep', '-F', secret, result.commit));
+  assert.equal(git('status', '--porcelain=v1').includes('credentials.txt'), true);
+});
+
+test('cli.io-item-wip.secret-block-notice: clause 2: a blocked snapshot notice names only the item and file [C7,#12859]', t => {
+  const { folder } = dirtyFolder(t);
+  writeFileSync(join(folder, 'private.env'), 'API_TOKEN=not-a-real-but-matching-secret-value-1234567890\n');
+  const messages = [], original = console.log;
+  console.log = message => messages.push(String(message));
+  try { snapshotWip(folder, 12859); } finally { console.log = original; }
+  assert.equal(messages.length, 1);
+  assert.match(messages[0], /item 12859/u);
+  assert.match(messages[0], /private\.env/u);
+  assert.doesNotMatch(messages[0], /not-a-real-but-matching-secret-value/u);
+});
+
+/** The options that make a board call by seat core-1 see one claimed folder, with a clock the test owns. */
+function claimedCall(folder, now) {
+  return { seatOf: () => ({ seat: 'core-1', board: '/nowhere/board.sqlite' }), now: () => now, claimed: async () => [{ item: 12746, folder }] };
+}
+
+/** Watch the folder's refs, so the test learns of the background worker's snapshot from the ref change itself, not from a timer. */
+function watchRef(folder, git, item) {
+  const stop = new AbortController();
+  const seen = async () => {
+    const found = () => { try { return git('rev-parse', '--verify', '-q', wipRef(item)); } catch { return null; } };
+    try {
+      for await (const change of watch(join(folder, '.git', 'refs'), { recursive: true, signal: AbortSignal.any([stop.signal, AbortSignal.timeout(20_000)]) })) {
+        const commit = change && found();
+        if (commit) return commit;
+      }
+    } catch { /* stopped by the test, or the watch timed out: the caller reads the ref once more */ }
+    return found();
+  };
+  return { seen: seen(), found: () => { try { return git('rev-parse', '--verify', '-q', wipRef(item)); } catch { return null; } }, stop: () => stop.abort() };
+}
+
+test('cli.io-item-wip.snapshot-does-not-block-the-command: clause 1: a board call with a snapshot due returns within 20 ms of the same call with none due, on a dirty item folder [C7,#12746]', async t => {
+  const { folder, git } = dirtyFolder(t);
+  const options = claimedCall(folder, 9_000_000);
+  const ref = watchRef(folder, git, 12746);
+  const due = process.hrtime.bigint();
+  await snapshotOnBoardCall(folder, options);
+  const dueMs = Number(process.hrtime.bigint() - due) / 1e6;
+  const none = process.hrtime.bigint();
+  await snapshotOnBoardCall(folder, options);
+  const noneMs = Number(process.hrtime.bigint() - none) / 1e6;
+  console.log(`BOARD-CALL-WAIT snapshot-due ${dueMs.toFixed(1)} ms; none-due ${noneMs.toFixed(1)} ms; difference ${(dueMs - noneMs).toFixed(1)} ms`);
+  assert.ok(dueMs - noneMs < 20, `a due snapshot made the call wait ${(dueMs - noneMs).toFixed(1)} ms longer`);
+  assert.ok(ref.found() ?? await ref.seen, 'the background worker still wrote the snapshot');
+  ref.stop();
+});
+
+test('cli.io-item-wip.snapshot-survives-command-exit: clause 2: after the command returns, its own process holds no snapshot work and refs/pullboard/wip/<item> still comes to hold the uncommitted change [C7,#12746]', async t => {
+  const { folder, git } = dirtyFolder(t);
+  const ref = watchRef(folder, git, 12746);
+  // The call hands the snapshot to a detached worker process and returns; the CLI's process.exit after main cannot reach that worker.
+  await snapshotOnBoardCall(folder, claimedCall(folder, 9_000_000));
+  const commit = ref.found() ?? await ref.seen;
+  ref.stop();
+  assert.ok(commit, 'the worker wrote refs/pullboard/wip/<item>');
+  assert.equal(git('show', `${commit}:untracked.txt`), 'untracked');
+  assert.equal(git('show', `${commit}:tracked.txt`), 'one\nunstaged');
+  assert.equal(git('show', `${commit}:staged.txt`), 'staged');
 });

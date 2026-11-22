@@ -2,13 +2,11 @@
 import { COST_ENGINE } from '../../../../state/light.js';
 import { sanitizedUsage } from '../cost.js';
 import { sumUsage } from './usage.js';
+import { sharedSessionTotals } from './shared/read.js';
 import { ENGINE_VERSION } from '../../../../state/light.js';
 import { Refused } from '../../../../kernel/light.js';
 
-/** Read only sanitized public aliases and numeric counters, never private native session data. */
-export function sharedSessionTotals(board) {
-  return board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'shared-cost:%'").all().map((row) => JSON.parse(row.meta_value));
-}
+export { sharedSessionTotals } from './shared/read.js';
 
 /** Let an overlap participant publish its cumulative native delta once across all participating seats. */
 export function recordSharedUsage(board, { agentId, id, seats, allocations, revision, observedAt, records }) {
