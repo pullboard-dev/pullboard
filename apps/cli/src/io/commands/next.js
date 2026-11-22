@@ -355,6 +355,7 @@ async function nextWithProgress(io, values, progress) {
   let wakeVersion = wake?.version();
   // What this seat's last selection could see, read before that selection; a wake that leaves it equal waits again without selecting [C7,#11798].
   let passSignature = null, quiet = null, quietAt = 0;
+  let recheckDelay = 1000;
   try { for (;;) {
     // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
     store.refreshItemSnapshot();
@@ -575,6 +576,7 @@ async function nextWithProgress(io, values, progress) {
       }
       if (values.verify) refuseWhileBuilding(ctx);
       if (!values.take && !values.build && !values.verify && (values['no-wait'] || values.defaultLoop || values.wait !== undefined) && !found.laneWork) {
+        found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()))];
         const seconds = values.wait === undefined ? undefined : minutes * 60;
         try { return await answerNoWait(io, ctx, found, values, ordered, seconds); }
         finally { finishFirstDefaultPass(); }
@@ -605,7 +607,8 @@ async function nextWithProgress(io, values, progress) {
         continue;
       }
       wake.update(nextChangeInputs(ctx));
-      const until = withBoardRead(ctx, board => {
+      const recheckAt = waitClock.now() + recheckDelay;
+      const until = Math.min(recheckAt, withBoardRead(ctx, board => {
         const now = ctx.clock.now().toISOString();
         const row = board.db.prepare(`SELECT MIN(expiry) AS expiry FROM (
           SELECT item_lease_until AS expiry FROM item WHERE item_status='claimed' AND item_lease_until>?
@@ -618,20 +621,26 @@ async function nextWithProgress(io, values, progress) {
           if (release?.at) due.push(Date.parse(release.at) + cooldown);
         }
         return due.length ? Math.min(deadline, waitClock.now() + Math.min(...due) - ctx.clock.now().getTime()) : deadline;
-      });
+      }));
       await progress.idle(found.reasons, () => waitClock.sleep(wake, { after: wakeVersion, deadline: until }));
       wakeVersion = wake.version();
+      // Inspect the wake before sleeping again: its event may be the newly filed work.
       quiet = passSignature; quietAt = waitClock.now();
-      let signatureAt = quietAt;
+      let signatureAt = quietAt - QUIET_SIGNATURE_INTERVAL_MS;
       // Another seat's write that changes nothing this seat can take, hear or hold is not a reason to select again; a read path this signature misses is caught by the recheck [C7,#11798].
-      while (quiet !== null && !testRuns.pending.length && waitClock.now() < until && waitClock.now() - quietAt < QUIET_RECHECK_MS) {
+      while (quiet !== null && !testRuns.pending.length && waitClock.now() < until) {
+        if (waitClock.now() - signatureAt >= QUIET_SIGNATURE_INTERVAL_MS) {
+          signatureAt = waitClock.now();
+          if (seatSignature(ctx) !== quiet) break;
+        }
         const checkAt = signatureAt + QUIET_SIGNATURE_INTERVAL_MS;
-        await waitClock.sleep(wake, { after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS, checkAt) });
+        await waitClock.sleep(wake, { after: wakeVersion, deadline: Math.min(until, checkAt) });
         wakeVersion = wake.version();
         if (waitClock.now() < checkAt) continue;
         signatureAt = waitClock.now();
         if (seatSignature(ctx) !== quiet) break;
       }
+      if (waitClock.now() >= recheckAt) recheckDelay = Math.min(30_000, recheckDelay * 2);
     }
   } } finally { wake?.close(); }
 }
@@ -653,16 +662,16 @@ async function answerNoWait(io, ctx, found, values, ordered, waitedSeconds) {
     io.err?.(`next idle observation was not recorded (${error.code ?? error.message}); the exit code is unchanged`);
   }
   const line = finished ? boardFinishedLine(seat.lane) : idleTimeoutLine(seconds);
-  io.result?.({ item: null, idleReason: found.idleReason ?? 'unknown', ...(finished ? { finished: true } : { timeout: { seconds } }), reasons: [line] });
+  io.result?.({ item: null, idleReason: found.idleReason ?? 'unknown', ...(finished ? { finished: true } : { timeout: { seconds } }), reasons: [line, ...(found.reasons ?? [])] });
   io.say(line);
+  for (const reason of found.reasons ?? []) io.say(reason);
   return finished ? 3 : 4;
 }
 
 /** The clock a waiting next reads and sleeps through: the real time and the waiter's own timers unless io.nextWaitClock names another, so a test can drive the wait without real minutes [C7,#12761]. */
 const realWaitClock = { now: () => Date.now(), sleep: (wake, options) => wake.wait(options) };
 
-/** The longest a waiting next trusts an unchanged signature before it selects again, so a read path the signature misses cannot hold a seat for long [C7,#11798]. */
-const QUIET_RECHECK_MS = 30_000;
+/** Selection rechecks use the frozen 1, 2, 4, 8, 16, then 30 second intervals; native input changes wake them early [C7,#12807]. */
 
 /** Minimum time between full selection signatures while a waiter's watched files keep changing [C7,#12794]. */
 const QUIET_SIGNATURE_INTERVAL_MS = 100;

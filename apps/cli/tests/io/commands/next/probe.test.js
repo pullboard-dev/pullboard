@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { fixture } from '../../../fixtures/next/take.js';
-import { runCliInProcess } from '../../../fixtures/process.js';
+import { runFixtureChildAsync } from '../../../fixtures/child.js';
+import { fileURLToPath } from 'node:url';
 
 const IDLE_BUDGET_MS = 95_000;
 
 /** Run the built CLI against an isolated fixture board. */
 function runNext(box, cwd, ...args) {
-  return runCliInProcess(args, { cwd, env: box.env });
+  return runFixtureChildAsync(process.execPath, [fileURLToPath(new URL('../../../../pullboard.js', import.meta.url)), ...args], { cwd, env: box.env, encoding: 'utf8' });
 }
 
 /** Mark one fixture item verified through the board's guarded transition window. */

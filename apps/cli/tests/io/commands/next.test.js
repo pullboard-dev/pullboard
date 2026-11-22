@@ -193,3 +193,48 @@ test('cli.io-commands-next.no-wait-finished-exit-3: clause 2: next --no-wait ret
   assert.equal(fake - began, DEFAULT_IDLE_MS, `plain next returned the finished line after ${fake - began} ms of simulated time instead of its default deadline`);
   assert.ok(sleeps >= DEFAULT_IDLE_MS / DEFAULT_IDLE_STEP_MS, `plain next traversed only ${sleeps} fake-clock sleeps before finishing`);
 });
+
+test('cli.io-commands-next.recheck-cadence: clause 2: plain next rechecks after 1, 2, 4, 8, 16 then 30 seconds, caps its default at 90 seconds, and honors a two minute override [C7,#12807]', async t => {
+  for (const [minutes, args, intervals] of [
+    [10, [], [1000, 2000, 4000, 8000, 16000, 30000, 29000]],
+    [1, [], [1000, 2000, 4000, 8000, 16000, 29000]],
+    [10, ['--wait', '2'], [1000, 2000, 4000, 8000, 16000, 30000, 30000, 29000]],
+  ]) {
+    const box = await fixture(t, { projectConfig: { next: { idleMinutes: minutes } } });
+    let fake = 1_000_000;
+    const slept = [];
+    const clock = { now: () => fake, sleep: async (wake, { deadline }) => { slept.push(deadline - fake); fake = deadline; } };
+    const result = await drivenNext(box, box.seats.actor.path, clock, ...args);
+    assert.equal(result.code, 4, printed(result));
+    assert.deepEqual(slept, intervals);
+    assert.doesNotMatch(printed(result), /board finished/u);
+    assert.match(printed(result), /next waiting for .+; no item selected/u);
+  }
+});
+
+test('cli.io-commands-next.native-offer-wake: clause 2: an item filed through the CLI eight seconds into plain or explicit waiting is selected on that wake without another sleep [C7,#12807]', async t => {
+  for (const args of [[], ['--wait', '2']]) {
+    const box = await fixture(t);
+    let fake = 1_000_000, filed = null;
+    const began = fake;
+    const clock = {
+      now: () => fake,
+      sleep: async (wake, { after, deadline }) => {
+        assert.equal(filed, null, 'newly filed work must be inspected before another sleep');
+        fake = Math.min(deadline, began + 8000);
+        if (fake < began + 8000) return;
+        const added = await cli(box, box.root, ['add', 'web', 'Native offer at eight seconds', '--specs', 'G1', '--criterion', 'The real fixture succeeds.', '--check', 'true', '--brief', 'Files: web/dispatch.js\nTest: native next selects this item.']);
+        assert.equal(added.code, 0, printed(added));
+        filed = added.document.item.item_id;
+        await wake.wait({ after });
+      },
+    };
+    const result = await drivenNext(box, box.seats.actor.path, clock, ...args);
+    assert.equal(result.code, 0, printed(result));
+    assert.equal(fake - began, 8000);
+    assert.match(printed(result), new RegExp(`claimed #${filed}\\b`, 'u'));
+    const events = box.board.db.prepare("SELECT event_kind FROM event WHERE item_id=? ORDER BY event_id").all(filed).map(row => row.event_kind);
+    assert.ok(events.includes('add'), JSON.stringify(events));
+    assert.ok(events.includes('claim'), JSON.stringify(events));
+  }
+});
