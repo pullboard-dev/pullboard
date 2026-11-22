@@ -1,23 +1,21 @@
 /** A caller that asks for a coordinator seat adds one beside the main checkout; without it the coordinator stays one [C7,#10571]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addItem } from '../../../index.js';
-import { agentById } from '../../../index.js';
-import { agentAt } from '../../../index.js';
-import { closeBoard } from '../../../index.js';
-import { register } from '../../../index.js';
-import { ADVISOR_ROLE_ENGINE } from '../../../../state/light.js';
-import { NEEDS_ENGINE } from '../../../../state/light.js';
-import { agentAbilities } from '../../../src/io/needs.js';
-import { openKitBoard } from '../../fixtures/cell.js';
+import { addItem } from '../../../../../store/index.js';
+import { agentById } from '../../../../../store/index.js';
+import { agentAt } from '../../../../../store/index.js';
+import { register } from '../../../../../store/index.js';
+import { ADVISOR_ROLE_ENGINE } from '../../../../../state/light.js';
+import { NEEDS_ENGINE } from '../../../../../state/light.js';
+import { agentAbilities } from '../../../../../store/src/io/needs.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const MAIN = '/fixture/project';
 const SEAT = '/fixture/project-coordinator-seat';
 
 /** A board whose main checkout already joined as the coordinator. */
 function boardWithCoordinator(t) {
-  const board = openKitBoard(':memory:');
-  t.after(() => closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   assert.equal(register(board, { lane: 'coordinator', path: MAIN }), 'coordinator');
   return board;
 }
@@ -38,8 +36,7 @@ test('store.io-board-register.without-the-ask-one-coordinator: clause 2: without
 });
 
 test('store.io-board-register.clause-1-a-role-is-recorded: clause 1: register with role advisor records it so agentAt and agentById return agent_role advisor, and no role returns null [C7]', t => {
-  const board = openKitBoard(':memory:');
-  t.after(() => closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   const id = register(board, { lane: 'core', path: '/fixture/advisor', role: 'advisor' });
   assert.equal(agentAt(board, '/fixture/advisor').agent_role, 'advisor');
   assert.equal(agentById(board, id).agent_role, 'advisor');
@@ -49,8 +46,7 @@ test('store.io-board-register.clause-1-a-role-is-recorded: clause 1: register wi
 });
 
 test('store.io-board-register.clause-2-a-bad-role-is-refused: clause 2: a role other than advisor is refused BAD_ROLE, and a role below ADVISOR_ROLE_ENGINE is refused ENGINE_VERSION naming the upgrade [C7]', t => {
-  const board = openKitBoard(':memory:');
-  t.after(() => closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   assert.throws(() => register(board, { lane: 'core', path: '/fixture/bad', role: 'boss' }), { code: 'BAD_ROLE' });
   assert.equal(agentAt(board, '/fixture/bad'), undefined, 'no seat is registered');
   board.executionEngineVersion = ADVISOR_ROLE_ENGINE - 1;
@@ -60,8 +56,7 @@ test('store.io-board-register.clause-2-a-bad-role-is-refused: clause 2: a role o
 
 /** A seat in the web lane with one item placed in the given state, the way the stage tests place items: the fixture records where it stands. */
 function seatHolding(t, fields) {
-  const board = openKitBoard(':memory:');
-  t.after(() => closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   const id = register(board, { lane: 'web', path: '/fixture/mover' });
   const item = addItem(board, { by: 'coordinator', lane: 'web', title: 'held item', brief: 'Files:\n- src/held.js' });
   board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
@@ -71,8 +66,7 @@ function seatHolding(t, fields) {
 }
 
 test('store.io-board-register.explicit-move-when-free: clause 1: register with moveLane moves a seat holding no claimed, submitted, gate or review item to the named lane and logs a join event with from and to [C7]', t => {
-  const board = openKitBoard(':memory:');
-  t.after(() => closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   const id = register(board, { lane: 'web', path: '/fixture/mover' });
   assert.equal(register(board, { lane: 'core', path: '/fixture/mover', moveLane: true }), id, 'the seat keeps its id');
   assert.equal(agentAt(board, '/fixture/mover').agent_lane, 'core', 'the seat is in the named lane');
@@ -94,8 +88,7 @@ test('store.io-board-register.move-refused-while-held: clause 2: the same call f
 });
 
 test('store.io-board-register.abilities-real-path: register stores who.abilities for a fresh join and for a rejoin of the same seat, leaves them when none are given, and refuses ENGINE_VERSION below NEEDS_ENGINE [C7,U136]', t => {
-  const board = openKitBoard(':memory:');
-  t.after(() => closeBoard(board));
+  const board = cellBoard(t, ':memory:');
   const id = register(board, { lane: 'core', path: '/fixture/abilities', abilities: ['browser'] });
   assert.deepEqual(agentAbilities(board, id), ['browser'], 'a fresh join stores the declaration');
   assert.equal(register(board, { lane: 'core', path: '/fixture/abilities' }), id);

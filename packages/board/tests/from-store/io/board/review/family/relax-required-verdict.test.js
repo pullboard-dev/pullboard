@@ -4,16 +4,16 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../../index.js';
-import { FIXTURE_MODEL } from '../../../../fixtures/cell.js';
-import { openKitBoard } from '../../../../fixtures/cell.js';
-import { reviewFamilyRelaxation } from '../../../../../src/io/board/review/family.js';
-import { reservedRelaxation } from '../../../../../src/io/board/review/family.js';
-import { relaxationRecordLine } from '../../../../../src/io/board/review/family.js';
-import { logEvent } from '../../../../../src/io/board/event/log.js';
-import { submitFixture } from '../../../../fixtures/submit.js';
-import { privateFixtureFiles } from '../../../../../../gate/tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../../../../../gate/tests/fixtures/testkit.js';
+import { cellBoard } from '../../../../../fixtures/cell-board.js';
+import * as store from '../../../../../../../store/index.js';
+import { FIXTURE_MODEL } from '../../../../../../../store/tests/fixtures/cell.js';
+import { reviewFamilyRelaxation } from '../../../../../../../store/src/io/board/review/family.js';
+import { reservedRelaxation } from '../../../../../../../store/src/io/board/review/family.js';
+import { relaxationRecordLine } from '../../../../../../../store/src/io/board/review/family.js';
+import { logEvent } from '../../../../../../../store/src/io/board/event/log.js';
+import { submitFixture } from '../../../../../../../store/tests/fixtures/submit.js';
+import { privateFixtureFiles } from '../../../../../../../gate/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../../../../../gate/tests/fixtures/testkit.js';
 
 /** Run `act` against a private machine home with review.relaxRequiredFamily on, restoring the home afterwards. */
 function withRelaxOn(act) {
@@ -34,8 +34,7 @@ function withRelaxOn(act) {
  */
 function widenedLine(t) {
   let now = new Date('2026-01-01T00:00:00.000Z');
-  const board = openKitBoard(':memory:', { now: () => new Date(now) });
-  t.after(() => store.closeBoard(board));
+  const board = cellBoard(t, ':memory:', { now: () => new Date(now) });
   for (const [id, lane, family, parent] of [['coordinator', 'coordinator', 'human', 'a'], ['core-1', 'core', 'openai', 'b'], ['core-2', 'core', 'openai', 'c']]) {
     store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), model: FIXTURE_MODEL });
   }
