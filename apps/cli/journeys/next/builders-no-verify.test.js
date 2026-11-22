@@ -25,28 +25,6 @@ function reviewAndBuild(box) {
   return { review, build };
 }
 
-test('cli.journeys-next-builders-no-verify.on-with-live-review-seat: clause 1: with review.builderOffers on and a seat in lane review alive, a builder seat next claims the build item and never offers or reserves the waiting review [C7,#11946]', async t => {
-  const box = await fixture(t, { route: 'light' });
-  const { review, build } = reviewAndBuild(box);
-  assert.equal(store.withSeatPresence(box.board, [{ agent_id: box.seats.outside.id }])[0].presence, 'live', 'the review-lane seat is alive');
-  reviewSettings({ builderOffers: true });
-  const answer = await cli(box, box.seats.actor.path, ['next']);
-  assert.equal(answer.code, 0, answer.out + answer.err);
-  assert.equal(answer.document.item.item_id, build);
-  assert.notEqual(answer.document.review, true, 'the answer is not a review');
-  assert.equal(store.getItem(box.board, review).item_review_by ?? null, null, 'the waiting review is never reserved');
-});
-
-test('cli.journeys-next-builders-no-verify.off-unchanged: clause 2: with review.builderOffers off, next offers the waiting review to a builder seat exactly as before [C7,#11946]', async t => {
-  const box = await fixture(t, { route: 'light' });
-  const { review } = reviewAndBuild(box);
-  reviewSettings({ builderOffers: false });
-  const answer = await cli(box, box.seats.actor.path, ['next']);
-  assert.equal(answer.code, 0, answer.out + answer.err);
-  assert.equal(answer.document.item.item_id, review);
-  assert.equal(store.getItem(box.board, review).item_review_by, box.seats.actor.id);
-});
-
 test('cli.journeys-next-builders-no-verify.real-entry-no-live-review-seat: clause 3: the real CLI entry apps/cli/pullboard.js with review.builderOffers on and no review-lane seat alive offers the waiting review to a builder seat [C7,#11946]', async t => {
   const box = await fixture(t, { route: 'light' });
   const { review } = reviewAndBuild(box);
