@@ -77,19 +77,22 @@ export async function receiveLocalBoardStates(ctx, board, { projects, parentRoot
   const transport = createBoardLinkFileTransport(join(ctx.info.gitDir, 'pullboard', 'board-links'), { board: destinationId });
   for (const record of readBoardLinks(board)) {
     if (record.revocation || record.parent.boardId !== destinationId) continue;
-    const project = projects.find(row => row.name === record.child.handle && row.root !== ctx.info.root);
-    if (!project) continue;
+    const candidates = projects.filter(row => row.name === record.child.handle && row.root !== parentRoot);
+    if (!candidates.length) continue;
     const incoming = await transport.read(0, destinationId);
     const deliveries = incoming.deliveries.filter(delivery => delivery.envelope.sourceBoardId === record.child.boardId
       && delivery.envelope.linkId === record.linkId);
     if (!deliveries.length) continue;
-    const childBoard = ctx.nativeBoard.openBoard(boardFilePath(join(project.root, '.git')), ctx.clock, { isMain: false, gitRoot: project.root });
-    try {
-      if (boardId(childBoard) !== record.child.boardId) continue;
-      const child = { board: childBoard, root: project.root };
-      const parent = { board, root: parentRoot };
-      const { authority, capability } = boardLinkPorts({ child, parent, record, readKey });
-      for (const delivery of deliveries) await receiveBoardState(board, delivery, { authority, capability });
-    } finally { closeBoard(childBoard); }
+    for (const project of candidates) {
+      const childBoard = ctx.nativeBoard.openBoard(boardFilePath(join(project.root, '.git')), ctx.clock, { isMain: false, gitRoot: project.root });
+      try {
+        if (boardId(childBoard) !== record.child.boardId) continue;
+        const child = { board: childBoard, root: project.root };
+        const parent = { board, root: parentRoot };
+        const { authority, capability } = boardLinkPorts({ child, parent, record, readKey });
+        for (const delivery of deliveries) await receiveBoardState(board, delivery, { authority, capability });
+        break;
+      } finally { closeBoard(childBoard); }
+    }
   }
 }
