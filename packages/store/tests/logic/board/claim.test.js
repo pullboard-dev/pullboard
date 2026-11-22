@@ -6,6 +6,7 @@ import * as store from '../../../index.js';
 import { firstRefusalArgs } from '../../../../items/index.js';
 import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { fixture } from '../../fixtures/dispatch.js';
+import { cellBoard } from '../../fixtures/cell.js';
 
 /**
  * Queue, start and complete one refused gate for the seat's claim through the ordered board moves.
@@ -59,7 +60,7 @@ function onTheBoard(box, id) {
 
 for (const [kind, code] of [['a red gate result', 'GATE_RED'], ['a submit refusal', 'CELLS_PLAN_UNPLACED']]) {
   test(`clause 1: recording ${kind} with claim.returnToBoard releases the builder claim with no first refusal and next offers it to a free seat of the lane [C7,V4,H16]`, t => {
-    const box = fixture(t);
+    const box = fixture(t, { boardOpener: cellBoard });
     box.board.gitRoot = box.root;
     const id = box.add(`Returned ${code}`);
     box.claim(id, box.seats.builder);
@@ -93,20 +94,20 @@ function reject(box, config, former = false) {
 }
 
 test('store.logic-board-claim.recording-a-reject-with-claim-returntoboard: clause 1: recording a reject with claim.returnToBoard releases the builder hold with no first refusal and next offers it to a free seat of the lane [C7,V4,H16]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30, returnToBoard: true } });
   onTheBoard(box, id);
 });
 
 test('store.logic-board-claim.with-claim-returntoboard-off-a-reject: clause 1: with claim.returnToBoard off a reject still reserves its builder for the configured window [C7,V4]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30 } }, true);
   assert.equal(store.firstRefusal(box.board, id)?.builder, box.seats.builder.id);
   assert.notEqual(offered(box, box.seats.actor), id);
 });
 
 test('store.logic-board-claim.with-claim-returntoboard-off-a-red: clause 1: with claim.returnToBoard off a red gate still keeps the builder claim, so the setting is what returns it [C7,V4]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   box.board.gitRoot = box.root;
   const id = box.add('Kept red');
   box.claim(id, box.seats.builder);
