@@ -75,3 +75,4 @@ test('landing.selection.local-waits-unchanged: clause 2: an item with only local
   const { blocked } = candidates(board, root, base, 8, { listItems: () => listed });
   assert.deepEqual(blocked.map(entry => [entry.id, entry.code, entry.message, entry.items]), [[2822, 'WAITS_ON_ITEM', 'waits on unmerged item(s) #2658', [2658]]]);
 });
+

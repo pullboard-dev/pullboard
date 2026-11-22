@@ -1,4 +1,4 @@
-import { seatFamily } from '../../../../packages/items/index.js';
+import { seatFamily } from '../../../../packages/items/light.js';
 /** Helpers for `pullboard blueprint`: adding a blueprint and its private names. Split from src/cli.js, which re-exports it [C7]. */
 import { hostname } from 'node:os';
 import { join } from 'node:path';

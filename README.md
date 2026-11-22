@@ -110,8 +110,8 @@ Pullboard gives agents a shared plan, separate lanes and proof before work count
 - **Spec.** Approved rows in `SPEC.md` are the contract, frozen when an agent claims the work.
 - **Doctrine.** `DOCTRINE.md` holds the repo's rules. Hooks enforce what a machine can check.
 - **Lanes.** Each agent works in its own worktree. Claims are atomic, and items can wait on others.
-- **Proof.** A green gate on a runner, then a different agent verifies that exact commit.
-- **Landing.** Accepted work lands on main by itself, with its receipt.
+- **Proof.** By default, a green gate on a runner, then a different agent verifies that exact commit.
+- **Landing.** By default, accepted work lands on main by itself, with its receipt.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/loop-dark.svg">
@@ -247,7 +247,7 @@ npm i -g pullboard
 pullboard tour
 ```
 
-Upgrading from 0.9.3? Run the same install. Your boards and runners keep working. Then, in each repo, run `pullboard inbox` to repair the board triggers, and `pullboard init` and commit the `.githooks` it rewrites, so `pullboard doctor` reports no problems.
+Upgrading from 0.9.4? Run the same install. Your boards and runners keep working. Then, in each repo's main checkout, run `pullboard inbox` to repair the board triggers, and `pullboard init` and commit the `.githooks` it rewrites. Merge main into existing agent seats, so `pullboard doctor` reports no problems.
 
 On a throwaway repo, **you** approve one rule: greet a blank name as "world". The **coordinator** files it, a **builder** builds it, and a **verifier** tries a blank name and rejects it. The **builder** fixes it and adds a test. The **verifier** breaks the fix on purpose, sees the test fail, and accepts. The **coordinator** merges it with a receipt.
 
@@ -264,6 +264,8 @@ Give your agent this line in an empty or existing git repo.
 
 Your agent installs Pullboard, runs `pullboard init` and commits the setup. It then walks you through setup in the view it opens. You approve your requirements and answer its questions.
 
+If the view doesn't open, run `pullboard view --port 4892 --no-open` and open the address it prints.
+
 From then on, just talk to your agent. It runs the commands below for you.
 
 <picture>
@@ -273,11 +275,10 @@ From then on, just talk to your agent. It runs the commands below for you.
 
 You can also run it yourself.
 
-`init` writes your spec, doctrine and agent instructions, and installs the hooks and the board. Commit what it wrote, then open Claude Code in the repo and say what to build. That agent becomes your coordinator.
+`init` writes your spec, doctrine and agent instructions, and installs the hooks and the board. Accept its setup commit, or run `pullboard init --yes` to commit only setup's own files. Then open Claude Code in the repo and say what to build. That agent becomes your coordinator.
 
 ```sh
 pullboard init
-git add -A && git commit -m "chore(repo): set up pullboard"
 ```
 
 ### Working with agents
@@ -295,6 +296,10 @@ A few commands keep every agent on track.
 - `pullboard run`: a lighter model builds simple items unattended.
 
 Claude Code gets skills. Codex reads `AGENTS.md`. Both get Pullboard's MCP server, and any other agent can read `pullboard prompt <role>`. The [triage skill](skills/pullboard-triage/SKILL.md) handles outside issues and pull requests, with your approval.
+
+If you are the only builder, inspect an item with `pullboard show <id>` and take other build work with `pullboard next`. Another agent session can create a reviewer seat with `pullboard worktree`, then run `pullboard next --verify` to review the submission.
+
+A builder cannot verify their own work, so independent review remains pending until another session reviews it. This describes the available solo path and does not decide the pending solo-route question.
 
 ## Runners and landing
 
@@ -331,7 +336,7 @@ The run goes on the queue and the command returns. A green run at the item's hea
 
 ### Landing
 
-Accepted work lands on its own, as a job on a runner. The lander takes every accepted item that merges cleanly, lands them in the order they were accepted, refuses a candidate that fails its checks, and moves main forward. Your trunk remote refuses a push to main that has no landing receipt.
+By default, accepted work lands on its own, as a job on a runner. The lander takes every accepted item that merges cleanly, lands them in the order they were accepted, refuses a candidate that fails its checks, and moves main forward. Your trunk remote refuses a push to main that has no landing receipt.
 
 ```sh
 pullboard why
@@ -339,6 +344,8 @@ pullboard land --why
 ```
 
 `why` shows the release on one screen: the one thing holding each unlanded item. `land --why` says why nothing landed. An accepted item that no longer merges goes back to its lane with the conflict named.
+
+To land sooner, set `"pace": "sprint"` in `pullboard.json` before claiming work. Sprint can land a submitted item after a green screen on current main, with proof on the exact tree that lands. Independent review follows, and landed work can still be rejected and removed from main.
 
 ### Boards anywhere
 
@@ -401,13 +408,25 @@ The **gate** is any command that proves your code, like `npm test` or `pytest`. 
 
 #### Multi-language support
 
-`init` finds each language in the repo and sets a gate for each one. To set one yourself, pick the gate for your stack. Chain checks with `&&`, like `ruff check . && pytest`.
+`init` detects languages at the repo root, or one folder down, and suggests a gate for each. To set one yourself, pick the gate for your stack. Chain setup and checks with `&&`.
+
+A gate runs in a clean runner checkout: commit its lockfiles and test requirements, and repeat every setup step the gate depends on there. An install in a builder's folder does not reach that checkout. The required tools must be on the runner service's `PATH`; Pullboard does not provision them. Do not assume SSH runners support pnpm.
+
+These examples use `<exact-version>` as a placeholder: replace it with the exact version pinned by the project, and commit the matching lockfile. Approve dependency build scripts in committed configuration so installation does not depend on an interactive prompt.
+
+- **pnpm:** Pin `packageManager` to `pnpm@<exact-version>`, commit `pnpm-lock.yaml`, and put explicit build-script approvals for needed packages in `pnpm-workspace.yaml` under `allowBuilds`. Gate: `pnpm install --frozen-lockfile && pnpm test`.
+- **Yarn Classic:** Pin `packageManager` to `yarn@1.22.22` (or the exact project version), commit `yarn.lock`, and gate with `yarn install --frozen-lockfile && yarn test`.
+- **Modern Yarn:** Pin `packageManager` to `yarn@<exact-version>`, commit `yarn.lock` and `.yarnrc.yml`, and declare approved build scripts in the committed Yarn configuration (for example, package-specific `dependenciesMeta` entries). Gate: `yarn install --immutable && yarn test`.
+- **Python:** Commit `requirements-test.txt` with pinned test dependencies. Create the environment and use its interpreter for both installation and pytest: `python3 -m venv .venv && .venv/bin/python -m pip install -r requirements-test.txt && .venv/bin/python -m pytest`.
+- **Go:** Provision the Go toolchain on the runner service `PATH` and commit `go.mod` and `go.sum`. Gate: `go mod download && go test ./...`.
+
+Run `pullboard init --verbose` for language setup notes, and `pullboard doctor` to check runner toolchains.
+
+For other stacks, the usual test command is:
 
 | Stack | Gate |
 | --- | --- |
 | JavaScript, TypeScript | `npm test` |
-| Python | `pytest` |
-| Go | `go test ./...` |
 | Rust | `cargo test` |
 | Java | `mvn test` or `gradle test` |
 | Ruby | `bundle exec rspec` |
@@ -428,7 +447,6 @@ Pullboard exists to keep a team of agents coherent over a long build.
 
 - Hosted Pullboards, for when you'd rather not run it yourself.
 - A cleaner core: every rule in one place, every fact derived from the record.
-- Proof on the exact tree that lands on main.
 - Tests that can't be gamed: a bar for every test.
 - A board that tunes its own capacity.
 - More options for your setup: runners or none, one agent or many, any model family.

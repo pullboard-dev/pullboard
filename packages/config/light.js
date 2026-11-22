@@ -10,6 +10,7 @@ export {
   loadConfig,
 } from './src/io/main.js';
 export { maintenanceDurations } from './src/logic/maintenance.js';
+export { scratchRoot } from './src/logic/scratch.js';
 export {
   boardRemote,
   browserFreeChecksEnabled,
@@ -19,9 +20,12 @@ export {
   listThinRead,
   loadMachineSettings,
   namedImportSelectionOn,
+  nextReturnedFirst,
   readThinCommands,
   reofferInfraEndEnabled,
   retireIdleSeatHours,
+  routeReservations,
+  submitComposeAsObject,
   submitProofOnly,
   typedFieldsEnabled,
   validateRunner,

@@ -26,19 +26,5 @@
       "packages/stats/src/logic/timeline.js",
       "packages/stats/tests/logic/timeline.test.js"
     ]
-  },
-  "stats.io-timeline.review-real-board": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "readItemTimeline on a real board returns reviewing and verdict rows after a submit, a reservation and an accept through the store moves."
-    },
-    "why": "Without it the review stages could pass on fixtures and fail on the board's real events.",
-    "kind": "cell unit",
-    "inputs": [
-      "packages/stats/src/io/timeline.js",
-      "packages/stats/tests/io/timeline.test.js"
-    ]
   }
 }

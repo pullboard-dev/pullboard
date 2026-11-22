@@ -1,19 +1,26 @@
+/** @pullboard-module-loads packages/merge/src/io/trunk.js */
 import { effectiveItemHead } from '../../../../../verify/read.js';
-import { isRecordedConflictContext } from '../../../../../state/index.js';
+import { isRecordedConflictContext } from '../../../../../state/light.js';
 /** Board-bound computed conflict evidence is verified against immutable Git commits before sealing and on replay [V4,H16]. */
 import { createHash } from 'node:crypto';
-import { repoInfo } from '../../../../../git/index.js';
-import { recordedTrunkMerge } from '../../../../../merge/index.js';
-import { trunkMerge } from '../../../../../merge/index.js';
-import { refuseRecordedHistoryOverrides } from '../../../../../merge/index.js';
+import { createRequire } from 'node:module';
+import { repoInfo } from '../../../../../git/light.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { Refused } from '../../../../../kernel/index.js';
+import { Refused } from '../../../../../kernel/light.js';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 const fs = fileSystemAdapter();
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const ID = /^[a-f0-9-]{36}$/u;
+const requireModule = createRequire(import.meta.url);
+let mergeModule = null;
+
+/** Load only the trunk checks on a conflict-computation call, keeping landing's cold import light. */
+function mergeExports() {
+  mergeModule ??= requireModule('../../../../../merge/src/io/trunk.js');
+  return mergeModule;
+}
 
 /** Read the canonical immutable record, rejecting altered, unknown or malformed fields. */
 export function computedConflictFields(value) {
@@ -49,6 +56,7 @@ export function requireComputedConflictObjects(board, receipt) {
   const fields = computedConflictFields(receipt);
   if (!fields) return null;
   const gitDirectory = objectStore(board);
+  const { refuseRecordedHistoryOverrides, recordedTrunkMerge } = mergeExports();
   refuseRecordedHistoryOverrides(gitDirectory);
   let cache = VERIFIED_OBJECTS.get(board);
   if (!cache) { cache = new Map(); VERIFIED_OBJECTS.set(board, cache); }
@@ -71,7 +79,7 @@ function requireCurrentConflict(board, fields) {
   if (fields.version !== 4) throw new Refused('COORDINATOR_ONLY', 'fresh automatic returns need current mechanical conflict evidence; compute a new return');
   const root = board.db.prepare("SELECT agent_path FROM agent WHERE agent_id='coordinator'").get()?.agent_path;
   if (!root) throw new Refused('COORDINATOR_ONLY', 'fresh automatic return needs the registered native trunk');
-  const current = trunkMerge(root, fields.head);
+  const current = mergeExports().trunkMerge(root, fields.head);
   if (current.commit !== fields.trunk || JSON.stringify(current.files) !== JSON.stringify(fields.files)) {
     throw new Refused('COORDINATOR_ONLY', 'fresh automatic return must use the current trunk; compute a new return before sending it');
   }

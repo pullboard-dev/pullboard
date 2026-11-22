@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dispatchWork } from '../../index.js';
 import { fixture } from '../fixtures/dispatch.js';
+import { cellBoard } from '../fixtures/cell.js';
 
 const LANES = ['web', 'review', 'docs'];
 
 /** Items in two cells: the builder holds one in packages/alpha, a second open item sits in the same cell and a third in packages/beta. */
 function cells(t, { beta = true } = {}) {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const held = box.add('Held alpha', { brief: 'Files:\n- packages/alpha/src/a.js\nTest: held.' });
   box.claim(held);
   const sameCell = box.add('Alpha sibling', { brief: 'Files:\n- packages/alpha/tests/b.test.js\nTest: sibling.' });

@@ -8,6 +8,21 @@
       "claim": "With inbox.batchedMarks on, a pullboard inbox read with one fresh interrupt and two unread shouts prints all three and writes no board row as the inbox command."
     },
     "why": "Without it, a regression where the inbox read opens the write board again, or the worker stops recording the delivery, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/inbox.js",
+      "apps/cli/tests/io/commands/inbox.test.js"
+    ]
+  },
+  "cli.journeys-inbox-no-write.golden-read-writes-nothing": {
+    "proves": {
+      "specs": [
+        "C7",
+        "#8943"
+      ],
+      "claim": "The end-to-end inbox read prints the interrupt and both shouts without an inbox write."
+    },
+    "why": "Without it, a regression where the complete CLI journey opens the write board on a read would pass unnoticed.",
     "kind": "journey",
     "inputs": [
       "apps/cli/journeys/inbox/no-write.test.js"

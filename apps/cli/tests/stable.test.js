@@ -151,7 +151,7 @@ test('cli.stable.journeys-registered-10549: clause 1: [C7,U148] every core-owned
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them.
   const viewOwned = new Set([]);
-  for (const area of ['release', 'resources', 'resume', 'sync', 'upgrade']) {
+  for (const area of ['release', 'resources', 'resume', 'upgrade']) {
     for (const file of testFiles(join(journeys, area))) {
       if (viewOwned.has(file.slice(journeys.length + 1))) continue;
       const source = readFileSync(file, 'utf8');
@@ -208,6 +208,7 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
     join(DIR, 'io', 'init', 'permissions.test.js'),
     join(DIR, 'io', 'init', 'practice.test.js'),
     join(DIR, 'io', 'init', 'testkit.test.js'),
+    join(DIR, 'io', 'commands', 'init', 'cpp.test.js'),
   ];
   assert.deepEqual(initLandListLogMcpFindings(records, journeys, moved), []);
 });

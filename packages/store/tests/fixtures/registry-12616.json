@@ -1,5 +1,2 @@
 {
-  "store.io-board-write-lock.hold-rows-carry-time": {"proves":{"specs":["C7"],"claim":"a slow write's counter row and violation row both carry an at epoch-ms field."},"why":"Without this case a status reader could not tell recent holds from old ones.","kind":"cell unit","inputs":["packages/store/src/io/board/write/lock.js"]},
-  "store.io-board-write-lock.hold-alarm-reads-the-window": {"proves":{"specs":["C7"],"claim":"the alarm reader counts counter rows inside the window with the worst move and heldMs, ignoring older rows and rows with no at."},"why":"Without this case an old log would keep the alarm raised or older rows without a time would be counted.","kind":"cell unit","inputs":["packages/store/src/io/board/write/lock.js"]},
-  "store.io-board-write-lock.hold-alarm-bounded-read": {"proves":{"specs":["C7"],"claim":"the alarm reads only the last 64 KiB of a larger log and reports truncated when the window reaches past that tail."},"why":"Without this case status would read the whole ever-growing log on each call.","kind":"cell unit","inputs":["packages/store/src/io/board/write/lock.js"]}
 }

@@ -1,0 +1,98 @@
+{
+  "api.gate-recovery.single-cancelled-shard": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "one completed cancelled unaccounted shard gets one ordinary exact-selection replacement pinned to parent attempts, candidate tree and trusted tooling [C7,P7]"
+    },
+    "why": "A single incomplete proof must never discard sibling contributions or bypass native authenticated custody and ordinary comparison.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/api/src/io/gate.js",
+      "packages/api/src/io/gate/retry.js",
+      "packages/api/tests/io/gate/retry.test.js"
+    ]
+  },
+  "api.gate-recovery.mixed-red-green-preserved": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "complete red and green siblings survive a green or complete red replacement and ordinary comparison keeps the parent red [C7,P7]"
+    },
+    "why": "A single incomplete proof must never discard sibling contributions or bypass native authenticated custody and ordinary comparison.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/api/src/io/gate.js",
+      "packages/api/src/io/gate/retry.js",
+      "packages/api/tests/io/gate/retry.test.js"
+    ]
+  },
+  "api.gate-recovery.invalid-terminal-replacements": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "unknown, cancelled, missing, refused and foreign replacement evidence leaves the original unproved [C7,P7]"
+    },
+    "why": "A single incomplete proof must never discard sibling contributions or bypass native authenticated custody and ordinary comparison.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/api/src/io/gate.js",
+      "packages/api/src/io/gate/retry.js",
+      "packages/api/tests/io/gate/retry.test.js"
+    ]
+  },
+  "api.gate-recovery.duplicate-and-stale-custody": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "duplicate native receipt does not reapply, wrong token is refused, and superseded parent cannot use a delayed replacement [C7,P7]"
+    },
+    "why": "A single incomplete proof must never discard sibling contributions or bypass native authenticated custody and ordinary comparison.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/api/src/io/gate.js",
+      "packages/api/src/io/gate/retry.js",
+      "packages/api/tests/io/gate/retry.test.js"
+    ]
+  },
+  "api.gate-recovery.unsupported-and-incomplete": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "unsupported queue mode or split store and multiple unknown shards offer no replacement [C7,P7]"
+    },
+    "why": "A single incomplete proof must never discard sibling contributions or bypass native authenticated custody and ordinary comparison.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/api/src/io/gate.js",
+      "packages/api/src/io/gate/retry.js",
+      "packages/api/tests/io/gate/retry.test.js"
+    ]
+  },
+  "api.gate-recovery.emits-identities-and-final-reason": {
+    "proves": {
+      "specs": [
+        "C7",
+        "P7"
+      ],
+      "claim": "native recovery notes name original and replacement with final reason, without trusted request or token payload [C7,P7]"
+    },
+    "why": "A single incomplete proof must never discard sibling contributions or bypass native authenticated custody and ordinary comparison.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/api/src/io/gate.js",
+      "packages/api/src/io/gate/retry.js",
+      "packages/api/tests/io/gate/retry.test.js"
+    ]
+  }
+}

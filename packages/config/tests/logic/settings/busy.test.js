@@ -7,7 +7,7 @@ import { addRunner } from '../../../index.js';
 import { loadMachineSettings } from '../../../index.js';
 import { listResources } from '../../../../resources/index.js';
 import { takeResource } from '../../../../resources/index.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../git/tests/fixtures/child.js';
 
 /** Point the machine home at a private directory for one case and restore it afterwards. */
 function isolate() {

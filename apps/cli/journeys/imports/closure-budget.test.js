@@ -76,6 +76,14 @@ function baseTreeCopy(root, refs, into) {
   return null;
 }
 
+/** Copy a recorded commit tree into `into` through a private index for repeatable before/after measurements. */
+function commitTreeCopy(root, commit, into) {
+  const env = { ...process.env, GIT_INDEX_FILE: join(into, 'index') };
+  const read = runFixtureChild('git', ['read-tree', commit], { cwd: root, env, encoding: 'utf8' });
+  const copied = read.status === 0 ? runFixtureChild('git', ['checkout-index', '--all', '--force', `--prefix=${join(into, 'tree')}/`], { cwd: root, env, encoding: 'utf8' }) : read;
+  return copied.status === 0 ? join(into, 'tree') : null;
+}
+
 /** The repo-relative files among loaded file URLs that sit under `top`. */
 function underTop(urls, top) {
   const files = [...urls].map(url => { try { return fileURLToPath(url.split('?')[0]); } catch { return null; } }).filter(Boolean);
@@ -181,6 +189,21 @@ test('cli.journeys-imports-closure-budget.cold-status-trimmed-modules: a cold pu
   const dropped = ['once.js', 'diagnose.js', 'reclaim.js'].map(name => `packages/drive/src/io/${name}`);
   const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
   assert.deepEqual(loadedDrops, [], `a cold status loaded ${loadedDrops.join(', ')}: the fallback reclaim loads the drive step machinery only when a gate job has lapsed`);
+});
+
+test('cli.journeys-imports-closure-budget.status-store-door-module-drop: clause 1: cold status loads at least 10 fewer modules after #12701 than before it [C7]', t => {
+  const scratch = privateFixtureFiles('status-store-door-');
+  try {
+    const beforeTree = commitTreeCopy(ROOT, '7d0d40f3fa62f948dd1186af526af22232dc005d', scratch.root);
+    assert.ok(beforeTree, 'the pre-#12701 main tree is available');
+    const before = commandLoads('status', false, {}, beforeTree);
+    const after = commandLoads('status');
+    assert.equal(before.status, 0, before.stderr);
+    assert.equal(after.status, 0, after.stderr);
+    const dropped = before.urls.size - after.urls.size;
+    t.diagnostic(`cold status modules before #12701: ${before.urls.size}; after #12701: ${after.urls.size}; reduction: ${dropped}`);
+    assert.ok(dropped >= 10, `cold status loaded ${before.urls.size} modules before #12701 and ${after.urls.size} after it; expected a reduction of at least 10`);
+  } finally { rmSync(scratch.root, { recursive: true, force: true }); }
 });
 
 test('cli.journeys-imports-closure-budget.cold-list-maintenance-no-gate: clause 2: a cold pullboard list, whose after-command worktree maintenance imports the scheduler and tool/build.js, loads no module of the gate package [C7,#12595]', () => {

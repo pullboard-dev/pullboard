@@ -32,9 +32,8 @@ test('cli.journeys-init-defaults.defaults-move-refusals-and-the-init: clause 1: 
   const template = readFileSync(new URL('../../../../../packages/config/src/io/templates.js', import.meta.url), 'utf8');
   const resume = readFileSync(new URL('../../../src/io/commands/resume.js', import.meta.url), 'utf8');
   assert.doesNotMatch(resume, /--wait/u);
-  assert.doesNotMatch(template, /--wait/u);
-  assert.match(template, /Never wait: submit and move on/u);
-  assert.match(template, /Stop:\*\* after 4 empty .{1,4}next.{1,4} answers in a row/u);
+  assert.match(template, /Never wait, never sleep, never poll, never stop while the board has work/u);
+  assert.match(template, /Stop:\*\* only when .{1,4}pullboard status.{1,4} shows nothing open/u);
   assert.equal(successfulNext('submit', {}), 'pullboard next --take');
   assert.equal(successfulNext('next', {}), 'nothing for this seat: end your turn');
   assert.throws(() => requireManualLanding({}), error => {
@@ -47,6 +46,12 @@ test('cli.journeys-init-defaults.defaults-move-refusals-and-the-init: clause 1: 
 test('cli.journeys-init-defaults.worker-loop-step-2: clause 1: worker loop step 2 says next printed the bar and show is for thread and history [N41,C7]', () => {
   assert.match(SEAT_LOOP, /\n2\. .next. printed your bar; .pullboard show <id>. only for the thread and history\.\n/u);
   assert.doesNotMatch(SEAT_LOOP, /your bar, frozen at claim/u);
+});
+
+test('cli.journeys-init-defaults.seat-loop-reject-reasons: clause 1: SEAT_LOOP lists every code in REJECT_REASONS on its Reject line [C7]', () => {
+  const rejectLine = SEAT_LOOP.split('\n').find(line => line.startsWith('- **Reject:**'));
+  assert.ok(rejectLine, 'SEAT_LOOP has a Reject line');
+  for (const reason of store.REJECT_REASONS) assert.ok(rejectLine.includes(reason), `Reject line carries ${reason}`);
 });
 
 test('cli.journeys-init-defaults.real-init-writes-agents-step-2: clause 1: a real init into an empty project writes AGENTS.md step 2 as next printed the bar [N41,C7]', async t => {

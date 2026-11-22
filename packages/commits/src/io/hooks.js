@@ -352,7 +352,7 @@ function resolveUndoPaths(root) {
   const shared = sharedReads(root);
   if (!shared) return [];
   resolveUndoRaw(root, '');
-  return [...shared.undo.keys()];
+  return [...shared.undo].filter(([, records]) => records.some(record => /^\d{6} [0-9a-f]{40,64} [123]\t/iu.test(record))).map(([path]) => path);
 }
 
 /** Merge bases of HEAD and one merge head, asked once per head. */

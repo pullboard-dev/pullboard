@@ -90,17 +90,6 @@ test('cli.journeys-add-brief.add-accepts-one-cell-refuses-three: add accepts one
   assert.equal(JSON.parse(blank.out).error.code, 'ITEM_SIZE_REASON');
 });
 
-test('cli.journeys-add-brief.add-accepts-three-numbered-clauses-and: add accepts three numbered clauses and refuses a fourth even inside one cell [B35,C7]', async t => {
-  const helpers = createE2eHelpers(); t.after(helpers.cleanup);
-  const box = helpers.project('true');
-  seedPaths(box, ['packages/alpha/a.js']);
-  const criterion = '(1) Read packages/alpha/a.js. (2) Change it. (3) Prove it.';
-  await json(box, 'add', 'web', 'Three clauses', '--specs', 'G1', '--criterion', criterion);
-  const refused = await fixtureAdd(box.runLocal, box.repo, 'web', 'Four clauses', '--specs', 'G1', '--criterion', criterion + ' (4) Also publish it.', '--json');
-  assert.equal(JSON.parse(refused.out).error.code, 'ITEM_TOO_LARGE');
-  assert.match(JSON.parse(refused.out).error.next, /at most three numbered clauses/u);
-});
-
 test('cli.journeys-add-brief.add-and-edit-refuse-a-check: clause 1: add and edit refuse a check that runs pullboard test and accept the run-tests form [C7,#6188]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');

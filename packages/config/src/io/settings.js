@@ -17,6 +17,7 @@ import { MACHINE_DEFAULTS } from './settings/machine-defaults.js';
 import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
+export { routeReservations, nextReturnedFirst } from '../logic/settings.js';
 export { loadMachineSettings };
 export { browserFreeChecksEnabled } from '../logic/settings.js';
 export { reofferInfraEndEnabled } from '../logic/settings.js';
@@ -659,11 +660,6 @@ export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
-/** Whether route reservations are on (#9177, #11306): on by default; only an exact `false` turns it off. */
-export function routeReservations() {
-  return loadMachineSettings().route?.reservations !== false;
-}
-
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
 export function itemsTestMirrorAtAdd() {
   return loadMachineSettings().items?.testMirrorAtAdd === true;
@@ -789,11 +785,6 @@ export function nextOneGitRead() {
  */
 export function nextReadinessCache() {
   return loadMachineSettings().next?.readinessCache === true;
-}
-
-/** Whether next puts returned work (an abandoned or reworked item) ahead of untouched work (#11241): off by default; only an exact `true` turns it on. */
-export function nextReturnedFirst() {
-  return loadMachineSettings().next?.returnedFirst === true;
 }
 
 /**

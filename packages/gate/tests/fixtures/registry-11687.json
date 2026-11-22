@@ -1,0 +1,3 @@
+{
+  "gate.io-test-path-read-sealing.a-cell-read-by-path-by": {"proves":{"specs":["C7"],"claim":"A foreign test that declares a source-cell path read counts once without unsealing the target cell; a target cell's own declared read counts zero; the path-reader ratchet refuses growth above zero and permits a lower count."},"why":"Declared path reads are invisible to imports, so the seal must count foreign readers and enforce its ratchet without treating them as deep importers.","kind":"cell unit","inputs":["packages/gate/src/io/test/cells.js","packages/gate/tests/io/test/cells.test.js"]}
+}

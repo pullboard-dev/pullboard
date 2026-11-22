@@ -5,9 +5,10 @@ import { test } from 'node:test';
 import * as store from '../../../../index.js';
 import { submitFixture } from '../../../fixtures/submit.js';
 import { fixture } from '../../../fixtures/dispatch.js';
+import { cellBoard } from '../../../fixtures/cell.js';
 
 test('store.io-board-review-receipt-outside-lock.a-verdict-on-an-item-whose: clause 1: a verdict on an item whose gate has no receipt is refused with no BEGIN IMMEDIATE [B3,C7]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardOpener: cellBoard });
   const id = box.add('Gate still pending');
   box.claim(id);
   const commit = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');

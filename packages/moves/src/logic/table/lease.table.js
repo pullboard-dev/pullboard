@@ -3,10 +3,10 @@ import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
 
 /** The moves the lease table knows. `request` is the acquire move; its outcome is an acquire, a reclaim or a place in line. */
-export const LEASE_MOVES = Object.freeze(['request', 'renew', 'bind', 'release', 'assert', 'inspect']);
+export const LEASE_MOVES = Object.freeze(['request', 'renew', 'bind', 'batch', 'release', 'assert', 'inspect']);
 
 /** Moves that act as the holder and so are refused LAND_LEASE_LOST when the caller is not the live holder. */
-const HOLDER_MOVES = ['renew', 'bind', 'assert'];
+const HOLDER_MOVES = ['renew', 'bind', 'batch', 'assert'];
 
 const LOST = 'this command no longer holds the board landing lease; stop its external work, inspect pullboard resume and adopt only after the holder finishes';
 
@@ -51,6 +51,7 @@ const detail = (lease, m) => ({ kind: 'landing_lease', action: m.name, token: m.
 /**
  * Snapshot: `{ lease: { generation, holder, line }, now, lineage, modern, shared?, legacyShared?, heartbeat? }`; `now` is epoch milliseconds, `lineage` the coordinator's.
  * `heartbeat` is the holder's local heartbeat entry `{ until }` when the physical board has one.
+ * A batch move `{ name: 'batch', batch, allowance? }` by the live holder lists its batch in `lease.batches` while fewer than `allowance` (default 1) are listed.
  * Move: `{ name, token, generation?, branch, pid?, label?, lineage?, machine?, guardianPid? }`.
  * Why: the facts are the landing queue's rules in words, so a refusal and its explanation come from the same row.
  */
@@ -86,6 +87,9 @@ const leaseRules = ({ valid, leaseMs }) => {
     requesting: { says: 'the move is a request', holds: (s, m) => m.name === 'request' },
     reclaiming: { says: 'a request that meets an expired holder', reads: ['requesting', 'holderLapsed'], holds: (s, m, fact) => fact('requesting') && fact('holderLapsed') },
     acquiring: { says: 'a request that leaves the caller as holder', reads: ['requesting'], holds: (s, m, fact) => fact('requesting') && ahead(s, m).lease.holder?.token === m.token },
+    batchRoom: { says: 'the move is not a batch, or it names a batch and fewer batches than its allowance (one when it names none) are in flight', holds: (s, m) => m.name !== 'batch'
+      || (typeof m.batch === 'string' && m.batch !== '' && whole(m.allowance ?? 1) && (m.allowance ?? 1) >= 1 && ((s.lease.batches ?? []).includes(m.batch) || (s.lease.batches ?? []).length < (m.allowance ?? 1))) },
+    batching: { says: 'the move is a batch', holds: (s, m) => m.name === 'batch' },
     renewing: { says: 'the move is a renew', holds: (s, m) => m.name === 'renew' },
     binding: { says: 'the move is a bind', holds: (s, m) => m.name === 'bind' },
     releasing: { says: 'the move is a release', holds: (s, m) => m.name === 'release' },
@@ -94,7 +98,10 @@ const leaseRules = ({ valid, leaseMs }) => {
 };
 
 /** The queue after a release: the holder leaves only when token and generation both name it, and the token leaves the line. */
-const released = (s, m) => ({ ...s.lease, holder: s.lease.holder?.token === m.token && s.lease.holder.generation === m.generation ? null : s.lease.holder, line: s.lease.line.filter(entry => entry.token !== m.token) });
+const released = (s, m) => ({ ...s.lease, holder: s.lease.holder?.token === m.token && s.lease.holder.generation === m.generation ? null : s.lease.holder, ...(s.lease.batches && s.lease.holder?.token === m.token && s.lease.holder.generation === m.generation ? { batches: [] } : {}), line: s.lease.line.filter(entry => entry.token !== m.token) });
+
+/** The queue after a batch start: the batch id joins the lease's in-flight list once. */
+const batched = (s, m) => ({ ...s.lease, batches: [...new Set([...(s.lease.batches ?? []), m.batch])] });
 
 const same = (s) => ({ lease: s.lease });
 const refresh = (s, m, leaseMs, more) => ({ lease: { ...s.lease, holder: { ...s.lease.holder, ...more, until: new Date(s.now + leaseMs).toISOString() } } });
@@ -110,6 +117,7 @@ const leaseTable = ({ leaseMs }) => Object.freeze({
     { id: 'corrupt', requires: 'intact', code: 'LAND_LEASE_CORRUPT', message: 'the landing queue is unreadable; restore the board from a consistent export before landing', next: 'restore the board from a consistent export before landing' },
     { id: 'lost', requires: 'owning', code: 'LAND_LEASE_LOST', message: LOST, next: 'run pullboard resume, and adopt only after the holder finishes' },
     { id: 'bind', requires: 'bindable', code: 'LAND_LEASE_REQUEST', message: 'this landing already names its owned guardian; start a new pullboard land command', next: 'start a new pullboard land command' },
+    { id: 'allowance', requires: 'batchRoom', code: 'LAND_LEASE_REQUEST', message: (s, m) => `the landing allowance of ${m.allowance ?? 1} in-flight ${(m.allowance ?? 1) === 1 ? 'batch' : 'batches'} is full, or the batch names no id; wait for a batch to finish`, next: 'wait for an in-flight batch to finish, then start the next' },
     { id: 'entry', requires: 'entryValid', code: 'LAND_LEASE_REQUEST', message: 'a landing request needs its trunk and process identity; run pullboard land', next: 'run pullboard land' },
     { id: 'identity', requires: 'identity', code: 'LAND_LEASE_REQUEST', message: 'this landing identity already belongs to another invocation; start a new pullboard land command', next: 'start a new pullboard land command' },
   ]),
@@ -119,6 +127,7 @@ const leaseTable = ({ leaseMs }) => Object.freeze({
     { id: 'queue', when: 'requesting', patch: (s, m) => ({ lease: requested(s, m, { leaseMs }).lease }), events: (s, m) => [detail(requested(s, m, { leaseMs }).lease, m)] },
     { id: 'renew', when: 'renewing', patch: (s, m) => refresh(s, m, leaseMs, {}), events: (s, m) => [detail(refresh(s, m, leaseMs, {}).lease, m)] },
     { id: 'bind', when: 'binding', patch: (s, m) => refresh(s, m, leaseMs, { guardianPid: m.guardianPid }), events: (s, m) => [detail(refresh(s, m, leaseMs, {}).lease, m)] },
+    { id: 'batch', when: 'batching', patch: (s, m) => ({ lease: batched(s, m) }), events: (s, m) => [detail(batched(s, m), m)] },
     { id: 'release', when: 'releasing', patch: (s, m) => ({ lease: released(s, m) }), events: (s, m) => [detail(released(s, m), m)] },
     { id: 'check', when: 'checking', patch: same, events: () => [] },
   ]),
