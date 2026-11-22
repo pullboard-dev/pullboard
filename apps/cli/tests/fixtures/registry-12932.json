@@ -1,14 +1,41 @@
 {
   "cli.io-list-thin-text.json-skips-text-metadata": {
-    "proves": { "specs": ["C7"], "claim": "Actual JSON list skips merge-label and agent-name reads; text and default modes preserve names, labels, complete rows and filtered output." },
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Actual JSON list skips merge-label and agent-name reads; text and default modes preserve names, labels, complete rows and filtered output."
+    },
     "why": "A startup cut must remove actual unnecessary reads without changing JSON or text behavior.",
     "kind": "cell unit",
-    "inputs": ["apps/cli/tests/io/list/thin/text.test.js"]
+    "inputs": [
+      "apps/cli/tests/io/list/thin/text.test.js"
+    ]
   },
   "cli.io-list-thin-text.registry": {
-    "proves": { "specs": ["C7"], "claim": "Release behavior tests have complete unique registry records in the item shard." },
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Release behavior tests have complete unique registry records in the item shard."
+    },
     "why": "The release must retain stable proof IDs without duplicate or missing records.",
     "kind": "cell unit",
-    "inputs": ["apps/cli/tests/io/list/thin/text.test.js"]
+    "inputs": [
+      "apps/cli/tests/io/list/thin/text.test.js"
+    ]
+  },
+  "cli.io-list-thin-pair.native-json-pair": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "One native runner pairs current-main and candidate full JSON list with identical fixture and unchanged 150ms judge, retaining every raw CPU sample and both true verdicts."
+    },
+    "why": "Historical timing and differently keyed main receipts cannot prove the current composed producer cost.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/list/thin/pair.test.js"
+    ]
   }
 }
