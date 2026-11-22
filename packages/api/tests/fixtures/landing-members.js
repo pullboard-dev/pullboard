@@ -36,7 +36,7 @@ export function acceptedLandingMembers(t) {
     cellClaim(board, item.item_id, seat, { root: repo.root });
     repo.put(`${lane}/source.js`, `export const value = ${index + 2};\n`);
     const commit = repo.commitAll(), tree = headTree(repo.root), held = getItem(board, item.item_id);
-    const proofFiles = [`${lane}/own.test.js`, CROSS_RUN];
+    const proofFiles = [`${lane}/own.test.js`, CROSS_RUN].sort();
     const proofCommand = `node --test ${proofFiles.join(' ')}`;
     const check = JSON.parse(held.item_frozen).check;
     const job = `gate:${item.item_id}:member`;
