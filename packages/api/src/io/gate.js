@@ -2,6 +2,7 @@
  * A posted runner job receipt applied to the board: a gate's receipt becomes its item's gate result (green to review, red to its builder), a landing's marks its items merged [P7].
  */
 import { createHash } from 'node:crypto';
+import { reusePlanDigest } from '../logic/gate/reuse-plan.js';
 import { randomUUID } from 'node:crypto';
 import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
@@ -222,15 +223,6 @@ export function recordPhaseReceipts(board, { job, receipt, id, candidate, main, 
     ids.push({ id: run.id, role: submitPhase, command: run.command });
   }
   return ids;
-}
-
-/**
- * The digest review recomputes to match a submit's receipts to its plan: the same bytes as verify's submitReusePlanDigest
- * (packages/verify/src/logic/plan.js), restated here because this cell may not import verify; the review-reuse journey
- * fails when they drift [C7,H16].
- */
-function reusePlanDigest({ check, files, full = false, deferred = false, proofCommand }) {
-  return createHash('sha256').update(JSON.stringify({ check: check || '', files: [...files].sort(), full, deferred, proofCommand: proofCommand || '' })).digest('hex');
 }
 
 /** The files a pulled gate's proof ran, as its analysis named them. */
