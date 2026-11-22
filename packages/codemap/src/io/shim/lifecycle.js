@@ -49,7 +49,8 @@ export function shimLifecycle(root, { commit = 'HEAD', items = [] } = {}) {
     edits.push({ before, after, date });
   }
   const maps = readObjects(root, [...objects]);
-  for (const edit of edits) {
+  // Git lists newest first; preserve the original introduction across later map relocations.
+  for (const edit of edits.reverse()) {
     const before = edit.before ? JSON.parse(maps.get(edit.before)) : {};
     const after = edit.after ? JSON.parse(maps.get(edit.after)) : {};
     for (const path of Object.keys(after)) if (!Object.hasOwn(before, path) && !dates.has(path)) dates.set(path, edit.date);

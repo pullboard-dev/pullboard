@@ -90,7 +90,7 @@ if (ran.status !== 0) {
   let rows = null;
   try {
     // The run's own outcome frames carry its id; without it the reader refuses every run that printed them, so no case was ever named.
-    let outcomeRunId = null;
+    let outcomeRunId = null, cpuDiagnosticProjected = false;
     try { outcomeRunId = JSON.parse(text.split('\\n').find(line => line.startsWith('# pullboard test outcomes ')).slice('# pullboard test outcomes '.length)).id ?? null; } catch { outcomeRunId = null; }
     // The runner prints its own suite timing frame after TAP's final count, which the strict reader refuses as a trailer; the gate
     // reads the run through its timing strip, so this does too, binding the frame to the source it names itself [C7].
@@ -98,9 +98,27 @@ if (ran.status !== 0) {
     try {
       const frame = text.split('\\n').find(line => line.startsWith('# pullboard suite timing '));
       const bound = frame ? JSON.parse(frame.slice('# pullboard suite timing '.length)) : null;
-      if (bound?.id) reading = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'index.js')).href)).timingAccountingOutput(text, bound.id, { head: bound.head, tree: bound.tree });
+      if (bound?.id) {
+        const gate = await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'index.js')).href);
+        const source = { head: bound.head, tree: bound.tree };
+        reading = gate.timingAccountingOutput(text, bound.id, source);
+        const diagnostic = 'CPU-load test uses the current admitted slot because no runners are registered';
+        const stderr = (ran.stderr ?? '').split('\\n');
+        // Only the exact native admission observation, on its real stderr channel and with one valid timing binding,
+        // is reporting metadata. Every other trailer remains in the strict reader's input and may explain the red.
+        if (reading !== text && (outcomeRunId === null || outcomeRunId === bound.id)
+          && stderr.filter(line => line === diagnostic).length === 1) {
+          const accounting = (ran.stdout ?? '') + stderr.filter(line => line !== diagnostic).join('\\n')
+            + (ran.error ? String(ran.error.message) : '');
+          reading = gate.timingAccountingOutput(accounting, bound.id, source);
+          cpuDiagnosticProjected = true;
+        }
+      }
     } catch { reading = text; }
     rows = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href)).tapFailures(reading, process.cwd(), { outcomeRunId, nativeLeaves: outcomeRunId !== null });
+    // Newly readable stderr accounts still need the selected file and unambiguous bounded names; never infer leaves.
+    if (cpuDiagnosticProjected && (!Array.isArray(rows) || rows.some(row => row.file !== file)
+      || new Set(rows.map(row => row.name.slice(0, ${MAIN_CASE_NAME_UNITS}))).size !== rows.length)) rows = null;
   }
   catch {
     // A project without Pullboard's TAP reader on main: its plain TAP 'not ok' case lines, never a file-level wrapper,
