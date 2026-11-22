@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/tests/io/commands/add/relay.test.js */
+/** @pullboard-test-input apps/cli/journeys/relay/queue-on-failure.test.js */
 /** @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
