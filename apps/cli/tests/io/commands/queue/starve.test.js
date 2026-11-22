@@ -44,8 +44,9 @@ test('cli.journeys-queue-starve-shout.with-review-starveshout-on-a-starved: clau
   const id = starved(box);
   reviewSettings({ starveShout: true });
   for (let sweep = 0; sweep < 2; sweep += 1) {
-    const answer = await cli(box, box.seats.actor.path, ['next']);
-    assert.equal(answer.code, 0, answer.out + answer.err);
+    // Plain next now waits by default; --no-wait keeps the instant sweep and answers the idle exit 4 [N41].
+    const answer = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
+    assert.equal(answer.code, 4, answer.out + answer.err);
   }
   const shouts = starveShouts(box);
   assert.equal(shouts.length, 1, 'two sweeps send one shout');
@@ -56,7 +57,7 @@ test('cli.journeys-queue-starve-shout.with-review-starveshout-on-a-starved: clau
 test('cli.journeys-queue-starve-shout.with-review-starveshout-off-a-starved: clause 2: with review.starveShout off, a starved green submission sends no shout [C7,#9682]', async t => {
   const box = await fixture(t, { family: 'require', projectConfig: ONE_FAMILY });
   starved(box);
-  const answer = await cli(box, box.seats.actor.path, ['next']);
-  assert.equal(answer.code, 0, answer.out + answer.err);
+  const answer = await cli(box, box.seats.actor.path, ['next', '--no-wait']);
+  assert.equal(answer.code, 4, answer.out + answer.err);
   assert.equal(starveShouts(box).length, 0);
 });
