@@ -296,3 +296,91 @@ test('cli.io-commands-next.lag-keeps-waiting: clause 2: the current behind-main 
   assert.equal(fake, DEFAULT_IDLE_MS);
   assert.equal((observed.match(/this checkout is 1 commit behind main/gu) ?? []).length, 1);
 });
+
+/** A fake wait clock that jumps to each deadline, counts its sleeps and lets a case act at a given simulated offset. */
+const stepClock = (state, onSleep) => ({
+  now: () => state.fake,
+  sleep: async (wake, { after, deadline }) => {
+    state.sleeps += 1;
+    if (onSleep) return onSleep(wake, { after, deadline });
+    state.fake = Math.min(state.fake + DEFAULT_IDLE_STEP_MS, Number.isFinite(deadline) ? Math.max(deadline, state.fake) : Infinity);
+  },
+});
+
+test('cli.io-commands-next.three-states-three-exit-codes: clause 1: plain next returns the claimed line with exit 0 for a claimable item, the board-finished line with exit 3 once every item is verified, never finished on a board where nothing was filed, and the IDLE_TIMEOUT line with exit 4 within 90 seconds [C7,#12048]', async t => {
+  // Nothing was ever filed: never finished, idle line with exit 4 after the 90 second default.
+  const empty = await fixture(t);
+  const idle = { fake: 1_000_000, sleeps: 0 };
+  const idled = await drivenNext(empty, empty.seats.actor.path, stepClock(idle));
+  assert.equal(idled.code, 4, printed(idled));
+  assert.ok(printed(idled).includes(IDLE_LINE), printed(idled));
+  assert.doesNotMatch(printed(idled), /board finished/u);
+  assert.ok(idle.fake - 1_000_000 <= DEFAULT_IDLE_MS, `idle answer arrived after ${idle.fake - 1_000_000} ms of simulated time`);
+  assert.ok(idle.sleeps >= 1, 'plain next waited before it gave up');
+  assert.ok(printed(idled).includes('next waiting for'), 'the wait line names what it waits for: ' + printed(idled));
+  // A claimable item: claimed line, exit 0, no wait.
+  const open = await fixture(t);
+  const id = open.add('A claimable item');
+  const claimed = await drivenNext(open, open.seats.actor.path, { now: () => 0, sleep: async () => assert.fail('claimable work must return before waiting') });
+  assert.equal(claimed.code, 0, printed(claimed));
+  assert.match(printed(claimed), new RegExp(`claimed #${id}\\b`, 'u'));
+  // Every item verified: the finished line with exit 3.
+  const done = await fixture(t);
+  const only = done.add('The only item');
+  const head = done.git(done.root, 'rev-parse', 'HEAD'), digest = 'd'.repeat(64);
+  done.board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+    VALUES (?, ?, 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, '2026-10-25T10:00:00.000Z')`).run(only, done.seats.sibling.id, head, digest, head);
+  done.board.db.exec('INSERT INTO temp.moving VALUES (1)');
+  done.board.db.prepare("UPDATE item SET item_status='verified', item_commit=?, item_frozen_digest=?, item_built_by=?, item_verified_by=?, item_verdict='ACCEPT' WHERE item_id=?")
+    .run(head, digest, done.seats.builder.id, done.seats.sibling.id, only);
+  done.board.db.exec('DELETE FROM temp.moving');
+  const finish = { fake: 1_000_000, sleeps: 0 };
+  const finished = await drivenNext(done, done.seats.actor.path, stepClock(finish));
+  assert.equal(finished.code, 3, printed(finished));
+  assert.ok(printed(finished).includes('next: board finished: every item in web is verified. Stop.'), printed(finished));
+});
+
+test('cli.io-commands-next.wake-and-override: clause 2: an item filed 8 seconds into a wait returns at once with exit 0, --wait 2 is not cut at 90 seconds and ends with the idle line and exit 4 after 2 minutes, --no-wait returns the idle line at once with exit 4, and a held review reservation still refuses REVIEW_HELD at once [C7,#12048]', async t => {
+  const woken = await fixture(t);
+  const wake = { fake: 1_000_000, sleeps: 0 };
+  let filed = null;
+  const woke = await drivenNext(woken, woken.seats.actor.path, stepClock(wake, async (waker, { after, deadline }) => {
+    assert.equal(filed, null, 'newly filed work must be inspected before another sleep');
+    wake.fake = Math.min(deadline, 1_000_000 + 8000);
+    if (wake.fake < 1_000_000 + 8000) return;
+    const added = await cli(woken, woken.root, ['add', 'web', 'Filed eight seconds in', '--specs', 'G1', '--criterion', 'The real fixture succeeds.', '--check', 'true', '--brief', 'Files: web/dispatch.js\nTest: native next selects this item.']);
+    assert.equal(added.code, 0, printed(added));
+    filed = added.document.item.item_id;
+    await waker.wait({ after });
+  }));
+  assert.equal(woke.code, 0, printed(woke));
+  assert.equal(wake.fake - 1_000_000, 8000);
+  assert.match(printed(woke), new RegExp(`claimed #${filed}\\b`, 'u'));
+
+  const long = await fixture(t);
+  const over = { fake: 1_000_000, sleeps: 0 };
+  const waited = await drivenNext(long, long.seats.actor.path, stepClock(over), '--wait', '2');
+  assert.equal(waited.code, 4, printed(waited));
+  assert.doesNotMatch(printed(waited), /NOTHING_FREE/u);
+  assert.ok(over.fake - 1_000_000 >= 120_000, `--wait 2 was cut after ${over.fake - 1_000_000} ms of simulated time`);
+  assert.ok(printed(waited).includes('[IDLE_TIMEOUT]'), printed(waited));
+
+  const quick = await cli(long, long.seats.actor.path, ['next', '--no-wait']);
+  assert.equal(quick.code, 4, printed(quick));
+  assert.ok(printed(quick).includes(NO_WAIT_IDLE_LINE), printed(quick));
+
+  const held = await fixture(t);
+  const reviewed = held.add('A submission whose review another seat holds');
+  held.claim(reviewed);
+  mkdirSync(join(held.seats.builder.path, 'web'), { recursive: true });
+  writeFileSync(join(held.seats.builder.path, 'web/dispatch.js'), 'export const side = "builder";\n');
+  held.git(held.seats.builder.path, 'add', 'web/dispatch.js');
+  held.git(held.seats.builder.path, 'commit', '-q', '-m', 'feat(web): build dispatch fixture [G1]');
+  const head = held.git(held.seats.builder.path, 'rev-parse', 'HEAD');
+  submitFixture(held.board, reviewed, { agentId: held.seats.builder.id, commit: head, tree: held.git(held.root, 'rev-parse', `${head}^{tree}`) });
+  const first = await cli(held, held.seats.outside.path, ['next', '--verify', String(reviewed)]);
+  assert.equal(first.code, 0, printed(first));
+  const refused = await cli(held, held.seats.sibling.path, ['next', '--verify', String(reviewed)]);
+  assert.match(printed(refused), /REVIEW_HELD/u, printed(refused));
+  assert.doesNotMatch(printed(refused), /IDLE_TIMEOUT/u);
+});
