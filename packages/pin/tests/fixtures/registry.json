@@ -143,5 +143,31 @@
       "packages/pin/tests/io/main.test.js",
       "packages/pin/tests/registry.test.js"
     ]
+  },
+  "pin.keyed.publish-original-directory": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a keyed result publishes into the original existing directory with complete bytes that load back, and a removed directory stays absent"
+    },
+    "why": "Publishing must never recreate a directory the owner removed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.keyed.publish-refuses-replacement": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a replacement directory at the captured path stays untouched and publication returns an explicit unavailable result"
+    },
+    "why": "A replaced directory is not the private one the result was meant for.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
   }
 }
