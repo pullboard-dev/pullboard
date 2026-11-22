@@ -157,7 +157,7 @@ function lazyCallees(file, body, source) {
   // A function wrapper that memoizes a createRequire result is still a real call edge; its
   // consumers may use either `load().name()` or destructure names from `load()`.
   const lazy = String.raw`^function (\w+)\(\) \{\n\s*(\w+) \?\?= (?:${[...loaders].join('|')})\(\s*(['"])(\.{1,2}\/[^'"]+\.js)\3\s*\);\n\s*return \2;\n\}$`;
-  for (const [, wrapper, , specifier] of source.matchAll(new RegExp(lazy, 'gm'))) {
+  for (const [, wrapper, , , specifier] of source.matchAll(new RegExp(lazy, 'gm'))) {
     for (const [, name] of body.matchAll(new RegExp(String.raw`(?<![\w.])${wrapper}\(\)\.(\w+)\(`, 'g'))) callees.push(`${under(specifier)}#${name}`);
     for (const [, names] of body.matchAll(new RegExp(String.raw`\{([^{}]*)\}\s*=\s*${wrapper}\(\)`, 'g'))) {
       for (const part of names.split(',').map(text => text.trim()).filter(Boolean)) {
