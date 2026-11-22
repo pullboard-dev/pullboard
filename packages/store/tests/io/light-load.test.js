@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-test('store.io-light-load.packages-store-light-js-loads-cold: clause 2: packages/store/light.js loads cold in under 100 ms of module work [C7]', async () => {
+test('store.io-light-load.packages-store-light-js-loads-cold: clause 1: packages/store/light.js loads cold in under 100 ms of module work [C7]', async () => {
   // This file imports nothing else, so the door and everything it reaches load for the first time here.
   // CPU time (user plus system) of this process, not the wall clock, so a loaded runner does not fail the case.
   const before = process.cpuUsage();
