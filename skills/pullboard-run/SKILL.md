@@ -26,7 +26,7 @@ Start every session in the repo with `pullboard resume`. It reads the board and 
 5. **Verify:** run `pullboard worktree review --model "<model name>"`. Start the verifier as a separate session, never a subagent of yours (`SELF_SESSION_VERIFY` refuses it). Its task:
    > Follow the pullboard-verify skill. Run pullboard next --verify, check out the commit it names, and prove or disprove the frozen criterion. Record the verdict. Repeat until nothing is left to verify.
    Use another model family to verify when you can, such as Codex. Different families miss different things.
-6. **Land:** `pullboard land --dry-run`, then `pullboard land --max N`. Never merge by hand.
+6. **Land:** accepted items land by themselves; watch them with `pullboard merged`. Never merge by hand.
    `LAND_FLAKE`: a failing test passes alone. The batch holds until the test is fixed, or the person OKs a waiver: `pullboard land --waive <test> --until <date> --reason "why"`.
    An item that conflicts with main: its builder runs `git merge --no-edit main`, keeps main's logic in the conflicted files, and resubmits.
 7. **Sent back:** a rejected item reopens in its lane. Keep its builder running until the lane's items are verified.
