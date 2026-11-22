@@ -10,6 +10,7 @@ import { executionServicesSource } from '../gate/execution.js';
 import { HOST } from './ssh.js';
 import { installSshStandIn } from './ssh.js';
 import { fixtureAdd } from '../testkit.js';
+import { pullPhaseDiagnosticsSource } from './pull-phases.js';
 
 /** Register the pull journey for `count` concurrent pulled jobs: one file each keeps every file under its time budget. */
 export function definePullJourney(count) {
@@ -37,12 +38,16 @@ export function definePullJourney(count) {
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
       gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: ${30000 + count * 5000} },
       runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: ${count}, browser: 1 }] }));
+    ${pullPhaseDiagnosticsSource({ home, machineHome: box.env.PULLBOARD_MACHINE_HOME, requests })}
+    try {
+    pullDiagnostic('control-start');
     const command = 'printf job-finished; sleep ${8 + count}; exit 3';
     const shaped = result => ({ exitCode: result.exitCode, isGreen: result.isGreen, output: String(result.output ?? ''), kind: result.executionReceipt?.kind, runner: result.executionRunner, ...(result.exitCode === undefined ? { odd: JSON.stringify(result).slice(0, 300) } : {}) });
     const settle = promise => promise.catch(error => ({ refused: error.code ?? error.name, message: error.message, diagnostic: JSON.stringify(error.diagnostic ?? null).slice(0, 1200) }));
     const viaController = await withGateSlot(root, lease => settle(lease.executionServices.runners.runOnRunnerAsync(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata })),
       { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-control', onWait() {} });
+    pullDiagnostic('control-finished', { exitCode: viaController.exitCode, refused: viaController.refused });
     let counts = [];
     const readyJobs = () => {
       const running = join(${JSON.stringify(home)}, '.pullboard-runner', 'running');
@@ -54,18 +59,27 @@ export function definePullJourney(count) {
       try { counts.push(execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller$'], { encoding: 'utf8' }).split(String.fromCharCode(10)).filter(Boolean).length); }
       catch { counts.push(0); }
     }, 250);
+    pullDiagnostic('pulls-start', { count: ${count} });
     const pulled = await Promise.all(Array.from({ length: ${count} }, (_, index) => withGateSlot(root, lease => settle(runPulled(root, command, {
       runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, metadata: lease.runMetadata },
       {})),
-      { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-job', onWait() {} })));
+      { executionServices, remote: true, runnerOnly: true, item: '1', kind: 'pull-job', onWait() {} }).then(result => {
+        pullDiagnostic('pull-finished', { index, exitCode: result.exitCode, refused: result.refused });
+        return result;
+      })));
     clearInterval(sampler);
     const left = dir => { try { return readdirSync(dir); } catch { return []; } };
     console.log(JSON.stringify({ viaController: shaped(viaController), viaPull: pulled.map(result => result.refused ? result : shaped(result)), counts,
       records: left(join(process.env.PULLBOARD_MACHINE_HOME, 'runner-jobs')), runnerLeft: ['queue', 'running', 'done'].map(name => left(join(${JSON.stringify(home)}, '.pullboard-runner', name)).length) }));
+    pullDiagnostic('complete');
+    } finally { stopPullDiagnostics(); }
   `;
   const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
   delete env.NODE_TEST_CONTEXT;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.dir, env, encoding: 'utf8', timeout: 150000 });
+  if (result.status === 0) for (const line of result.stderr.split('\n')) {
+    if (line.startsWith('PULL_FIXTURE_PHASE ')) t.diagnostic(line);
+  }
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   const actual = JSON.parse(result.stdout.trim().split('\n').at(-1));
   assert.equal(actual.viaController.exitCode, 3, `the control run finished: ${JSON.stringify(actual.viaController)}`);
