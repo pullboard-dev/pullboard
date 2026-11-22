@@ -5,10 +5,10 @@ import { test } from 'node:test';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { inProcess } from '../../fixtures/submit/fail.js';
 import { project } from '../../fixtures/submit/fail.js';
-import { submitAndSettle } from '../../fixtures/submit/fail.js';
+import { submitStep } from '../../fixtures/submit/fail.js';
 import { commitAll } from '../../fixtures/submit/gate.js';
 import { put } from '../../fixtures/submit/gate.js';
-import { settledGateJob } from '../../fixtures/submit/settle.js';
+import { settleSubmit } from '../../fixtures/submit/settle.js';
 
 /**
  * Observe the receipt application's completion before reading its side effects [C7].
@@ -16,9 +16,13 @@ import { settledGateJob } from '../../fixtures/submit/settle.js';
  * after applyGateReceiptReads returns, including when edge filing is disabled; neither a child nor a green note proves it.
  */
 async function completedSubmit(t, box) {
-  const done = await submitAndSettle(t, box);
+  const queued = await submitStep(box, 'submit', '1', '--json', '--no-next', '--infra', 'the edge follow-up fixture');
+  assert.equal(queued.code, 0, JSON.stringify(queued));
+  const submission = JSON.parse(queued.out);
   const shown = { repo: box.root, env: box.env, run: (cwd, ...args) => inProcess(box, cwd, ...args) };
-  await settledGateJob(shown, 1, { until: doc => doc.thread.some(entry => entry.kind === 'gate_settled' && entry.detail.job === done.gateJob.id) });
+  const done = await settleSubmit(t, shown, submission, {
+    until: doc => doc.thread.some(entry => entry.kind === 'gate_settled' && entry.detail.job === submission.gateJob),
+  });
   const submitted = await inProcess(box, box.root, 'show', '1', '--json', '--no-next');
   assert.equal(submitted.code, 0, submitted.err);
   assert.equal(JSON.parse(submitted.out).item_status, 'submitted', submitted.out);
