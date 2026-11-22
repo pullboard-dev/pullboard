@@ -58,14 +58,16 @@ test('cli.inbox-growth.matched-input-added-byte: #12961 clause 1: both source re
     assert.equal(before.status, 0, before.stderr);
     assert.match(before.stdout, /top local consumers: /u);
     const original = readFileSync(renderer, 'utf8');
-    const prefix = 'top local consumers: ';
-    assert.equal(original.split(prefix).length, 3, 'both nonempty and unreadable telemetry branches are present');
+    const prefix = 'seats holding nothing: ';
+    assert.equal(original.split(prefix).length, 2, 'the real idle-seat report has one canonical prefix');
+    const line = before.stdout.split('\n').find(line => line.startsWith(prefix));
+    assert.ok(line && Buffer.byteLength(line) < 1023, 'add the byte to an actual short output line, not one the existing line cap already cuts');
     writeFileSync(renderer, original.replace(prefix, prefix + 'x')); // One real source byte, in an independent disposable archive only.
     const added = await renderAgents(box, bin, sample);
     assert.equal(added.status, 0, added.stderr);
     assert.equal(Buffer.byteLength(added.stdout), Buffer.byteLength(before.stdout) + 1);
     assert.deepEqual(ratchetProblems({ agents: Buffer.byteLength(added.stdout) }, { agents: Buffer.byteLength(before.stdout) }),
       [`agents: ${Buffer.byteLength(added.stdout)} bytes, over its main size of ${Buffer.byteLength(before.stdout)}`]);
-    t.diagnostic(JSON.stringify({ source: treeSource(tree), rendererBefore: createHash('sha256').update(original).digest('hex'), rendererAdded: createHash('sha256').update(readFileSync(renderer)).digest('hex'), processObservation: sample.sha256, beforeBytes: Buffer.byteLength(before.stdout), addedBytes: Buffer.byteLength(added.stdout) }));
+    t.diagnostic(JSON.stringify({ source: treeSource(tree), rendererBefore: createHash('sha256').update(original).digest('hex'), rendererAdded: createHash('sha256').update(readFileSync(renderer)).digest('hex'), telemetryLineBytes: Buffer.byteLength(before.stdout.split('\n').find(line => line.startsWith('top local consumers: ')) ?? ''), processObservation: sample.sha256, beforeBytes: Buffer.byteLength(before.stdout), addedBytes: Buffer.byteLength(added.stdout) }));
   } finally { rmSync(tree, { recursive: true, force: true }); }
 });
