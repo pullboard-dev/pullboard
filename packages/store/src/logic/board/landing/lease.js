@@ -215,9 +215,9 @@ function save(board, state, action, token, event = true, reason = null, backoffM
 }
 
 /** Enqueue, renew, inspect ownership or release through one deterministic ordered operation. */
-export function landingLeaseMove(board, { agentId, action, token, branch, pid, generation, guardianPid, reason, backoffMs }) {
+export function landingLeaseMove(board, { agentId, action, token, branch, pid, generation, guardianPid, reason, backoffMs, batch, allowance }) {
   if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator takes a landing lease; ask your coordinator to run pullboard land');
-  if (!['request', 'renew', 'release', 'bind'].includes(action) || !/^[a-f0-9-]{36}$/u.test(token ?? '')) {
+  if (!['request', 'renew', 'release', 'bind', 'batch'].includes(action) || !/^[a-f0-9-]{36}$/u.test(token ?? '')) {
     throw new Refused('LAND_LEASE_REQUEST', 'a landing lease needs its command identity and a supported action; run pullboard land');
   }
   // A request made after a back-off names the wait that delayed it, at most the lander's five-minute ceiling [C7].
@@ -233,11 +233,12 @@ export function landingLeaseMove(board, { agentId, action, token, branch, pid, g
     const before = JSON.stringify(state);
     if (action === 'request') requireConfirmedLanding(board);
     const holder = action === 'request' ? coordinatorHolder(board) : null;
-    const answer = leaseMove(board, state, { name: action, token, branch, pid, generation, guardianPid, label: holder?.label, lineage: holder?.lineage ?? null, machine: holder?.machine ?? null });
+    const answer = leaseMove(board, state, { name: action, token, branch, pid, generation, guardianPid, batch, allowance, label: holder?.label, lineage: holder?.lineage ?? null, machine: holder?.machine ?? null });
     const next = answer.patch.lease;
     state.generation = next.generation;
     state.holder = next.holder;
     state.line = next.line;
+    state.batches = next.batches;
     if (JSON.stringify(state) !== before) save(board, state, action, token, !modern || transition(state) !== previousTransition, action === 'release' && typeof reason === 'string' ? reason.slice(0, 120) : null,
       action === 'request' ? backoffMs ?? undefined : undefined);
     return { holder: state.holder, position: state.line.findIndex(entry => entry.token === token) + 1,
