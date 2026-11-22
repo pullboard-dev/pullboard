@@ -5,6 +5,8 @@ import {
   after,
 } from 'node:test';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import {
   createE2eHelpers,
   FIXTURE_MODEL,
@@ -106,4 +108,57 @@ test('cli.journeys-next-session.next-in-an-idle-api-seat: clause 1: next in an i
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
   assert.doesNotMatch(`${released.out}${released.err}`, /NOT_YOURS/u);
   assert.ok(other.id);
+});
+
+
+test('cli.release-committed-cleanup.retains-locked-custody: clauses 1-2: a committed release reports a real non-forced removal failure, preserves custody, and recovers through ordinary claim and release [C7,#12955]', async () => {
+  const box = e2e.project();
+  const item = fileFixtureItem(box, box.repo, { lane: 'api', title: 'Cleanup custody', check: 'true', args: ['--specs', 'G1'] });
+  const api = await seat(box, 'api');
+  const id = String(item.item_id);
+  const call = (...args) => shared(box, () => box.runLocal(api.root, ...args));
+  const taken = await call('claim', id, '--no-next');
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  const folder = `${api.root}-item-${id}`;
+  const ref = `refs/heads/api/item-${id}`;
+  const head = box.git(box.repo, 'rev-parse', ref);
+  const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  const releases = () => db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='release'").get(item.item_id).n;
+  const state = () => db.prepare('SELECT item_status, item_owner FROM item WHERE item_id=?').get(item.item_id);
+  box.git(box.repo, 'worktree', 'lock', '--reason', 'fixture custody retained', folder);
+  try {
+    const refused = await call('release', id, '--reason', 'INVALID', '--no-next');
+    assert.notEqual(refused.code, 0, 'a genuine pre-release refusal stays nonzero');
+    assert.match(refused.out + refused.err, /RELEASE_REASON/u);
+    assert.equal(state().item_status, 'claimed');
+    assert.equal(state().item_owner, api.id);
+    assert.equal(releases(), 0, 'refusal committed no release');
+    let released, thrown;
+    try { released = await call('release', id, '--reason', 'OTHER', '--note', 'fixture', '--no-next', '--json'); }
+    catch (error) { thrown = error; }
+    assert.equal(state().item_status, 'open', 'release committed before cleanup');
+    assert.equal(state().item_owner, null, 'the releasing seat has no durable claim');
+    assert.equal(releases(), 1, 'exactly one release transition committed');
+    assert.ok(existsSync(folder), 'failed removal leaves the real folder');
+    assert.match(box.git(box.repo, 'worktree', 'list', '--porcelain'), /locked fixture custody retained/u, 'registration survives');
+    assert.equal(box.git(box.repo, 'rev-parse', ref), head, 'failed removal never deletes the branch');
+    assert.equal(thrown, undefined, 'postcommit failure returns an explicit outcome instead of an ambiguous exception');
+    assert.equal(released.code, 1, 'unrecovered cleanup failure stays nonzero');
+    const outcome = JSON.parse(released.out);
+    assert.equal(outcome.released, true);
+    assert.deepEqual(outcome.item, { id: item.item_id, status: 'open', owner: null });
+    assert.equal(outcome.cleanup.status, 'failed');
+    assert.match(outcome.cleanup.error, /locked/u, 'actual Git failure is visible');
+    assert.match(outcome.cleanup.next, /show.*do not repeat release.*next/u, 'remedy distinguishes inspection and ordinary work from release retry');
+    assert.match(released.err, /RELEASE_CLEANUP_FAILED/u, 'human output also names the incomplete cleanup');
+  } finally {
+    box.git(box.repo, 'worktree', 'unlock', folder);
+    db.close();
+  }
+  const reclaimed = await call('claim', id, '--no-next');
+  assert.equal(reclaimed.code, 0, reclaimed.out + reclaimed.err);
+  const recovered = await call('release', id, '--reason', 'OTHER', '--note', 'fixture recovered', '--no-next');
+  assert.equal(recovered.code, 0, recovered.out + recovered.err);
+  assert.ok(!existsSync(folder), 'ordinary successful release cleans the unlocked owned folder');
+  assert.equal(box.git(box.repo, 'rev-parse', ref), head, 'normal release retains the reusable branch');
 });
