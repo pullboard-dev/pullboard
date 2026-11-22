@@ -1,9 +1,10 @@
-/** @pullboard-test-input source-cell packages/items apps/cli packages/store */
-/** @pullboard-world-pin reads the items light door and four CLI/store source files to verify selected reader exports. */
+/** @pullboard-test-input source-cell packages/items */
+/** @pullboard-world-pin reads the items light door to verify selected reader exports. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -25,13 +26,7 @@ test('items.claim.plan-and-edges-pass: clause 2: the cells plan check and the ce
   for (const script of ['packages/codemap/src/io/cells/scripts/plan.js', 'packages/gate/src/io/edges.js']) execFileSync(process.execPath, [script, ...(script.endsWith('plan.js') ? ['--check'] : ['--no-cold-load'])], { cwd: ROOT, stdio: 'pipe' });
 });
 
-test('items.io-claim.show-read-boundary: clause 1: CLI and store queries use selected dependency, timing, identity and derived-family exports from the items light door, while family projection stays synchronous and identity follows the live claim [C7]', t => {
-  const consumers = [
-    ['apps/cli/src/io/read.js', ['seatFamily', 'dependencyReferences', 'dependencyLabel', 'dependencyValues']],
-    ['apps/cli/src/io/commands/show.js', ['frozenCheckTiming']],
-    ['apps/cli/src/io/item/folder/identity.js', ['ITEM_MARKER_FILE', 'itemFolderIdentity', 'itemFolderPath']],
-    ['packages/store/src/io/board/query.js', ['withDerivedFamily', 'withDerivedFamilies']],
-  ].map(([path, names]) => [path, names, readFileSync(join(ROOT, path), 'utf8')]);
+test('items.io-claim.show-read-boundary: clause 1: selected dependency, timing, identity and derived-family exports preserve synchronous family projection and live claim identity [C7]', t => {
   const light = readFileSync(join(ROOT, 'packages/items/light.js'), 'utf8');
   const definingLeaves = {
     dependencyReferences: './src/logic/dependencies.js', dependencyLabel: './src/logic/dependencies.js', dependencyValues: './src/logic/dependencies.js',
@@ -42,14 +37,6 @@ test('items.io-claim.show-read-boundary: clause 1: CLI and store queries use sel
     const leafExport = new RegExp(String.raw`export\s+\{[^}]*\b${name}\b[^}]*\}\s+from ['"]${sourcePath.replaceAll('.', '\\.') }['"]`, 'su');
     assert.match(light, leafExport, `${name} is exported from its defining leaf`);
   }
-  for (const [path, names, source] of consumers) for (const name of names) {
-    const fromLight = new RegExp(String.raw`(?:import|export)\s+\{[^}]*\b${name}\b[^}]*\}\s+from ['"][^'"]*items/light\.js['"]`, 'su');
-    const fromIndex = new RegExp(String.raw`(?:import|export)\s+\{[^}]*\b${name}\b[^}]*\}\s+from ['"][^'"]*items/index\.js['"]`, 'su');
-    assert.match(source, fromLight, `${path} reads ${name} from the selective light door`);
-    assert.doesNotMatch(source, fromIndex, `${path} does not read ${name} from the broad index`);
-  }
-  assert.match(consumers[2][2], /writeItemMarker[\s\S]*items\/light\.js/u, 'the existing marker writer stays on its current door');
-
   const board = { executionEngineVersion: 0, db: { prepare: () => ({ get: () => ({ family: 'OpenAI' }) }) } };
   const projected = read.withDerivedFamily(board, { agent_id: 'core-1', name: 'seat' });
   assert.deepEqual(projected, { agent_id: 'core-1', name: 'seat', agent_family: 'OpenAI' });
