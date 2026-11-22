@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { parityDifferences } from './fixtures/journey-parity.js';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/tests/io/commands/show/dependency.test.js', cases: ["clause 2: a dependency's own verified dependency admits its files [N16,V4]"] }];
