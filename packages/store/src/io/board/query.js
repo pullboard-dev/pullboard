@@ -43,7 +43,6 @@ import { boardDataVersion } from "./read/light.js";
 export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./read/snapshot.js";
 export { schemaMissing, writeRefused } from "./migrate.js";
 export { stats } from "../../logic/board/stats.js";
-export { submitInvariantEvents } from "./indexes.js";
 export { acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor } from "../../../../verify/read.js";
 
 export const PERSON = 'person';
