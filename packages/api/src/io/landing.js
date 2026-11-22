@@ -14,7 +14,9 @@ import { PERSON } from '../../../store/index.js';
 import { runsStoreOn } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
+import { STORED_REQUEST_BYTES } from './jobs.js';
 import { holdJob } from '../../../jobs/index.js';
+import { landingMembers } from './landing-members.js';
 
 const fs = fileSystemAdapter();
 
@@ -130,6 +132,7 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
   const defer = deferredPayload(deferred, config?.affectedTests, landed);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect, { reuseGate: reuseGateReceipts === true && !forced });
+  if (proof && !forced) proof.members = landingMembers(db, landed, { runs: queue?.runs ?? null });
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
   // A deferred selection replaces only the affected tests; the project's own gate still judges the merged tree [C7].
   const deferGate = defer && !forced && typeof config?.gate === 'string' && config.gate.trim() ? ['sh', '-c', config.gate.trim()] : null;
@@ -165,7 +168,14 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
     ...(stallStop === true ? { stallStop: true } : {}),
     // landing.staticAffectedOnly rides on the job only when on, so its runner scopes the static guard past a changed gate data file [C7,#9077].
     ...(staticAffectedOnly === true ? { staticAffectedOnly: true } : {}) };
-  const spilled = spillLargeInputs(payload);
+  let spilled = spillLargeInputs(payload);
+  // Stored transport has its own existing bound. Keep the inline ledger unchanged, but do not truncate accepted
+  // proof to that smaller allowance after the ordinary payload has already moved it into the stored request.
+  if (reuseGateReceipts === true && !forced && spilled.request?.land?.proof) {
+    const complete = landingProof(db, landed, config?.affectedTests, expect, { reuseGate: true, budget: STORED_REQUEST_BYTES });
+    const expanded = spillLargeInputs({ ...payload, proof: { ...complete, members: proof.members } });
+    if (expanded.request && Buffer.byteLength(JSON.stringify(expanded.request)) <= STORED_REQUEST_BYTES) spilled = expanded;
+  }
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) }, queue);
 }
 
@@ -242,14 +252,14 @@ function ownChecks(db, items, config) {
  * @param {{ commit: string }[]} items
  * @param {unknown} runner the project's affectedTests command
  * @param {string} [main] the trunk sha the items were accepted against
- * @param {{ reuseGate?: boolean }} [options] reuseGate (landing.reuseGateReceipts): the items' own green gate rows head the hit list, so the budget never drops them [C7,#9243]
+ * @param {{ reuseGate?: boolean, budget?: number }} [options] reuseGate (landing.reuseGateReceipts): the items' own green gate rows head the hit list, so the budget never drops them [C7,#9243]
  * @returns {{ runner: string, files: string[], ledger: ReturnType<typeof ledgerHits> } | null}
  */
-export function landingProof(db, items, runner, main, { reuseGate = false } = {}) {
+export function landingProof(db, items, runner, main, { reuseGate = false, budget = 16_000 } = {}) {
   if (typeof runner !== 'string' || !runner.trim() || /[\0\n\r]/u.test(runner)) return null;
   const files = ledgerFiles(db, items.map(entry => entry.commit));
   if (!files.length) return null;
-  const ledger = ledgerHits(db, files, { budget: 16_000, ...(reuseGate ? { commits: items.map(entry => entry.commit) } : {}) }) ?? { contexts: [], files: [] };
+  const ledger = ledgerHits(db, files, { budget, ...(reuseGate ? { commits: items.map(entry => entry.commit) } : {}) }) ?? { contexts: [], files: [] };
   const mainRed = main ? ledgerMainReds(db, files, main, ledger.contexts) : [];
   return { runner: runner.trim(), files, ledger: mainRed.length ? { ...ledger, mainRed } : ledger.files.length ? ledger : null };
 }

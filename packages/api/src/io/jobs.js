@@ -180,7 +180,7 @@ const REQUEST_BYTES = 60 * 1024;
 // Budget: a request part this large or larger may be named by board id in the offered row instead of inlined.
 const PART_BYTES = 1024;
 // Budget: a whole request kept in its job's own request step, read only by the runner holding the job (#6150).
-const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
+export const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
 // Budget: a runner whose cap held back an open job is told to wait this long before its next claim, instead of polling every 2 s while it is full [C7,#12150].
 export const CAPPED_CLAIM_WAIT_MS = 10_000;
 // Budget: one batch renew names at most this many held jobs; a runner holds one per slot.
