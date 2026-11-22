@@ -50,6 +50,12 @@ export function laneFinished(items, lane) {
   return own.length > 0 && own.every(item => item.item_status === 'verified');
 }
 
+/** Whether every item ever filed on the board, in any lane, is verified or withdrawn, and at least one was filed [C7,#12807]. */
+export function boardFinished(items) {
+  const live = items.filter(item => item.item_status !== 'withdrawn');
+  return live.length > 0 && live.every(item => item.item_status === 'verified');
+}
+
 /** The seconds an idle next --no-wait reports: next.idleMinutes in seconds, never more than 90 [C7,#12779]. */
 export const idleSeconds = minutes => Math.min(minutes * 60, 90);
 

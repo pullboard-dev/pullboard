@@ -12,6 +12,7 @@ import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { policyRepository } from '../../../../../packages/store/tests/fixtures/submit.js';
 import { main } from '../../fixtures/native.js';
+import { captureCommandInProcess } from '../../fixtures/process.js';
 import { fixture } from '../../fixtures/next/take.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
@@ -61,7 +62,12 @@ test('cli.io-next-lag.item-folder-silent: clause 2: a next that hands out an ite
     box.git(box.repo, 'add', `landed-${n}.txt`);
     box.git(box.repo, 'commit', '-q', '-m', `chore(web): landing ${n} [G1]`);
   }
-  const quiet = await box.runLocal(box.web, 'next');
+  let fake = 0;
+  const nextWaitClock = { now: () => fake, sleep: async (_wake, { deadline }) => { fake = deadline; } };
+  const quiet = await captureCommandInProcess((argv, io) => main(argv, { ...io, nextWaitClock }),
+    ['next'], { cwd: box.web, env: box.env });
+  assert.equal(quiet.code, 4, quiet.out + quiet.err);
+  assert.equal(fake, 90_000, 'the idle lag answer traverses the full default deadline');
   assert.match(quiet.out + quiet.err, /this checkout is 3 commits behind main/u, 'a next that hands out no item names the lag');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
   const handed = await box.runLocal(box.web, "next");

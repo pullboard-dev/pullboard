@@ -1,0 +1,16 @@
+{
+  "cli.io-beater.launchd-child-host-binds": {
+    "proves": {
+      "specs": [
+        "B3",
+        "C7"
+      ],
+      "claim": "agentSession binds a real agent host whose parent is launchd or init, such as Terminal, iTerm or the Claude app on macOS, or an agent under tini, when no link on its walk was made by adoption."
+    },
+    "why": "Without it, an adoption rule keyed on a pid-1 parent would unbind every macOS agent host, since launchd is the parent of each one.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/beater.js"
+    ]
+  }
+}

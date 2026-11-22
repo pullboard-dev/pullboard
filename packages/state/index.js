@@ -45,6 +45,7 @@ export { restoreRelayEpoch } from "./src/io/engine.js";
 export { prepareEngineMove } from "./src/io/engine.js";
 export { requireSupportedEngine } from "./src/io/engine.js";
 export { executableArgs } from "./src/io/engine.js";
+export { bindLocalIdentity } from "./src/io/engine.js";
 export { engineReceipt } from "./src/io/engine.js";
 export { refuseRelayMove } from "./src/io/engine.js";
 export { applyRelayMove } from "./src/io/engine.js";

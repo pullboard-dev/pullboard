@@ -35,6 +35,7 @@ import {
 import {
   idleSeconds,
   laneFinished,
+  boardFinished,
   refuseNextIdle,
 } from '../next/steps.js';
 import { reviewPacketLines } from '../../../../../packages/verify/index.js';
@@ -131,7 +132,7 @@ export async function nextHere(io, values) {
     if (submitted !== 0) return submitted;
     values = { ...values, done: undefined };
   }
-  const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
+  const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined && !values['no-wait'];
   values = { ...values, defaultLoop };
   const monitor = startNextProgressMonitor(io);
   const previousDefaultLoop = io.defaultLoop;
@@ -283,26 +284,33 @@ async function nextWithProgress(io, values, progress) {
   if (restarted) io.say(restarted);
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
   // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
-  progress.enter('queued reds');
-  const hasQueuedReds = withBoardRead(ctx, board => {
-    const me = whoAmI(ctx, board);
-    return store.queuedReds(board, me.id).some(red =>
-      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
-  });
-  if (hasQueuedReds) withBoard(ctx, board => {
-    const me = whoAmI(ctx, board);
-    const reds = store.queuedReds(board, me.id).filter(red =>
-      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
-    if (reds.length) {
-      const activity = store.activityDeliveryState(board, me.id);
-      store.recordActivityDelivery(board, { agentId: me.id, through: activity.through,
-        observedThrough: Math.max(...reds.map(red => red.observedThrough)), interrupts: reds.map(red => ({
-          id: `event:${red.eventId}`, eventId: red.eventId, reason: 'queued-red', item: red.id, commit: red.commit,
-        })) });
-      const lines = values.defaultLoop === true ? store.boundedQueuedRedLines(reds) : store.queuedRedLines(reds);
-      for (const line of lines) io.say(line);
-    }
-  });
+  const firstDefaultPass = values.defaultLoop === true;
+  let queuedRedsDelivered = false;
+  const deliverQueuedReds = () => {
+    if (queuedRedsDelivered) return;
+    queuedRedsDelivered = true;
+    progress.enter('queued reds');
+    const hasQueuedReds = withBoardRead(ctx, board => {
+      const me = whoAmI(ctx, board);
+      return store.queuedReds(board, me.id).some(red =>
+        !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+    });
+    if (hasQueuedReds) withBoard(ctx, board => {
+      const me = whoAmI(ctx, board);
+      const reds = store.queuedReds(board, me.id).filter(red =>
+        !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+      if (reds.length) {
+        const activity = store.activityDeliveryState(board, me.id);
+        store.recordActivityDelivery(board, { agentId: me.id, through: activity.through,
+          observedThrough: Math.max(...reds.map(red => red.observedThrough)), interrupts: reds.map(red => ({
+            id: `event:${red.eventId}`, eventId: red.eventId, reason: 'queued-red', item: red.id, commit: red.commit,
+          })) });
+        const lines = values.defaultLoop === true ? store.boundedQueuedRedLines(reds) : store.queuedRedLines(reds);
+        for (const line of lines) io.say(line);
+      }
+    });
+  };
+  if (!firstDefaultPass) deliverQueuedReds();
   // The lag line prints after the answer (nextHere), so a next that hands out an item folder stays silent about the seat [U159].
   // review.starveShout (off by default): a green submission no seat may review reaches the coordinator once, naming the guards [C7,#9682].
   if (reviewStarveShout()) await withBoard(ctx, board => shoutStarvedReviews(ctx, board, ordered));
@@ -324,7 +332,7 @@ async function nextWithProgress(io, values, progress) {
   if (values.verifyId !== undefined) idArg(values.verifyId, 'an item id after --verify');
   // review.builderOffers (off by default): while a seat in lane review is alive, a builder's next takes the build path and never offers or reserves a review [C7,#11946].
   if (!values.verify && !values.build && reviewBuilderOffers() && withBoardRead(ctx, board => builderWithLiveReviewSeat(board, whoAmI(ctx, board)))) values = { ...values, build: true };
-  const minutes = values.wait === undefined ? 0 : Number(values.wait);
+  const minutes = values.wait === undefined ? (values.defaultLoop ? Math.min(nextIdleMinutes(ctx.config), 1.5) : 0) : Number(values.wait);
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
   }
@@ -332,22 +340,35 @@ async function nextWithProgress(io, values, progress) {
   values = { ...values, observeIdle: true, idleBlockers: nextIdleBlockers() };
   let lastIdleReason;
   const heardShouts = new Set();
+  let firstDefaultShouts = [];
+  let firstDefaultPassPending = firstDefaultPass;
+  const finishFirstDefaultPass = () => {
+    if (!firstDefaultPassPending) return;
+    firstDefaultPassPending = false;
+    for (const line of firstDefaultShouts) io.say(line);
+    firstDefaultShouts = [];
+    deliverQueuedReds();
+  };
   const waitClock = io.nextWaitClock ?? realWaitClock;
-  const deadline = waitClock.now() + minutes * 60_000;
+  const waitStartedAt = waitClock.now();
+  const deadline = waitStartedAt + minutes * 60_000;
   const origin = ctx.info.root;
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
   // What this seat's last selection could see, read before that selection; a wake that leaves it equal waits again without selecting [C7,#11798].
   let passSignature = null, quiet = null, quietAt = 0;
+  let recheckDelay = 1000, waitLagSaid = false;
   try { for (;;) {
     // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
     store.refreshItemSnapshot();
     if (minutes > 0) passSignature = seatSignature(ctx);
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
-    for (const line of heard?.lines ?? []) io.say(line);
+    if (firstDefaultPassPending && !heard?.item) firstDefaultShouts.push(...(heard?.lines ?? []));
+    else for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {
       io.result?.({ item: heard.item, review: false, held: false, shared: [], reasons: heard.lines });
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
+      finishFirstDefaultPass();
       return 0;
     }
     // A waiting next wakes on the board file, so a queued test run that finishes meanwhile comes back at once [C7].
@@ -368,7 +389,7 @@ async function nextWithProgress(io, values, progress) {
       }
     }
     // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
-    const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
+    const redClaims = minutes > 0 && !firstDefaultPassPending ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
     // next.routeByTier (off by default): open items the project's tiers route to another tier than this seat's are left out of its pick [C7,#8800].
     const tierLeftOut = nextRouteByTier() && !values.verify ? withBoardRead(ctx, board => requireModule('../../../../../packages/moves/src/io/tier-routing.js').tierOmissions(ctx.config, board, store.listItems(board), whoAmI(ctx, board))) : [];
     const selectionValues = redClaims.length || tierLeftOut.length
@@ -392,11 +413,12 @@ async function nextWithProgress(io, values, progress) {
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
+      finishFirstDefaultPass();
       ctx = context(io);
       await progress.retry({ retryDetail: { phase: 'main spec merge', item: found.specMerged.item, code: 'MAIN_SPEC_MERGED' } });
       continue;
     }
-    if (found.diagnose) { sayDiagnoseOffer(io, found); return 0; }
+    if (found.diagnose) { sayDiagnoseOffer(io, found); finishFirstDefaultPass(); return 0; }
     if (found.item) {
       found.reasons = [...(found.reasons ?? []), ...(found.review ? [] : withBoardRead(ctx, board => reasons().ownWaitingLines(board, whoAmI(ctx, board)))), ...withBoardRead(ctx, board => reasons().inboxReasons(board, whoAmI(ctx, board))), ...withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()))];
       if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
@@ -409,11 +431,12 @@ async function nextWithProgress(io, values, progress) {
           ...(found.buildOffer ? { buildOffer: found.buildOffer } : { releaseRequest: found.releaseRequest }) });
         if (found.buildOffer) io.say(`main-red build #${found.item.item_id} offered to free seat ${found.buildOffer.seat}: ${cdTo(found.buildOffer.path)} pullboard next --take`);
         else io.say(`main-red build #${found.item.item_id} needs ${found.releaseRequest.seat} to release newest build #${found.releaseRequest.item}: ${cdTo(found.releaseRequest.path)} pullboard release ${found.releaseRequest.item} --reason ROUTED_ELSEWHERE, then pullboard next --take`);
+        finishFirstDefaultPass();
         return 0;
       }
       if (found.offer) {
         for (const reason of found.reasons ?? []) io.say(reason);
-        sayReviewOffer(ctx, found); return 0;
+        sayReviewOffer(ctx, found); finishFirstDefaultPass(); return 0;
       }
       // "you hold" is printed only after this read finds the item claimed by this seat under a live lease; otherwise selection runs again [C7,#4056].
       if (found.held && !found.review && !values.verify && !found.waitingOffer) {
@@ -466,11 +489,16 @@ async function nextWithProgress(io, values, progress) {
       } else {
         if (found.waitingOffer) {
           io.say(`available #${item.item_id}: ${item.item_title}`);
+          finishFirstDefaultPass();
           for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
           io.say(`claim it when ready: ${here} pullboard claim ${item.item_id}`);
           return 0;
         }
+        const returnedRed = returned?.gate && withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id)
+          .some(red => red.id === item.item_id));
+        if (firstDefaultPassPending && returnedRed) deliverQueuedReds();
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
+        finishFirstDefaultPass();
         // An infrastructure stop is not the candidate's red: next gives the same instruction show does, and nothing to build (#4989).
         const infraStop = returned?.gate?.code === 'GATE_INFRA_EXHAUSTED';
         if (!infraStop) io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
@@ -549,29 +577,37 @@ async function nextWithProgress(io, values, progress) {
         return 0;
       }
       if (values.verify) refuseWhileBuilding(ctx);
-      if (values['no-wait'] && !found.laneWork) return answerNoWait(io, ctx, found, values, ordered);
-      if (values.defaultLoop && !found.laneWork) {
-        // A named step, such as waiting on another seat's rework, says what to do instead of ending the turn (#7922).
-        const step = found.nextStep ?? 'nothing for this seat: end your turn';
-        const lapsed = withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()));
-        io.result?.({ item: null, next: step, reasons: [...(found.reasons ?? []), ...lapsed] });
-        for (const line of lapsed) io.say(line);
-        io.say(`next: ${step}`);
-        return 0;
+      if (!values.take && !values.build && !values.verify && (values['no-wait'] || values.defaultLoop || values.wait !== undefined) && !found.laneWork) {
+        found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()))];
+        // The line names the time the seat really waited, so an answer that did not wait says so [C7,#12807].
+        const seconds = Math.min(Math.round((waitClock.now() - waitStartedAt) / 1000), minutes * 60);
+        try { return await answerNoWait(io, ctx, found, values, ordered, seconds); }
+        finally { finishFirstDefaultPass(); }
       }
       found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => reasons().inboxReasons(board, whoAmI(ctx, board))), ...withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()))];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
       const waits = reasons().answerFirstReasons(found.reasons);
-      const refused = refuseNextIdle(io, waits, reasons().foldedReasons(waits.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
-      for (const line of blockerLines(found)) io.say(line);
-      return refused;
+      try {
+        const refused = refuseNextIdle(io, waits, reasons().foldedReasons(waits.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
+        for (const line of blockerLines(found)) io.say(line);
+        return refused;
+      } finally { finishFirstDefaultPass(); }
     }
     // An item whose folder another live session holds stays out of this next's selection (#3688).
     if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY', 'NOT_READY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
     if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
+    finishFirstDefaultPass();
     if (found.retry) await progress.retry(found, { until: deadline });
     else {
+      if (!waitLagSaid) {
+        // A lag notice informs the waiting seat; it neither ends the wait nor repeats on each wake.
+        sayLag({ say: line => {
+          io.say(line);
+          io.lagSilent = true;
+          waitLagSaid = true;
+        } }, ctx);
+      }
       if (recordedIdle && wake) {
         // The idle record itself changes the watched board; rebuild and reread selection before waiting so that
         // its own notification is not mistaken for external work, while changes during rearming remain visible.
@@ -582,7 +618,8 @@ async function nextWithProgress(io, values, progress) {
         continue;
       }
       wake.update(nextChangeInputs(ctx));
-      const until = withBoardRead(ctx, board => {
+      const recheckAt = waitClock.now() + recheckDelay;
+      const until = Math.min(recheckAt, withBoardRead(ctx, board => {
         const now = ctx.clock.now().toISOString();
         const row = board.db.prepare(`SELECT MIN(expiry) AS expiry FROM (
           SELECT item_lease_until AS expiry FROM item WHERE item_status='claimed' AND item_lease_until>?
@@ -595,51 +632,60 @@ async function nextWithProgress(io, values, progress) {
           if (release?.at) due.push(Date.parse(release.at) + cooldown);
         }
         return due.length ? Math.min(deadline, waitClock.now() + Math.min(...due) - ctx.clock.now().getTime()) : deadline;
-      });
+      }));
       await progress.idle(found.reasons, () => waitClock.sleep(wake, { after: wakeVersion, deadline: until }));
       wakeVersion = wake.version();
+      // Inspect the wake before sleeping again: its event may be the newly filed work.
       quiet = passSignature; quietAt = waitClock.now();
-      let signatureAt = quietAt;
+      let signatureAt = quietAt - QUIET_SIGNATURE_INTERVAL_MS;
       // Another seat's write that changes nothing this seat can take, hear or hold is not a reason to select again; a read path this signature misses is caught by the recheck [C7,#11798].
-      while (quiet !== null && !testRuns.pending.length && waitClock.now() < until && waitClock.now() - quietAt < QUIET_RECHECK_MS) {
+      while (quiet !== null && !testRuns.pending.length && waitClock.now() < until) {
+        if (waitClock.now() - signatureAt >= QUIET_SIGNATURE_INTERVAL_MS) {
+          signatureAt = waitClock.now();
+          if (seatSignature(ctx) !== quiet) break;
+        }
         const checkAt = signatureAt + QUIET_SIGNATURE_INTERVAL_MS;
-        await waitClock.sleep(wake, { after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS, checkAt) });
+        await waitClock.sleep(wake, { after: wakeVersion, deadline: Math.min(until, checkAt) });
         wakeVersion = wake.version();
         if (waitClock.now() < checkAt) continue;
         signatureAt = waitClock.now();
         if (seatSignature(ctx) !== quiet) break;
       }
+      if (waitClock.now() >= recheckAt) recheckDelay = Math.min(30_000, recheckDelay * 2);
     }
   } } finally { wake?.close(); }
 }
 
 /**
- * next --no-wait with nothing free: the board-finished line with exit 3 when every item in the seat's lane is verified,
+ * An idle wait with nothing free: the board-finished line with exit 3 when every item in the seat's lane is verified,
  * otherwise the idle line with exit 4. Each records its observation, and a recording failure never changes the exit code [C7,#12779].
  */
-async function answerNoWait(io, ctx, found, values, ordered) {
-  const { seat, finished } = withBoardRead(ctx, board => {
+async function answerNoWait(io, ctx, found, values, ordered, waitedSeconds) {
+  const { seat, finished, wholeBoard } = withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
-    return { seat: me, finished: laneFinished(store.listItems(board, { lane: me.lane, all: true }), me.lane) };
+    // Finished is judged per board: the seat's own lane, or the whole board when this lane never held work (a reviewer's seat) [C7,#12807].
+    const all = store.listItems(board, { all: true });
+    const ownLane = laneFinished(all, me.lane);
+    return { seat: me, finished: ownLane || boardFinished(all), wholeBoard: !ownLane };
   });
-  const seconds = idleSeconds(nextIdleMinutes(ctx.config));
+  const seconds = waitedSeconds ?? idleSeconds(nextIdleMinutes(ctx.config));
   const observation = finished ? { finished: true } : { timeout: { minutes: Math.floor(seconds / 60), awaited: 'work for this seat' } };
   try {
     await withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...observation }]));
   } catch (error) {
     io.err?.(`next idle observation was not recorded (${error.code ?? error.message}); the exit code is unchanged`);
   }
-  const line = finished ? boardFinishedLine(seat.lane) : idleTimeoutLine(seconds);
-  io.result?.({ item: null, idleReason: found.idleReason ?? 'unknown', ...(finished ? { finished: true } : { timeout: { seconds } }), reasons: [line] });
+  const line = finished ? boardFinishedLine(wholeBoard ? 'the board' : seat.lane) : idleTimeoutLine(seconds);
+  io.result?.({ item: null, idleReason: found.idleReason ?? 'unknown', ...(finished ? { finished: true } : { timeout: { seconds } }), reasons: [line, ...(found.reasons ?? [])] });
   io.say(line);
+  for (const reason of found.reasons ?? []) io.say(reason);
   return finished ? 3 : 4;
 }
 
 /** The clock a waiting next reads and sleeps through: the real time and the waiter's own timers unless io.nextWaitClock names another, so a test can drive the wait without real minutes [C7,#12761]. */
 const realWaitClock = { now: () => Date.now(), sleep: (wake, options) => wake.wait(options) };
 
-/** The longest a waiting next trusts an unchanged signature before it selects again, so a read path the signature misses cannot hold a seat for long [C7,#11798]. */
-const QUIET_RECHECK_MS = 30_000;
+/** Selection rechecks use the frozen 1, 2, 4, 8, 16, then 30 second intervals; native input changes wake them early [C7,#12807]. */
 
 /** Minimum time between full selection signatures while a waiter's watched files keep changing [C7,#12794]. */
 const QUIET_SIGNATURE_INTERVAL_MS = 100;
