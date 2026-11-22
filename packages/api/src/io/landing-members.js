@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { phaseReceiptId } from '../../../jobs/index.js';
-import { jobView } from '../../../jobs/index.js';
+import { readPayload } from '../../../jobs/index.js';
 import { offeredRequest } from './jobs.js';
 import { reusePlanDigest } from '../logic/gate/reuse-plan.js';
 
@@ -58,7 +58,9 @@ function memberScope(db, member, runs) {
     const source = request?.submit;
     if (source?.agentId !== submission.event_by || source.digest !== item.item_frozen_digest || source.tree !== item.item_tree
       || source.companion || source.tooling !== submitted.tooling) continue;
-    const kept = jobView(home, job)?.steps.findLast(step => step.name === 'receipt')?.payload?.receipt;
+    // Read only the native final receipt. Progress, artifacts and unrelated steps are not scope authority.
+    const posted = home.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
+    const kept = posted ? readPayload(home, posted.job_step_payload)?.receipt : null;
     const analysis = kept?.gate?.analysis;
     const check = request?.input?.data?.check ?? '';
     if (typeof check !== 'string' || !files(analysis?.proofFiles) || !same(analysis.proofFiles, proof.files)
