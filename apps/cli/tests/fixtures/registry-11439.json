@@ -1,0 +1,4 @@
+{
+ "cli.io-commands-why.flow-reader": {"proves":{"specs":["N26","C7"],"claim":"clause 1: flowReader(io) returns the releaseFlow document and returns null on a board read error."},"why":"The view cannot import health, so the CLI hands it a reader that must not throw.","kind":"cell unit","inputs":["apps/cli/src/io/commands/why.js","apps/cli/tests/io/commands/why.test.js"]},
+ "cli.io-commands-why.view-passes-flow-reader": {"proves":{"specs":["N26","C7"],"claim":"clause 2: the real view command serves a home page that shows the Flow panel because view.js passes readFlow from flowReader."},"why":"Without the reader the shipped home page never shows Flow.","kind":"journey","inputs":["apps/cli/src/io/commands/view.js","apps/cli/tests/io/commands/why.test.js"]}
+}
