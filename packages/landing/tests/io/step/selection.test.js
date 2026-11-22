@@ -75,3 +75,33 @@ test('landing.selection.local-waits-unchanged: clause 2: an item with only local
   const { blocked } = candidates(board, root, base, 8, { listItems: () => listed });
   assert.deepEqual(blocked.map(entry => [entry.id, entry.code, entry.message, entry.items]), [[2822, 'WAITS_ON_ITEM', 'waits on unmerged item(s) #2658', [2658]]]);
 });
+
+test('landing.selection.pipeline-on-starts-second-while-one-in-flight: clause 1: with landing.pipeline on, selection starts a second batch while one is in flight [test] [C7]', t => {
+  const { root, board, base } = scratch(t);
+  const listed = [{ item_id: 2822, item_status: 'verified', item_merged_commit: null, item_commit: base, item_hold_at: null }];
+  const selected = candidates(board, root, base, 8, { listItems: () => listed, pipeline: true, batches: [{ id: 'first', state: 'gating' }] });
+  assert.deepEqual(selected.ready.map(item => item.item_id), [2822]);
+  assert.deepEqual(selected.blocked, []);
+});
+
+test('landing.selection.pipeline-on-third-waits-at-two: clause 2: with landing.pipeline on, a third batch waits until one of two ends [test] [C7]', t => {
+  const { root, board, base } = scratch(t);
+  const listed = [{ item_id: 2822, item_status: 'verified', item_merged_commit: null, item_commit: base, item_hold_at: null }];
+  const selected = candidates(board, root, base, 8, { listItems: () => listed, pipeline: true,
+    batches: [{ id: 'first', state: 'gating' }, { id: 'second', state: 'ready' }] });
+  assert.deepEqual(selected.ready, []);
+  assert.deepEqual(selected.blocked, [], 'the item waits rather than becoming blocked');
+  const afterOneEnds = candidates(board, root, base, 8, { listItems: () => listed, pipeline: true,
+    batches: [{ id: 'first', state: 'landed' }, { id: 'second', state: 'ready' }] });
+  assert.deepEqual(afterOneEnds.ready.map(item => item.item_id), [2822]);
+});
+
+test('landing.selection.pipeline-off-keeps-single-flight: clause 3: with landing.pipeline off, selection waits for the in-flight batch as on main [test] [C7]', t => {
+  const { root, board, base } = scratch(t);
+  const listed = [{ item_id: 2822, item_status: 'verified', item_merged_commit: null, item_commit: base, item_hold_at: null }];
+  const waiting = candidates(board, root, base, 8, { listItems: () => listed, batches: [{ id: 'first', state: 'gating' }] });
+  assert.deepEqual(waiting.ready, []);
+  assert.deepEqual(waiting.blocked, []);
+  const idle = candidates(board, root, base, 8, { listItems: () => listed, batches: [] });
+  assert.deepEqual(idle.ready.map(item => item.item_id), [2822]);
+});
