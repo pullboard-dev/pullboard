@@ -2,7 +2,8 @@
 /** Worktree install guidance follows the committed package manager and lock [C7,I1,L3]. @pullboard-test-input source-cell packages/git */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { rmSync, writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
