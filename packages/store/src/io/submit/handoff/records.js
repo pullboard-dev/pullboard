@@ -281,8 +281,6 @@ const PAYLOAD_FIELDS = { agent: 'string', commit: 'string', tree: 'string', dige
   outcome: 'string', status: 'number', exactResult: 'string', error: 'string', record: HANDOFF_FIELDS,
   gate: GATE_FIELDS, request: { submit: BINDING_FIELDS },
   counts: COUNT_FIELDS, receipt: RECEIPT_FIELDS, selected: 'number', finished: 'number', failures: 'number' };
-const ITEM_FIELDS = { item_id: 'number', item_status: 'string', item_owner: 'string', item_commit: 'string',
-  item_claim_head: 'string', item_frozen_digest: 'string', item_lease_until: 'string', item_updated_at: 'string' };
 const JOB_FIELDS = { job_id: 'string', job_kind: 'string', job_item: 'number', job_candidate: 'string', job_base: 'string',
   job_step: 'string', job_attempt: 'number', job_lease_owner: 'string', job_lease_until: 'number',
   job_created: 'number', job_updated: 'number', job_applied: 'number' };
@@ -308,6 +306,20 @@ function evidenceFields(value, fields, reasons = [], source = 'row') {
   }
   if (Object.keys(value).some(key => !Object.hasOwn(fields, key))) reasons.push(`omitted-fields:${source}`);
   return result;
+}
+
+/** Select the recovery item's public columns and preserve their native numeric, text or null values. */
+function recoveryItem(db, id) {
+  const row = db.prepare(`SELECT item_id, item_status, item_owner, item_commit,
+    item_claim_head, item_frozen_digest, item_lease_until, item_updated_at FROM item WHERE item_id = ?`).get(id);
+  if (!row) return null;
+  for (const [column, value] of Object.entries(row)) {
+    const valid = value === null || (column === 'item_id'
+      ? typeof value === 'number' && Number.isFinite(value)
+      : typeof value === 'string');
+    if (!valid) delete row[column];
+  }
+  return row;
 }
 
 /** Freeze detached JSON observations recursively, including source references and allow-listed refusal fields. */
@@ -362,7 +374,7 @@ export async function captureGateRecoveryEvidence(board, id, { runs = null } = {
   const own = !db.isTransaction;
   try {
     if (own) db.exec('BEGIN');
-    answer.item = evidenceFields(db.prepare('SELECT * FROM item WHERE item_id = ?').get(id), ITEM_FIELDS);
+    answer.item = recoveryItem(db, id);
     answer.itemSource = `board.item:${id}`;
     if (!answer.item) reasons.push('missing:item');
     const split = runsStoreOn(db);
