@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell store */
 /** The test ledger has a commit index so the landing offer reads main reds and proof files by seek, not a scan [C7,#11191]. */
 import assert from "node:assert/strict";
 import { rmSync } from "node:fs";

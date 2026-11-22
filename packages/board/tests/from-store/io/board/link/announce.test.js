@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/store */
 /** After an item on a linked child board changes state, each parent that waits on it is told through the file transport [E32,B24,#11039]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

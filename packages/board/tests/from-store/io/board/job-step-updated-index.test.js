@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell store */
 /** The job table has a job_step_updated index so the finished-runs count is a range read [C7,#6722]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
