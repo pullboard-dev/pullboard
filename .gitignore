@@ -42,3 +42,6 @@ desktop.ini
 # Coverage and build output
 coverage/
 .nyc_output/
+docs/formats.md
+docs/formats/
+docs/api.md
