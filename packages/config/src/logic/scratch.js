@@ -2,7 +2,7 @@
 import { fileSystemAdapter } from '../../../fs/index.js';
 import { isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
-import { Refused } from '../../../kernel/light.js';
+import { Refused } from '../../../kernel/browser.js';
 import { environmentAdapter } from '../../../env/index.js';
 
 const fs = fileSystemAdapter();
