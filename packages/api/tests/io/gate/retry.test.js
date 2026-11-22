@@ -131,6 +131,11 @@ test('api.gate-owner.retry-dispatches-authenticated-owner: clause 1: a routed fi
   assert.equal(request.input.data.shard.command, `node --test './${owner}'`, 'the fixture is never dispatched');
 });
 
+/** A signed candidate failure absent on main is item-owned by its full case name. */
+const RECOVERY_NEW_AGAINST_MAIN = ({ cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => ({
+  file, owner: 'item', own: cases.filter(row => row.file === file).map(row => row.name), receipt: null, job: null,
+})) });
+
 /** A native-shaped shard receipt; cancellation deliberately has no complete failure or outcome account. */
 function recoveryReceipt(head, selection, result = 'green') {
   const status = result === 'green' ? 0 : 1;
@@ -170,7 +175,7 @@ function recoveryGate(t, results = ['unknown', 'green', 'green', 'green']) {
     jobQueueCall(board.db, { action: 'receipt', job, runner, token: claim.token, receipt: recoveryReceipt(head, selection, results[index]) }, { mode: 'pull', now: at + 1 });
   });
   const snapshots = originals.map(job => JSON.stringify(postedReceipt(board.db, job)));
-  const apply = (mode = 'pull') => applyShardReceipt(board, { job: originals.at(-1) }, { shardRecoveryMode: mode, receiptNow: 90, settleOnMainReceipt: true, compareWithMain: NEW_AGAINST_MAIN });
+  const apply = (mode = 'pull') => applyShardReceipt(board, { job: originals.at(-1) }, { shardRecoveryMode: mode, receiptNow: 90, settleOnMainReceipt: true, compareWithMain: RECOVERY_NEW_AGAINST_MAIN });
   const replacement = `${parent}:shard:unknown:1`;
   const post = (result = 'green', change = receipt => receipt) => {
     const runner = 'replacement-runner';
@@ -178,7 +183,7 @@ function recoveryGate(t, results = ['unknown', 'green', 'green', 'green']) {
     assert.equal(claim?.job, replacement, 'only the incomplete shard is re-offered');
     const selection = offeredStep(board.db, replacement).request.input.data.shard;
     const body = { action: 'receipt', job: replacement, runner, token: claim.token, receipt: change(recoveryReceipt(head, selection, result)) };
-    const answer = boardJobQueueCall(board, body, { mode: 'pull', now: 101, settleOnMainReceipt: true, compareWithMain: NEW_AGAINST_MAIN });
+    const answer = boardJobQueueCall(board, body, { mode: 'pull', now: 101, settleOnMainReceipt: true, compareWithMain: RECOVERY_NEW_AGAINST_MAIN });
     return { answer, body, claim };
   };
   const intact = () => originals.forEach((job, index) => assert.equal(JSON.stringify(postedReceipt(board.db, job)), snapshots[index], 'original receipt remains intact'));

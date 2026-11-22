@@ -1,5 +1,5 @@
 {
-  "api.gate-recovery.single-cancelled-shard: clause 1": {
+  "api.gate-recovery.single-cancelled-shard": {
     "proves": {
       "specs": [
         "C7",
@@ -15,7 +15,7 @@
       "packages/api/tests/io/gate/retry.test.js"
     ]
   },
-  "api.gate-recovery.mixed-red-green-preserved: clause 2": {
+  "api.gate-recovery.mixed-red-green-preserved": {
     "proves": {
       "specs": [
         "C7",
@@ -31,7 +31,7 @@
       "packages/api/tests/io/gate/retry.test.js"
     ]
   },
-  "api.gate-recovery.invalid-terminal-replacements: clause 2": {
+  "api.gate-recovery.invalid-terminal-replacements": {
     "proves": {
       "specs": [
         "C7",
@@ -47,7 +47,7 @@
       "packages/api/tests/io/gate/retry.test.js"
     ]
   },
-  "api.gate-recovery.duplicate-and-stale-custody: clause 2": {
+  "api.gate-recovery.duplicate-and-stale-custody": {
     "proves": {
       "specs": [
         "C7",
@@ -63,7 +63,7 @@
       "packages/api/tests/io/gate/retry.test.js"
     ]
   },
-  "api.gate-recovery.unsupported-and-incomplete: clause 3": {
+  "api.gate-recovery.unsupported-and-incomplete": {
     "proves": {
       "specs": [
         "C7",
@@ -79,7 +79,7 @@
       "packages/api/tests/io/gate/retry.test.js"
     ]
   },
-  "api.gate-recovery.emits-identities-and-final-reason: clause 3": {
+  "api.gate-recovery.emits-identities-and-final-reason": {
     "proves": {
       "specs": [
         "C7",
