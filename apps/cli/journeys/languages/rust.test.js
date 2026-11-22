@@ -4,6 +4,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { BROKEN } from '../../tests/fixtures/languages/rust.js';
+import { CARGO } from '../../tests/fixtures/languages/rust.js';
 import { CHECK } from '../../tests/fixtures/languages/rust.js';
 import { buildAndSubmit } from '../../tests/fixtures/languages/rust.js';
 import { crateBoard } from '../../tests/fixtures/languages/rust.js';
