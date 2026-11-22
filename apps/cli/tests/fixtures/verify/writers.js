@@ -8,9 +8,23 @@ import { join } from 'node:path';
 import { runFixtureChild } from '../child.js';
 import { waitForCondition } from '../runner/holders.js';
 
-/** Whether any process of the group still exists; only "no such group" reads as gone, every other error is raised. */
-function groupAlive(pgid) {
-  try { process.kill(-pgid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; }
+/** Every listed process with its group and state; a failed or unparsable listing is raised, never read as empty. */
+function census() {
+  const listed = runFixtureChild('/bin/ps', ['-A', '-o', 'pid=,pgid=,stat='], { encoding: 'utf8' });
+  assert.equal(listed.status, 0, `ps lists every process: ${listed.stderr}`);
+  return listed.stdout.trim().split('\n').map((line) => {
+    const [pid, pgid, stat] = line.trim().split(/\s+/u);
+    assert.ok(/^\d+$/u.test(pid) && /^\d+$/u.test(pgid) && stat, `ps row has a pid, group and state: ${line}`);
+    return { pid: Number(pid), pgid: Number(pgid), stat };
+  });
+}
+
+/**
+ * Whether any process of the group still runs. Why a listing and not a signal zero: macOS answers kill(-pgid, 0) with
+ * EPERM once the group holds only exited children waiting to be reaped, and a zombie writes nothing.
+ */
+function groupAlive(pgid, rows = census()) {
+  return rows.some(row => row.pgid === pgid && !row.stat.startsWith('Z'));
 }
 
 /** The leader's command line, or null when no process holds that pid; a failed listing is raised, never read as empty. */
@@ -42,8 +56,11 @@ export function ownedComparisonGroups(root) {
       if (!existsSync(record)) continue;
       const pid = Number(JSON.parse(readFileSync(record, 'utf8')).pid);
       assert.ok(Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid, `${record} names a worker pid`);
-      if (!groupAlive(pid)) continue;
-      const args = leaderArgs(pid);
+      const rows = census();
+      if (!groupAlive(pid, rows)) continue;
+      // A leader that has exited (gone or a zombie) leaves its group to the worker's own children.
+      const leader = rows.find(row => row.pid === pid && !row.stat.startsWith('Z'));
+      const args = leader ? leaderArgs(pid) : null;
       if (args === null || args.includes(join(base, job, 'request.json'))) groups.push(pid);
     }
   }
@@ -63,11 +80,12 @@ export function ownedComparisonGroups(root) {
 export async function removeDrainedFixture(root, { signal } = {}) {
   const groups = ownedComparisonGroups(root);
   for (const pgid of groups) {
-    try { process.kill(-pgid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+    // A group that ended since the listing refuses the signal; only one the listing still finds running raises it.
+    try { process.kill(-pgid, 'SIGKILL'); } catch (error) { if (!['ESRCH', 'EPERM'].includes(error.code) || groupAlive(pgid)) throw error; }
   }
   // An async wait lets this process reap a worker it started itself, so an exited child is not read as alive.
-  await waitForCondition(() => !groups.some(groupAlive), 'every comparison writer the fixture recorded has exited before its root is removed',
-    { signal, state: () => groups.filter(groupAlive) });
+  await waitForCondition(() => { const rows = census(); return !groups.some(pgid => groupAlive(pgid, rows)); },
+    'every comparison writer the fixture recorded has exited before its root is removed', { signal, state: () => groups.filter(pgid => groupAlive(pgid)) });
   rmSync(root, { recursive: true, force: true });
   return groups;
 }
