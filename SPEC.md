@@ -159,6 +159,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - D6 [draft, must] The standard changes only by an accepted RFC in docs/rfcs, and each change bumps its version. | gate: review | serves: D1
 
 ## C · Commits
+- GB47 [retired] Merge 0cc15ceb13 cited this tag by mistake.
 - C1 [approved, must] Header: type(scope): subject [ids], 72 characters at most. | gate: apps/cli/journeys/hooks/main.test.js
 - C2 [approved, must] Cited ids exist. feat and fix commits cite at least one. | gate: apps/cli/journeys/hooks/main.test.js | serves: S1
 - C3 [approved, must] Pre-push runs the gate, unless this exact tree already passed it. | gate: apps/cli/journeys/merged/e2e.test.js | serves: V4
