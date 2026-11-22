@@ -12,7 +12,7 @@ import { HOST } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js'
 import { installSshStandIn } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 
 /** Hold the runner's actual capacity database until its real registration SQL reports the lock. */
-function registrationUnderLock(t) {
+function registrationUnderLock(t, mode = 'transient') {
   const box = cellProject(t, { gate: 'true' });
   const bin = join(box.dir, 'bin');
   const worker = join(box.dir, 'worker');
@@ -20,15 +20,17 @@ function registrationUnderLock(t) {
   const machineHome = join(home, '.pullboard');
   const observed = join(box.dir, 'registration-busy.json');
   const preload = join(box.dir, 'observe-registration.mjs');
+  const attempts = join(box.dir, 'registration-attempts.jsonl');
   for (const directory of [bin, worker, machineHome]) mkdirSync(directory, { recursive: true });
   // Observe the genuine SQLite exception, never replace an operation or manufacture a refusal.
   writeFileSync(preload, `import { DatabaseSync } from 'node:sqlite';
-import { existsSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 const original = DatabaseSync.prototype.exec;
 DatabaseSync.prototype.exec = function(sql) {
   try { return original.call(this, sql); }
   catch (error) {
     if (String(sql).startsWith('PRAGMA journal_mode = WAL;') && [5, 6].includes(error.errcode & 255)) {
+      appendFileSync(${JSON.stringify(attempts)}, JSON.stringify({ sqliteCode: error.errcode & 255 }) + '\\n');
       const previous = Error.stackTraceLimit;
       Error.stackTraceLimit = 40;
       const stack = new Error().stack;
@@ -53,13 +55,19 @@ const db = new DatabaseSync(${JSON.stringify(join(machineHome, 'resources.sqlite
 db.exec('BEGIN EXCLUSIVE');
 let held = true;
 const release = () => { if (held) { db.exec('ROLLBACK'); held = false; } };
-const watcher = watch(${JSON.stringify(box.dir)}, () => { if (existsSync(observed)) release(); });
+const controller = new AbortController();
+const watcher = watch(${JSON.stringify(box.dir)}, () => {
+  if (!existsSync(observed)) return;
+  if (${JSON.stringify(mode)} === 'transient') release();
+  if (${JSON.stringify(mode)} === 'cancel') controller.abort();
+});
 try {
   const runner = { host: ${JSON.stringify(HOST)}, node: process.execPath, slots: 1, browser: 0 };
-  const outcome = await runOnRunnerAsync(${JSON.stringify(box.repo)}, 'printf capacity-job; exit 3', { runner })
+  const outcome = await runOnRunnerAsync(${JSON.stringify(box.repo)}, 'printf capacity-job; exit 3', { runner, signal: controller.signal })
     .then(result => ({ exitCode: result.exitCode, output: result.output, kind: result.executionReceipt?.kind }),
       error => ({ refused: error.code, message: error.message }));
-  console.log(JSON.stringify({ observation: existsSync(observed) ? JSON.parse(readFileSync(observed, 'utf8')) : null, outcome }));
+  console.log(JSON.stringify({ observation: existsSync(observed) ? JSON.parse(readFileSync(observed, 'utf8')) : null, outcome,
+    attempts: existsSync(${JSON.stringify(attempts)}) ? readFileSync(${JSON.stringify(attempts)}, 'utf8').trim().split('\\n').filter(Boolean).length : 0 }));
 } finally { watcher.close(); release(); db.close(); }
 `;
   const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` };
@@ -77,4 +85,23 @@ test('runner.capacity-startup.real-registration-lock-reaches-job: clause 1: a re
     'the genuine SQLite lock is observed specifically inside capacity registration at the real worker startup');
   assert.deepEqual(actual.outcome, { exitCode: 3, output: 'capacity-job', kind: 'runner-completion' },
     'the same worker proceeds from transient registration contention to the real command and terminal result');
+});
+
+
+test('runner.capacity-startup.permanent-registration-lock-exhausts-existing-budget: clause 2: permanent real registration contention stops after the existing eight attempts without executing the command [C7,#12952]', { timeout: 140_000 }, t => {
+  const actual = registrationUnderLock(t, 'permanent');
+  assert.equal(actual.observation.registration, true);
+  assert.equal(actual.observation.startup, true);
+  assert.equal(actual.attempts, 8, 'the existing retrySlotLocked default remains eight attempts');
+  assert.equal(actual.outcome.refused, 'RUNNER_SETUP_REFUSED');
+  assert.match(actual.outcome.message, /\[SLOT_DB_LOCKED\]/u);
+  assert.equal(actual.outcome.output, undefined, 'a refused worker never claims the command executed');
+});
+
+test('runner.capacity-startup.transport-loss-stops-registration-retries: clause 2: actual transport cancellation after the first registration SQLite refusal stops further attempts and never executes the command [C7,#12952]', { timeout: 140_000 }, t => {
+  const actual = registrationUnderLock(t, 'cancel');
+  assert.equal(actual.observation.registration, true);
+  assert.equal(actual.attempts, 1, 'the closed transport prevents a second registration attempt');
+  assert.ok(actual.outcome.refused, JSON.stringify(actual));
+  assert.equal(actual.outcome.output, undefined);
 });
