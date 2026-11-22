@@ -1,17 +1,16 @@
-/** @pullboard-test-input source-cell store */
 /** The test ledger has a commit index so the landing offer reads main reds and proof files by seek, not a scan [C7,#11191]. */
 import assert from "node:assert/strict";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { closeBoard } from "../../../index.js";
-import { ledgerFiles } from "../../../index.js";
-import { ledgerMainReds } from "../../../index.js";
-import { recordTestResults } from "../../../index.js";
-import { missingAdditiveSchema } from "../../../src/io/board/indexes.js";
-import { openKitBoard } from "../../fixtures/cell.js";
-import { temporaryDirectory } from "../../fixtures/tmp.js";
+import { closeBoard } from "../../../../../store/index.js";
+import { ledgerFiles } from "../../../../../store/index.js";
+import { ledgerMainReds } from "../../../../../store/index.js";
+import { missingAdditiveSchema } from "../../../../../store/index.js";
+import { recordTestResults } from "../../../../../store/index.js";
+import { cellBoard } from "../../../fixtures/cell-board.js";
+import { temporaryDirectory } from "../../../../../store/tests/fixtures/tmp.js";
 
 const MAIN = "a".repeat(40);
 const OTHER = "b".repeat(40);
@@ -27,7 +26,7 @@ function seededBoard(t) {
   const directory = temporaryDirectory("pullboard-ledger-commit-index-");
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, "board.sqlite");
-  const board = openKitBoard(file);
+  const board = cellBoard(t, file, undefined, { real: true });
   try {
     const row = (name, status) => ({ file: name, inputKey: KEY, command: "proof", context: CONTEXT, status });
     recordTestResults(board.db, { receipt: "r1", origin: "gate", commit: MAIN, rows: [row("a.test.js", "fail"), row("b.test.js", "pass")] });
@@ -58,7 +57,7 @@ function dropIndex(file) {
   try { db.exec(`DROP INDEX ${INDEX}`); } finally { db.close(); }
 }
 
-test("store.ledger.main-reds-indexed: clause 1: the ledgerMainReds and ledgerFiles statements seek test_result_commit_file [C7,#11191]", t => {
+test('store.ledger.main-reds-indexed: clause 1: the ledgerMainReds and ledgerFiles statements seek test_result_commit_file [C7,#11191]', t => {
   const file = seededBoard(t);
   readOnly(file, db => {
     assert.match(plan(db, MAIN_REDS, "a.test.js", MAIN, "proof"), /SEARCH test_result USING (?:COVERING )?INDEX test_result_commit_file/u);
@@ -66,7 +65,7 @@ test("store.ledger.main-reds-indexed: clause 1: the ledgerMainReds and ledgerFil
   });
 });
 
-test("store.ledger.main-reds-unchanged: clause 1: both lookups return the same rows with the index and without it [C7,#11191]", t => {
+test('store.ledger.main-reds-unchanged: clause 1: both lookups return the same rows with the index and without it [C7,#11191]', t => {
   const file = seededBoard(t);
   const withIndex = answers(file);
   dropIndex(file);
@@ -75,7 +74,7 @@ test("store.ledger.main-reds-unchanged: clause 1: both lookups return the same r
   assert.deepEqual(withIndex.files, ["a.test.js", "b.test.js", "c.test.js"]);
 });
 
-test("store.ledger.commit-index-upgrade: clause 2: a board without the index reports missingAdditiveSchema and gains it on its next owning open, keeping every row [C7,#11191]", t => {
+test('store.ledger.commit-index-upgrade: clause 2: a board without the index reports missingAdditiveSchema and gains it on its next owning open, keeping every row [C7,#11191]', t => {
   const file = seededBoard(t);
   dropIndex(file);
   const probe = () => readOnly(file, db => ({
@@ -84,6 +83,6 @@ test("store.ledger.commit-index-upgrade: clause 2: a board without the index rep
     rows: db.prepare("SELECT count(*) AS n FROM test_result").get().n,
   }));
   assert.deepEqual(probe(), { missing: true, index: false, rows: 4 });
-  closeBoard(openKitBoard(file));
+  cellBoard(t, file, undefined, { real: true });
   assert.deepEqual(probe(), { missing: false, index: true, rows: 4 });
 });
