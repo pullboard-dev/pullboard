@@ -4,11 +4,11 @@
  * repeated from release.test.js so the runner can shard the two launch groups in parallel.
  */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from '../../fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
-import { runFixtureChild } from '../../fixtures/child.js';
-import { runFixtureGit } from '../../fixtures/child.js';
-import { runFixtureSetupGit } from '../../fixtures/child.js';
+import { runFixtureExecFile as execFileSync } from '../../tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -22,7 +22,7 @@ import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '../../../../..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'docs', 'package.json', 'packages', 'skills'];
 const dirs = [];
 const stops = [];
