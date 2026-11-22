@@ -1,6 +1,7 @@
 /** Awaited production CLI calls with isolated output and serialized process-global environment [C7,A1]. */
 import { Readable } from 'node:stream';
 import { main } from './native.js';
+import { installedMain } from './native.js';
 import { HOOK_WORKER } from '../../index.js';
 import { launchRelaySender } from '../../index.js';
 
@@ -55,7 +56,12 @@ export function captureCommandInProcess(command, argv, { cwd = process.cwd(), en
   return run;
 }
 
-/** Run actual production dispatch, including parsing, identity, ordered writes and refusals. */
-export function runCliInProcess(argv, options) {
-  return captureCommandInProcess(main, argv, options);
+/**
+ * Run actual production dispatch, including parsing, identity, ordered writes and refusals.
+ * installedRoot selects the packed installation's public CLI, board and outbox doors, with its own worker paths.
+ * The native composition helper declares every installed dependency for complete source selection.
+ */
+export function runCliInProcess(argv, { installedRoot, ...options } = {}) {
+  if (installedRoot === undefined) return captureCommandInProcess(main, argv, options);
+  return captureCommandInProcess((args, streams) => installedMain(installedRoot, args, streams), argv, options);
 }
