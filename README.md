@@ -297,7 +297,9 @@ A few commands keep every agent on track.
 
 Claude Code gets skills. Codex reads `AGENTS.md`. Both get Pullboard's MCP server, and any other agent can read `pullboard prompt <role>`. The [triage skill](skills/pullboard-triage/SKILL.md) handles outside issues and pull requests, with your approval.
 
-If you are the only builder, inspect an item with `pullboard show <id>` and take other build work with `pullboard next`. Another agent session can create a reviewer seat with `pullboard worktree`, then run `pullboard next --verify` to review the submission. A builder cannot verify their own work, so independent review remains pending until another session reviews it. This describes the available solo path and does not decide the pending solo-route question.
+If you are the only builder, inspect an item with `pullboard show <id>` and take other build work with `pullboard next`. Another agent session can create a reviewer seat with `pullboard worktree`, then run `pullboard next --verify` to review the submission.
+
+A builder cannot verify their own work, so independent review remains pending until another session reviews it. This describes the available solo path and does not decide the pending solo-route question.
 
 ## Runners and landing
 
