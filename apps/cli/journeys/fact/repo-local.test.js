@@ -52,7 +52,8 @@ async function provisionBoardKey(box) {
   const previous = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   try {
-    const { boardId, storeBoardKey } = await import('../../../../packages/store/index.js');
+    const { boardId } = await import('../../../../packages/store/index.js');
+    const { storeBoardKey } = await import('../../../../packages/keys/index.js');
     helpers.board(box, board => storeBoardKey(boardId(board), Buffer.alloc(32, 124)));
   } finally {
     if (previous === undefined) delete process.env.PULLBOARD_HOME;
