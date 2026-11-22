@@ -119,7 +119,7 @@ test('api.gate-owner.routes-authenticated-failure-to-selected-shard: clause 1: a
   { file: owner, caseFile: source, name, signature, shard, attempt: 1, head });
 });
 
-test("api.gate-owner.rejects-foreign-and-malformed-owner-routes: clause 2: each shard's own selection governs ownership and malformed, skipped, missing and duplicate identities never receive an owner route [C7]", t => {
+test('api.gate-owner.rejects-foreign-and-malformed-owner-routes: clause 2: the shard selection governs ownership and malformed, skipped, missing and duplicate identities never receive an owner route [C7]', t => {
   const db = boardWith(t), board = { db, gitRoot: '.' };
   const head = 'e'.repeat(40), main = 'f'.repeat(40), source = 'tests/fixtures/shared.js', owner = 'tests/wrappers/one.test.js';
   const name = 'same case [C7]', signature = '1'.repeat(64), inputKey = '2'.repeat(64), shard = 'gate:12922:shard:1';
