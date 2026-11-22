@@ -65,8 +65,14 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   box.env.PULLBOARD_NEXT_PROFILE = '1';
-  const began = Date.now();
-  const waiting = measured(box, box.web, '--wait', '1');
+  const began = Date.now(), notifications = [];
+  // This diagnostic clock uses the actual time and native waiter, without changing any deadline.
+  const clock = { now: Date.now, sleep: async (wake, options) => {
+    if (notifications.length < 64) notifications.push({ sleepAt: Date.now() - began, after: options.after, until: options.deadline - began });
+    await wake.wait(options);
+    if (notifications.length < 64) notifications.push({ wokeAt: Date.now() - began, version: wake.version() });
+  } };
+  const waiting = drivenNext(box, box.web, clock, '--wait', '1');
   // The waiting seat has recorded its idle answer once it is resting on the board.
   const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   while (!withFixtureBoard(board, open => open.db.prepare("SELECT 1 AS found FROM event WHERE event_kind = 'next-idle'").get())) await yieldEventLoop();
@@ -77,7 +83,7 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   t.diagnostic(`item ${item.item_id} status ${item.item_status} filed ${(filedAt - began) / 1000} s after the wait began`);
   const result = await waiting;
   const delay = (Date.now() - filedAt) / 1000;
-  t.diagnostic(`native offer wake ${delay} s; ${result.err.replace(/\s+/gu, ' ')}`);
+  t.diagnostic(`native offer wake ${delay} s; notifications ${JSON.stringify(notifications)}; ${result.err.replace(/\s+/gu, ' ')}`);
   assert.equal(result.code, 0, `filed ${(filedAt - began) / 1000} s in, item ${JSON.stringify(item).slice(0, 400)}: ${result.out}\n${result.err}`);
   assert.match(result.out, new RegExp(`#${item.item_id}\\b`, 'u'), `the wait did not hand over the offered item: ${result.out}`);
   assert.ok(delay < OFFER_WAKE_SECONDS, `the wait returned ${delay} s after the item was filed`); // budget: declared by the bar of #11798 clause 2
