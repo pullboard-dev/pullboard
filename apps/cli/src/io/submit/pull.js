@@ -33,7 +33,7 @@ import { toolingFor } from '../../../../../packages/pin/index.js';
 export { bundleCommits } from '../../../../../packages/pin/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { changedLines } from '../../../../../packages/items/index.js';
-import { frozenCheckTiming } from '../../../../../packages/items/index.js';
+import { frozenCheckTiming } from '../../../../../packages/items/light.js';
 import { oversizeNote } from '../../../../../packages/items/index.js';
 import { landedCutItemRows } from '../cells-submit-checks.js';
 import { namedProofTests } from '../entry.js';

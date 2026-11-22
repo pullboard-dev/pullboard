@@ -8,7 +8,7 @@ import { now } from "./query.js";
 import { atomic } from "./event/log.js";
 import { afterBoardWrite } from "./event/log.js";
 import { logEvent } from "./event/log.js";
-import { withDerivedFamily } from "../../../../items/index.js";
+import { withDerivedFamily } from "../../../../items/light.js";
 import { checkRoute } from "../../../../items/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";

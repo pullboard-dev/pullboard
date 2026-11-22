@@ -1,4 +1,4 @@
-import { withDerivedFamily } from "../../../../items/index.js";
+import { withDerivedFamily } from "../../../../items/light.js";
 /** Local inbox acknowledgement keeps delivery metadata out of immutable activity history [R2,N26]. */
 import { atomic } from "../../io/board.js";
 import { openRequests } from "../../io/board/read/shouts.js";

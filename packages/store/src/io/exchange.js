@@ -3,7 +3,7 @@ import { ensureGateHopTable } from "./board/hop.js";
 import { blobDirOf } from "../../../jobs/index.js";
 import { parseStub } from "../../../jobs/index.js";
 import { readBlob } from "../../../jobs/index.js";
-import { withDerivedFamilies } from "../../../items/index.js";
+import { withDerivedFamilies } from "../../../items/light.js";
 import { suspendStoreGuards } from "./board/guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../state/light.js";
 import { MACHINE } from "../../../state/light.js";

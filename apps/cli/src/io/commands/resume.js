@@ -7,7 +7,7 @@ import { primaryCheckoutRoot } from '../entry.js';
 import { relayRecovered } from '../../../../../packages/link/index.js';
 import { proposeLanes } from '../init.js';
 import { counterProofStats } from '../../../../../packages/verify/index.js';
-import { localDependencyIds } from '../../../../../packages/items/index.js';
+import { localDependencyIds } from '../../../../../packages/items/light.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { adoptOrphanedClaim } from '../resume/adopt.js';
