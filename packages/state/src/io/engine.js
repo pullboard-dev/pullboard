@@ -150,6 +150,16 @@ export function executableArgs(move, board) {
   return args;
 }
 
+/**
+ * Give the arguments a queued move is made with locally the identities its replay will write, in place.
+ * Why: an id a queued local write returns must be the id every replica keeps once the relay orders the move (GitHub #30).
+ */
+export function bindLocalIdentity(move, args) {
+  const steps = Object.hasOwn(ENGINE_MOVE_STEPS, move.operation) ? ENGINE_MOVE_STEPS[move.operation] : {};
+  steps.localArgs?.(args, { move });
+  return args;
+}
+
 /** Read the durable outcome used to recover an acknowledged move after a process interruption. */
 export function engineReceipt(board, id) {
   const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('relay_receipt_' + id);

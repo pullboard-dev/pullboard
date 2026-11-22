@@ -91,6 +91,14 @@ async function titles(machine) {
   return (await machine.cli('export')).document.tables.item.map((row) => row.item_title);
 }
 
+/** The facts on one item on a machine, in event order, as id, supersedes and text. */
+async function itemFacts(machine, item) {
+  return (await machine.cli('export')).document.tables.event
+    .filter((row) => row.event_kind === 'fact' && row.item_id === item)
+    .map((row) => JSON.parse(row.event_detail))
+    .map((detail) => ({ id: detail.id, supersedes: detail.supersedes ?? null, text: detail.text }));
+}
+
 test('cli.journeys-relay-rebuild-resume.the-outbox-rebuild-resumes-from-its: clause 1: the outbox rebuild resumes from its last step after a stop at each step [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
   const { box, other } = await queuedBehindRemoteWork(t);
   for (const step of ['undo', 'apply', 'settle', 'reapply', 'write']) {
@@ -124,5 +132,30 @@ test('cli.journeys-relay-rebuild-resume.an-outbox-whose-base-is-behind: clause 2
     const shown = await titles(machine);
     assert.deepEqual(shown.filter((title) => /offline|Remote item/.test(title)),
       ['Remote item ordered first', 'First item added here offline', 'Second item added here offline']);
+  }
+});
+
+test('cli.journeys-relay-rebuild-resume.a-queued-fact-keeps-its-returned-id: clause 1: a fact queued while the relay is down keeps the id it returned, so a queued correction that supersedes it survives a rebuild stopped after its apply step [C7,#12996]', { timeout: 280_000 }, async (t) => {
+  const { box, other, contested } = await twoMachines(t, 'Item that collects offline facts');
+  await box.stopRelay();
+  const first = await box.cliLocal('fact', String(contested), 'note', 'Offline evidence');
+  assert.equal(first.code, 0, first.failure);
+  const original = first.document.fact.id;
+  const second = await box.cliLocal('fact', String(contested), 'note', 'Offline correction', '--supersedes', original);
+  assert.equal(second.code, 0, second.failure);
+  const correction = second.document.fact.id;
+  await box.restartRelay();
+  const agent = await otherAgent(box, other);
+  await agent('add', box.lane, 'Remote item ordered first');
+  // The ordered prefix commits while the queue still describes the provisional rows (GitHub #30).
+  assert.equal(await stopAfter(box, 'apply'), true, 'the rebuild reached apply');
+  const finished = await box.cliLocal('status');
+  assert.equal(finished.code, 0, finished.failure);
+  assert.equal(finished.document.relay.outbox, undefined, 'both queued facts were ordered');
+  for (const machine of [box, other]) {
+    assert.deepEqual(await itemFacts(machine, contested), [
+      { id: original, supersedes: null, text: 'Offline evidence' },
+      { id: correction, supersedes: original, text: 'Offline correction' },
+    ], 'each fact keeps the id its command returned and the correction still supersedes the first');
   }
 });

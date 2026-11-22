@@ -36,28 +36,49 @@ const CARRIERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'fish', 't
 function commandName(comm) { return basename(String(comm).trim()).replace(/^-/u, ''); }
 
 /**
- * Every process as pid -> { ppid, start, comm }, from one `ps` call; null where ps is unavailable.
+ * Every process as pid -> { ppid, sess, start, comm }, from one `ps` call; null where ps is unavailable.
  * The start time is ps's fixed-width lstart, kept to tell a live agent from a later process given the same pid.
+ * sess is the session id; macOS ps prints 0 for every process, which reads as unknown.
  */
 export function processTable(run = execFileSync) {
   let text;
-  try { text = run('ps', ['-A', '-o', 'pid=,ppid=,lstart=,comm='], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 << 20 }); }
+  try { text = run('ps', ['-A', '-o', 'pid=,ppid=,sess=,lstart=,comm='], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 << 20 }); }
   catch { return null; }
   const table = new Map();
   for (const line of text.split('\n')) {
-    const row = /^\s*(\d+)\s+(\d+)\s+(\S{3} \S{3} [ \d]\d \d\d:\d\d:\d\d \d{4})\s+(.*)$/u.exec(line);
-    if (row) table.set(Number(row[1]), { ppid: Number(row[2]), start: row[3], comm: row[4] });
+    const row = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S{3} \S{3} [ \d]\d \d\d:\d\d:\d\d \d{4})\s+(.*)$/u.exec(line);
+    if (row) table.set(Number(row[1]), { ppid: Number(row[2]), sess: Number(row[3]), start: row[4], comm: row[5] });
   }
   return table;
+}
+
+/**
+ * Whether a link on the walk from `pid` up to `top` was made by adoption rather than by fork. A forked child inherits
+ * its parent's session, so while nothing was re-parented every process's session leader is itself or one of its
+ * ancestors. A session leader that is no longer on the chain means a parent died and an init or subreaper adopted the
+ * orphan. Judged only where ps reports a session id (Linux); a 0 or missing id is unknown and never counts.
+ */
+function adoptedBelow(table, pid, top) {
+  const chain = new Set();
+  for (let at = pid; at > 0 && !chain.has(at); at = table.get(at)?.ppid ?? 0) chain.add(at);
+  for (let at = pid; at > 0 && at !== top; at = table.get(at)?.ppid ?? 0) {
+    const sess = table.get(at)?.sess;
+    if (Number.isSafeInteger(sess) && sess > 0 && !chain.has(sess)) return true;
+  }
+  return false;
 }
 
 /**
  * The agent session process behind this CLI call: the nearest ancestor that is not a shell or a command wrapper, with
  * its start time, or null when none can be found. PULLBOARD_AGENT_PID names it outright for an agent tool launched
  * some other way. Why: the CLI's parent shell exits after each command, so the beater watches the session, which
- * lives as long as the agent does, whatever tool it is [B3].
+ * lives as long as the agent does, whatever tool it is [B3]. A candidate reached by adoption is no agent session
+ * either. It is the subreaper (systemd --user, tini, containerd-shim or any other) that took an orphaned shell after
+ * its agent died, and it outlives that agent, so binding to it would keep the claim beating forever (GitHub #36).
+ * Adoption is read from session ids, never from a name or from the candidate's parent. A host whose parent is launchd
+ * (Terminal, the Claude app, VS Code) still binds.
  */
-export function agentSession({ env = environmentAdapter(), ppid = process.ppid, table = processTable() } = {}) {
+export function agentSession({ env = environmentAdapter(), pid = process.pid, ppid = process.ppid, table = processTable() } = {}) {
   const named = Number(env.get('PULLBOARD_AGENT_PID'));
   if (Number.isSafeInteger(named) && named > 1) {
     const row = table?.get(named);
@@ -65,11 +86,13 @@ export function agentSession({ env = environmentAdapter(), ppid = process.ppid, 
   }
   if (!table) return null;
   const seen = new Set();
-  for (let pid = ppid; pid > 1 && !seen.has(pid); pid = table.get(pid)?.ppid ?? 0) {
-    seen.add(pid);
-    const row = table.get(pid);
+  for (let at = ppid; at > 1 && !seen.has(at); at = table.get(at)?.ppid ?? 0) {
+    seen.add(at);
+    const row = table.get(at);
     if (!row) return null;
-    if (!CARRIERS.has(commandName(row.comm))) return { pid, start: row.start };
+    if (CARRIERS.has(commandName(row.comm))) continue;
+    const from = table.get(pid)?.ppid === ppid ? pid : ppid;
+    return adoptedBelow(table, from, at) ? null : { pid: at, start: row.start };
   }
   return null;
 }
