@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { recordTestResults } from '../../../store/index.js';
 import { offerLandingJob } from '../../index.js';
+import { claimJob } from '../../index.js';
+import { jobRequest } from '../../index.js';
 
 const COMMIT = 'a'.repeat(40);
 const OTHER = 'd'.repeat(40);
@@ -48,4 +50,31 @@ test('api.landing-gate-reuse.gate-result-fail-row-same: clause 2: a gate result 
   const payload = offered(board(t, { fail: true }), { reuseGateReceipts: true });
   assert.ok(hits(payload).includes(`${FILES[0]}@1`));
   assert.equal(hits(payload).includes(`${FILES[1]}@1`), false, 'a key that also failed is run, never reused');
+});
+
+
+test('api.landing-gate-reuse.stored-accepted-proof-complete: clause 1: a real stored offer and authenticated readback carry more than 500 accepted file proofs beyond the inline ledger budget [C7,#12965]', t => {
+  const db = cellBoard(t, ':memory:').db;
+  const files = Array.from({ length: 697 }, (_, index) => `packages/area/tests/io/accepted-file-${index}.test.js`);
+  recordTestResults(db, { receipt: 'gate:accepted-large#0', origin: 'pulled:r-accepted', commit: COMMIT,
+    rows: files.map((file, index) => ({ file, inputKey: key(index + 1), command: 'proof', context: CONTEXT, status: 'pass' })) });
+  const job = offerLandingJob(db, { items: [{ id: 12965, commit: COMMIT, ref: 'refs/pullboard/land/12965' }], expect: OTHER,
+    config: { trunk: { remote: '/trunk.git' }, affectedTests: 'node bin/proof.mjs' }, reuseGateReceipts: true });
+  const offered = job.steps.find(step => step.name === 'offered').payload;
+  assert.ok(offered.payload.requested.includes('proof'), 'the actual offer moves proof to stored transport');
+  assert.ok(Buffer.byteLength(JSON.stringify(offered.payload)) <= 16 * 1024, 'the existing payload cap is unchanged');
+  assert.ok(Buffer.byteLength(JSON.stringify(offered.request)) <= 60 * 1024, 'the existing inline request cap is unchanged');
+  const held = claimJob(db, { runner: 'r-stored-proof', capabilities: [], kinds: ['land'] });
+  assert.equal(held.job, job.id);
+  assert.throws(() => jobRequest(db, { job: job.id, runner: 'r-other', token: held.token }), error => error.code === 'JOB_LEASE_MOVED');
+  const read = jobRequest(db, { job: job.id, runner: 'r-stored-proof', token: held.token });
+  assert.ok(Buffer.byteLength(JSON.stringify(read.request)) <= 4 * 1024 ** 2, 'the stored request fits its original bound');
+  const proof = read.request.land.proof;
+  assert.deepEqual(proof.files, files.slice().sort(), 'selection includes every accepted file');
+  const names = new Set(proof.ledger.files.map(row => row[0]));
+  console.log(`stored-proof observation ${JSON.stringify({ selected: proof.files.length, carried: names.size, ledgerBytes: Buffer.byteLength(JSON.stringify(proof.ledger)), requestBytes: Buffer.byteLength(JSON.stringify(read.request)) })}`);
+  assert.equal(names.size, files.length, 'every eligible accepted file proof survives stored transport');
+  assert.ok(Buffer.byteLength(JSON.stringify(proof.ledger)) > 16_000, 'the proof really exceeds the old inline ledger budget');
+  assert.deepEqual(proof.ledger.contexts, [CONTEXT]);
+  for (const [index, file] of files.entries()) assert.ok(proof.ledger.files.some(row => row[0] === file && row[1] === key(index + 1) && row[2] === 0), 'the exact file, input and context tuple is unchanged');
 });
