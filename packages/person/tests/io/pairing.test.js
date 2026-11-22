@@ -1,7 +1,12 @@
+/** @pullboard-test-input source-cell packages/person packages/spec */
 /** A pairing package gzips before sealing, so an export over the sealed limit still pairs, and an inflate bomb is refused [H15,H17,C7]. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { webcrypto } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { createPairingCode } from '../../src/io/pairing.js';
@@ -11,6 +16,29 @@ import { sealPairingBundle } from '../../src/io/pairing.js';
 import { PAIR_PACKAGE_BYTES } from '../../src/io/pairing/limit.js';
 
 const BOARD = '0123456789abcdef0123456789abcdef';
+const ROOT = resolve(import.meta.dirname, '..', '..', '..', '..');
+const READ_DOOR = join(ROOT, 'packages', 'person', 'read.js');
+const PROOF = join(ROOT, 'packages', 'person', 'src', 'io', 'proof.js');
+const SPEC_LIGHT = join(ROOT, 'packages', 'spec', 'light.js');
+const SPECIFIER = /^\s*(?:import|export)\s[^"\x27]*?from\s*["\x27]([^"\x27]+)["\x27]|import\(\s*["\x27]([^"\x27]+)["\x27]\s*\)/gmu;
+const NAMED_IMPORT_PATH = /^\s*import\s+\{\s*([A-Za-z_$][\w$]*)\s*\}\s+from\s+["']([^"']+)["']\s*;?\s*$/gmu;
+const NAMED_EXPORTS = /^\s*export\s+\{([^}]+)\}\s+from\s+["'][^"']+["']\s*;?\s*$/gmu;
+
+test('person.io-pairing.show-read-boundary: clause 1: the passkey read door resolves its spec decision helpers through the light door [C7]', () => {
+  const readSource = readFileSync(READ_DOOR, 'utf8');
+  const proofSource = readFileSync(PROOF, 'utf8');
+  const lightSource = readFileSync(SPEC_LIGHT, 'utf8');
+  const readTargets = [...readSource.matchAll(SPECIFIER)].map(match => resolve(dirname(READ_DOOR), match[1] ?? match[2]));
+  assert.ok(readTargets.includes(PROOF), 'read.js re-exports the proof module');
+  const imports = new Map([...proofSource.matchAll(NAMED_IMPORT_PATH)]
+    .map(([, name, specifier]) => [name, resolve(dirname(PROOF), specifier)]));
+  const exports = new Set([...lightSource.matchAll(NAMED_EXPORTS)]
+    .flatMap(([, names]) => names.split(',').map(name => name.trim().split(/\s+as\s+/u)[0])));
+  for (const name of ['answerQuestion', 'parseSpec', 'rowDecisionReplacement']) {
+    assert.equal(imports.get(name), SPEC_LIGHT, `${name} resolves through spec/light.js`);
+    assert.ok(exports.has(name), `spec/light.js exports ${name}`);
+  }
+});
 
 /** A valid native bundle whose snapshot carries one extra table of the given text. */
 function bundle(filler) {
