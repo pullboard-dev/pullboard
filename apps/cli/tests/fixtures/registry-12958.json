@@ -1,0 +1,44 @@
+{
+  "cli.comparison-settle.current-source-terminal": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Delayed delivery of the real private worker current-source completion preserves genuine empty selection and uses unrecorded public reads."
+    },
+    "why": "Gate settlement does not imply a detached comparison has recorded a terminal account.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/journeys/spec/e2e/next.test.js",
+      "apps/cli/tests/fixtures/submit/comparison-settle.js"
+    ]
+  },
+  "cli.comparison-settle.unavailable-retained": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Unavailable and unknown current-source comparison outcomes preserve their real explanation."
+    },
+    "why": "Gate settlement does not imply a detached comparison has recorded a terminal account.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/journeys/verify/team/verdict.test.js",
+      "apps/cli/tests/fixtures/submit/comparison-settle.js"
+    ]
+  },
+  "cli.comparison-settle.pending-or-foreign-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Pending, missing, foreign-source or digest and malformed terminal results never settle as success and retain diagnostics."
+    },
+    "why": "Gate settlement does not imply a detached comparison has recorded a terminal account.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/journeys/verify/team/verdict.test.js",
+      "apps/cli/tests/fixtures/submit/comparison-settle.js"
+    ]
+  }
+}
