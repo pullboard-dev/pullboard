@@ -7,8 +7,8 @@ import {
 } from 'node:test';
 import { closeBoard } from '../../../../../../packages/store/index.js';
 import { register } from '../../../../../../packages/store/index.js';
-import { FIXTURE_MODEL } from '../../../../../../packages/store/tests/fixtures/cell.js';
-import { openKitBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { FIXTURE_MODEL } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
+import { openKitBoard } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
 
 const e2e = createE2eHelpers();
