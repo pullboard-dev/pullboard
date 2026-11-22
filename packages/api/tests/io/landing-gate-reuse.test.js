@@ -6,6 +6,7 @@ import { recordTestResults } from '../../../store/index.js';
 import { offerLandingJob } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
+import { offerJob } from '../../index.js';
 
 const COMMIT = 'a'.repeat(40);
 const OTHER = 'd'.repeat(40);
@@ -77,4 +78,26 @@ test('api.landing-gate-reuse.stored-accepted-proof-complete: clause 1: a real st
   assert.ok(Buffer.byteLength(JSON.stringify(proof.ledger)) > 16_000, 'the proof really exceeds the old inline ledger budget');
   assert.deepEqual(proof.ledger.contexts, [CONTEXT]);
   for (const [index, file] of files.entries()) assert.ok(proof.ledger.files.some(row => row[0] === file && row[1] === key(index + 1) && row[2] === 0), 'the exact file, input and context tuple is unchanged');
+});
+
+
+test('api.landing-gate-reuse.stored-proof-negative-controls: clause 2: stored transport preserves accepted precedence, shadowed failure rejection, exact tuple bindings and original request bounds [C7,#12965]', t => {
+  const db = board(t, { fail: true });
+  const extra = Array.from({ length: 650 }, (_, index) => ({ file: `packages/area/tests/io/control-${index}.test.js`, inputKey: key(index + 10), command: 'proof', context: CONTEXT, status: 'pass' }));
+  recordTestResults(db, { receipt: 'gate:large-controls#0', origin: 'pulled:r-controls', commit: COMMIT, rows: extra });
+  const job = offerLandingJob(db, { items: [{ id: 1296502, commit: COMMIT, ref: 'refs/pullboard/land/1296502' }], expect: OTHER,
+    config: { trunk: { remote: '/trunk.git' }, affectedTests: 'node bin/proof.mjs' }, reuseGateReceipts: true });
+  const held = claimJob(db, { runner: 'r-negative', capabilities: [], kinds: ['land'] });
+  const request = jobRequest(db, { job: job.id, runner: 'r-negative', token: held.token }).request;
+  const proof = request.land.proof, rows = proof.ledger.files;
+  assert.ok(rows.length > 500, 'negative controls exercise the large stored path');
+  assert.equal(rows.find(row => row[0] === FILES[0])[1], key(1), 'accepted proof precedes newer other-commit inputs');
+  assert.equal(rows.some(row => row[0] === FILES[1] && row[1] === key(1)), false, 'a shadowed accepted pass is still ineligible');
+  assert.equal(rows.some(row => row[0] === 'packages/area/tests/missing.test.js'), false, 'missing evidence is not invented');
+  const first = rows.find(row => row[0] === extra[0].file);
+  assert.deepEqual([first[0], first[1], proof.ledger.contexts[first[2]]], [extra[0].file, extra[0].inputKey, CONTEXT], 'transport retains all three matching dimensions');
+  assert.equal(rows.some(row => row[0] === first[0] && row[1] === key(999999)), false, 'changed inputs are not certified');
+  assert.equal(rows.some(row => row[0] === first[0] && proof.ledger.contexts[row[2]] === 'f'.repeat(64)), false, 'incompatible execution context is not certified');
+  assert.throws(() => offerJob(db, { id: 'bounds:payload', kind: 'test', payload: { text: 'x'.repeat(16 * 1024) } }), error => error.code === 'JOB_PAYLOAD');
+  assert.throws(() => offerJob(db, { id: 'bounds:request', kind: 'test', request: { text: 'x'.repeat(4 * 1024 ** 2) } }), error => error.code === 'JOB_REQUEST');
 });
