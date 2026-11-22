@@ -9,7 +9,7 @@ import {
   listItems,
   openDecisions,
 } from "../query.js";
-import { dependencyValues } from "../../../../../items/index.js";
+import { dependencyValues } from "../../../../../items/light.js";
 import { needsJudgement } from "../../../../../items/index.js";
 import { workerInboxQuery } from "../../../logic/board/worker.js";
 

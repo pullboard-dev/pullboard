@@ -113,16 +113,17 @@ test('moves.lease.corrupt-state-a-queue-that-is: corrupt-state: a queue that is 
 /** A case per row: a free trunk, a live holder, a lapsed holder, the holder's own moves and each way to break a guard. */
 function generate(g) {
   const n = 1 + g.int(3);
-  const name = g.pick(['request', 'request', 'renew', 'bind', 'release', 'assert']);
+  const name = g.pick(['request', 'request', 'renew', 'bind', 'batch', 'release', 'assert']);
   const state = g.pick(['free', 'live', 'lapsed']);
   const holder = { ...entry(1), generation: 1, until: new Date(NOW + (state === 'lapsed' ? -1 : LEASE_MS)).toISOString() };
   const base = state === 'free' ? { generation: 0, holder: null, line: [] } : lease({ holder, line: g.int(2) ? [entry(2)] : [] });
   const mover = name === 'request' ? n : 1;
-  const move = ask(mover, name, { guardianPid: 5 });
+  const move = ask(mover, name, { guardianPid: 5, batch: 'b1' });
   const snapshot = snap({ lease: base });
   const breaks = { intact: (s, m) => ({ snapshot: { ...s, lease: { ...s.lease, generation: -1 } }, move: m }) };
   if (name !== 'request') breaks.holder = (s, m) => ({ snapshot: s, move: { ...m, token: token(3) } });
   if (name === 'bind') breaks.bindable = (s, m) => ({ snapshot: s, move: { ...m, guardianPid: 0 } });
+  if (name === 'batch') breaks.batchRoom = (s, m) => ({ snapshot: s, move: { ...m, batch: '' } });
   if (name === 'request') breaks.entryValid = (s, m) => ({ snapshot: s, move: { ...m, token: 'x' } });
   return { snapshot, move, breaks };
 }
@@ -171,4 +172,26 @@ test('moves.lease.generated-sequences-over-three-landers-keep: generated sequenc
     }
   }
   assert.ok(reclaimed > 0 && acquired > 0 && queued > 0, `the generator reaches reclaim, acquire and queue (${reclaimed}, ${acquired}, ${queued})`);
+});
+
+test('moves.lease.a-batch-by-the-holder-lists-its-batch-within-the-allowance: clause 1: a batch move with allowance 2 by the live holder lists its batch id while fewer than two are listed, and a third is refused LAND_LEASE_REQUEST naming the allowance [C7,#9827]', () => {
+  const batch = (id, more = {}) => ask(1, 'batch', { batch: id, allowance: 2, ...more });
+  const first = run(snap(), batch('b1'));
+  assert.deepEqual([first.via, first.patch.lease.batches], [['batch'], ['b1']]);
+  const second = run(snap({ lease: lease({ batches: ['b1'] }) }), batch('b2'));
+  assert.deepEqual(second.patch.lease.batches, ['b1', 'b2']);
+  assert.deepEqual(run(snap({ lease: lease({ batches: ['b1', 'b2'] }) }), batch('b2')).patch.lease.batches, ['b1', 'b2'], 'a batch already listed is not listed twice');
+  const third = run(snap({ lease: lease({ batches: ['b1', 'b2'] }) }), batch('b3'));
+  assert.equal(third.refused.code, 'LAND_LEASE_REQUEST');
+  assert.equal(third.refused.row, 'allowance');
+  assert.match(third.refused.message, /allowance of 2/);
+  assert.ok(!('patch' in third));
+  assert.equal(run(snap({ lease: lease({ batches: ['b1'] }) }), ask(1, 'batch', { batch: 'b2' })).refused.code, 'LAND_LEASE_REQUEST', 'no allowance means one in flight');
+  assert.equal(run(snap(), batch('b1', { token: token(2) })).refused.code, 'LAND_LEASE_LOST', 'only the live holder starts a batch');
+});
+
+test('moves.lease.the-holders-release-clears-its-batches: clause 2: the holder release clears the listed batches and a non-holder release leaves them [C7,#9827]', () => {
+  const listed = snap({ lease: lease({ batches: ['b1', 'b2'] }) });
+  assert.deepEqual(run(listed, ask(1, 'release')).patch.lease.batches, []);
+  assert.deepEqual(run(listed, ask(2, 'release')).patch.lease.batches, ['b1', 'b2']);
 });

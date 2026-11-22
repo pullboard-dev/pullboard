@@ -57,7 +57,7 @@ import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
 import { splitAmbiguousMainReds } from '../../../../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../../../../../packages/flakes/index.js';
 import { compositionSessionOptions } from '../../../../../packages/verify/index.js';
-import { frozenCheckTiming } from '../../../../../packages/items/index.js';
+import { frozenCheckTiming } from '../../../../../packages/items/light.js';
 import {
   testOutputSummary,
   retainTestOutput,
