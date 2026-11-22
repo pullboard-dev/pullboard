@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runSubmitGate } from '../../src/io/submit.js';
 import { submitGateAdmission } from '../../src/io/submit.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 import { submitGateConfig } from "../../heavy.js";
@@ -53,4 +54,50 @@ test('gate.io-submit.admission-item-needs: clause 1: submitGateAdmission returns
   assert.deepEqual(await submitGateAdmission(root, plan, { ...options, needs: ['browser'] }), { browser: true, gui: false }, 'a browser need asks for the browser slot');
   assert.deepEqual(await submitGateAdmission(root, plan, { ...options, needs: ['gui'] }), { browser: false, gui: true }, 'a gui need asks for the GUI slot');
   assert.deepEqual(await submitGateAdmission(root, plan, { ...options, needs: ['browser', 'gui'] }), { browser: true, gui: true }, 'both needs ask for both slots');
+});
+
+
+test('gate.io-submit.accepted-main-gate-wins: clause 1: the committed accepted-main gate wins over an older item policy and candidate-only edits [I1,I2,V4,C7]', t => {
+  const { root, put } = fixture(t);
+  put('pullboard.json', JSON.stringify(ITEM));
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'initial gate');
+  const claim = git(root, 'rev-parse', 'HEAD').trim();
+  put('pullboard.json', JSON.stringify({ ...ACCEPTED, gate: 'accepted-test' }));
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'accepted gate update');
+  const main = git(root, 'rev-parse', 'HEAD').trim();
+  git(root, 'checkout', '-q', '-b', 'candidate');
+  put('pullboard.json', JSON.stringify({ ...ITEM, gate: 'candidate-test' }));
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'candidate gate edit');
+  const old = JSON.parse(git(root, 'show', `${claim}:pullboard.json`));
+  const accepted = JSON.parse(git(root, 'show', `${main}:pullboard.json`));
+  const candidate = JSON.parse(git(root, 'show', 'HEAD:pullboard.json'));
+  assert.equal(submitGateConfig(old, accepted).gate, 'accepted-test');
+  assert.equal(submitGateConfig(candidate, accepted).gate, 'accepted-test');
+  for (const field of ['submitGate', 'staticChecks', 'submitInvariants', 'submitDeferAbove', 'confinedImportSelection', 'registryGuards']) {
+    assert.deepEqual(submitGateConfig(candidate, accepted)[field], accepted[field], `accepted ${field} floor stays intact`);
+  }
+});
+
+test('gate.io-submit.gate-command-kept-exact: clause 2: literal gate bytes, empty-gate refusal and affectedTests precedence stay intact [I1,I2,V4,C7]', async t => {
+  const { root, put } = fixture(t);
+  const command = '  tool install --frozen-lockfile --store-dir "cache with spaces" && tool test "quoted case"  ';
+  const config = submitGateConfig(ITEM, { ...ACCEPTED, gate: command });
+  assert.equal(config.gate, command);
+  put('change.txt', 'a change without an affected test runner');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'changed source');
+  const plan = submitGatePlan(root, { ...config, affectedTests: '', submitGate: 'full' }, { base: git(root, 'rev-parse', 'HEAD^').trim(), changed: ['change.txt'] });
+  assert.equal(plan.proofCommand, command, 'the full proof keeps the literal command');
+  assert.equal(config.affectedTests, ACCEPTED.affectedTests);
+  for (const affectedTests of [undefined, '', '  ']) {
+    assert.equal(submitGateConfig(ITEM, { ...ACCEPTED, affectedTests }).affectedTests, ITEM.affectedTests);
+  }
+  for (const gate of ['', '  ']) {
+    const empty = submitGateConfig(ITEM, { ...ACCEPTED, gate });
+    assert.equal(empty.gate, gate, 'an older item gate cannot fill an empty authoritative gate');
+    await assert.rejects(runSubmitGate(root, empty, { base: null, changed: [], check: '' }), { code: 'NO_GATE' });
+  }
 });

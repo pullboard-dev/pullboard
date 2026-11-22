@@ -186,7 +186,7 @@
     "apps/cli/tests/io/submit/waiting.test.js->src/rejected-work-return-engine.js": 1,
     "apps/cli/tests/io/submit/waiting.test.js->src/seat-presence.js": 1,
     "apps/cli/tests/io/submit/waiting.test.js->src/submit-wait.js": 1,
-    "apps/cli/journeys/sync/main.test.js->apps/cli/tests/fixtures/e2e.js": 1,
+    "apps/cli/tests/io/commands/sync/main.test.js->apps/cli/tests/fixtures/e2e.js": 1,
     "apps/cli/journeys/test-value/main.test.js->apps/cli/tests/fixtures/child.js": 1,
     "apps/cli/journeys/test-value/main.test.js->src/board.js": 1,
     "apps/cli/journeys/test-value/main.test.js->src/cli.js": 1,

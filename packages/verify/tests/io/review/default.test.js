@@ -46,6 +46,7 @@ function watchItemReads(board) {
 test('verify.io-review-default.written-item: clause 1: clause 2: the written-item default normalization binds one id and preserves its projected policy, witness, event and notice [C7]', (t) => {
   const project = cellProject(t, { real: true });
   const board = cellBoard(t, project.boardFile, { now: () => new Date(NOW) }, { real: true, gitRoot: project.repo });
+  board.executionEngineVersion = REVIEW_DEFAULT_ENGINE - 1;
   const target = addJudgmentItem(board, 'written target');
   const sensitive = addJudgmentItem(board, 'explicit sensitive');
   const family = addJudgmentItem(board, 'review family');
@@ -63,6 +64,7 @@ test('verify.io-review-default.written-item: clause 1: clause 2: the written-ite
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(`item_review_family:${family}`, 'anthropic');
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(`review_independence:${strict}`, JSON.stringify({ version: 1, sensitive: false, reviewFamily: null, reviewTier: 'strict' }));
 
+  delete board.executionEngineVersion;
   const before = board.db.prepare('SELECT item_id,item_status,item_files FROM item ORDER BY item_id').all();
   const { reads, rawDb, allow } = watchItemReads(board);
   const events = [];
@@ -103,8 +105,8 @@ test('verify.io-review-default.written-item: clause 1: clause 2: the written-ite
   assert.ok(reads.every(({ sql, args, allowedId }) => /\bWHERE\s+item_id\s*=\s*\?/iu.test(sql) && args.length === 1 && args[0] === allowedId), 'every item-table read binds only the written item id');
 
   const historicalBoard = cellBoard(t, project.boardFile.replace('board.sqlite', 'historical.sqlite'), { now: () => new Date(NOW) }, { real: true, gitRoot: project.repo });
-  const old = addJudgmentItem(historicalBoard, 'old engine item');
   historicalBoard.executionEngineVersion = REVIEW_DEFAULT_ENGINE - 1;
+  const old = addJudgmentItem(historicalBoard, 'old engine item');
   normalizeReviewDefaults(historicalBoard, { itemId: old, logEvent });
   assert.equal(historicalBoard.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`review_default:normalized:${old}`), undefined);
   assert.equal(historicalBoard.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get(), undefined);
@@ -121,7 +123,9 @@ test('verify.io-review-default.written-item: clause 1: clause 2: the written-ite
   normalizeReviewDefaults(missingItem, { itemId: target, logEvent });
 
   const rollbackBoard = cellBoard(t, project.boardFile.replace('board.sqlite', 'rollback.sqlite'), { now: () => new Date(NOW) }, { real: true, gitRoot: project.repo });
+  rollbackBoard.executionEngineVersion = REVIEW_DEFAULT_ENGINE - 1;
   const rollbackId = addJudgmentItem(rollbackBoard, 'failed write rollback');
+  delete rollbackBoard.executionEngineVersion;
   rollbackBoard.db.exec("CREATE TRIGGER refuse_review_default_active BEFORE INSERT ON board_meta WHEN NEW.meta_key='review_default:active' BEGIN SELECT RAISE(ABORT, 'fixture rollback'); END; BEGIN");
   assert.throws(() => normalizeReviewDefaults(rollbackBoard, { itemId: rollbackId, logEvent }));
   rollbackBoard.db.exec('ROLLBACK; DROP TRIGGER refuse_review_default_active');

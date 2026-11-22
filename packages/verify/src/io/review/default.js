@@ -23,11 +23,14 @@ export function normalizeReviewDefaults(board, { logEvent, itemId }) {
   if (implicitStrict && (policy.tier === 'strict' || active)) {
     insert.run(`review_default:normalized:${id}`, JSON.stringify({ item: id, at: board.clock.now().toISOString(),
       from: 'strict', to: 'standard', reason: 'no explicit sensitive or review-family mark' }));
-    changed.push({ id, status: item.item_status });
+    changed.push({ id });
   }
   if (!active) insert.run('review_default:active', String(REVIEW_DEFAULT_ENGINE));
   if (!changed.length) return;
-  const unfinished = changed.filter(({ status }) => !['verified', 'withdrawn'].includes(status)).map(({ id }) => id);
+  const unfinished = changed.filter(({ id }) => {
+    const status = board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(id)?.item_status;
+    return status !== undefined && !['verified', 'withdrawn'].includes(status);
+  }).map(({ id }) => id);
   logEvent(board, 'board', 'review-default', null, { engine: REVIEW_DEFAULT_ENGINE, count: changed.length, unfinished });
   board.reviewDefaultNotice = [
     `${changed.length} items moved to standard review.`,
