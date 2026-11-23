@@ -33,7 +33,7 @@ function readCostHistory(project, switching = false) {
         kept.gapUpTo = oldest;
         const gapKey = key;
         // The gap is read in pages, never one unbounded read of the whole event log.
-        const scan = after => api(boardPath(root) + '/events?after=' + after + '&limit=50000').then(reply => {
+        const scan = after => api(boardPath(root) + '/events?after=' + after + '&limit=5000').then(reply => {
           const batch = Array.isArray(reply.events) ? reply.events : [];
           const missing = batch.filter(event => event.event_id < oldest);
           if (missing.some(event => ['usage', 'shared-usage', 'merged'].includes(event.event_kind))) throw { found: true };

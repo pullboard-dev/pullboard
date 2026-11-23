@@ -7,7 +7,7 @@
 export function pipelineRuntime({ model, html, api, boardPath, current, redraw, windowMinutes, itemsHref, itemHref, openItems, machineHere }) {
   const MACHINE_EVERY_MS = 10_000;
   // The model counts the last min(two windows, 26 hours) of events, which for every window the page offers is 26 hours.
-  const FLOOR_MS = 26 * 3_600_000, BATCH = 50_000, RETRY_MS = 5000;
+  const FLOOR_MS = 26 * 3_600_000, BATCH = 5_000, RETRY_MS = 5000;
   const windows = new Map();
   const machine = { value: null, at: 0, pending: false, root: null };
   const opened = new Set();

@@ -9,6 +9,9 @@ import { startChrome } from '../../../../cli/tests/fixtures/chrome.js';
 import { findChromeExecutable } from '../../../../cli/tests/fixtures/chrome.js';
 import { stableChrome } from '../../../../cli/tests/fixtures/cockpit/stable.js';
 import { cockpitPage } from '../../../index.js';
+import { dashboardRuntime } from '../../../index.js';
+import { activityRuntime } from '../../../src/io/activity/runtime.js';
+import { pipelineRuntime } from '../../../src/io/pipeline/runtime.js';
 import { composeViewStyles } from '../../../index.js';
 
 /** The real page over a view that lists no board of its own: the test seeds the boards the sidebar draws. */
@@ -48,4 +51,68 @@ test('view.x-page-boards.sidebar-groups-by-machine: clause 2: with a local view 
     await chrome.close();
     await fixture.close();
   }
+});
+
+const MOST_PER_PAGE = 5000;
+const LOG_EVENTS = 12_345;
+const LOG_END = Date.parse('2026-11-20T01:00:00Z');
+
+/** A stub board of LOG_EVENTS events, one a second, whose api records every events read and answers it like the real route. */
+function eventLog() {
+  const reads = [];
+  const api = async path => {
+    reads.push(path);
+    const query = new URLSearchParams(path.split('?')[1]), after = Number(query.get('after')), limit = Number(query.get('limit'));
+    const events = [];
+    for (let id = after + 1; id <= LOG_EVENTS && events.length < limit; id++) events.push({ event_id: id, event_at: new Date(LOG_END - (LOG_EVENTS - id) * 1000).toISOString() });
+    return { events };
+  };
+  return { api, reads };
+}
+
+/** Every events read asked for at most one page, and the pages together reach the last event. */
+function assertPaged(reads, who) {
+  const limits = reads.map(path => Number(new URLSearchParams(path.split('?')[1]).get('limit')));
+  assert.ok(limits.length > 0 && limits.every(limit => limit >= 1 && limit <= MOST_PER_PAGE), `${who} asks for at most ${MOST_PER_PAGE} events per page: ${reads.join(' ')}`);
+  const afters = reads.map(path => Number(new URLSearchParams(path.split('?')[1]).get('after')));
+  assert.ok(Math.max(...afters) >= LOG_EVENTS - MOST_PER_PAGE, `${who} pages on until the last events of the log: ${afters.join(',')}`);
+}
+
+test('view.page.event-pages-capped: clause 1: the dashboard history, the pipeline page and the activity runtime each ask for at most 5,000 events per page and read to the end of the log [N26]', async t => {
+  const previous = globalThis.document;
+  const region = { innerHTML: '', dataset: {}, isConnected: true, clientWidth: 800, addEventListener() {}, contains: () => true, querySelector: () => null, querySelectorAll: () => [] };
+  globalThis.document = { getElementById: () => region, addEventListener() {}, visibilityState: 'visible' };
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
+  const settle = async done => { for (let turn = 0; turn < 200_000 && !done(); turn++) await Promise.resolve(); };
+  const project = { root: '/board', sequence: LOG_EVENTS, observedAt: new Date(LOG_END).toISOString() };
+
+  const dashboard = eventLog();
+  let dashboardEvents = [];
+  const dashboardView = dashboardRuntime({ model: (_project, events) => { dashboardEvents = events; return {}; }, html: () => '', summary: () => null, current: () => project.root, redraw: () => {}, boardPath: () => '/b', api: dashboard.api });
+  dashboardView.draw(project, '');
+  await settle(() => dashboard.reads.length >= 3);
+  for (let turn = 0; turn < 50; turn++) await Promise.resolve();
+  dashboardView.draw(project, '');
+  assert.equal(dashboardEvents.length, LOG_EVENTS, 'the dashboard holds the whole log');
+  assertPaged(dashboard.reads, 'the dashboard history');
+
+  const pipeline = eventLog();
+  let pipelineEvents = [];
+  const pipelineView = pipelineRuntime({ model: (_project, events) => { pipelineEvents = events; return {}; }, html: () => '<b>drawn</b>', boardPath: () => '/b', api: pipeline.api, current: () => project.root, redraw: () => pipelineView.draw(project),
+    windowMinutes: () => 180, itemsHref: () => '#', itemHref: () => '#', openItems() {}, machineHere: false });
+  pipelineView.draw(project);
+  await settle(() => region.innerHTML === '<b>drawn</b>');
+  assert.equal(pipelineEvents.length, LOG_EVENTS, 'the pipeline holds the whole window, which is the whole log');
+  assertPaged(pipeline.reads, 'the pipeline page');
+
+  const activity = eventLog();
+  let activityEvents = [], finished;
+  const done = new Promise(resolve => { finished = resolve; });
+  const activityView = activityRuntime({ flow: (_project, events) => { activityEvents = events; return { hours: [], people: [], counts: {}, events: [], journeyById: new Map() }; }, html: () => '', tip: () => '', step: ui => ui, start: () => ({ open: null, item: null }),
+    api: activity.api, boardPath: () => '/b', current: () => project.root, view: () => ({ activityWin: 24 }), project: () => project, active: () => true, working: () => [], controls: () => '', onFilter: () => {}, after: () => finished(), remember: () => null });
+  activityView.draw(project);
+  await done;
+  activityView.draw(project);
+  assert.equal(activityEvents.length, LOG_EVENTS, 'the activity page holds the whole window');
+  assertPaged(activity.reads, 'the activity page');
 });

@@ -3,7 +3,7 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null, agentsTable = null, gateTrace = null, eventBatch = 50000 }) {
+export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null, agentsTable = null, gateTrace = null, eventBatch = 5000 }) {
   const histories = new Map();
   // The Agents table's between-items rows stay open across live redraws once the person opens them (#6847).
   let quietOpen = false;
