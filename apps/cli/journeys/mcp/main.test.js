@@ -123,6 +123,23 @@ async function stopFixtureLanding(root) {
   await createE2eHelpers().waitFor(() => owners.every(owner => !live(owner)), 'MCP fixture landing workers exit');
 }
 
+/**
+ * Stop the detached claim beaters the fixture's claims started, and wait until every process in their groups has exited.
+ * Why: a beater outlives the case while this test process (its watched agent) lives, and a late node start in its group
+ * wrote the machine home's compile cache while the sandbox was being removed (ENOTEMPTY) [C7,#13025].
+ */
+async function stopFixtureBeaters(dir) {
+  const table = () => (runFixtureChild('/bin/ps', ['-axo', 'pid=,pgid=,stat=,command='], { encoding: 'utf8' }).stdout ?? '').split('\n')
+    .map(line => /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/u.exec(line)).filter(row => row && !row[3].startsWith('Z'))
+    .map(([, pid, pgid, , command]) => ({ pid: Number(pid), pgid: Number(pgid), command }));
+  // A detached beater leads its own group; only beaters whose arguments name this sandbox are the fixture's.
+  const groups = new Set(table().filter(row => row.pid === row.pgid && row.command.includes('/beater/run.js ') && row.command.includes(dir)).map(row => row.pgid));
+  for (const pgid of groups) {
+    try { process.kill(-pgid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+  }
+  await createE2eHelpers().waitFor(() => !table().some(row => groups.has(row.pgid)), 'MCP fixture claim beaters exit');
+}
+
 /** A real repo with one lane, a joined worktree bound to agent session A, and a network guard; runner starts the machine's local runner, which only a case that submits needs. */
 async function project(t, { runner = false } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
@@ -146,6 +163,7 @@ async function project(t, { runner = false } = {}) {
     }), 'MCP fixture submit worker cleanup');
     stopFixtureLocalRunner(join(dir, 'machine-home'));
     await stopFixtureLanding(join(dir, 'repo'));
+    await stopFixtureBeaters(dir);
     try { rmSync(dir, { recursive: true, force: true }); }
     catch (error) {
       // Report only fixture-owned paths and processes; preserve the original cleanup failure.
