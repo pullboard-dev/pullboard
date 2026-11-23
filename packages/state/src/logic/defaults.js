@@ -315,6 +315,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "GATE_SLOT_LEASE_REQUIRED": "start the child test process with the live gate lease",
   "GATE_SLOT_MARKER_INVALID": "restart the child with gateSlotEnvironment(lease)",
   "GATE_SLOT_TOKEN_REQUIRED": "restart the child with gateSlotEnvironment(lease)",
+  "NODE_PACKAGE_MANAGER": "set packageManager in package.json to npm@<version>, pnpm@<version> or yarn@<version> and keep only that manager's lockfile, then run the gate again",
   "NO_SNAPSHOT": "run pullboard relay from the linked computer to publish its saved snapshot, then refresh the phone",
   "RELAY_API_VERSION": "upgrade Pullboard on every joined computer and the configured relay before retrying; keep the local board and pending data",
   "RELAY_CLOCK": "ask the relay operator to restore a valid service clock, then retry the saved upload or read",
