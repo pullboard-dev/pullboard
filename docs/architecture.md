@@ -607,7 +607,7 @@ Branches run in this order. P runs once per command; B is plain `next`, `--build
 | D1 | reviewer | submitted heads that conflict with trunk | returned #N to its builder unreviewed | reopens, or shouts the live review holder once | nothing | guarded | `returnUnmergeable` in `packages/verify/src/logic/next.js` |
 | D2 | reviewer | next --verify N | next to verify: #N | reserves that review | `submitted` | guarded | `nextReview` in `packages/verify/src/logic/next.js` |
 | D3 | reviewer | the best eligible review | next to verify: #N, reserved for you until ... | reserves after re-checking status, commit and digest | `submitted` | guarded | `reserveChosen` in `packages/store/src/io/board/reserve/next.js` |
-| E1 | all | nothing to do | nothing for this seat: end your turn, or NOTHING_FREE, REVIEW_NOT_READY, NEXT_TIMEOUT | next-idle event; --wait sleeps on board and git file changes | nothing | n/a | `refuseNextIdle` in `apps/cli/src/io/next/steps.js` |
+| E1 | all | nothing to do | plain next waits up to 90 s, then answers work (exit 0), board finished (exit 3) or IDLE_TIMEOUT (exit 4); next --no-wait answers at once; or NOTHING_FREE, REVIEW_NOT_READY, NEXT_TIMEOUT | next-idle event; the wait re-checks after 1, 2, 4, 8 and 16 s, then every 30 s, waking early on board and git file changes | nothing | n/a | `refuseNextIdle` in `apps/cli/src/io/next/steps.js` |
 
 Every build claim and every review reservation is checked in one write transaction, so two seats never both win and no reviewer gets its own work. The stale branches only print: none of them writes a claim, but each can tell a seat to act on an item that has moved on.
 

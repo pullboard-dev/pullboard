@@ -2,6 +2,66 @@
 
 Notable changes to Pullboard, for people using it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.5] - 2026-11-22
+
+**Generalization: Pullboard works in more languages, on more machines, with one agent or many.**
+
+- JavaScript and TypeScript, Python and Go: real project tests, with the dependencies they need.
+- Runners or none: start on your own machine, add runners when you need them.
+- One agent or many: Sprint can land screened work while independent review follows.
+- Worktree instructions follow your package manager, and the README explains what a clean runner needs.
+
+**Upgrading from 0.9.4: plain `pullboard next` now waits.** With nothing free, it waits up to 90 seconds for work instead of answering at once. It exits 0 when it hands you work, 3 when the board is finished, and 4 (IDLE_TIMEOUT) when it waited and nothing came. Scripts and agent loops that expect the old instant answer should call `pullboard next --no-wait` (#12807, #12048).
+
+The design behind it, proposed:
+
+- [RFC 0012: Compiled bars](docs/rfcs/0012-compiled-bars.md) — proposed.
+- [RFC 0013: The clock](docs/rfcs/0013-the-clock.md) — proposed.
+- [RFC 0014: Declared capacity](docs/rfcs/0014-declared-capacity.md) — proposed.
+- [RFC 0015: A lean record](docs/rfcs/0015-a-lean-record.md) — proposed.
+- [RFC 0016: Recursive governance](docs/rfcs/0016-recursive-governance.md) — proposed.
+
+Thank you to @klartext79, @McHersheys, @bens27, @edkog and @Herklos. Your reports are in this release; each fix below names the report it came from.
+
+### Added
+
+- Sprint: opt in with `"pace": "sprint"` in `pullboard.json` before claiming work. Submitted work can land after a green screen on current main, with proof on the exact tree that lands. Independent review follows; landing does not count as an accept.
+- Project setup detects plain Python unittest projects and Python environments using uv or Poetry. When nothing is detected at the root, `init` looks one folder down.
+- Polyglot repos get affected-test selection per language, so landing no longer falls back to the full gate in a mixed monorepo (#12195; [GitHub #28](https://github.com/pullboard-dev/pullboard/issues/28), reported by @klartext79)
+- `pullboard doctor` names detected languages for which no registered runner declares the needed toolchain.
+- `pullboard serve install` installs the board API as a service that restarts on macOS. `pullboard serve uninstall` removes it.
+- `pullboard next --no-wait` tells an idle seat apart from a finished lane, with a separate exit code for each (#12779).
+- Queued moves list their review paths as a compact, nested path tree, and `pullboard show --compact` prints it (#12994, #12995; [GitHub #35](https://github.com/pullboard-dev/pullboard/issues/35), added, suggested by @McHersheys)
+- Items can carry typed fields: turn on `items.typedFields`, declare a text, choice or number field with `pullboard field declare`, set it with `pullboard field set`, and filter `pullboard list` or `pullboard roadmap` with `--field name=value` ([GitHub #7](https://github.com/pullboard-dev/pullboard/issues/7), suggested by @Herklos)
+- The view's Shouts screen shows each shout's number (#12992, reported by @edkog)
+- Sentinel drafts can be approved or declined in the view (#12993, reported by @edkog)
+
+### Changed
+
+- Plain `pullboard next` waits up to 90 seconds for work and exits 0 (work), 3 (board finished) or 4 (IDLE_TIMEOUT); `next --no-wait` keeps the old answer-at-once behavior (#12807, #12048).
+- The view keeps its memory flat on large boards: event pages, the state build and proof counters read the event log 5,000 rows at a time, and the API's state cache keeps no copy of the event history (#13007, #13009, #13010, #13014).
+- `init` picks the declared npm, pnpm or Yarn package manager for the Node gate, and new worktree instructions use its frozen-lockfile install command (#12896, #12897).
+- The README explains clean-runner dependency setup for pnpm, Yarn, Python and Go, and gives a solo builder the next steps while independent review is pending (#12900).
+- A review comparison that finds no tests says what it compared instead of implying the project has none (#12898).
+- Uncommitted work in an item folder can be saved in a board git ref and restored when the item is offered again. Snapshots leave the builder's index and working files alone and exclude files flagged by the secret scan (#12596, #12597, #12598, #12859).
+
+### Fixed
+
+- Landing no longer blames a composition for a module that already failed the ES-module parser on its base, including existing JSX or Flow syntax. Newly broken modules are still refused (#12192; [GitHub #32](https://github.com/pullboard-dev/pullboard/issues/32), reported by @klartext79)
+- Pulled jobs find the runner's Playwright browsers: they retain an explicit `PLAYWRIGHT_BROWSERS_PATH`, or use an existing default browser cache when none is set (#12193; [GitHub #33](https://github.com/pullboard-dev/pullboard/issues/33), reported by @klartext79)
+- A land job runs its configured install command before item checks, so those checks can use the dependencies it installs (#12232; [GitHub #34](https://github.com/pullboard-dev/pullboard/issues/34), reported by @klartext79)
+- The claim beater stops when the agent's shell is adopted by a Linux subreaper (#12990; [GitHub #36](https://github.com/pullboard-dev/pullboard/issues/36), reported by @edkog)
+- `pullboard add` validates cited SPEC rows against committed main, the same source claims read, instead of a stale worktree copy (#12991; [GitHub #37](https://github.com/pullboard-dev/pullboard/issues/37), reported by @McHersheys)
+- A queued fact keeps the id it was given when the relay outbox is rebuilt, so supersedes and saved references still point at it. Older queues follow in a later release (#12996; [GitHub #30](https://github.com/pullboard-dev/pullboard/issues/30), reported by @McHersheys, with PR #29 as reference work)
+- A GitHub outage answers 503 and a GitHub rate limit answers 429, so the relay tells them apart from an access denial ([GitHub #11](https://github.com/pullboard-dev/pullboard/issues/11), reported by @McHersheys)
+- The view's background health scans run as the view, so they are no longer refused NOT_YOUR_CHECKOUT after a coordinator takeover (#12275; [GitHub #17](https://github.com/pullboard-dev/pullboard/issues/17), reported by @bens27)
+- `pullboard resume` names approved spec rows that are not yet applied (#12276; from [PR #19](https://github.com/pullboard-dev/pullboard/pull/19) by @bens27)
+- A waiting plain `pullboard next` is no longer ended by the 60-second limit on warm board commands, so it can wait the full 90 seconds (#13008).
+- A view started with `pullboard view` from an agent's shell no longer dies when it is first opened: its error output goes to its log file instead of a pipe to the command that already exited (#13015).
+- In the view's Rulings list, clicking a row opens the ruling, the list closes after a choice, and Rigor draft text reads plainly instead of encoded (#13011, reported by @edkog)
+- Submit uses the gate committed on accepted main instead of an older copy from the claim (#12901).
+- Sprint work can still receive its independent verdict after landing. A rejection or a red post-landing main check can queue its removal from main.
+
 ## [0.9.4] - 2026-11-15
 
 **Pullboard rebuilt itself, on its own board, in under three weeks.**
@@ -25,7 +85,7 @@ The design behind it:
 - [RFC 0009: Contribution records](docs/rfcs/0009-contribution-records.md)
 - [RFC 0010: Releases: Cut. Clear. Ship.](docs/rfcs/0010-cut-clear-ship.md)
 
-Thank you to @klartext79, @McHersheys, @anhtahaylove, @bens27, @mlnj and @purbakusuma. Your reports are in this release; each fix below names the report it came from.
+Thank you to @klartext79, @McHersheys, @anhtahaylove, @bens27, @mlnj, @purbakusuma and @TechMechanik. Your reports are in this release; each fix below names the report it came from.
 
 ### Added
 
