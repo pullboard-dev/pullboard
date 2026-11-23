@@ -216,7 +216,7 @@ function closeConnections() {
 // Every read open in this process, whichever module asks, takes a connection the process holds.
 holdReadConnections(takeConnection);
 
-const { gitLocation, headCommit, residentBusyFile, residentCommandCeiling, residentStartFile, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
+const { gitLocation, headCommit, residentBusyFile, residentCeilingFor, residentStartFile, RESIDENT_START_CUTOFF_MS, withinCommandCeiling } = await import('./client.js');
 const busyFile = residentBusyFile(pidFile);
 let startLockCleared = false;
 /**
@@ -304,27 +304,22 @@ async function serve(socket, request) {
       if (abandoned(request)) return null;
       send({ t: 'start' });
       if (request.call) return await answerClientCall(request, send);
+      // A command's ceiling counts the wait it declares, so a next waiting for work is not ended as hung (#13008).
+      const ceiling = residentCeilingFor(request.argv, baseEnv);
       // Written synchronously, so it holds even while this command blocks the event loop.
-      try { fs.writeFile(busyFile, `${process.pid} ${Date.now()}\n`); } catch { /* Clients then queue as before. */ }
-      const ceiling = residentCommandCeiling(baseEnv);
-      let timer;
-      // Why a race: a command hung on a promise that never settles would hold this process's one turn for ever.
-      const expired = new Promise((done) => {
-        timer = setTimeout(() => {
+      try { fs.writeFile(busyFile, `${process.pid} ${Date.now()} ${ceiling}\n`); } catch { /* Clients then queue as before. */ }
+      try {
+        return await withinCommandCeiling(main(request.argv, { cwd: store.cwd, loadNativeBoard, loadProcessPorts, gateWaitReporter, stdin: process.stdin,
+          stdout: clientStream(store, 'out', request.tty?.stdout === true, request.tty?.columns),
+          stderr: clientStream(store, 'err', request.tty?.stderr === true, request.tty?.columns) }), { ceiling, onCeiling: () => {
           store.send('err', `pullboard: [RESIDENT_COMMAND_CEILING] the resident process ended this command after ${ceiling} ms; run it again, or with PULLBOARD_RESIDENT=0\n`);
           retire('ceiling');
-          done(1);
-        }, ceiling);
-        timer.unref?.();
-      });
-      try {
-        return await Promise.race([expired, main(request.argv, { cwd: store.cwd, loadNativeBoard, loadProcessPorts, gateWaitReporter, stdin: process.stdin,
-          stdout: clientStream(store, 'out', request.tty?.stdout === true, request.tty?.columns),
-          stderr: clientStream(store, 'err', request.tty?.stderr === true, request.tty?.columns) })]);
+          return 1;
+        } });
       } catch (error) {
         store.send('err', `${error?.stack ?? String(error)}\n`);
         return 1;
-      } finally { clearTimeout(timer); }
+      }
     } finally {
       try { fs.unlink(busyFile); } catch { /* Never written or already gone. */ }
       running = null;
