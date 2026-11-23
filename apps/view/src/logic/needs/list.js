@@ -21,8 +21,12 @@ export const LEAKS = [
  * @returns {object} The same call, or a copy with plain text and step.
  */
 export function plainNeedWords(row) {
+  // A Rigor draft carries its machine source as one percent-encoded token (the producer encodes it once, on purpose,
+  // so the source stays on one line); the person reads it decoded.
+  const shown = row.kind === 'rigor-draft' && typeof row.text === 'string'
+    ? { ...row, text: row.text.replace(/rigor-auto:\S+/gu, (token) => { try { return decodeURIComponent(token); } catch { return token; } }) } : row;
   const fallback = PLAIN_FALLBACK[row.kind];
-  if (!fallback) return row;
+  if (!fallback) return shown;
   const leaks = (text) => LEAKS.some((pattern) => pattern.test(String(text ?? '')));
   return { ...row, text: fallback[0] && leaks(row.text) ? fallback[0] : row.text, what: leaks(row.what) ? fallback[1] : row.what };
 }
