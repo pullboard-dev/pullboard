@@ -1,13 +1,14 @@
 /** @pullboard-test-input apps/cli/tests/fixtures/upgrade-093/** */
 /**
  * A board made by the previous release (0.9.3) upgrades in place and keeps working: current code opens it and replays
- * 0.9.3's recorded moves with the same results, a seat commits through the hooks 0.9.3 installed, and doctor ends clean
+ * 0.9.3's recorded moves with the same results, a seat commits through the hooks the previous release installed, and doctor ends clean
  * [R4,I1,A5] (#7788). Only the pre-push full gate runs this file; item gates leave it out through packages/gate/data/tests/push-only.json (#7788).
  */
 import assert from 'node:assert/strict';
 import {
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -20,6 +21,7 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
+import { releaseBefore } from '../../../../packages/commits/light.js';
 import { codeIsFromMain } from '../../../../packages/git/index.js';
 import { applyRelayMove } from '../../../../packages/state/index.js';
 import { exportBoard } from '../../../../packages/store/index.js';
@@ -101,9 +103,10 @@ test('cli.journeys-upgrade-previous-release.current-code-opens-the-0-9: current 
 
 /**
  * The 0.9.3 project on disk: its committed files and hooks, its board, and the seat session files, in a private folder
- * with a web seat's worktree. The seats' recorded paths move to the folder the test made.
+ * with a web seat's worktree. The seats' recorded paths move to the folder the test made. With previousHooks, the
+ * project then holds the hooks the release before this one installed, committed as that release's `pullboard init` left them.
  */
-function project(t) {
+function project(t, { previousHooks = false } = {}) {
   const dir = scratch(t);
   const repo = join(dir, 'repo');
   const bin = join(dir, 'bin');
@@ -131,11 +134,26 @@ function project(t) {
   setup(repo, 'init', '-q', '-b', 'main');
   setup(repo, 'fetch', '-q', join(FIXTURE, 'repo.bundle'), '+refs/heads/main:refs/remotes/fixture/main', '+refs/pullboard/*:refs/pullboard/*');
   setup(repo, 'checkout', '-q', '-B', 'main', 'refs/remotes/fixture/main');
-  setup(repo, 'config', 'core.hooksPath', '.githooks');
   setup(repo, 'config', 'pullboard.trunk', 'refs/heads/main');
   for (const hook of readdirSync(join(FIXTURE, 'hooks'))) {
     assert.equal(readFileSync(join(repo, '.githooks', hook), 'utf8'), readFileSync(join(FIXTURE, 'hooks', hook), 'utf8'), `${hook} is the script 0.9.3 installed`);
   }
+  if (previousHooks) {
+    // R4 keeps hooks one release back running, so the previous release's real scripts are the ones a seat meets after this
+    // upgrade. Each release's scripts are captured once, from that release's own hookScript, under release-hooks/<version>.
+    const previous = releaseBefore(OWN_VERSION);
+    const captured = previous === null ? null : join(FIXTURE, 'release-hooks', previous);
+    assert.ok(captured && existsSync(captured), `the hooks Pullboard ${previous} installed are captured in apps/cli/tests/fixtures/upgrade-093/release-hooks/${previous} (write them with that release's hookScript)`);
+    for (const hook of readdirSync(captured)) {
+      const script = readFileSync(join(captured, hook), 'utf8');
+      assert.match(script, new RegExp(`^want='${previous.replaceAll('.', '\\.')}'$`, 'mu'), `${hook} is the script ${previous} installed`);
+      writeFileSync(join(repo, '.githooks', hook), script);
+      chmodSync(join(repo, '.githooks', hook), 0o755);
+    }
+    setup(repo, 'add', '.githooks');
+    setup(repo, 'commit', '-q', '-m', `chore: hooks from pullboard init ${previous}`);
+  }
+  setup(repo, 'config', 'core.hooksPath', '.githooks');
   const worktree = join(repo, '.claude', 'worktrees', 'web-t');
   setup(repo, 'worktree', 'add', '-q', '--detach', worktree, 'main');
   mkdirSync(join(repo, '.git', 'pullboard'), { recursive: true });
@@ -155,8 +173,8 @@ function project(t) {
 /** One shell-free command line split on spaces: a refusal's `Run:` step is a plain command. */
 const words = line => line.trim().split(/\s+/u);
 
-test('cli.journeys-upgrade-previous-release.a-seat-commits-through-the-hooks: a seat commits through the hooks 0.9.3 installed, or is told one command that clears it from its worktree [R4,I1]', async t => {
-  const box = project(t);
+test('cli.journeys-upgrade-previous-release.a-seat-commits-through-the-hooks: a seat commits through the hooks the previous release installed, or is told one command that clears it from its worktree [R4,I1]', async t => {
+  const box = project(t, { previousHooks: true });
   writeFileSync(join(box.worktree, 'src/web/index.js'), "export const y = 1;\nexport function footer() { return '<p>bye</p>'; }\n");
   assert.equal(box.git(box.worktree, 'add', '-A').status, 0);
   let committed = box.git(box.worktree, 'commit', '-m', 'feat(web): footer [G1]');
