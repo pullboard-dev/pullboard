@@ -1,0 +1,3 @@
+{
+  "api.main.state-cache-keeps-no-history": {"proves":{"specs":["C7"],"claim":"Clause 1 [C7]: after two state builds of a board with 200,000 events the cached state holds no array of every event and reaches no event row per event, while the second, extending build returns the same state as a full rebuild."},"why":"Without this test, the API state cache could again keep the whole event history between builds, which ran the view's API worker out of a 4 GB heap on a 770k-event board.","kind":"cell unit","inputs":["packages/api/src/io/main.js","packages/api/src/io/snapshot-delta.js","packages/api/tests/io/main.test.js"]}
+}

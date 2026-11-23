@@ -493,16 +493,16 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
 /** The sibling-cell functions an item detail reads, given to its reader on each thread. */
 const DETAIL_CELLS = { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled, hunkFreshnessEnabled };
 /** Add the request-specific unread count without mutating the reusable snapshot. */
-function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners, viewFlowSummary) {
+function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt, comparisonThrough, boardOpeners, viewFlowSummary) {
   const projection = seen === null ? { unseen: null } : withBoard(root, (board) => ({
     unseen: { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
   }), isMain, boardOpeners);
-  Object.assign(projection, readProjection(state, root, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners, viewFlowSummary));
+  Object.assign(projection, readProjection(state, root, preparedFlow, refreshFlow, isMain, observedAt, comparisonThrough, boardOpeners, viewFlowSummary));
   return { ...state, ...projection, observedAt: new Date(observedAt).toISOString() };
 }
 
 /** The fields a read stamps on a build at its observation time: claim overlaps, capacity and the flow windows. */
-function readProjection(state, root, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners, viewFlowSummary) {
+function readProjection(state, root, preparedFlow, refreshFlow, isMain, observedAt, comparisonThrough, boardOpeners, viewFlowSummary) {
   const projection = {};
   projection.claimOverlaps = withBoard(root, board => {
     const items = store.listItems(board);
@@ -512,7 +512,8 @@ function readProjection(state, root, preparedFlow, refreshFlow, isMain, observed
   // The hero's four-hour window moves with the read clock, so a cached build is restamped, never served stale.
   if (state.dashboardRecent) projection.dashboardRecent = { ...state.dashboardRecent, since: observedAt - 4 * 3_600_000, until: observedAt };
   if (state.capacityForecast) projection.capacityForecast = capacityAtRead(state.capacityForecast, observedAt);
-  if (refreshFlow && comparisonHistory) projection.statsComparison = compareFlowWindows(comparisonHistory, { now: observedAt, windowMinutes: 120, complete: true });
+  // The cache keeps no history (#13014): a cached read compares the windows over the build's events, read again in pages.
+  if (refreshFlow && Number.isSafeInteger(comparisonThrough)) projection.statsComparison = compareFlowWindows(withBoard(root, board => snapshotDelta.historyThrough(board, comparisonThrough), isMain, boardOpeners), { now: observedAt, windowMinutes: 120, complete: true });
   if (refreshFlow && preparedFlow) {
     projection.proofStats = {
       ...state.proofStats,
@@ -885,7 +886,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     // Keep projection, global fields, event history and sequence in one SQLite read transaction.
     const built = withBoard(board.root, (currentBoard) => buildLocalBoardState(board.root, board.id, currentBoard, codeIsMain, {
       previous: fullItemRebuild ? null : cached,
-      previousHistory: cached?.comparisonHistory ?? null,
+      // No kept history is handed in: each build reads the log in pages, and no cached build holds every event (#13014).
       fullItemRebuild,
       refreshVerdicts: !fullItemRebuild && JSON.stringify(cached.inputs.trunk) !== JSON.stringify(before.inputs.trunk),
       afterSequence: cached?.sequence ?? 0,
@@ -898,8 +899,8 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
       localRelayHealth: relayCanaryNeeds(board.root),
       localCapacity: true,
     }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot }), codeIsMain, boardOpeners);
-    // Capture the complete prefix once in this transaction; each read projects its actual observation
-    // windows from those cached canonical inputs without another database scan or state rebuild.
+    // The build's complete prefix feeds this build's comparison and folds, then is dropped: a cached read at a later
+    // clock reads the same prefix again in pages rather than the cache holding every event between builds (#13014).
     const state = { ...built.state, sequence: built.sequence,
       statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
     const entry = withCurrentIdle(snapshotEntry(before.revision, state, prepareFlowHistory(built.history, { agentIds: new Set(state.agents.filter(isProofAgent).map(agent => agent.agent_id)) }), {
@@ -942,7 +943,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     return withProjectGitTimeout(board.root, () => withGitReadFacts(() => withSnapshot(board, (entry, cached) => {
       const marker = JSON.stringify('pullboard-unseen:' + randomBytes(12).toString('hex'));
       const split = (text) => [text.slice(0, text.indexOf(marker)), text.slice(text.indexOf(marker) + marker.length)];
-      const stamped = { ...readProjection(entry.summary, board.root, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary),
+      const stamped = { ...readProjection(entry.summary, board.root, entry.preparedFlow, cached, codeIsMain, observedAt, entry.sequence, boardOpeners, viewFlowSummary),
         unseen: JSON.parse(marker), observedAt: new Date(observedAt).toISOString() };
       const reportValidator = snapshotDelta.reportValidation(entry, observedAt);
       const variant = (base, fields, suffix = '') => ({ json: split(snapshotDelta.serializeState({ ...base, ...stamped }, fields)),
@@ -1065,7 +1066,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     const full = !compact && (detail ?? stateDetail) === 'full';
     const sent = withSnapshot(board, (entry, cached) => {
       const base = full ? entry.state : compact ? (finished === 'omit' ? (entry.open ??= compactItemSummaries(openOnly(entry.summary))) : (entry.compact ??= compactItemSummaries(entry.summary))) : entry.summary;
-      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary);
+      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.sequence, boardOpeners, viewFlowSummary);
       // Full fragments wait for the first full request, so a server sending summaries never builds them.
       const fields = full ? (entry.stateJsonFields ??= snapshotDelta.prepareStateJson(entry.state))
         : compact ? (finished === 'omit' ? (entry.openFields ??= snapshotDelta.prepareStateJson(base)) : (entry.compactFields ??= snapshotDelta.prepareStateJson(base))) : entry.summaryFields;
@@ -1086,7 +1087,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     const observedAt = now();
     /** One build's answer: its delta from the summary states sent at `since`, or a reset naming why there is none. */
     const answerFor = (entry, cached) => {
-      const state = stateForRequest(entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary);
+      const state = stateForRequest(entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.sequence, boardOpeners, viewFlowSummary);
       const answer = { since, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION };
       const path = '/api/v1/boards/' + board.id + '/state';
       /** Tell the client to load a fresh snapshot, and why. */
