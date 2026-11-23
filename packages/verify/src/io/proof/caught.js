@@ -4,35 +4,47 @@ import { decodedProofEvent } from '../../../../kernel/index.js';
 import { proofCounter } from './counters.js';
 import { currentProofCounters } from './counters.js';
 import { proofCounterRows } from './counters.js';
+import { eachProofCounterRow } from './counters.js';
 import { barStats } from '../../../../stats/light.js';
 import { projectFlowStats } from '../../../../stats/light.js';
 import { proofAgentIds } from '../../../../stats/light.js';
 
-/** Assemble selected-window counters from timestamped contributions, not decoded native events. */
-function windowCounts(facts, boundary) {
-  const start = Date.parse(boundary);
-  const selected = facts.filter(row => row.at >= start);
-  const merged = new Set(selected.filter(row => row.merged).map(row => row.item));
-  const anomalies = new Set(selected.filter(row => row.merged && row.anomaly).map(row => row.item));
-  const dates = selected.map(row => row.date).sort((a, b) => Date.parse(a) - Date.parse(b));
-  return { since: boundary, submissions: selected.filter(row => row.submitted).length,
-    rejections: selected.filter(row => row.rejected).length, merged: merged.size, mergedWithoutAccept: anomalies.size,
-    firstEventAt: dates[0] ?? null, lastEventAt: dates.at(-1) ?? null };
-}
-
-/** Attribute a date window using the family recorded at each move, including older declarations. */
-function windowActors(facts, boundary, seats) {
+/**
+ * Fold per-event facts one at a time into the selected window's counters and the attributed actors, which equal a sort
+ * of every fact: the first and last dates break ties by the order the facts were recorded in. Why: holding every fact
+ * at once was about 200 MB on a 770k-event board [C7,#13010].
+ */
+function factFold(boundary, seats) {
+  const start = boundary ? Date.parse(boundary) : null;
+  let submissions = 0, rejections = 0, first = null, last = null;
+  const merged = new Set();
+  const anomalies = new Set();
   const actors = new Map();
   const families = new Map();
-  for (const row of facts) {
-    if (boundary && row.at < Date.parse(boundary) || !seats.has(row.by)) continue;
+  /** Count one fact; `order` is its place in recorded order. */
+  const visit = (row, order) => {
+    if (boundary && row.at >= start) {
+      if (row.submitted) submissions += 1;
+      if (row.rejected) rejections += 1;
+      if (row.merged) merged.add(row.item);
+      if (row.merged && row.anomaly) anomalies.add(row.item);
+      const time = Date.parse(row.date);
+      if (!first || time < first.time || time === first.time && order < first.order) first = { time, order, date: row.date };
+      if (!last || time > last.time || time === last.time && order > last.order) last = { time, order, date: row.date };
+    }
+    if (boundary && row.at < start || !seats.has(row.by)) return;
     if (!actors.has(row.by)) actors.set(row.by, { id: row.by, moves: 0, families: new Set() });
     const actor = actors.get(row.by); actor.moves += 1; actor.families.add(row.family);
     if (!families.has(row.family)) families.set(row.family, { name: row.family, moves: 0, agents: new Set() });
     const family = families.get(row.family); family.moves += 1; family.agents.add(row.by);
-  }
-  return { agents: [...actors.values()].map(actor => ({ ...actor, families: [...actor.families].sort() })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-    families: [...families.values()].map(family => ({ ...family, agents: family.agents.size })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0) };
+  };
+  /** The selected window's counters, the way a filter of every fact counted them. */
+  const counts = () => ({ since: boundary, submissions, rejections, merged: merged.size, mergedWithoutAccept: anomalies.size,
+    firstEventAt: first?.date ?? null, lastEventAt: last?.date ?? null });
+  /** The attributed agents and families, sorted. */
+  const attributed = () => ({ agents: [...actors.values()].map(actor => ({ ...actor, families: [...actor.families].sort() })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    families: [...families.values()].map(family => ({ ...family, agents: family.agents.size })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0) });
+  return { visit, counts, attributed };
 }
 
 /** Retain the independently specified ordinal reject/verdict pairing while decoding only catch shards. */
@@ -49,14 +61,15 @@ export function counterProofStats(board, boundary, now) {
   if (!summary) return null;
   const items = proofCounterRows(board, 'item');
   const actors = proofCounterRows(board, 'actor');
-  const facts = proofCounterRows(board, 'event');
   const seats = proofAgentIds(board);
-  const counts = boundary ? windowCounts(facts, boundary) : {
+  const fold = factFold(boundary, seats);
+  eachProofCounterRow(board, 'event', fold.visit);
+  const counts = boundary ? fold.counts() : {
     since: null, submissions: summary.submissions, rejections: summary.rejections, merged: summary.merged,
     mergedWithoutAccept: summary.mergedWithoutAccept, firstEventAt: summary.firstEventAt, lastEventAt: summary.lastEventAt,
   };
   counts.rejectionShare = counts.submissions ? counts.rejections / counts.submissions : 0;
-  const attributed = windowActors(facts, boundary, seats);
+  const attributed = fold.attributed();
   const creators = items.filter(item => item.creator !== undefined).map(item => ({ event_kind: 'add', item_id: item.id, event_by: item.creator }));
   const corrections = proofCounterRows(board, 'bar').map(row => decodedProofEvent({ ...row, event_kind: 'edit' }, row.detail));
   const verdicts = board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all();

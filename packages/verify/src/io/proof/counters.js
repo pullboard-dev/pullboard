@@ -16,6 +16,7 @@ import { derivedOn } from './derived.js';
 import { derivedTextRange } from './derived.js';
 import { derivedText } from './derived.js';
 import { derivedTextRows } from './derived.js';
+import { eachDerivedTextPage } from './derived.js';
 import { writeDerived } from './derived.js';
 
 export const PROOF_COUNTER_PREFIX = 'local:proof-stats:';
@@ -241,6 +242,17 @@ export function proofCounterRows(board, kind) {
   }
   keptShards.set(id, kept);
   return kept.rows.slice();
+}
+
+/**
+ * Hand `visit` each row of one kind, decoded, with a number that orders it as proofCounterRows would (its id, or its
+ * place there). Why: the derived database is read in pages of at most DERIVED_PAGE_ROWS, so a reader that folds the
+ * per-event rows never holds all of them; one read of every event row was about 200 MB on a 770k-event board [C7,#13010].
+ */
+export function eachProofCounterRow(board, kind, visit) {
+  const prefix = stored(`${kind}:`);
+  if (!derivedOn(board)) { proofCounterRows(board, kind).forEach((row, place) => visit(row, place)); return; }
+  eachDerivedTextPage(board, prefix, page => { for (const row of page) visit(decode(row.meta_value), Number(row.meta_key.slice(prefix.length))); });
 }
 
 /**

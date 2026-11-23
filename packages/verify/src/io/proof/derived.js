@@ -74,11 +74,26 @@ export function derivedOn(board) {
   return attached(board) !== null;
 }
 
+/** The most derived rows one read returns. Why: one read of every per-event row held about 200 MB of text on a 770k-event board [C7,#13010]. */
+const DERIVED_PAGE_ROWS = 5000;
+
+/** Hand `visit` the key and text rows under a key prefix in key order, at most DERIVED_PAGE_ROWS per read; nothing when off. */
+export function eachDerivedTextPage(board, prefix, visit) {
+  const schema = attached(board);
+  if (!schema) return;
+  const page = board.db.prepare(`SELECT meta_key, meta_value FROM ${schema}.proof_counter WHERE meta_key > ? AND meta_key GLOB ? ORDER BY meta_key LIMIT ${DERIVED_PAGE_ROWS}`);
+  for (let after = prefix; ;) {
+    const rows = page.all(after, `${prefix}*`);
+    if (rows.length) visit(rows);
+    if (rows.length < DERIVED_PAGE_ROWS) return;
+    after = rows.at(-1).meta_key;
+  }
+}
+
 /** The text of every derived row under a key prefix, in numeric id order (the order board_meta rows arrived in); empty when off. */
 export function derivedTextRows(board, prefix) {
-  const schema = attached(board);
-  if (!schema) return [];
-  const rows = board.db.prepare(`SELECT meta_key, meta_value FROM ${schema}.proof_counter WHERE meta_key GLOB ?`).all(`${prefix}*`);
+  const rows = [];
+  eachDerivedTextPage(board, prefix, page => { for (const row of page) rows.push(row); });
   const id = row => Number(row.meta_key.slice(prefix.length));
   return rows.sort((a, b) => (id(a) - id(b)) || (a.meta_key < b.meta_key ? -1 : 1)).map(row => row.meta_value);
 }
