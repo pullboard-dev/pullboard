@@ -12,7 +12,7 @@ test('cli.journeys-view-cold-state.a-cold-state-build-over-70: clause 1: a cold 
   assert.deepEqual(ids.filter(id => !built.includes(id)), [], 'the build projected every item');
   for (const id of ids) assert.deepEqual(threads.get(id), expected.get(id), `item ${id}: the built thread equals itemThread`);
   assert.equal(threadReads(statements), 0, 'no item read the log for its own thread');
-  assert.ok(statements.some(sql => /^\s*SELECT \* FROM event\b(?!\s+WHERE)/.test(sql)), 'the whole event list was read');
+  assert.ok(statements.some(sql => /^\s*SELECT \* FROM event\b(?!\s+WHERE)/.test(sql) || /^\s*SELECT \* FROM event WHERE event_id > \? ORDER BY event_id LIMIT \d+\s*$/.test(sql)), 'the whole event list was read, at once or in event_id pages (#13009)');
   assert.equal(threadReads(control), 5, 'the control: itemThread reads the log once for each item, so the zero above is counted and not blind');
 });
 
