@@ -29,31 +29,29 @@ test('view.io-background.error-output-goes-to-the-port-log: clause 1: launchBack
   const home = privateFixtureFiles('pullboard-background-').root;
   mkdirSync(join(home, 'machine'));
   const kept = { ...process.env };
+  // A test runner's own context would make the started view behave as a test child, so the view gets a plain environment.
+  delete process.env.NODE_TEST_CONTEXT;
   Object.assign(process.env, { PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, 'machine'), HOME: home, NODE_OPTIONS: `--require ${PROBE}` });
   let started = null;
   t.after(() => {
     if (started) { try { process.kill(started.pid, 'SIGTERM'); } catch { /* Already gone. */ } }
-    for (const name of ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'HOME', 'NODE_OPTIONS']) { if (kept[name] === undefined) delete process.env[name]; else process.env[name] = kept[name]; }
+    for (const name of ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'HOME', 'NODE_OPTIONS', 'NODE_TEST_CONTEXT']) { if (kept[name] === undefined) delete process.env[name]; else process.env[name] = kept[name]; }
     rmSync(home, { recursive: true, force: true });
   });
 
   const port = await freePort();
   const io = { cwd: home, say() {}, result: view => { started = view; }, flush() {} };
-  assert.equal(await launchBackgroundView(io, port), 0);
-  assert.ok(started?.pid > 0, 'the detached view reported its process');
-
-  // The command has let go of the child, as it does before it exits. A line the server writes to stderr now has nowhere
-  // to go but the log file; on a pipe back to the parent it would end the server, as the first warning did.
   const log = backgroundViewLog(port);
+  // The watch is placed before the launch: the probe writes the instant the command lets go of the child, as the
+  // server's first warning does once the command has exited. On a pipe back to the parent that write would end the server.
+  const logText = () => { try { return readFileSync(log, 'utf8'); } catch { return ''; } };
   const written = new Promise(resolve => {
-    const watcher = watch(dirname(log), () => {
-      let text = '';
-      try { text = readFileSync(log, 'utf8'); } catch { /* Not written yet. */ }
-      if (text.includes('probe: first runtime warning')) { watcher.close(); resolve(text); }
-    });
+    mkdirSync(dirname(log), { recursive: true });
+    const watcher = watch(dirname(log), () => { if (logText().includes('probe: first runtime warning')) { watcher.close(); resolve(logText()); } });
     t.after(() => watcher.close());
   });
-  process.kill(started.pid, 'SIGUSR2');
+  assert.equal(await launchBackgroundView(io, port), 0);
+  assert.ok(started?.pid > 0, 'the detached view reported its process');
   const text = await written;
   assert.match(text, /probe: first runtime warning after the parent let go/u, 'the server\'s error output reached its port log');
   assert.doesNotThrow(() => process.kill(started.pid, 0), 'the server is still running after its first warning');
