@@ -79,7 +79,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
   try {
     const sequence = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
     let rebuildAll = fullItemRebuild || (previous && previous.sequence > sequence);
-    const eventRows = rebuildAll || !previous ? [] : board.db.prepare('SELECT event_id, item_id, event_kind FROM event WHERE event_id > ? ORDER BY event_id').all(afterSequence);
+    const eventRows = rebuildAll || !previous ? [] : eventPages(board, afterSequence, 'event_id, item_id, event_kind');
     if (!rebuildAll && previous && eventRows.length !== sequence - previous.sequence) rebuildAll = true;
     const dirtyIds = new Set(rebuildAll ? [] : [...changedLeases]);
     for (const event of eventRows) if (event.item_id !== null) dirtyIds.add(event.item_id);
@@ -226,17 +226,41 @@ export function hotStateItems(state, { enabled, now, recentMs = HOT_RECENT_MS })
   return { ...state, items: kept, finishedCounts: counts };
 }
 
+/** The most event rows a state build asks SQLite for in one read (#13009). */
+export const EVENT_PAGE_ROWS = 5000;
+
+/**
+ * The event rows after `after`, oldest first, read in pages of at most EVENT_PAGE_ROWS by event_id, so a large board is never read in one query.
+ * Why: one whole-table read of a 770k-event log ran the view's API worker out of heap (#13009). The rows equal `SELECT * ... ORDER BY event_id`.
+ *
+ * @param {object} board an open board
+ * @param {number} after the event_id the read starts after (0 for the whole log)
+ * @param {string} columns the selected columns, `*` by default
+ * @returns {object[]} the rows in event order
+ */
+function eventPages(board, after = 0, columns = '*') {
+  const page = board.db.prepare(`SELECT ${columns} FROM event WHERE event_id > ? ORDER BY event_id LIMIT ${EVENT_PAGE_ROWS}`);
+  const rows = [];
+  for (let last = after; ;) {
+    const next = page.all(last);
+    for (const row of next) rows.push(row);
+    if (next.length < EVENT_PAGE_ROWS) return rows;
+    last = next.at(-1).event_id;
+  }
+}
+
 /**
  * The board's whole event history, in order: the kept history of the last build extended by the events after it.
  * Why keep it: the log only grows, and every derived projection memoizes per event row, so rows read again each build
  * were decoded again each build. A kept prefix that no longer matches the board (fewer or other rows) is read anew.
+ * Both reads go through eventPages, so no read returns more than EVENT_PAGE_ROWS rows (#13009).
  */
 function recordedHistory(board, kept) {
-  if (!Array.isArray(kept) || !kept.length) return store.events(board);
+  if (!Array.isArray(kept) || !kept.length) return eventPages(board);
   const last = kept.at(-1).event_id;
   const prefix = board.db.prepare('SELECT COUNT(*) AS n, COALESCE(MAX(event_id), 0) AS id FROM event WHERE event_id <= ?').get(last);
-  if (prefix.n !== kept.length || prefix.id !== last) return store.events(board);
-  return kept.concat(board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id').all(last));
+  if (prefix.n !== kept.length || prefix.id !== last) return eventPages(board);
+  return kept.concat(eventPages(board, last));
 }
 
 /** Parse an item's ordered prerequisite IDs from its persisted row. */
