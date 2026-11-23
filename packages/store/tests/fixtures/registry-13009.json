@@ -1,0 +1,3 @@
+{
+  "store.io-board-hot-state.state-build-reads-events-in-pages": {"proves":{"specs":["C7"],"claim":"buildLocalBoardState on a board of 200,000 events never asks SQLite for more than 5,000 event rows in one read, whole or after a kept history, and returns the same state, history, item meta and clock window as a build from the whole-log read."},"why":"Without this test, a state build that reads the whole event table in one query, which ran the view's API worker out of heap on a 770k-event board, would pass unnoticed.","kind":"cell unit","inputs":["packages/store/index.js"]}
+}
