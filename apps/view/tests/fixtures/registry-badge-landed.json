@@ -1,0 +1,3 @@
+{
+  "view.io-badge.items-badge-counts-landed-items": {"proves":{"specs":["B3","V1","N26"],"claim":"badgeCounts counts an item as landed when it is verified or has a merge commit, once each, and its percentage stays over the verified items only."},"why":"The README items badge counted only verified items, 3,447, while about 9,978 items had landed.","kind":"cell unit","inputs":["apps/view/src/io/badge.js","apps/view/tests/io/badge.test.js"]}
+}
