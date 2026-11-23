@@ -26,7 +26,7 @@ import { runFixtureChild } from '../../../../packages/gate/tests/fixtures/child.
 
 /** Run the private npm prefix's installed bin as a real child; packed-release proof must exercise its process entry. */
 export function runInstalledFixtureCli(prefix, args, options) {
-  const result = runFixtureChild(join(prefix, 'bin', 'pullboard'), args, { ...options, encoding: 'utf8' });
+  const result = runFixtureChild(join(prefix, 'bin/pullboard'), args, { ...options, encoding: 'utf8' });
   assert.ok(Number.isInteger(result.pid) && result.pid > 0 && result.pid !== process.pid,
     'the installed release command has its own real process');
   return result;
