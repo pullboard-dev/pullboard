@@ -23,6 +23,9 @@ function accept(board, item, { by, commit, assurance = 'independent' }) {
 test('view.io-badge.items-badge-counts-landed-items: clause 1: the items badge counts an item landed with a merge commit as well as a verified one, once each, and the agent-verified percentage stays over the verified items [B3,V1,N26]', t => {
   const project = cellProject(t, { real: true, gate: 'true' });
   const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
+  // The fixture board stands for a long-lived one whose items landed by hand, folded or withdrawn as on main; its state
+  // machine's triggers would refuse to write those rows directly, so they go for this private temporary file.
+  for (const { name } of board.db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'item'").all()) board.db.exec(`DROP TRIGGER ${name}`);
   const checked = addItem(board, { status: 'verified', builtBy: 'builder', commit: 'c1', merged: 'm1' });
   accept(board, checked, { by: 'reviewer', commit: 'c1' });
   const selfChecked = addItem(board, { status: 'verified', builtBy: 'builder', commit: 'c2' });
