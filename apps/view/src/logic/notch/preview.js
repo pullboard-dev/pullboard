@@ -57,7 +57,8 @@ export function notchPreviewHtml(data, which) {
 
   if ((which === 'rulings' || which === 'list') && r) {
     const items = r.items || [], count = items.length;
-    const ruling = it => '<div class="np-d" data-ruling="' + esc(it.go || '') + '">' + icon(it.kind) + '<span class="np-tx"><b>' + esc(it.title) + '</b><small><em>' + esc(it.cls) + '</em> · ' + esc(it.thing) + '</small></span><button class="np-act" type="button" data-go="' + esc(it.go || '') + '">' + esc(it.action) + '</button></div>';
+    // The row carries its target too, so a click anywhere on it opens the ruling the way its button does.
+    const ruling = it => '<div class="np-d" data-ruling="' + esc(it.go || '') + '"' + (it.go ? ' data-go="' + esc(it.go) + '"' : '') + '>' + icon(it.kind) + '<span class="np-tx"><b>' + esc(it.title) + '</b><small><em>' + esc(it.cls) + '</em> · ' + esc(it.thing) + '</small></span><button class="np-act" type="button" data-go="' + esc(it.go || '') + '">' + esc(it.action) + '</button></div>';
     if (which === 'list') return head('Rulings · ' + count) + (count ? items.map(ruling).join('') : '<p class="np-empty">No rulings.</p>');
     const kinds = [];
     for (const it of items) { const k = kinds.find(x => x.kind === it.kind); if (k) k.n++; else kinds.push({ kind: it.kind, label: it.cls, n: 1 }); }
@@ -210,7 +211,8 @@ export function notchPreview(notch, read, { html = notchPreviewHtml, delay = 160
   };
   const onPanelClick = event => {
     if (event.target.closest('[data-notch-list]')) { show(trigger || notch.querySelector('[data-notch="rulings"]'), 'list'); return; }
-    if (event.target.closest('[data-go]')) close();
+    // Choosing a ruling, by its button or anywhere on its row, hands the target to the page and steps the list aside.
+    if (event.target.closest('[data-go]') || event.target.closest('[data-ruling]')) close();
   };
   const onKey = event => { if (event.key === 'Escape' && open !== null) close(); };
   const onPanelOver = () => { if (mode !== 'list') clearTimer(timer); };
