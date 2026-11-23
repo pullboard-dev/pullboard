@@ -1,0 +1,114 @@
+{
+  "config.io-templates.agents-worktree": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "renderAgentsBlock's Lanes line tells an agent how to open and join a seat with its lane and declared model."
+    },
+    "why": "Without this case new projects could receive seat setup instructions that cannot create a joined worktree.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/config/src/io/templates.js",
+      "packages/config/tests/io/templates.test.js"
+    ]
+  },
+  "config.io-templates.seat-loop-reviewer": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "SEAT_LOOP tells a review-lane seat to review submissions with next --verify and stays within the unchanged word budget."
+    },
+    "why": "Without this case generated agent guidance could omit the reviewer role or exceed its approved length.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/config/src/io/templates.js",
+      "packages/config/tests/io/templates.test.js"
+    ]
+  },
+  "config.io-templates.coordinator-landing": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "renderCoordinatorGuide no longer quotes the refused land --due line and says accepted items land by themselves."
+    },
+    "why": "Without this case the stock COORDINATOR.md could tell a new coordinator to run a command the CLI refuses.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/config/src/io/templates.js",
+      "packages/config/tests/io/templates.test.js"
+    ]
+  },
+  "config.io-templates.coordinator-staffing": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The coordinator loop has a staffing step that sizes builder and review seats from the status count and replaces stopped seats."
+    },
+    "why": "Without this case a new coordinator is not told how many seats to run or to replace stopped ones.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/config/src/io/templates.js",
+      "packages/config/tests/io/templates.test.js"
+    ]
+  },
+  "config.io-templates.seat-loop-graceful-wait": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "SEAT_LOOP tells a seat to wait 1 s, 2 s, 4 s up to 60 s on an empty next and to stop only when the wait has reached 60 s, within the unchanged word budget."
+    },
+    "why": "Without this case a seat could stop while the board still has work coming, or the loop could outgrow its approved length.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/config/src/io/templates.js",
+      "packages/config/tests/io/templates.test.js"
+    ]
+  },
+  "config.io-templates.coordinator-seats-first": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The coordinator loop opens with launching the seats the status staffing line names, before planning, and says they queue on next."
+    },
+    "why": "Without this case coordinators could plan before staffing and delay every builder.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/config/src/io/templates.js",
+      "packages/config/tests/io/templates.test.js"
+    ]
+  },
+  "config.io-templates.coordinator-runner-local": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The Capacity line names pullboard runner local for a machine with no registered runner."
+    },
+    "why": "Without this case a hands-off coordinator has no documented step when no runner is registered.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/config/src/io/templates.js",
+      "packages/config/tests/io/templates.test.js"
+    ]
+  },
+  "config.io-templates.coordinator-watching-inbox-wait": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The Watching section lists pullboard inbox --wait first, before the pipeline line, with its meaning."
+    },
+    "why": "Without this case the coordinator guide could return to polling for shouts.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/config/src/io/templates.js",
+      "packages/config/tests/io/templates.test.js"
+    ]
+  }
+}

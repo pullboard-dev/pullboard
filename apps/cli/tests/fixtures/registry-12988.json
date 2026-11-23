@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-init.templates-seat-and-review-guidance": {"proves": {"specs": ["C7"], "claim": "pullboard init writes the worktree lane and review loop guidance from the shared templates into the generated AGENTS.md."}, "why": "Without this journey, generated agent instructions could drift from the stock worktree and reviewer guidance.", "kind": "journey", "inputs": ["apps/cli/tests/io/commands/init.test.js", "packages/config/src/io/templates.js"]}
+}

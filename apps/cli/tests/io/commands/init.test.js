@@ -70,6 +70,29 @@ test('cli.io-commands-init.registers-incremental-maintenance: clause 1: init on 
   assert.ok(calls.every(line => Object.values(COMMAND).some(command => line.startsWith(`${command} `))), calls.join('\n'));
 });
 
+test('cli.io-commands-init.templates-seat-and-review-guidance: clause 2: init writes the worktree lane, review, wait and stop lines into AGENTS.md and the staffing, landing, capacity and watching lines into COORDINATOR.md [C7,#12988]', async t => {
+  const box = fixture(t);
+  const ran = await box.invoke('init');
+  assert.equal(ran.code, 0, ran.stderr);
+  const agents = readFileSync(join(box.root, 'AGENTS.md'), 'utf8').split('\n');
+  const coordinator = readFileSync(join(box.root, 'COORDINATOR.md'), 'utf8').split('\n');
+  const generatedAgents = [
+    '- **Lanes:** open and join one with `pullboard worktree <lane> --model "<model name>"`.',
+    '- **Review:** A review-lane seat reviews; loop with `pullboard next --verify --wait 1`.',
+    '- **Stop:** only when the wait reached 60 s and `next` is still empty.',
+  ];
+  const generatedCoordinator = [
+    '- **Landing:** accepted items land by themselves; watch them with `pullboard merged`.',
+    '- **Inbox:** `pullboard inbox --wait`: returns on a shout to the coordinator, or when nothing is open.',
+  ];
+  for (const line of generatedAgents) assert.ok(agents.includes(line), line);
+  for (const line of generatedCoordinator) assert.ok(coordinator.includes(line), line);
+  assert.ok(agents.some(line => line.includes('wait 1 s, then 2 s, 4 s and so on up to 60 s; run it again.')));
+  assert.ok(coordinator.some(line => line.startsWith('1. **Seats first:**') && line.includes('before planning')));
+  assert.ok(coordinator.some(line => line.startsWith('- **Capacity:**') && line.includes('`pullboard runner local`')));
+  t.diagnostic(`generated lines: ${[...generatedAgents, ...generatedCoordinator].join(' | ')}`);
+});
+
 test('cli.io-commands-init.each-platform-uses-its-git-scheduler: clause 1: the macOS, Windows and Linux schedulers (launchctl, schtasks, a systemd timer, cron) each schedule the repo through git maintenance start --scheduler [C7,#10782]', t => {
   const box = maintenanceBox(t, []);
   for (const [scheduler, command] of Object.entries(COMMAND)) {
