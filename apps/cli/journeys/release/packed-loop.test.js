@@ -4,11 +4,11 @@
  * repeated from release.test.js so the runner can shard the two launch groups in parallel.
  */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from '../../fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
-import { runFixtureChild } from '../../fixtures/child.js';
-import { runFixtureGit } from '../../fixtures/child.js';
-import { runFixtureSetupGit } from '../../fixtures/child.js';
+import { runFixtureExecFile as execFileSync } from '../../tests/fixtures/child.js';
+import { runInstalledFixtureCli } from '../../tests/fixtures/child.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -22,11 +22,13 @@ import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '../../../../..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'docs', 'package.json', 'packages', 'skills'];
 const dirs = [];
+const stops = [];
 after(() => {
-  // The pulled gate settles on the local runner, which can still write into a folder as it is removed (ENOTEMPTY).
+  // Stop each private home's runner before removing its heartbeat, API and job-cache files.
+  for (const stop of stops) stop();
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
@@ -56,7 +58,6 @@ test('gate.io-scripts-release-loop.a-packed-release-runs-the-builder: clause 2: 
   const installed = join(prefix, 'lib', 'node_modules', 'pullboard');
   assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).dependencies, undefined, 'no dependencies');
   assert.ok(!existsSync(join(installed, 'node_modules')), 'nothing was installed beside it');
-  const bin = join(prefix, 'bin/pullboard');
 
   const env = {
     ...process.env,
@@ -74,12 +75,19 @@ test('gate.io-scripts-release-loop.a-packed-release-runs-the-builder: clause 2: 
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the installed pullboard and require it to succeed. */
   const pullboard = (cwd, ...args) => {
-    const result = timed('launch', `launch ${args.join(' ')}`, () => runFixtureChild(bin, args, { cwd, env, encoding: 'utf8' }));
+    const result = timed('launch', `launch ${args.join(' ')}`, () => runInstalledFixtureCli(prefix, args, { cwd, env }));
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return result.stdout;
   };
   const repo = join(dir, 'repo');
   mkdirSync(repo);
+  // Register before init can start background work. The installed command selects only this home's runner and
+  // waits for its exit; a failed shutdown must fail cleanup before any of its files are removed.
+  stops.push(() => {
+    const stopped = runInstalledFixtureCli(prefix, ['runner', 'local', '--off'], { cwd: repo, env });
+    assert.equal(stopped.status, 0, `stop the fixture local runner: ${stopped.stderr}${stopped.stdout}`);
+    process.stdout.write(`release fixture cleanup: ${stopped.stdout}`);
+  });
   git(repo, 'init', '-q', '-b', 'main');
   pullboard(repo, 'init', '--verbose');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'test -f web/greet.txt', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }, null, 2));

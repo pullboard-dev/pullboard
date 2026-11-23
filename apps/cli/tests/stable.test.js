@@ -147,7 +147,7 @@ test('cli.stable.journeys-registered-10552: clause 2: [C7,U148] every test under
 
 test('cli.stable.journeys-registered-10549: clause 1: [C7,U148] every core-owned test under the journeys release, resources, resume, sync and upgrade folders has a registered cli.<area>.<slug> title ID', () => {
   // A test later split out of this slice keeps its record in the registry of the item that moved it or added it (#10694, #10970, #12005).
-  const records = Object.assign({}, ...['registry-10549.json', 'registry-10694.json', 'registry-10695.json', 'registry-10970.json', 'registry-10933.json', 'registry-12005.json'].map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
+  const records = Object.assign({}, ...['registry.json', 'registry-10549.json', 'registry-10694.json', 'registry-10695.json', 'registry-10970.json', 'registry-10933.json', 'registry-12005.json'].map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them.
   const viewOwned = new Set([]);
