@@ -1,3 +1,17 @@
 {
-  "view.io-background.error-output-goes-to-the-port-log": {"proves":{"specs":["H5","N26"],"claim":"launchBackgroundView starts the detached view with its stdout and stderr on its port log file, so a line the server writes to stderr after the starting command has let go lands in the log and does not end the server."},"why":"The server's stderr was a pipe back to the exiting parent; its first warning hit the closed pipe and the server exited silently about 2 s after the browser opened it.","kind":"journey","inputs":["apps/view/src/io/background.js","apps/view/tests/io/background.test.js","apps/view/tests/fixtures/background-stderr-probe.cjs"]}
+  "view.io-background.error-output-goes-to-the-port-log": {
+    "proves": {
+      "specs": [
+        "H5",
+        "N26"
+      ],
+      "claim": "launchBackgroundView starts the detached view with its stdout and stderr on its port log file, so the server's first warning, written after the starting command has let go, lands in the log and does not end the server."
+    },
+    "why": "The server's stderr was a pipe back to the exiting parent; its first warning hit the closed pipe and the server exited silently about 2 s after the browser opened it.",
+    "kind": "journey",
+    "inputs": [
+      "apps/view/src/io/background.js",
+      "apps/view/tests/io/background.test.js"
+    ]
+  }
 }
