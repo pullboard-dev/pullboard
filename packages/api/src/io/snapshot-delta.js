@@ -17,10 +17,11 @@ export function snapshotBuilders({ itemSummary, milestoneDeltaEnabled, idleEntry
     const summary = { ...state, items: state.items.map(itemSummary), finished: finishedCounts(state.items) };
     const reportValidator = { json: JSON.stringify(state.proofStats?.flow?.report), expiries: [...new Set(preparedFlow.items.flatMap(item =>
       item.state === 'claimed' ? [item.leaseUntil] : item.state === 'submitted' ? [item.reserve?.until] : []).filter(Number.isFinite))].sort((a, b) => a - b) };
-    reportValidator.comparisonEvents = [...new Set((comparisonHistory ?? []).map(event => Date.parse(event.event_at)).filter(Number.isFinite))].sort((a, b) => a - b);
     reportValidator.comparisonWindowMs = state.statsComparison?.durationMinutes * 60_000;
+    Object.assign(reportValidator, comparisonTimes(comparisonHistory ?? [], Date.parse(state.observedAt), reportValidator.comparisonWindowMs));
     reportValidator.digest = createHash('sha256').update(reportValidator.json ?? 'null').digest('hex');
-    return { revision, sequence: state.sequence, state, summary, preparedFlow, comparisonHistory, reportValidator, summaryFields: prepareStateJson(summary), stateJsonFields: null,
+    // The history itself is not kept: a cached build holds no array of every event, and a read re-reads it in pages (#13014).
+    return { revision, sequence: state.sequence, state, summary, preparedFlow, reportValidator, summaryFields: prepareStateJson(summary), stateJsonFields: null,
       print: fingerprint(summary, milestoneDeltaEnabled()), items: new Map(state.items.map((item) => [item.id, item])), itemMeta, itemMoveCounts, inputs, clockWindow, searchTexts: null };
   }
 
@@ -118,6 +119,47 @@ function jsonField(key, value) {
   return encoded === undefined ? '' : JSON.stringify(key) + ':' + encoded;
 }
 
+/** The most event rows one read of a cached build's history asks SQLite for, as a state build reads them (#13009). */
+export const HISTORY_PAGE_ROWS = 5000;
+
+/**
+ * A cached build's event history, the rows through `sequence` in event order, read in pages of HISTORY_PAGE_ROWS.
+ * Why: the cache no longer keeps the history between builds (#13014), so a read that compares flow windows reads it again, never in one query.
+ *
+ * @param {object} board an open board
+ * @param {number} sequence the build's last event id
+ * @returns {object[]} the rows `SELECT * FROM event WHERE event_id <= sequence ORDER BY event_id` returns
+ */
+export function historyThrough(board, sequence) {
+  const page = board.db.prepare(`SELECT * FROM event WHERE event_id > ? AND event_id <= ? ORDER BY event_id LIMIT ${HISTORY_PAGE_ROWS}`);
+  const rows = [];
+  for (let last = 0; ;) {
+    const next = page.all(last, sequence);
+    for (const row of next) rows.push(row);
+    if (next.length < HISTORY_PAGE_ROWS) return rows;
+    last = next.at(-1).event_id;
+  }
+}
+
+/**
+ * The event times a cached build's report validator counts, without one per event: a time at or before the earliest boundary any
+ * forward read can test (the build time less two windows) is counted once in `comparisonBefore`, and only the later times are kept.
+ * Why: a cached build is read only at or after its observation time, so the crossed counts equal those of the whole list (#13014).
+ */
+function comparisonTimes(history, observedAt, windowMs) {
+  if (!(Number.isFinite(windowMs) && windowMs > 0)) return { comparisonEvents: [], comparisonBefore: 0 };
+  const floor = Number.isFinite(observedAt) ? observedAt - 2 * windowMs : -Infinity;
+  const times = new Set();
+  let before = 0;
+  for (const event of history) {
+    const at = Date.parse(event.event_at);
+    if (!Number.isFinite(at) || times.has(at)) continue;
+    times.add(at);
+    if (at <= floor) before += 1;
+  }
+  return { comparisonEvents: [...times].filter(at => at > floor).sort((a, b) => a - b), comparisonBefore: before };
+}
+
 /** Count crossed native boundaries without scanning the retained history on every read. */
 function crossedBoundaries(values, now) {
   let low = 0, high = values.length;
@@ -127,10 +169,10 @@ function crossedBoundaries(values, now) {
 
 /** Reuse recorded report material while retaining native leases and sliding-window event membership. */
 export function reportValidation(entry, now) {
-  const { expiries, comparisonEvents, comparisonWindowMs } = entry.reportValidator;
+  const { expiries, comparisonEvents, comparisonWindowMs, comparisonBefore = 0 } = entry.reportValidator;
   let crossed = crossedBoundaries(expiries, now);
   if (Number.isFinite(comparisonWindowMs) && comparisonWindowMs > 0) {
-    for (const offset of [0, comparisonWindowMs, 2 * comparisonWindowMs]) crossed += crossedBoundaries(comparisonEvents, now - offset);
+    for (const offset of [0, comparisonWindowMs, 2 * comparisonWindowMs]) crossed += comparisonBefore + crossedBoundaries(comparisonEvents, now - offset);
   }
   return entry.reportValidator.digest + ':' + crossed;
 }
