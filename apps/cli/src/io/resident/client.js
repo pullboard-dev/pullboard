@@ -64,6 +64,52 @@ export function residentCommandCeiling(env = environmentAdapter().all()) {
   return Number.isFinite(ms) && ms > 0 ? ms : RESIDENT_COMMAND_CEILING_MS;
 }
 
+/** The longest plain `pullboard next` waits for work before its idle answer: its default wait, capped at 1.5 min [N41]. */
+export const NEXT_DEFAULT_WAIT_MS = 90_000;
+
+/**
+ * The wait a command declares by its arguments: plain next waits up to NEXT_DEFAULT_WAIT_MS for work, next --wait <n>
+ * waits n minutes, and every other command, next --no-wait and a next that only takes, builds or reviews declare none.
+ */
+export function residentDeclaredWait(argv) {
+  if (argv[0] !== 'next') return 0;
+  let wait, choosing = false;
+  for (let index = 1; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--no-wait') return 0;
+    if (arg === '--wait') wait = argv[index + 1];
+    else if (arg.startsWith('--wait=')) wait = arg.slice('--wait='.length);
+    else if (arg === '--take' || arg === '--build' || arg === '--verify' || arg.startsWith('--verify=')) choosing = true;
+  }
+  if (wait === undefined) return choosing ? 0 : NEXT_DEFAULT_WAIT_MS;
+  const minutes = Number(wait);
+  return Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, 240) * 60_000 : 0;
+}
+
+/**
+ * The ceiling one command runs under: the process ceiling plus the wait the command declares, so a next waiting for
+ * work is not ended as hung while every other command keeps the plain ceiling. Why: plain next waits up to 90 s
+ * since N41, and the 60 s ceiling turned each idle answer into RESIDENT_COMMAND_CEILING (#13008).
+ */
+export function residentCeilingFor(argv, env = environmentAdapter().all()) {
+  return residentCommandCeiling(env) + residentDeclaredWait(argv);
+}
+
+/**
+ * Race a command against its ceiling: past `ceiling` ms, `onCeiling` runs and its result is the command's. The timer
+ * is cleared once either settles. `timers` defaults to the real ones; a test passes a fake clock's.
+ */
+export async function withinCommandCeiling(command, { ceiling, onCeiling, timers = globalThis }) {
+  let timer;
+  // Why a race: a command hung on a promise that never settles would hold the process's one turn for ever.
+  const expired = new Promise((done) => {
+    timer = timers.setTimeout(() => done(onCeiling()), ceiling);
+    timer?.unref?.();
+  });
+  try { return await Promise.race([expired, command]); }
+  finally { timers.clearTimeout(timer); }
+}
+
 /** The busy file a resident process writes beside its pid file while a command runs: `<pid> <started ms>`. */
 export function residentBusyFile(pidFile) {
   return pidFile.replace(/\.pid$/u, '') + '.busy';
@@ -75,12 +121,14 @@ export function residentBusyFile(pidFile) {
  */
 export function residentBusy(pidFile, now = Date.now(), env = environmentAdapter().all()) {
   try {
-    const [pid, at] = fs.readFile(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
+    const [pid, at, own] = fs.readFile(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
     if (!Number.isSafeInteger(pid) || !Number.isFinite(at) || now - at <= RESIDENT_BUSY_DIRECT_MS) return false;
     process.kill(pid, 0);
     // A command past its ceiling and grace is wedged (its own timer never fired, so its event loop is blocked or the
-    // process is stuck): the slot is not busy, it is dead, and is freed for a successor.
-    if (now - at > residentCommandCeiling(env) + RESIDENT_WEDGED_GRACE_MS) return !reapWedged(pidFile, pid);
+    // process is stuck): the slot is not busy, it is dead, and is freed for a successor. The busy file's third field is
+    // that command's own ceiling, which counts its declared wait (#13008).
+    const ceiling = Number.isFinite(own) && own > 0 ? own : residentCommandCeiling(env);
+    if (now - at > ceiling + RESIDENT_WEDGED_GRACE_MS) return !reapWedged(pidFile, pid);
     return true;
   } catch (error) { return error?.code === 'EPERM'; }
 }
