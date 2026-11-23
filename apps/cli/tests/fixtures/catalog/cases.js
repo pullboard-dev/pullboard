@@ -771,7 +771,7 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   assert.deepEqual(plainLoopDocument.timeout, { seconds: 0 });
   assert.deepEqual(plainLoopDocument.reasons, ['[IDLE_TIMEOUT] nothing for this seat right now, and next did not wait; the board is not finished. Stop, or call next again.', "no open items in the coordinator lane; lane items are built from each lane's own worktree"]);
   // A bounded wait that finds nothing is the refusal: one JSON document with the exact public error fields.
-  const nothingFree = await box.runLocal(repo, 'next', '--wait', '0', '--json');
+  const nothingFree = await box.runLocal(repo, 'next', '--take', '--wait', '0', '--json');
   assert.equal(nothingFree.status, 1);
   assert.equal(nothingFree.stderr, '');
   const nextDocument = JSON.parse(nothingFree.stdout);
