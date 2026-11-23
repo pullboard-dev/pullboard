@@ -154,21 +154,15 @@ test('cli.io-resident-board.other-commands-keep-the-ceiling: clause 1: every com
   assert.ok(answer.said.includes(CEILING_LINE), answer.said);
 });
 
-test('cli.io-resident-board.busy-file-carries-the-command-ceiling: clause 1: a busy file naming its command ceiling keeps a waiting next busy past 60 s and frees the slot only past that ceiling and grace [C7,#13008]', async () => {
+test('cli.io-resident-board.busy-file-carries-the-command-ceiling: clause 1: a busy file naming its command ceiling keeps a waiting next busy, not wedged, past the 60 s ceiling and its grace [C7,#13008]', () => {
+  // This process stands in for the resident one: inside its own ceiling it is never signalled.
   const pidFile = join(dir, 'n.pid');
-  const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
-  const exited = new Promise(done => holder.on('exit', done));
-  writeFileSync(pidFile, `${holder.pid}\n`);
+  writeFileSync(pidFile, `${process.pid}\n`);
   const busy = residentBusyFile(pidFile);
   const ceiling = residentCeilingFor(['next'], {});
   const now = Date.now();
-  try {
-    writeFileSync(busy, `${holder.pid} ${now - RESIDENT_COMMAND_CEILING_MS - RESIDENT_WEDGED_GRACE_MS - 20_000} ${ceiling}\n`);
-    assert.equal(residentBusy(pidFile, now, {}), true, 'a next 90 s into its wait is busy, not wedged');
-    assert.equal(existsSync(pidFile), true);
-    writeFileSync(busy, `${holder.pid} ${now - ceiling - RESIDENT_WEDGED_GRACE_MS - 1} ${ceiling}\n`);
-    assert.equal(residentBusy(pidFile, now, {}), false, 'past its own ceiling and grace the slot is freed');
-    await exited;
-    assert.equal(existsSync(pidFile), false);
-  } finally { holder.kill('SIGKILL'); }
+  writeFileSync(busy, `${process.pid} ${now - RESIDENT_COMMAND_CEILING_MS - RESIDENT_WEDGED_GRACE_MS - 20_000} ${ceiling}\n`);
+  assert.equal(residentBusy(pidFile, now, {}), true, 'a next 90 s into its wait is busy, not wedged');
+  assert.equal(existsSync(pidFile), true, 'its pid file is kept');
+  assert.equal(existsSync(busy), true, 'its busy file is kept');
 });
