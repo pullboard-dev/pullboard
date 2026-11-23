@@ -183,7 +183,10 @@ test('cli.journeys-spec-e2e-next.a-deleted-spec-row-is-refused: a deleted spec r
   box.git(box.repo, 'commit', '-q', '--no-verify', '-m', 'docs(spec): drop the api row');
   box.git(box.repo, 'commit', '-q', '--no-verify', '--allow-empty', '-m', 'feat(web): ghost [G7]');
   writeFileSync(spec, `${SPEC.replace(/- G2 .*\n/, '')}- G3 [draft, must] Not committed yet.\n`);
+  // Intake reads committed main (#12991), so the row is on main while the item is filed, then leaves it again: it was never committed on any kept history.
+  box.git(box.repo, 'commit', '-q', '--no-verify', '-am', 'docs(spec): a row that will not stay');
   assert.equal((await fixtureAdd(box.runIn, box.repo, 'web', 'Uses G3', '--specs', 'G3')).code, 0);
+  box.git(box.repo, 'reset', '-q', 'HEAD~1');
   writeFileSync(spec, SPEC.replace(/- G2 .*\n/, ''));
   const check = await box.runIn(box.repo, 'spec', 'check');
   assert.equal(check.code, 1);
