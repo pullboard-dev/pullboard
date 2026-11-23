@@ -6,25 +6,32 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 
-/** Count finished records and only their current independent, non-self acceptance; unknown lineage proves nothing. */
+/**
+ * Count landed items, and the share of the verified ones that an independent reviewer checked. An item counts as landed
+ * when it is verified or carries a merge commit, so one landed by hand, folded or withdrawn as on main is counted too, and
+ * once however it qualifies. The percentage stays verdict-based: it is over the verified items only, counting each one
+ * with a current independent, non-self acceptance; unknown lineage proves nothing.
+ */
 export function badgeCounts(board) {
   const row = board.db.prepare(`SELECT COUNT(*) AS items,
-    COALESCE(SUM(CASE WHEN i.item_built_by IS NOT NULL AND i.item_built_by != ''
+    COALESCE(SUM(CASE WHEN i.item_status='verified' THEN 1 ELSE 0 END), 0) AS verified,
+    COALESCE(SUM(CASE WHEN i.item_status='verified' AND i.item_built_by IS NOT NULL AND i.item_built_by != ''
       AND v.verdict_by != i.item_built_by AND assurance.meta_value='independent' THEN 1 ELSE 0 END), 0) AS checked
     FROM item i LEFT JOIN verdict v ON v.verdict_id = (
       SELECT MAX(a.verdict_id) FROM verdict a WHERE a.item_id=i.item_id
         AND a.verdict_decision='ACCEPT' AND a.verdict_commit=i.item_commit)
     LEFT JOIN board_meta assurance ON assurance.meta_key='verdict_assurance:' || v.verdict_id
-    WHERE i.item_status='verified'`).get();
-  return { items: row.items, checked: row.checked, percent: row.items ? Math.floor(row.checked * 100 / row.items) : null };
+    WHERE i.item_status='verified' OR (i.item_merged_commit IS NOT NULL AND i.item_merged_commit != '')`).get();
+  return { items: row.items, verified: row.verified, checked: row.checked, percent: row.verified ? Math.floor(row.checked * 100 / row.verified) : null };
 }
 
-/** Serialize stable endpoint bytes; the zero-item board has no percentage to publish. */
+/** Serialize stable endpoint bytes; the zero-item board, or one with nothing verified, has no percentage to publish. */
 export function badgeDocuments(counts) {
   if (!counts.items) return [];
   return [
     { path: 'docs/badges/items.json', value: { schemaVersion: 1, label: 'pullboard', message: `${counts.items} items`, color: '2f7d5b' } },
-    { path: 'docs/badges/checked.json', value: { schemaVersion: 1, label: 'agent-verified', message: `${counts.percent}%`, color: '6e7781' } },
+    // A board with no verified item has no verdicts to take a percentage of.
+    ...(counts.percent === null ? [] : [{ path: 'docs/badges/checked.json', value: { schemaVersion: 1, label: 'agent-verified', message: `${counts.percent}%`, color: '6e7781' } }]),
   ].map(document => ({ path: document.path, text: JSON.stringify(document.value, null, 2) + '\n' }));
 }
 
