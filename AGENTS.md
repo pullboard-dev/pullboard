@@ -27,7 +27,7 @@ This repo runs on Pullboard: board, lanes and spec, all in git.
 - **Spec:** `SPEC.md` rows, each with an id like `G1.2`; code follows them.
 - **Commits:** `feat(scope): subject [G1.2]`, citing the ids served.
 - **Seats:** an agent is its worktree; the main checkout is the coordinator.
-- **Lanes:** join one with `pullboard join <lane>`.
+- **Lanes:** open and join one with `pullboard worktree <lane> --model "<model name>"`.
 
 ## Roles
 
@@ -44,22 +44,21 @@ Agents think; Pullboard does everything deterministic.
 
 Never wait, never sleep, never poll, never stop while the board has work.
 
-1. `pullboard next --wait 1`: build/verify. On an empty answer, run it again at once. Verify: `pullboard next --verify --wait 1`.
+1. `pullboard next --wait 1`: build/verify. On an empty answer, wait 1 s, then 2 s, 4 s and so on up to 60 s; run it again. `pullboard next --verify --wait 1`.
 2. `next` printed your bar; `pullboard show <id>` only for the thread and history.
-3. **Build** in lane.
-4. **Commit**; `pullboard submit <id>`.
-5. **Repeat:** `next` returns reds/rejects; fix/resubmit.
+3. **Build**; **commit**; `pullboard submit <id>`; fix reds; resubmit.
+
+- **Review:** A review-lane seat reviews; loop with `pullboard next --verify --wait 1`.
 
 ### Building
 
-- **Gate:** Pullboard runs it; never run suites.
-- **Long commands:** background >1 min.
-- **Can't build:** `pullboard release <id> --reason <CODE>`; `next`.
-- **Stop:** only when `pullboard status` shows nothing open, building, in gate or in review.
+- **Gate:** Pullboard checks; no suites.
+- **Can't build:** `pullboard release <id> --reason <CODE>`.
+- **Stop:** only when the wait reached 60 s and `next` is still empty.
 
 ### Verifying
 
-- **Judge:** compare diff with bar and receipts; rerun only if a clause lacks coverage.
+- **Judge:** check bar, diff, receipts.
 - **Accept:** `pullboard verify <id> accept`.
 - **Reject:** `pullboard verify <id> reject --reason TEST_FAILURE|BEHAVIOR_MISMATCH|INSUFFICIENT_EVIDENCE|STALE_HEAD|OTHER --clause "<clause>" --note "..."`.
 
