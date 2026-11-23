@@ -27,6 +27,7 @@ import { test } from 'node:test';
 import { headCommit } from '../../../../packages/git/index.js';
 import { withGitFacts } from '../../../../packages/git/index.js';
 import { fixture } from '../../tests/fixtures/init/calls.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { advanceHead } from '../../tests/fixtures/init/calls.js';
 import { GIT_MODULE } from '../../tests/fixtures/init/calls.js';
 import { pathToFileURL } from 'node:url';
@@ -192,7 +193,7 @@ test('cli.journeys-init-calls.combined-git-source-facts-retain-repository: combi
   const missingWorker = join(box.dir, 'missing-worker');
   mkdirSync(missingRepo);
   box.git(missingRepo, 'init', '-q', '-b', 'main');
-  writeFileSync(join(missingRepo, 'pullboard.json'), '{}\n');
+  fixtureProjectPolicy(missingRepo);
   box.git(missingRepo, 'add', 'pullboard.json');
   box.git(missingRepo, 'commit', '-q', '-m', 'test(core): create optional-source fixture [C7]');
   box.git(missingRepo, 'worktree', 'add', '-q', '-b', 'worker', missingWorker);
