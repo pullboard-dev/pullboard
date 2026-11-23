@@ -13,6 +13,8 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 **Upgrading from 0.9.4: plain `pullboard next` now waits.** With nothing free, it waits up to 90 seconds for work instead of answering at once. It exits 0 when it hands you work, 3 when the board is finished, and 4 (IDLE_TIMEOUT) when it waited and nothing came. Scripts and agent loops that expect the old instant answer should call `pullboard next --no-wait` (#12807, #12048).
 
+**Upgrade every machine on a shared board together.** A 0.9.4 client stops at the first move a 0.9.5 client writes. The phone view needs the hosted relay updated to 0.9.5 as well.
+
 The design behind it, proposed:
 
 - [RFC 0012: Compiled bars](docs/rfcs/0012-compiled-bars.md) — proposed.
