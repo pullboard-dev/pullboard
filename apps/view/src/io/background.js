@@ -114,13 +114,22 @@ function release(child) {
  * @returns {Promise<number>}
  */
 export async function launchBackgroundView(io, port, projectRoot, { lan = false } = {}) {
-  const { child, view } = await startDetachedView({
-    args: [...(projectRoot ? ['--project'] : []), ...(lan ? ['--lan'] : []), '--port', String(port)],
-    cwd: projectRoot ?? io.cwd,
-    stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
-  });
-  release(child);
-  reportView(io, { ...view, reused: false });
+  // The child's output goes to its port log file, never to a pipe back to this exiting command: with the pipe closed,
+  // the server's first warning (Node's SQLite ExperimentalWarning) would hit it and end the server silently.
+  const log = backgroundViewLog(port);
+  mkdirSync(dirname(log), { recursive: true });
+  const fd = openSync(log, 'w', 0o600);
+  try {
+    const { child, view } = await startDetachedView({
+      args: [...(projectRoot ? ['--project'] : []), ...(lan ? ['--lan'] : []), '--port', String(port)],
+      cwd: projectRoot ?? io.cwd,
+      stdio: ['ignore', fd, fd, 'ipc'],
+    });
+    release(child);
+    reportView(io, { ...view, reused: false });
+  } finally {
+    closeSync(fd);
+  }
   io.flush?.(0);
   return 0;
 }
