@@ -415,7 +415,7 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
     assert.match(page, /const snapshot = true;/);
     assert.match(page, /href="view\.css"/);
     assert.match(page, /path = snapshot \? path\.split\('\?'\)\[0\]\.slice\(1\) \+ '\.json'/);
-    assert.match(page, /api\(boardPath\(view\.root\) \+ '\/events'\)/);
+    assert.match(page, /api\(boardPath\(view\.root\) \+ '\/events\?after=' \+ replayAfter \+ '&limit=5000'\)/);
     assert.match(staticViewPage, /^# Static view export\n\n## Snapshot files\n/u);
   } finally {
     rmSync(root, { recursive: true, force: true });
