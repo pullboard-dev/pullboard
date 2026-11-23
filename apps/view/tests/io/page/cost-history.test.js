@@ -105,5 +105,5 @@ test('view.page.cost-gap-paged: clause 2: the Cost gap scan asks for events with
   read({ sequence: 40, events: [{ event_id: 40, event_kind: 'claim' }, { event_id: 39, event_kind: 'submit' }] });
   await quiet();
   assert.ok(logs.length >= 1, 'the gap was read from the event log');
-  assert.deepEqual(logs.filter(path => !/[?&]limit=50000(?:&|$)/u.test(path)), [], 'no events read omits its limit');
+  assert.deepEqual(logs.filter(path => !/[?&]limit=5000(?:&|$)/u.test(path)), [], 'no events read omits its limit');
 });

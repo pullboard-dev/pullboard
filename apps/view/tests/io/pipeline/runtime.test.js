@@ -63,7 +63,7 @@ test('view.x-io-pipeline-runtime.clause-2-it-draws-reading-until-the: clause 2: 
 });
 
 /** A stub board of `count` events, one every ten minutes, ending at `end`; its api records every events request and answers like the real route. */
-function board(count, end, { batch = 50_000 } = {}) {
+function board(count, end, { batch = 5_000 } = {}) {
   const log = [], at = id => new Date(end - (count - id) * 600_000).toISOString();
   const api = async path => {
     log.push(path);
@@ -118,8 +118,8 @@ test('view.pipeline.window-live: clause 2: the page reads through its own window
   const moved = { ...project, sequence: 2_001 };
   runtime.draw(moved);
   assert.equal(region.innerHTML, '<b>drawn</b>', 'a window that was complete once keeps drawing while the next events arrive');
-  await flush(() => stub.log.at(-1)?.endsWith('after=2000&limit=50000'));
-  assert.equal(stub.log.at(-1), '/api/v1/boards/b/events?after=2000&limit=50000', 'a later read starts after the last held id, not from the start of the window');
+  await flush(() => stub.log.at(-1)?.endsWith('after=2000&limit=5000'));
+  assert.equal(stub.log.at(-1), '/api/v1/boards/b/events?after=2000&limit=5000', 'a later read starts after the last held id, not from the start of the window');
   assert.ok(first > 100, 'the first read held the window');
   await flush(); // the later read finishes and redraws before the test ends
 });

@@ -29,7 +29,7 @@ test('view.x-io-dashboard-runtime.dashboard-refuses-truncated-history-and-isolat
 
   identity = 'replacement'; reply = { events: [{ event_id: 1 }, { event_id: 2 }, { event_id: 3 }, { event_id: 4 }] };
   runtime.draw(project, ''); await delivered(); runtime.draw(project, '');
-  assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0&limit=50000', 'a different native board starts a fresh history read');
+  assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0&limit=5000', 'a different native board starts a fresh history read');
   assert.equal(observations.at(-1).options.complete, true);
   assert.deepEqual(observations.at(-1).events.map(event => event.event_id), [1,2,3], 'events beyond the displayed sequence never enter the projection');
   assert.equal(observations.at(-1).options.now, Date.parse(project.observedAt), 'the API observation clock governs rates and lease windows');
@@ -46,7 +46,7 @@ test('view.x-io-dashboard-runtime.dashboard-refuses-truncated-history-and-isolat
 
   reply = { events: [{ event_id: 1 }, { event_id: 2 }] };
   runtime.draw({ ...project, sequence: 2 }, ''); await delivered(); runtime.draw({ ...project, sequence: 2 }, '');
-  assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0&limit=50000', 'a backwards native prefix cannot reuse a later board history');
+  assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0&limit=5000', 'a backwards native prefix cannot reuse a later board history');
   assert.equal(observations.at(-1).options.complete, true);
   runtime.draw(project, 'current compact needs');
   runtime.draw({ ...project, observedAt: '2026-10-27T12:01:00Z' });
