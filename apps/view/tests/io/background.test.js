@@ -50,6 +50,7 @@ test('view.io-background.error-output-goes-to-the-port-log: clause 1: launchBack
     const watcher = watch(dirname(log), () => { if (logText().includes('probe: first runtime warning')) { watcher.close(); resolve(logText()); } });
     t.after(() => watcher.close());
   });
+  t.after(() => console.log(`background view log at ${log}: ${JSON.stringify(logText())}; pid ${started?.pid}`));
   assert.equal(await launchBackgroundView(io, port), 0);
   assert.ok(started?.pid > 0, 'the detached view reported its process');
   const text = await written;
