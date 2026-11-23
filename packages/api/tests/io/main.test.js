@@ -25,6 +25,8 @@ import { createHash } from 'node:crypto';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { listBoardMetaWithPrefix } from '../../../store/index.js';
+import { listItems } from '../../../store/index.js';
+import { createStateSnapshots } from '../../index.js';
 
 /** The renderer the API takes as a port: a refusal becomes its public error body. */
 function refusalDocument(error) {
@@ -524,4 +526,90 @@ test('api.main.board-service-no-launchctl: clause 1: a machine without launchctl
   const refusal = Object.assign(new Error('no launchctl'), { code: 'USAGE' });
   await assert.rejects(() => installBoardService(SERVICE_PLAN, { ...ports, launchctl: async () => { throw refusal; } }), (error) => error === refusal);
   assert.deepEqual(calls.writes, []);
+});
+
+/** The observation clock of the state-cache case: every build of it reads the board at this instant. */
+const CACHE_NOW = Date.parse('2026-11-20T12:00:00Z');
+
+/** The openers a state build reads through: the board kit's opener for reads too, whose boards carry the native ports the roadmap's queue reads. */
+const NATIVE_OPENERS = Object.freeze({ openBoard: openCellBoard, openBoardForRead: (file) => openCellBoard(file), moveArgs: (body) => [body.verb] });
+
+/** The view projections a state build takes, reduced to a listing of items, as the store's own state-build case reduces them. */
+const LISTING_PORTS = Object.freeze({
+  projectState: (_root, { board, itemProjector }) => ({ agents: [], spec: [], practice: [],
+    items: listItems(board, { all: true }).map((item) => itemProjector(item, { project: () => ({ id: item.item_id, status: item.item_status, history: [], verdicts: [], merged: false }) })) }),
+  activeViewAgents: (agents) => agents,
+  viewProofSummary: (summary) => summary,
+  compactItemSummaries: (summary) => summary,
+  viewFlowSummary: (flow) => flow,
+});
+
+/**
+ * Write `count` events straight to a board file's tables with its machine guards dropped for the seed, then put back:
+ * with `items`, first file that many items and spread the events over them across the last 30 days; else add notes now.
+ */
+function seedEvents(file, count, { items = 0 } = {}) {
+  const board = openCellBoard(file);
+  const guards = board.db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all();
+  try {
+    for (const { name } of guards) board.db.exec(`DROP TRIGGER "${name}"`);
+    board.db.exec('BEGIN');
+    const at = (ms) => new Date(ms).toISOString();
+    const item = board.db.prepare("INSERT INTO item (item_lane, item_title, item_status, item_created_by, item_created_at, item_updated_at) VALUES ('core', ?, 'open', 'coordinator', ?, ?)");
+    const ids = Array.from({ length: items }, (_, index) => Number(item.run(`item ${index}`, at(CACHE_NOW - 30 * 86_400_000), at(CACHE_NOW - 86_400_000)).lastInsertRowid));
+    const known = ids.length ? ids : listItems(board, { all: true }).map((row) => row.item_id);
+    const event = board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, 'coordinator', ?, ?, ?)");
+    for (let index = 0; index < count; index += 1) {
+      const when = items ? CACHE_NOW - 30 * 86_400_000 + Math.floor((index * 30 * 86_400_000) / count) : CACHE_NOW - 60_000;
+      event.run(at(when), index < ids.length ? 'add' : 'note', known[index % known.length], JSON.stringify({ step: index }));
+    }
+    board.db.exec('COMMIT');
+  } finally {
+    for (const { sql } of guards) board.db.exec(sql);
+    closeCellBoard(board);
+  }
+}
+
+/** The longest list (array, typed array, Map or Set) and the number of event rows reachable from a value, each object walked once. */
+function retained(value) {
+  const seen = new Set();
+  const stack = [value];
+  let longest = 0;
+  let eventRows = 0;
+  while (stack.length) {
+    const next = stack.pop();
+    if (next === null || typeof next !== 'object' || seen.has(next)) continue;
+    seen.add(next);
+    if (ArrayBuffer.isView(next)) { longest = Math.max(longest, next.length); continue; }
+    if (next instanceof Map || next instanceof Set) { longest = Math.max(longest, next.size); for (const entry of next) stack.push(entry); continue; }
+    if (Array.isArray(next)) longest = Math.max(longest, next.length);
+    if (Object.hasOwn(next, 'event_id') && Object.hasOwn(next, 'event_kind')) eventRows += 1;
+    for (const key of Object.keys(next)) stack.push(next[key]);
+  }
+  return { longest, eventRows };
+}
+
+test('api.main.state-cache-keeps-no-history: clause 1 [C7]: after two state builds of a board with 200,000 events the cached state holds no array of every event, while the second build returns the same state as a full rebuild (#13014)', { timeout: 600_000 }, (t) => {
+  const count = 200_000;
+  const project = cellProject(t, { real: true });
+  seedEvents(project.boardFile, count, { items: 50 });
+  const board = { id: fixtureBoardId(project), root: project.repo };
+  const snapshotsOf = (onStateBuild) => createStateSnapshots({ projects: () => [{ root: project.repo, name: 'fixture', project: 'fixture', added: '2026-11-20' }],
+    isMain: false, now: () => CACHE_NOW, boardOpeners: NATIVE_OPENERS, viewPorts: LISTING_PORTS, onStateBuild });
+  const builds = [];
+  const snapshots = snapshotsOf((build) => builds.push(build));
+  const first = snapshots.withSnapshot(board, (entry) => entry.state);
+  seedEvents(project.boardFile, 1);
+  const second = snapshots.withSnapshot(board, (entry) => entry.state);
+  assert.deepEqual(builds.map((build) => build.full), [true, false], 'the second build extends the first, as a moving board builds');
+  assert.equal(second.sequence, first.sequence + 1, 'the second build read the event written after the first');
+  assert.equal(snapshots.stateCache.size, 1, 'one board, one cached build');
+  for (const entry of snapshots.stateCache.values()) {
+    assert.equal('comparisonHistory' in entry, false, 'the cached build carries no history field');
+    const kept = retained(entry);
+    assert.ok(kept.longest < count, `the longest list the cached build holds has ${kept.longest} entries, under the ${count + 1} events`);
+    assert.ok(kept.eventRows < count, `the cached build reaches ${kept.eventRows} event rows, not every event`);
+  }
+  const rebuilt = snapshotsOf(() => {}).withSnapshot(board, (entry) => entry.state);
+  assert.deepEqual(second, rebuilt, 'the extended build is the state a full rebuild of the same board returns');
 });
